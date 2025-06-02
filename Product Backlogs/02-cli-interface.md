@@ -70,6 +70,8 @@ pub enum Commands {
     Sync(SyncArgs),
     /// 配置管理
     Config(ConfigArgs),
+    /// 產生 shell completion script (新增)
+    GenerateCompletion(GenerateCompletionArgs),
 }
 ```
 
@@ -109,7 +111,7 @@ pub struct ConvertArgs {
     
     /// 目標格式
     #[arg(long, value_enum)]
-    pub format: SubtitleFormat,
+    pub format: OutputSubtitleFormat, // 更新 enum 名稱以更清晰
     
     /// 輸出文件路徑
     #[arg(short, long)]
@@ -125,11 +127,22 @@ pub struct ConvertArgs {
 }
 
 #[derive(ValueEnum, Clone)]
-pub enum SubtitleFormat {
+pub enum OutputSubtitleFormat { // 更新 enum 名稱
     Srt,
     Ass,
     Vtt,
     Sub,
+}
+```
+
+### 新增 GenerateCompletionArgs
+```rust
+// src/cli/generate_completion_args.rs
+#[derive(Args)]
+pub struct GenerateCompletionArgs {
+    /// The shell to generate the completion script for
+    #[arg(value_enum)]
+    pub shell: clap_complete::Shell,
 }
 ```
 
@@ -141,16 +154,31 @@ pub async fn run() -> crate::Result<()> {
     
     match cli.command {
         Commands::Match(args) => {
+            // 實際執行邏輯將在 Backlog #09 中整合
+            println!("執行 Match 命令: {:?}", args);
             crate::commands::match_command::execute(args).await
         }
         Commands::Convert(args) => {
+            // 實際執行邏輯將在 Backlog #09 中整合
+            println!("執行 Convert 命令: {:?}", args);
             crate::commands::convert_command::execute(args).await
         }
         Commands::Sync(args) => {
+            // 實際執行邏輯將在 Backlog #09 中整合
+            println!("執行 Sync 命令: {:?}", args);
             crate::commands::sync_command::execute(args).await
         }
         Commands::Config(args) => {
+            // 實際執行邏輯將在 Backlog #03 中實作
+            println!("執行 Config 命令: {:?}", args);
             crate::commands::config_command::execute(args).await
+        }
+        // 新增 GenerateCompletion 命令的處理
+        Commands::GenerateCompletion(args) => {
+            let mut cmd = <Cli as clap::CommandFactory>::command();
+            let cmd_name = cmd.get_name().to_string();
+            clap_complete::generate(args.shell, &mut cmd, cmd_name, &mut std::io::stdout());
+            Ok(())
         }
     }
 }

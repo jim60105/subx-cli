@@ -52,7 +52,7 @@ version = "0.1.0"
 edition = "2021"
 authors = ["Your Name <email@example.com>"]
 description = "智慧字幕處理 CLI 工具，使用 AI 技術自動匹配、重命名和處理字幕檔案"
-license = "MIT"
+license = "GPLv3"
 repository = "https://github.com/yourusername/subx"
 homepage = "https://github.com/yourusername/subx"
 documentation = "https://docs.rs/subx"
@@ -434,7 +434,7 @@ class Subx < Formula
   homepage "https://github.com/yourusername/subx"
   url "https://github.com/yourusername/subx/archive/v0.1.0.tar.gz"
   sha256 "YOUR_SHA256_HERE"
-  license "MIT"
+  license "GPLv3"
 
   depends_on "rust" => :build
   depends_on "ffmpeg" => :optional
