@@ -2,6 +2,9 @@
 
 一個智慧字幕處理 CLI 工具，使用 AI 技術自動匹配、重命名和處理字幕文件。
 
+> [!WARNING]  
+> This project is currently in a very early stage of development and isn't functional at the moment. I would appreciate it if you could star it, so you'll be notified when I release updates in the future.
+
 ## 功能特色
 
 - 🤖 **AI 智慧匹配** - 自動識別影片與字幕的對應關係並重命名
@@ -181,3 +184,8 @@ A: 確保文件名包含足夠的識別信息（如劇名、季數、集數）�
 
 **Q: 時間軸同步失敗？**
 A: 確保影片文件可訪問，並嘗試手動指定偏移量：`subx sync --offset <seconds>`
+
+---
+
+> [!NOTE]  
+> This project is fully developed using GitHub Copilot and Codex CLI, with an attempt to maintain the maintainability of the software architecture. My goal is to practice controlling and planning professional software engineering work entirely through prompt engineering with AI. This is what professional video coding should be.
