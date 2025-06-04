@@ -166,6 +166,21 @@ audio_sample_rate = 16000
   --method <METHOD>     同步方法 (audio|manual)
 ```
 
+### `subx config` - 配置管理
+```
+使用:
+  subx config set <KEY> <VALUE>   設定配置值
+  subx config get <KEY>           獲取配置值
+  subx config list                列出所有配置
+  subx config reset               重置配置
+```
+
+### `subx generate-completion` - 產生 shell 補全腳本
+```
+使用:
+  subx generate-completion <SHELL>  支援的 shell: bash, zsh, fish, powershell, elvish
+```
+
 ## 支援格式
 
 | 格式 | 讀取 | 寫入 | 說明 |

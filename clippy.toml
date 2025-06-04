@@ -1,2 +1,13 @@
-# Clippy configuration
-warn = ["clippy::all"]
+# SubX 專案 Clippy Lint 設定
+
+deny = [
+    "clippy::all",                # 啟用所有 Clippy 預設警告
+    "clippy::pedantic",           # 啟用嚴格模式
+    "clippy::unwrap_used",        # 禁止 unwrap
+    "clippy::expect_used",        # 禁止 expect
+    "clippy::unnecessary_unwrap", # 禁止不必要的 unwrap
+    "clippy::unused_io_amount",   # 禁止未使用的 io 數量
+    "clippy::wildcard_imports",   # 禁止萬用字元匯入
+    "clippy::missing_errors_doc", # 禁止缺少錯誤註解
+    "clippy::missing_panics_doc"  # 禁止缺少恐慌註解
+]
