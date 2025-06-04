@@ -20,7 +20,7 @@
 	// "forwardPorts": [],
 
 	// Use 'postCreateCommand' to run commands after the container is created.
-	"postCreateCommand": "cd ~ && git clone --depth 1 --filter=blob:none --sparse https://github.com/openai/codex.git && cd ~/codex && git sparse-checkout set codex-rs && cd codex-rs/cli && cargo install --path ."
+	"postCreateCommand": "cd ~ && git clone --depth 1 --filter=blob:none --sparse https://github.com/openai/codex.git && cd ~/codex && git sparse-checkout set codex-rs && cd codex-rs/cli && cargo install --path . && rustup default stable && rustup component add clippy && rustup component add rustfmt",
 
 	// Configure tool-specific properties.
 	// "customizations": {},

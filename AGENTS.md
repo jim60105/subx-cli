@@ -1,44 +1,69 @@
-# Copilot 專案提示 (SubX)
+# Codex Project Instructions (SubX)
 
-- **專案:** SubX - Rust CLI 智慧字幕工具。
-- **角色:** 技術專家，協助開發與審查。
-- **核心文件:** `../README.md`, `.github/instructions/tech-architecture.md`
-- **回應語言:** `zh-TW 正體中文`
-- **關鍵指令:**
-    - 嚴格遵守使用者提供的所有指示，特別是**詞彙翻譯** (例如：`create`=`建立`, `code`=`程式碼`, `file`=`檔案`, `object`=`物件`)。
-    - 保持高品質。
-    - 主動參考核心文件與對話歷史以理解需求。
+* **Project:** SubX – An intelligent subtitle utility implemented as a Rust-based CLI tool.
 
-# Product Backlogs 詳細指導
-每個 Product Backlog 包含完整的技術設計和實作細節：
+* **Role:** Act as a technical expert responsible for both development and code review.
 
-1. **[專案基礎建設](.github/instructions/01-project-foundation.md)** 
-   - Rust 專案初始化、目錄結構、錯誤處理架構
+* **Core References:** `../README.md`, `.github/instructions/tech-architecture.md`
 
-2. **[CLI 介面框架](.github/instructions/02-cli-interface.md)**
-   - 命令結構設計、參數解析、用戶介面
+* **Response Language:** `zh-TW 正體中文`
 
-3. **[配置管理系統](.github/instructions/03-config-management.md)**
-   - TOML 配置、環境變數、驗證機制
+* **Key Directives:**
 
-4. **[字幕格式引擎](.github/instructions/04-subtitle-format-engine.md)**
-   - SRT/ASS/VTT/SUB 解析器、統一資料結構
+  * Rigorously comply with all user-defined instructions, with particular emphasis on **vocabulary consistency** (e.g., `create` = `建立`, `code` = `程式碼`, `file` = `檔案`, `object` = `物件`).
+  * Maintain the highest standard of quality in all deliverables.
+  * Proactively consult both core documentation and conversation history to ensure accurate comprehension of all requirements.
 
-5. **[AI 服務整合](.github/instructions/05-ai-service-integration.md)**
-   - OpenAI API 整合、提示工程、重試機制
+---
 
-6. **[文件匹配引擎](.github/instructions/06-file-matching-engine.md)**
-   - 文件發現、AI 驅動匹配、預覽模式
+# Detailed Guidelines for Product Backlogs
 
-7. **[格式轉換系統](.github/instructions/07-format-conversion-system.md)**
-   - 跨格式轉換、樣式保留、批次處理
+Each product backlog entry encapsulates the complete technical design and implementation blueprint for a discrete module:
 
-8. **[音訊同步引擎](.github/instructions/08-audio-sync-engine.md)**
-   - FFmpeg 整合、互相關分析、自動對齊
+1. **[Project Foundation](.github/instructions/01-project-foundation.md)**
 
-9. **[指令整合測試](.github/instructions/09-command-integration.md)**
-   - 端到端測試、錯誤處理、使用者工作流程
+   * Initialization of the Rust project, directory layout, and error-handling architecture
 
-10. **[部署與發布](.github/instructions/10-deployment-release.md)**
-    - CI/CD 管道、跨平台編譯、發布自動化
+2. **[CLI Interface Framework](.github/instructions/02-cli-interface.md)**
 
+   * Command architecture, parameter parsing, and user interface specification
+
+3. **[Configuration Management System](.github/instructions/03-config-management.md)**
+
+   * TOML-based configuration, environment variable support, and validation mechanisms
+
+4. **[Subtitle Format Engine](.github/instructions/04-subtitle-format-engine.md)**
+
+   * Parsers for SRT/ASS/VTT/SUB formats and a unified data model
+
+5. **[AI Service Integration](.github/instructions/05-ai-service-integration.md)**
+
+   * Integration with the OpenAI API, prompt engineering strategies, and retry logic
+
+6. **[File Matching Engine](.github/instructions/06-file-matching-engine.md)**
+
+   * File discovery mechanisms, AI-assisted matching, and preview mode implementation
+
+7. **[Format Conversion System](.github/instructions/07-format-conversion-system.md)**
+
+   * Cross-format subtitle transformation, style preservation, and batch processing
+
+8. **[Audio Synchronization Engine](.github/instructions/08-audio-sync-engine.md)**
+
+   * FFmpeg integration, cross-correlation analysis, and automatic alignment routines
+
+9. **[Command Integration Testing](.github/instructions/09-command-integration.md)**
+
+   * End-to-end validation, fault tolerance, and user workflow simulations
+
+10. **[Deployment and Release](.github/instructions/10-deployment-release.md)**
+
+    * CI/CD pipeline orchestration, cross-platform compilation, and automated release management
+
+# Work Report Protocol
+
+Development progress for this project is systematically tracked within the `.github/codex` directory. Upon the completion of each task, you are required to generate a comprehensive work report. Refer to the naming conventions of existing files to determine an appropriate filename.
+
+Your report must include a detailed account of the work performed, encompassing all relevant code modifications and corresponding test outcomes.
+
+Following the completion of each task, it is **imperative** that you execute a Git commit with sign-off. Write the commit message in English. Use conventional commit format, ensuring it is concise yet descriptive.
