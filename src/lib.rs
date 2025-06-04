@@ -7,4 +7,6 @@ pub mod cli;
 pub mod config;
 pub mod core;
 pub mod error;
+pub type Result<T> = error::SubXResult<T>;
+
 pub mod services;

@@ -1,18 +1,18 @@
 //! SubX CLI 模組
 
-mod match_args;
-mod convert_args;
-mod sync_args;
 mod config_args;
+mod convert_args;
 mod generate_completion_args;
+mod match_args;
+mod sync_args;
 mod ui;
 
 use clap::{Parser, Subcommand};
-pub use match_args::MatchArgs;
+pub use config_args::{ConfigAction, ConfigArgs};
 pub use convert_args::{ConvertArgs, OutputSubtitleFormat};
-pub use sync_args::{SyncArgs, SyncMethod};
-pub use config_args::{ConfigArgs, ConfigAction};
 pub use generate_completion_args::GenerateCompletionArgs;
+pub use match_args::MatchArgs;
+pub use sync_args::{SyncArgs, SyncMethod};
 pub use ui::{create_progress_bar, print_error, print_success, print_warning};
 
 /// SubX CLI 主體

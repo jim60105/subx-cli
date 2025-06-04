@@ -1,6 +1,5 @@
 // src/main.rs
 use anyhow::Result;
-use env_logger;
 use log::info;
 
 #[tokio::main]
