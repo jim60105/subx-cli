@@ -33,7 +33,7 @@
 	// "forwardPorts": [],
 
 	// Use 'postCreateCommand' to run commands after the container is created.
-	"postCreateCommand": "curl -fsSL https://gist.github.com/jim60105/2ad69d49b7727d6c6e95981ffcb6a41f/raw/build-codex-cli.sh | bash"
+	"postCreateCommand": "PNPM_HOME=~/.local/share/pnpm PATH=\"$PNPM_HOME:$PATH\" pnpm i -g @openai/codex@native"
 
 	// Configure tool-specific properties.
 	// "customizations": {},
