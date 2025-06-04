@@ -13,6 +13,7 @@
   * Rigorously comply with all user-defined instructions, with particular emphasis on **vocabulary consistency** (e.g., `create` = `建立`, `code` = `程式碼`, `file` = `檔案`, `object` = `物件`).
   * Maintain the highest standard of quality in all deliverables.
   * Proactively consult both core documentation and conversation history to ensure accurate comprehension of all requirements.
+  * Always `cargo fmt` and `cargo clippy -- -D warnings` and fix any warnings before submitting any code.
 
 ---
 
