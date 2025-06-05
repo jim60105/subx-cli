@@ -106,6 +106,31 @@ impl SubtitleFormat for AssFormat {
     }
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    const SAMPLE_ASS: &str = "[Script Info]\nScriptType: v4.00+\n\n[V4+ Styles]\nFormat: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text\n\n[Events]\nFormat: Layer,Start,End,Style,Name,MarginL,MarginR,MarginV,Effect,Text\nDialogue: 0,0:00:01.00,0:00:02.50,Default,,0000,0000,0000,,Hello\\NASS\n";
+
+    #[test]
+    fn test_detect_ass() {
+        let fmt = AssFormat;
+        assert!(fmt.detect(SAMPLE_ASS));
+        assert!(!fmt.detect("Not ASS content"));
+    }
+
+    #[test]
+    fn test_parse_ass_and_serialize() {
+        let fmt = AssFormat;
+        let subtitle = fmt.parse(SAMPLE_ASS).expect("ASS parse failed");
+        assert_eq!(subtitle.entries.len(), 1);
+        assert_eq!(subtitle.entries[0].text, "Hello\nASS");
+        let out = fmt.serialize(&subtitle).expect("ASS serialize failed");
+        assert!(out.contains("Dialogue: 0,0:00:01.00,0:00:02.50"));
+        assert!(out.contains("Hello\\NASS"));
+    }
+}
+
 fn parse_ass_time(time: &str) -> Result<Duration> {
     let parts: Vec<&str> = time.split(&[':', '.'][..]).collect();
     if parts.len() != 4 {

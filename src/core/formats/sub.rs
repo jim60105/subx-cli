@@ -14,8 +14,9 @@ pub struct SubFormat;
 impl SubtitleFormat for SubFormat {
     fn parse(&self, content: &str) -> Result<Subtitle> {
         let fps = DEFAULT_SUB_FPS;
-        let re = Regex::new(r"^\{(\d+)\}\{(\d+)\}(.*)")
-            .map_err(|e: regex::Error| SubXError::subtitle_format(self.format_name(), e.to_string()))?;
+        let re = Regex::new(r"^\{(\d+)\}\{(\d+)\}(.*)").map_err(|e: regex::Error| {
+            SubXError::subtitle_format(self.format_name(), e.to_string())
+        })?;
         let mut entries = Vec::new();
         for line in content.lines() {
             let l = line.trim();
@@ -23,12 +24,12 @@ impl SubtitleFormat for SubFormat {
                 continue;
             }
             if let Some(cap) = re.captures(l) {
-                let start_frame: u64 = cap[1]
-                    .parse()
-                    .map_err(|e: std::num::ParseIntError| SubXError::subtitle_format(self.format_name(), e.to_string()))?;
-                let end_frame: u64 = cap[2]
-                    .parse()
-                    .map_err(|e: std::num::ParseIntError| SubXError::subtitle_format(self.format_name(), e.to_string()))?;
+                let start_frame: u64 = cap[1].parse().map_err(|e: std::num::ParseIntError| {
+                    SubXError::subtitle_format(self.format_name(), e.to_string())
+                })?;
+                let end_frame: u64 = cap[2].parse().map_err(|e: std::num::ParseIntError| {
+                    SubXError::subtitle_format(self.format_name(), e.to_string())
+                })?;
                 let text = cap[3].replace("|", "\n");
                 let start_time = Duration::from_millis(
                     (start_frame as f64 * 1000.0 / fps as f64).round() as u64,
@@ -98,5 +99,49 @@ mod tests {
         assert_eq!(subtitle.entries.len(), 1);
         let out = fmt.serialize(&subtitle).expect("serialize failed");
         assert!(out.contains("{10}{20}Hello|World"));
+    }
+
+    #[test]
+    fn test_detect_true_and_false() {
+        let fmt = SubFormat;
+        assert!(fmt.detect(SAMPLE));
+        assert!(!fmt.detect("random text"));
+    }
+
+    #[test]
+    fn test_parse_multiple_and_frame_rate() {
+        let custom = "{0}{25}First|Line\n{25}{50}Second|Line\n";
+        let fmt = SubFormat;
+        let subtitle = fmt.parse(custom).expect("parse multiple failed");
+        assert_eq!(subtitle.entries.len(), 2);
+        assert_eq!(subtitle.metadata.frame_rate, Some(25.0));
+        assert_eq!(subtitle.entries[0].text, "First\nLine");
+        assert_eq!(subtitle.entries[1].text, "Second\nLine");
+    }
+
+    #[test]
+    fn test_serialize_with_nondefault_fps() {
+        let mut subtitle = Subtitle {
+            entries: Vec::new(),
+            metadata: SubtitleMetadata {
+                title: None,
+                language: None,
+                encoding: "utf-8".to_string(),
+                frame_rate: Some(50.0),
+                original_format: SubtitleFormatType::Sub,
+            },
+            format: SubtitleFormatType::Sub,
+        };
+        subtitle.entries.push(SubtitleEntry {
+            index: 1,
+            start_time: Duration::from_secs_f64(1.0),
+            end_time: Duration::from_secs_f64(2.0),
+            text: "X".into(),
+            styling: None,
+        });
+        let fmt = SubFormat;
+        let out = fmt.serialize(&subtitle).expect("serialize fps failed");
+        // 1s * 50fps = 50 frames
+        assert!(out.contains("{50}{100}X"));
     }
 }

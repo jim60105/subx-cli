@@ -55,3 +55,36 @@ impl FormatManager {
             .map(|f| f.as_ref())
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::core::formats::srt::SrtFormat;
+    use crate::core::formats::vtt::VttFormat;
+    use crate::core::formats::SubtitleFormatType;
+
+    const SAMPLE_SRT: &str = "1\n00:00:00,000 --> 00:00:01,000\nOne\n";
+    const SAMPLE_VTT: &str = "WEBVTT\n\n1\n00:00:00.000 --> 00:00:01.000\nOne\n";
+
+    #[test]
+    fn test_get_format_by_name_and_extension() {
+        let mgr = FormatManager::new();
+        let srt = mgr.get_format("srt").expect("get_format srt");
+        assert_eq!(srt.format_name(), "SRT");
+        let vtt = mgr
+            .get_format_by_extension("vtt")
+            .expect("get_format_by_extension vtt");
+        assert_eq!(vtt.format_name(), "VTT");
+    }
+
+    #[test]
+    fn test_parse_auto_supported_and_error() {
+        let mgr = FormatManager::new();
+        let sub = mgr.parse_auto(SAMPLE_SRT).expect("parse_auto srt");
+        assert_eq!(sub.format, SubtitleFormatType::Srt);
+        let subv = mgr.parse_auto(SAMPLE_VTT).expect("parse_auto vtt");
+        assert_eq!(subv.format, SubtitleFormatType::Vtt);
+        let err = mgr.parse_auto("no format");
+        assert!(err.is_err());
+    }
+}

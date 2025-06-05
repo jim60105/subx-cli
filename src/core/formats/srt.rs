@@ -141,4 +141,26 @@ mod tests {
         let serialized = fmt.serialize(&subtitle).expect("序列化失敗");
         assert!(serialized.contains("Hello\nWorld"));
     }
+
+    #[test]
+    fn test_detect_true_and_false() {
+        let fmt = SrtFormat;
+        assert!(fmt.detect(SAMPLE));
+        assert!(!fmt.detect("Not a subtitle content"));
+    }
+
+    #[test]
+    fn test_parse_multiple_entries_and_serialize_indices() {
+        let multi =
+            "1\n00:00:00,000 --> 00:00:01,000\nLine1\n\n2\n00:00:01,500 --> 00:00:02,000\nLine2\n";
+        let fmt = SrtFormat;
+        let subtitle = fmt.parse(multi).expect("解析多條目失敗");
+        assert_eq!(subtitle.entries.len(), 2);
+        assert_eq!(subtitle.entries[0].text, "Line1");
+        assert_eq!(subtitle.entries[1].text, "Line2");
+        let out = fmt.serialize(&subtitle).expect("序列化多條目失敗");
+        // 檢查序列號及時間戳
+        assert!(out.starts_with("1\n00:00:00,000 --> 00:00:01,000\nLine1"));
+        assert!(out.contains("2\n00:00:01,500 --> 00:00:02,000\nLine2"));
+    }
 }

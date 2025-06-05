@@ -128,4 +128,56 @@ mod tests {
         let out = fmt.serialize(&subtitle).expect("serialize failed");
         assert!(out.contains("00:00:01.000 --> 00:00:03.500"));
     }
+
+    #[test]
+    fn test_detect_and_skip_headers() {
+        let fmt = VttFormat;
+        // 有 WEBVTT 標頭
+        assert!(fmt.detect("WEBVTT\nContent"));
+        // 無標頭
+        assert!(!fmt.detect("00:00:00.000 --> 00:00:01.000"));
+    }
+
+    #[test]
+    fn test_parse_with_note_and_style() {
+        let content = "WEBVTT\n\nNOTE this is note\nSTYLE body {color:red}\n\n1\n00:00:02.000 --> 00:00:03.000\nTest\n";
+        let fmt = VttFormat;
+        let subtitle = fmt.parse(content).expect("parse with NOTE/STYLE failed");
+        assert_eq!(subtitle.entries.len(), 1);
+        assert_eq!(subtitle.entries[0].text, "Test");
+    }
+
+    #[test]
+    fn test_serialize_multiple_entries() {
+        let mut subtitle = Subtitle {
+            entries: Vec::new(),
+            metadata: SubtitleMetadata {
+                title: None,
+                language: None,
+                encoding: "utf-8".to_string(),
+                frame_rate: None,
+                original_format: SubtitleFormatType::Vtt,
+            },
+            format: SubtitleFormatType::Vtt,
+        };
+        subtitle.entries.push(SubtitleEntry {
+            index: 1,
+            start_time: Duration::from_secs(1),
+            end_time: Duration::from_secs(2),
+            text: "A".into(),
+            styling: None,
+        });
+        subtitle.entries.push(SubtitleEntry {
+            index: 2,
+            start_time: Duration::from_secs(3),
+            end_time: Duration::from_secs(4),
+            text: "B".into(),
+            styling: None,
+        });
+        let fmt = VttFormat;
+        let out = fmt.serialize(&subtitle).expect("serialize multiple failed");
+        assert!(out.contains("WEBVTT"));
+        assert!(out.contains("1\n"));
+        assert!(out.contains("2\n"));
+    }
 }
