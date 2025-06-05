@@ -38,6 +38,10 @@ colored = "2.0"
 indicatif = "0.17"
 dialoguer = "0.10"
 
+# 配置管理相依：路徑解析與多核心檢測
+dirs = "4.0"
+num_cpus = "1.0"
+
 [dev-dependencies]
 tokio-test = "0.4"
 assert_cmd = "2.0"

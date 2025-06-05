@@ -55,7 +55,7 @@ pub async fn run() -> crate::Result<()> {
             println!("執行 Sync 命令: {:?}", args);
         }
         Commands::Config(args) => {
-            println!("執行 Config 命令: {:?}", args);
+            crate::commands::config_command::execute(args).await?;
         }
         Commands::GenerateCompletion(args) => {
             let mut cmd = <Cli as clap::CommandFactory>::command();
