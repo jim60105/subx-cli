@@ -67,4 +67,4 @@ Development progress for this project is systematically tracked within the `.git
 
 Your report must include a detailed account of the work performed, encompassing all relevant code modifications and corresponding test outcomes.
 
-Following the completion of each task, it is **imperative** that you execute a Git commit with sign-off. Write the commit message in English. Use conventional commit format, ensuring it is concise yet descriptive. If the git user is not set, use the following "name<email>": "🤖 Codex-CLI<codex-cli[bot]@users.noreply.github.com>"
+Following the completion of each task, it is **imperative** that you execute a Git commit with sign-off. Write the commit message in English. Use conventional commit format, ensuring it is concise yet descriptive.
