@@ -63,7 +63,7 @@ Each product backlog entry encapsulates the complete technical design and implem
 
 # Work Report Protocol
 
-Development progress for this project is systematically tracked within the `.github/codex` directory. Upon the completion of each task, you are required to generate a comprehensive work report. Refer to the naming conventions of existing files to determine an appropriate filename.
+Development progress for this project is systematically tracked within the `.github/codex` directory. Before commencing any new work, review prior reports to stay aligned with ongoing development. Treat all past reports as immutable references—do not edit or revise them under any circumstance. Upon the completion of each task, you are required to generate a new comprehensive work report. Refer to the naming conventions of existing files to determine an appropriate filename. 
 
 Your report must include a detailed account of the work performed, encompassing all relevant code modifications and corresponding test outcomes.
 
