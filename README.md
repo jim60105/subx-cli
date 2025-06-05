@@ -203,4 +203,4 @@ A: 確保影片文件可訪問，並嘗試手動指定偏移量：`subx sync --o
 ---
 
 > [!NOTE]  
-> This project is fully developed using GitHub Copilot and Codex CLI, with an attempt to maintain the maintainability of the software architecture. My goal is to practice controlling and planning professional software engineering work entirely through prompt engineering with AI. This is what professional video coding should be.
+> This project is fully developed using GitHub Copilot and Codex CLI, with an attempt to maintain the maintainability of the software architecture. My goal is to practice controlling and planning professional software engineering work entirely through prompt engineering with AI. This is what professional vibe coding should be.
