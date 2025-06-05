@@ -39,6 +39,15 @@ impl From<reqwest::Error> for SubXError {
     }
 }
 
+// 將檔案探索錯誤轉換為文件匹配錯誤
+impl From<walkdir::Error> for SubXError {
+    fn from(err: walkdir::Error) -> Self {
+        SubXError::FileMatching {
+            message: err.to_string(),
+        }
+    }
+}
+
 /// SubX 應用程式的 Result 類型
 pub type SubXResult<T> = Result<T, SubXError>;
 
