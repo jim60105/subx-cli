@@ -31,15 +31,18 @@
 6. **[文件匹配引擎](instructions/06-file-matching-engine.md)**
    - 文件發現、AI 驅動匹配、預覽模式
 
-7. **[格式轉換系統](instructions/07-format-conversion-system.md)**
+7. **[Dry-run 快取與檔案操作優化](instructions/07-dryrun-cache.md)**
+   - Dry-run 結果快取、快取檔案設計、快取命中直接重用、移除語言檢測/季集資訊/檔名標準化
+
+8. **[格式轉換系統](instructions/08-format-conversion-system.md)**
    - 跨格式轉換、樣式保留、批次處理
 
-8. **[音訊同步引擎](instructions/08-audio-sync-engine.md)**
+9. **[音訊同步引擎](instructions/09-audio-sync-engine.md)**
    - FFmpeg 整合、互相關分析、自動對齊
 
-9. **[指令整合測試](instructions/09-command-integration.md)**
+10. **[指令整合測試](instructions/10-command-integration.md)**
    - 端到端測試、錯誤處理、使用者工作流程
 
-10. **[部署與發布](instructions/10-deployment-release.md)**
+11. **[部署與發布](instructions/11-deployment-release.md)**
     - CI/CD 管道、跨平台編譯、發布自動化
 

@@ -1,4 +1,4 @@
-# Product Backlog #07: 格式轉換系統
+# Product Backlog #08: 格式轉換系統
 
 ## 領域範圍
 字幕格式互轉、批量轉換、樣式保留、編碼處理

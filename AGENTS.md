@@ -45,19 +45,23 @@ Each product backlog entry encapsulates the complete technical design and implem
 
    * File discovery mechanisms, AI-assisted matching, and preview mode implementation
 
-7. **[Format Conversion System](.github/instructions/07-format-conversion-system.md)**
+7. **[Dry-run Cache & File Operation Optimization](.github/instructions/07-dryrun-cache.md)**
+
+   * Dry-run result caching, cache file design, direct reuse on cache hit, removal of language detection/season-episode/title normalization
+
+8. **[Format Conversion System](.github/instructions/08-format-conversion-system.md)**
 
    * Cross-format subtitle transformation, style preservation, and batch processing
 
-8. **[Audio Synchronization Engine](.github/instructions/08-audio-sync-engine.md)**
+9. **[Audio Synchronization Engine](.github/instructions/09-audio-sync-engine.md)**
 
    * FFmpeg integration, cross-correlation analysis, and automatic alignment routines
 
-9. **[Command Integration Testing](.github/instructions/09-command-integration.md)**
+10. **[Command Integration Testing](.github/instructions/10-command-integration.md)**
 
    * End-to-end validation, fault tolerance, and user workflow simulations
 
-10. **[Deployment and Release](.github/instructions/10-deployment-release.md)**
+11. **[Deployment and Release](.github/instructions/11-deployment-release.md)**
 
     * CI/CD pipeline orchestration, cross-platform compilation, and automated release management
 
