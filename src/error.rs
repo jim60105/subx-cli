@@ -17,7 +17,7 @@ pub enum SubXError {
 
     /// AI 服務錯誤
     #[error("AI 服務錯誤: {0}")]
-    AiService(#[from] reqwest::Error),
+    AiService(String),
 
     /// 音訊處理錯誤
     #[error("音訊處理錯誤: {message}")]
@@ -30,6 +30,13 @@ pub enum SubXError {
     /// 一般錯誤
     #[error("未知錯誤: {0}")]
     Other(#[from] anyhow::Error),
+}
+
+// 將 reqwest 錯誤轉換為 AI 服務錯誤
+impl From<reqwest::Error> for SubXError {
+    fn from(err: reqwest::Error) -> Self {
+        SubXError::AiService(err.to_string())
+    }
 }
 
 /// SubX 應用程式的 Result 類型
