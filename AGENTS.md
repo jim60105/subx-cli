@@ -71,4 +71,4 @@ Development progress for this project is systematically tracked within the `.git
 
 Your report must include a detailed account of the work performed, encompassing all relevant code modifications and corresponding test outcomes.
 
-Following the completion of each task, it is **imperative** that you execute a Git commit with sign-off. Write the commit message in English. Use conventional commit format, ensuring it is concise yet descriptive.
+Following the completion of each task, it is **imperative** that you execute a Git commit with sign-off and no-gpg-sign. Write the commit message in English. Use conventional commit format for title, ensuring it is concise yet descriptive. Include a brief work description in the Git message body.
