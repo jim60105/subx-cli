@@ -13,7 +13,9 @@
   * Rigorously comply with all user-defined instructions, with particular emphasis on **vocabulary consistency** (e.g., `create` = `建立`, `code` = `程式碼`, `file` = `檔案`, `object` = `物件`).
   * Maintain the highest standard of quality in all deliverables.
   * Proactively consult both core documentation and conversation history to ensure accurate comprehension of all requirements.
+  * Refrain from parsing `Cargo.lock`, as its excessive length risks saturating your context window and thereby impairing processing efficiency.
   * Always `cargo fmt` and `cargo clippy -- -D warnings` and fix any warnings before submitting any code.
+  * Git commit after completing your work, using the conventional commit format for the title and a brief description in the body. Always sign off the commit with `--signoff` and do not use GPG signing.
 
 ---
 
@@ -70,5 +72,3 @@ Each product backlog entry encapsulates the complete technical design and implem
 Development progress for this project is systematically tracked within the `.github/codex` directory. Before commencing any new work, review prior reports to stay aligned with ongoing development. Treat all past reports as immutable references—do not edit or revise them under any circumstance. Upon the completion of each task, you are required to generate a new comprehensive work report. Refer to the naming conventions of existing files to determine an appropriate filename. 
 
 Your report must include a detailed account of the work performed, encompassing all relevant code modifications and corresponding test outcomes.
-
-Following the completion of each task, it is **imperative** that you execute a Git commit with sign-off and no-gpg-sign. Write the commit message in English. Use conventional commit format for title, ensuring it is concise yet descriptive. Include a brief work description in the Git message body.
