@@ -1,8 +1,16 @@
 use crate::services::ai::{AIProvider, AnalysisRequest, ContentSample};
 use std::path::Path;
 
-use crate::core::matcher::{FileDiscovery, FilenameAnalyzer, MediaFile, MediaFileType};
+use crate::core::matcher::cache::{CacheData, OpItem, SnapshotItem};
+use crate::core::matcher::{FileDiscovery, MediaFile, MediaFileType};
 use crate::Result;
+
+use crate::config::Config;
+use crate::error::SubXError;
+use dirs;
+use md5;
+use serde_json;
+use toml;
 
 /// 檔案匹配引擎配置
 #[derive(Debug, Clone)]
@@ -27,17 +35,16 @@ pub struct MatchOperation {
 pub struct MatchEngine {
     ai_client: Box<dyn AIProvider>,
     discovery: FileDiscovery,
-    analyzer: FilenameAnalyzer,
     config: MatchConfig,
 }
 
 impl MatchEngine {
     /// 建立匹配引擎，注入 AI 提供者與設定
+    // analyzer 已移除
     pub fn new(ai_client: Box<dyn AIProvider>, config: MatchConfig) -> Self {
         Self {
             ai_client,
             discovery: FileDiscovery::new(),
-            analyzer: FilenameAnalyzer::new(),
             config,
         }
     }
@@ -60,14 +67,18 @@ impl MatchEngine {
             return Ok(Vec::new());
         }
 
-        // 2. 內容採樣
+        // 2. 嘗試從 Dry-run 快取重用結果
+        if let Some(ops) = self.check_cache(path, recursive).await? {
+            return Ok(ops);
+        }
+        // 3. 內容採樣
         let content_samples = if self.config.enable_content_analysis {
             self.extract_content_samples(&subtitles).await?
         } else {
             Vec::new()
         };
 
-        // 3. AI 分析請求
+        // 4. AI 分析請求
         let analysis_request = AnalysisRequest {
             video_files: videos.iter().map(|v| v.name.clone()).collect(),
             subtitle_files: subtitles.iter().map(|s| s.name.clone()).collect(),
@@ -115,7 +126,6 @@ impl MatchEngine {
                 filename: subtitle.name.clone(),
                 content_preview: preview,
                 file_size: subtitle.size,
-                language_hint: None, // TODO: 實作語言檢測
             });
         }
 
@@ -169,5 +179,127 @@ impl MatchEngine {
 
         std::fs::rename(old_path, new_path)?;
         Ok(())
+    }
+    /// 計算指定目錄的檔案快照，用於快取比對
+    fn calculate_file_snapshot(
+        &self,
+        directory: &Path,
+        recursive: bool,
+    ) -> Result<Vec<SnapshotItem>> {
+        let files = self.discovery.scan_directory(directory, recursive)?;
+        let mut snapshot = Vec::new();
+        for f in files {
+            let metadata = std::fs::metadata(&f.path)?;
+            let mtime = metadata
+                .modified()
+                .ok()
+                .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
+                .map(|d| d.as_secs())
+                .unwrap_or(0);
+            snapshot.push(SnapshotItem {
+                name: f.name.clone(),
+                size: f.size,
+                mtime,
+                file_type: match f.file_type {
+                    MediaFileType::Video => "video".to_string(),
+                    MediaFileType::Subtitle => "subtitle".to_string(),
+                },
+            });
+        }
+        Ok(snapshot)
+    }
+
+    /// 檢查 Dry-run 快取，命中則回傳先前計算的匹配操作
+    pub async fn check_cache(
+        &self,
+        directory: &Path,
+        recursive: bool,
+    ) -> Result<Option<Vec<MatchOperation>>> {
+        let current_snapshot = self.calculate_file_snapshot(directory, recursive)?;
+        let cache_data = CacheData::load(&self.get_cache_file_path()?).ok();
+        if let Some(cache_data) = cache_data {
+            if cache_data.directory == directory.to_string_lossy()
+                && cache_data.file_snapshot == current_snapshot
+                && cache_data.ai_model_used == self.calculate_config_hash()?
+                && cache_data.config_hash == self.calculate_config_hash()?
+            {
+                // 重建匹配操作列表
+                let files = self.discovery.scan_directory(directory, recursive)?;
+                let mut ops = Vec::new();
+                for item in cache_data.match_operations {
+                    if let (Some(video), Some(subtitle)) = (
+                        files.iter().find(|f| {
+                            f.name == item.video_file && matches!(f.file_type, MediaFileType::Video)
+                        }),
+                        files.iter().find(|f| {
+                            f.name == item.subtitle_file
+                                && matches!(f.file_type, MediaFileType::Subtitle)
+                        }),
+                    ) {
+                        ops.push(MatchOperation {
+                            video_file: (*video).clone(),
+                            subtitle_file: (*subtitle).clone(),
+                            new_subtitle_name: item.new_subtitle_name.clone(),
+                            confidence: item.confidence,
+                            reasoning: item.reasoning.clone(),
+                        });
+                    }
+                }
+                return Ok(Some(ops));
+            }
+        }
+        Ok(None)
+    }
+
+    /// 儲存 Dry-run 快取結果
+    pub async fn save_cache(
+        &self,
+        directory: &Path,
+        recursive: bool,
+        operations: &[MatchOperation],
+    ) -> Result<()> {
+        let cache_data = CacheData {
+            cache_version: "1.0".to_string(),
+            directory: directory.to_string_lossy().to_string(),
+            file_snapshot: self.calculate_file_snapshot(directory, recursive)?,
+            match_operations: operations
+                .iter()
+                .map(|op| OpItem {
+                    video_file: op.video_file.name.clone(),
+                    subtitle_file: op.subtitle_file.name.clone(),
+                    new_subtitle_name: op.new_subtitle_name.clone(),
+                    confidence: op.confidence,
+                    reasoning: op.reasoning.clone(),
+                })
+                .collect(),
+            created_at: std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .map(|d| d.as_secs())
+                .unwrap_or(0),
+            ai_model_used: self.calculate_config_hash()?,
+            config_hash: self.calculate_config_hash()?,
+        };
+        let path = self.get_cache_file_path()?;
+        if let Some(parent) = path.parent() {
+            std::fs::create_dir_all(parent)?;
+        }
+        let content =
+            serde_json::to_string_pretty(&cache_data).map_err(|e| SubXError::Other(e.into()))?;
+        std::fs::write(path, content)?;
+        Ok(())
+    }
+
+    /// 取得快取檔案路徑
+    fn get_cache_file_path(&self) -> Result<std::path::PathBuf> {
+        let dir = dirs::config_dir().ok_or_else(|| SubXError::config("無法確定快取目錄"))?;
+        Ok(dir.join("subx").join("match_cache.json"))
+    }
+
+    /// 計算目前配置雜湊，用於快取驗證
+    fn calculate_config_hash(&self) -> Result<String> {
+        let config = Config::load()?;
+        let toml = toml::to_string(&config)
+            .map_err(|e| SubXError::config(format!("TOML 序列化錯誤: {}", e)))?;
+        Ok(format!("{:x}", md5::compute(toml)))
     }
 }

@@ -12,6 +12,7 @@
 - ⏰ **時間軸校正** - 自動檢測並修正字幕時間偏移問題
 - 🏃 **批量處理** - 一次處理整個資料夾的媒體文件
 - 🔍 **Dry-run 模式** - 預覽操作結果，安全可靠
++ 📦 **快取管理** - 管理 Dry-run 結果快取檔案
 <!-- 
 ## 安裝
 
@@ -174,6 +175,11 @@ audio_sample_rate = 16000
   subx config list                列出所有配置
   subx config reset               重置配置
 ```
+
+### `subx cache` - Dry-run 快取管理
+```
+選項:
+  clear           清除所有 Dry-run 快取檔案
 
 ### `subx generate-completion` - 產生 shell 補全腳本
 ```

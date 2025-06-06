@@ -1,5 +1,6 @@
 //! SubX CLI 模組
 
+mod cache_args;
 mod config_args;
 mod convert_args;
 mod generate_completion_args;
@@ -7,6 +8,7 @@ mod match_args;
 mod sync_args;
 mod ui;
 
+pub use cache_args::{CacheAction, CacheArgs};
 use clap::{Parser, Subcommand};
 pub use config_args::{ConfigAction, ConfigArgs};
 pub use convert_args::{ConvertArgs, OutputSubtitleFormat};
@@ -38,6 +40,8 @@ pub enum Commands {
     Config(ConfigArgs),
     /// 產生 shell completion script
     GenerateCompletion(GenerateCompletionArgs),
+    /// Dry-run 快取管理
+    Cache(CacheArgs),
 }
 
 /// 執行 CLI
@@ -46,7 +50,7 @@ pub async fn run() -> crate::Result<()> {
 
     match cli.command {
         Commands::Match(args) => {
-            println!("執行 Match 命令: {:?}", args);
+            crate::commands::match_command::execute(args).await?;
         }
         Commands::Convert(args) => {
             println!("執行 Convert 命令: {:?}", args);
@@ -62,6 +66,9 @@ pub async fn run() -> crate::Result<()> {
             let cmd_name = cmd.get_name().to_string();
             let mut stdout = std::io::stdout();
             clap_complete::generate(args.shell, &mut cmd, cmd_name, &mut stdout);
+        }
+        Commands::Cache(args) => {
+            crate::commands::cache_command::execute(args).await?;
         }
     }
     Ok(())

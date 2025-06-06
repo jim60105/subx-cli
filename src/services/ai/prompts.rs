@@ -28,7 +28,7 @@ impl super::OpenAIClient {
         }
 
         prompt.push_str(
-            "請根據檔名模式、內容語言、季集資訊等因素，提供匹配建議。\n\
+            "請根據檔名模式等因素，提供匹配建議。\n\
             回應格式為 JSON：\n\
             {\n\
               \"matches\": [\n\
@@ -36,7 +36,7 @@ impl super::OpenAIClient {
                   \"video_file\": \"影片檔名\",\n\
                   \"subtitle_file\": \"字幕檔名\",\n\
                   \"confidence\": 0.95,\n\
-                  \"match_factors\": [\"檔名相似\", \"內容語言匹配\"]\n\
+                  \"match_factors\": [\"檔名相似\"]\n\
                 }\n\
               ],\n\
               \"confidence\": 0.9,\n\

@@ -29,7 +29,6 @@ pub struct ContentSample {
     pub filename: String,
     pub content_preview: String,
     pub file_size: u64,
-    pub language_hint: Option<String>,
 }
 
 /// 匹配結果
