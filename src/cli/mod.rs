@@ -53,7 +53,7 @@ pub async fn run() -> crate::Result<()> {
             crate::commands::match_command::execute(args).await?;
         }
         Commands::Convert(args) => {
-            println!("執行 Convert 命令: {:?}", args);
+            crate::commands::convert_command::execute(args).await?;
         }
         Commands::Sync(args) => {
             println!("執行 Sync 命令: {:?}", args);

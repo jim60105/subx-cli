@@ -33,3 +33,21 @@ pub enum OutputSubtitleFormat {
     Vtt,
     Sub,
 }
+
+impl OutputSubtitleFormat {
+    /// 取得格式字串
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            OutputSubtitleFormat::Srt => "srt",
+            OutputSubtitleFormat::Ass => "ass",
+            OutputSubtitleFormat::Vtt => "vtt",
+            OutputSubtitleFormat::Sub => "sub",
+        }
+    }
+}
+
+impl std::fmt::Display for OutputSubtitleFormat {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.as_str())
+    }
+}

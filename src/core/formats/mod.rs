@@ -2,10 +2,13 @@
 #![allow(dead_code)]
 
 pub mod ass;
+pub mod converter;
 pub mod encoding;
 pub mod manager;
 pub mod srt;
+pub mod styling;
 pub mod sub;
+pub mod transformers;
 pub mod vtt;
 
 use std::time::Duration;
@@ -17,6 +20,24 @@ pub enum SubtitleFormatType {
     Ass,
     Vtt,
     Sub,
+}
+
+impl SubtitleFormatType {
+    /// 取得格式對應字串
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            SubtitleFormatType::Srt => "srt",
+            SubtitleFormatType::Ass => "ass",
+            SubtitleFormatType::Vtt => "vtt",
+            SubtitleFormatType::Sub => "sub",
+        }
+    }
+}
+
+impl std::fmt::Display for SubtitleFormatType {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.as_str())
+    }
 }
 
 /// 統一字幕資料結構
@@ -48,7 +69,7 @@ pub struct SubtitleMetadata {
 }
 
 /// 樣式資訊
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct StylingInfo {
     pub font_name: Option<String>,
     pub font_size: Option<u32>,

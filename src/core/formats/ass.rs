@@ -5,6 +5,46 @@ use crate::error::SubXError;
 use crate::Result;
 use std::time::Duration;
 
+/// ASS 樣式定義
+#[derive(Debug, Clone)]
+pub struct AssStyle {
+    pub name: String,
+    pub font_name: String,
+    pub font_size: u32,
+    pub primary_color: Color,
+    pub secondary_color: Color,
+    pub outline_color: Color,
+    pub shadow_color: Color,
+    pub bold: bool,
+    pub italic: bool,
+    pub underline: bool,
+    pub alignment: i32,
+}
+
+/// ASS 顏色結構
+#[derive(Debug, Clone)]
+pub struct Color {
+    pub r: u8,
+    pub g: u8,
+    pub b: u8,
+}
+
+impl Color {
+    pub fn white() -> Self {
+        Color {
+            r: 255,
+            g: 255,
+            b: 255,
+        }
+    }
+    pub fn black() -> Self {
+        Color { r: 0, g: 0, b: 0 }
+    }
+    pub fn red() -> Self {
+        Color { r: 255, g: 0, b: 0 }
+    }
+}
+
 /// ASS/SSA 高級字幕格式解析（暫未實作）
 pub struct AssFormat;
 
