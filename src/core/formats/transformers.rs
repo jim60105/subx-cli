@@ -74,28 +74,30 @@ impl FormatConverter {
 
     /// ASS 轉 VTT
     pub(crate) fn ass_to_vtt(&self, subtitle: Subtitle) -> crate::Result<Subtitle> {
-        // 預留實作
-        Err(crate::error::SubXError::subtitle_format(
-            subtitle.format.to_string(),
-            "ASS->VTT 尚未實作",
-        ))
+        // 先將 ASS 轉為 SRT，再轉為 VTT
+        let subtitle = self.ass_to_srt(subtitle)?;
+        self.srt_to_vtt(subtitle)
     }
 
     /// VTT 轉 SRT
-    pub(crate) fn vtt_to_srt(&self, subtitle: Subtitle) -> crate::Result<Subtitle> {
-        // 預留實作
-        Err(crate::error::SubXError::subtitle_format(
-            subtitle.format.to_string(),
-            "VTT->SRT 尚未實作",
-        ))
+    pub(crate) fn vtt_to_srt(&self, mut subtitle: Subtitle) -> crate::Result<Subtitle> {
+        // VTT 可保留或移除 HTML 樣式標籤
+        for entry in &mut subtitle.entries {
+            if self.config.preserve_styling {
+                entry.text = self.convert_vtt_tags_to_srt(&entry.text);
+            } else {
+                entry.text = self.strip_vtt_tags(&entry.text);
+            }
+            entry.styling = None;
+        }
+        subtitle.format = SubtitleFormatType::Srt;
+        Ok(subtitle)
     }
 
     /// VTT 轉 ASS
     pub(crate) fn vtt_to_ass(&self, subtitle: Subtitle) -> crate::Result<Subtitle> {
-        // 預留實作
-        Err(crate::error::SubXError::subtitle_format(
-            subtitle.format.to_string(),
-            "VTT->ASS 尚未實作",
-        ))
+        // 先將 VTT 轉為 SRT，再轉為 ASS
+        let subtitle = self.vtt_to_srt(subtitle)?;
+        self.srt_to_ass(subtitle)
     }
 }

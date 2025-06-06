@@ -73,4 +73,14 @@ impl FormatConverter {
     pub(crate) fn convert_srt_tags_to_vtt(&self, text: &str) -> String {
         text.to_string()
     }
+    /// 將 VTT 標籤轉換為 SRT 標籤（簡易實作）
+    pub(crate) fn convert_vtt_tags_to_srt(&self, text: &str) -> String {
+        // VTT 使用類似 HTML 標籤，SRT 亦支援基本標籤，預設保留
+        text.to_string()
+    }
+    /// 移除 VTT 標籤（簡易實作）
+    pub(crate) fn strip_vtt_tags(&self, text: &str) -> String {
+        let tag_regex = Regex::new(r"</?[^>]+>").unwrap();
+        tag_regex.replace_all(text, "").to_string()
+    }
 }
