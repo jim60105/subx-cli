@@ -1,19 +1,15 @@
 // src/main.rs
-use anyhow::Result;
-use log::info;
-
 #[tokio::main]
-async fn main() -> Result<()> {
+async fn main() {
     // 初始化日誌
     env_logger::init();
 
-    info!("啟動 SubX v{}", subx::VERSION);
-
-    // 執行 CLI 主邏輯
-    if let Err(e) = subx::cli::run().await {
-        eprintln!("錯誤: {}", e);
-        std::process::exit(1);
+    let result = subx::cli::run().await;
+    match result {
+        Ok(_) => std::process::exit(0),
+        Err(e) => {
+            eprintln!("{}", e.user_friendly_message());
+            std::process::exit(e.exit_code());
+        }
     }
-
-    Ok(())
 }

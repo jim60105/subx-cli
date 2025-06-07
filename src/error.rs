@@ -89,4 +89,46 @@ impl SubXError {
             message: message.into(),
         }
     }
+    /// 取得對應退出狀態碼
+    pub fn exit_code(&self) -> i32 {
+        match self {
+            SubXError::Io(_) => 1,
+            SubXError::Config { .. } => 2,
+            SubXError::AiService(_) => 3,
+            SubXError::SubtitleFormat { .. } => 4,
+            SubXError::AudioProcessing { .. } => 5,
+            _ => 1,
+        }
+    }
+
+    /// 取得用戶友善的錯誤訊息
+    pub fn user_friendly_message(&self) -> String {
+        match self {
+            SubXError::Io(e) => format!("檔案操作錯誤: {}", e),
+            SubXError::Config { message } => {
+                format!(
+                    "配置錯誤: {}\n提示: 使用 'subx config --help' 查看配置說明",
+                    message
+                )
+            }
+            SubXError::AiService(msg) => {
+                format!("AI 服務錯誤: {}\n提示: 檢查網路連接和 API 金鑰設定", msg)
+            }
+            SubXError::SubtitleFormat { message, .. } => {
+                format!("字幕處理錯誤: {}\n提示: 檢查檔案格式和編碼", message)
+            }
+            SubXError::AudioProcessing { message } => {
+                format!(
+                    "音訊處理錯誤: {}\n提示: 確認影片檔案完整且格式支援",
+                    message
+                )
+            }
+            SubXError::FileMatching { message } => {
+                format!("檔案匹配錯誤: {}\n提示: 檢查檔案路徑和格式", message)
+            }
+            SubXError::Other(err) => {
+                format!("未知錯誤: {}\n提示: 請回報此問題", err)
+            }
+        }
+    }
 }

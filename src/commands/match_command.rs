@@ -4,6 +4,7 @@ use crate::core::matcher::{MatchConfig, MatchEngine};
 use crate::error::SubXError;
 use crate::services::ai::OpenAIClient;
 use crate::Result;
+use colored::Colorize;
 
 /// 執行 Match 命令，支援 Dry-run 與實際操作
 pub async fn execute(args: MatchArgs) -> Result<()> {
@@ -27,6 +28,11 @@ pub async fn execute(args: MatchArgs) -> Result<()> {
         match_config,
     );
 
+    // 若為預覽模式，僅顯示提示並跳過 AI 分析與緩存
+    if args.dry_run {
+        println!("\n{} 預覽模式 - 未實際執行操作", "ℹ".blue().bold());
+        return Ok(());
+    }
     // 執行匹配 (Dry-run 同時快取結果)
     let operations = engine.match_files(&args.path, args.recursive).await?;
     if args.dry_run {
