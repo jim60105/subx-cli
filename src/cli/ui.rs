@@ -57,15 +57,22 @@ pub fn display_match_results(results: &[MatchOperation], is_dry_run: bool) {
 
     let rows: Vec<MatchDisplayRow> = results
         .iter()
-        .map(|op| MatchDisplayRow {
-            status: if is_dry_run {
-                "🔍 預覽".yellow().to_string()
-            } else {
-                "✅ 完成".green().to_string()
-            },
-            video_file: truncate_path(&op.video_file.path.to_string_lossy(), 30),
-            subtitle_file: truncate_path(&op.subtitle_file.path.to_string_lossy(), 30),
-            new_name: truncate_path(&op.new_subtitle_name, 30),
+        .enumerate()
+        .map(|(i, op)| {
+            let idx = i + 1;
+            let video = op.video_file.path.to_string_lossy();
+            let subtitle = op.subtitle_file.path.to_string_lossy();
+            let new_name_str = &op.new_subtitle_name;
+            MatchDisplayRow {
+                status: if is_dry_run {
+                    "🔍 預覽".yellow().to_string()
+                } else {
+                    "✅ 完成".green().to_string()
+                },
+                video_file: format!("影片檔案 {}\n{}", idx, video),
+                subtitle_file: format!("字幕檔案 {}\n{}", idx, subtitle),
+                new_name: format!("新檔名 {}\n{}", idx, new_name_str),
+            }
         })
         .collect();
 
@@ -78,6 +85,7 @@ pub fn display_match_results(results: &[MatchOperation], is_dry_run: bool) {
 }
 
 /// 路徑或檔名過長時進行截斷顯示
+#[allow(dead_code)]
 fn truncate_path(path: &str, max_len: usize) -> String {
     if path.len() <= max_len {
         path.to_string()
