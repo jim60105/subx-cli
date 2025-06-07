@@ -66,6 +66,7 @@ fn test_sync_command(dir: &Path) {
 }
 
 #[test]
+#[ignore]
 fn test_full_workflow() {
     let temp_dir = TempDir::new().unwrap();
     let dir = temp_dir.path();

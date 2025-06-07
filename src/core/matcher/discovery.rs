@@ -13,6 +13,95 @@ pub struct MediaFile {
     pub extension: String,
 }
 
+// 單元測試: FileDiscovery 檔案匹配邏輯
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::fs;
+    use tempfile::TempDir;
+
+    fn create_test_files(dir: &std::path::Path) {
+        let _ = fs::write(dir.join("video1.mp4"), b"");
+        let _ = fs::write(dir.join("video2.mkv"), b"");
+        let _ = fs::write(dir.join("subtitle1.srt"), b"");
+        let sub = dir.join("season1");
+        fs::create_dir_all(&sub).unwrap();
+        let _ = fs::write(sub.join("episode1.mp4"), b"");
+        let _ = fs::write(sub.join("episode1.srt"), b"");
+        let _ = fs::write(dir.join("note.txt"), b"");
+    }
+
+    #[test]
+    fn test_file_discovery_non_recursive() {
+        let temp = TempDir::new().unwrap();
+        create_test_files(temp.path());
+        let disco = FileDiscovery::new();
+        let files = disco.scan_directory(temp.path(), false).unwrap();
+        let vids = files
+            .iter()
+            .filter(|f| matches!(f.file_type, MediaFileType::Video))
+            .count();
+        let subs = files
+            .iter()
+            .filter(|f| matches!(f.file_type, MediaFileType::Subtitle))
+            .count();
+        assert_eq!(vids, 2);
+        assert_eq!(subs, 1);
+        assert!(!files.iter().any(|f| f.name == "episode1"));
+    }
+
+    #[test]
+    fn test_file_discovery_recursive() {
+        let temp = TempDir::new().unwrap();
+        create_test_files(temp.path());
+        let disco = FileDiscovery::new();
+        let files = disco.scan_directory(temp.path(), true).unwrap();
+        let vids = files
+            .iter()
+            .filter(|f| matches!(f.file_type, MediaFileType::Video))
+            .count();
+        let subs = files
+            .iter()
+            .filter(|f| matches!(f.file_type, MediaFileType::Subtitle))
+            .count();
+        assert_eq!(vids, 3);
+        assert_eq!(subs, 2);
+        assert!(files.iter().any(|f| f.name == "episode1"));
+    }
+
+    #[test]
+    fn test_file_classification_and_extensions() {
+        let temp = TempDir::new().unwrap();
+        let v = temp.path().join("t.mp4");
+        fs::write(&v, b"").unwrap();
+        let s = temp.path().join("t.srt");
+        fs::write(&s, b"").unwrap();
+        let x = temp.path().join("t.txt");
+        fs::write(&x, b"").unwrap();
+        let disco = FileDiscovery::new();
+        let vf = disco.classify_file(&v).unwrap().unwrap();
+        assert!(matches!(vf.file_type, MediaFileType::Video));
+        assert_eq!(vf.name, "t");
+        let sf = disco.classify_file(&s).unwrap().unwrap();
+        assert!(matches!(sf.file_type, MediaFileType::Subtitle));
+        assert_eq!(sf.name, "t");
+        let none = disco.classify_file(&x).unwrap();
+        assert!(none.is_none());
+        assert!(disco.video_extensions.contains(&"mp4".to_string()));
+        assert!(disco.subtitle_extensions.contains(&"srt".to_string()));
+    }
+
+    #[test]
+    fn test_empty_and_nonexistent_directory() {
+        let temp = TempDir::new().unwrap();
+        let disco = FileDiscovery::new();
+        let files = disco.scan_directory(temp.path(), false).unwrap();
+        assert!(files.is_empty());
+        let res = disco.scan_directory(&std::path::Path::new("/nonexistent/path"), false);
+        assert!(res.is_err());
+    }
+}
+
 impl Default for FileDiscovery {
     fn default() -> Self {
         Self::new()

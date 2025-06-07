@@ -17,6 +17,101 @@ pub struct Config {
     pub loaded_from: Option<PathBuf>,
 }
 
+// 單元測試: Config 組態管理功能
+#[cfg(test)]
+#[serial_test::serial]
+mod tests {
+    use super::*;
+    use serial_test::serial;
+    use std::env;
+    use tempfile::TempDir;
+
+    #[test]
+    fn test_default_config_creation() {
+        let config = Config::default();
+        assert_eq!(config.ai.provider, "openai");
+        assert_eq!(config.ai.model, "gpt-4o-mini");
+        assert_eq!(config.formats.default_output, "srt");
+        assert_eq!(config.general.default_confidence, 80);
+    }
+
+    #[test]
+    fn test_config_serialization() {
+        let config = Config::default();
+        let toml_str = toml::to_string(&config).unwrap();
+        assert!(toml_str.contains("[ai]"));
+        assert!(toml_str.contains("[formats]"));
+        assert!(toml_str.contains("[sync]"));
+        assert!(toml_str.contains("[general]"));
+    }
+
+    #[test]
+    #[serial]
+    fn test_env_var_override() {
+        // 清除環境變數以避免測試間干擾
+        env::remove_var("OPENAI_API_KEY");
+        env::remove_var("SUBX_AI_MODEL");
+        env::set_var("OPENAI_API_KEY", "test-key-123");
+        env::set_var("SUBX_AI_MODEL", "gpt-3.5-turbo");
+
+        let mut config = Config::default();
+        config.apply_env_vars();
+        assert!(config.ai.api_key.is_some());
+        assert_eq!(config.ai.model, "gpt-3.5-turbo");
+
+        env::remove_var("OPENAI_API_KEY");
+        env::remove_var("SUBX_AI_MODEL");
+    }
+
+    #[test]
+    #[serial]
+    fn test_config_validation_missing_api_key() {
+        env::remove_var("OPENAI_API_KEY");
+        let config = Config::default();
+        // API Key 驗證於執行時進行，不影響載入
+        assert!(config.validate().is_ok());
+    }
+
+    #[test]
+    fn test_config_validation_invalid_provider() {
+        let mut config = Config::default();
+        config.ai.provider = "invalid-provider".to_string();
+        assert!(config.validate().is_err());
+    }
+
+    #[test]
+    fn test_config_file_save_and_load() {
+        let temp_dir = TempDir::new().unwrap();
+        let config_path = temp_dir.path().join("config.toml");
+
+        let original_config = Config::default();
+        let toml_content = toml::to_string_pretty(&original_config).unwrap();
+        std::fs::write(&config_path, toml_content).unwrap();
+
+        let file_content = std::fs::read_to_string(&config_path).unwrap();
+        let loaded_config: Config = toml::from_str(&file_content).unwrap();
+
+        assert_eq!(original_config.ai.model, loaded_config.ai.model);
+        assert_eq!(
+            original_config.formats.default_output,
+            loaded_config.formats.default_output
+        );
+    }
+
+    #[test]
+    fn test_config_merge() {
+        let mut base_config = Config::default();
+        let mut override_config = Config::default();
+        override_config.ai.model = "gpt-4".to_string();
+        override_config.general.backup_enabled = true;
+
+        base_config.merge(override_config);
+
+        assert_eq!(base_config.ai.model, "gpt-4");
+        assert!(base_config.general.backup_enabled);
+    }
+}
+
 /// AI 相關配置
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct AIConfig {

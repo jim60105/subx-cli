@@ -130,37 +130,92 @@ fn format_duration(duration: Duration) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::core::formats::{SubtitleFormat, SubtitleFormatType};
+    use std::time::Duration;
 
-    const SAMPLE: &str = "1\n00:00:01,000 --> 00:00:03,500\nHello\nWorld\n";
-
-    #[test]
-    fn test_parse_and_serialize() {
-        let fmt = SrtFormat;
-        let subtitle = fmt.parse(SAMPLE).expect("解析失敗");
-        assert_eq!(subtitle.entries.len(), 1);
-        let serialized = fmt.serialize(&subtitle).expect("序列化失敗");
-        assert!(serialized.contains("Hello\nWorld"));
-    }
+    const SAMPLE_SRT: &str = "1\n00:00:01,000 --> 00:00:03,000\nHello, World!\n\n2\n00:00:05,000 --> 00:00:08,000\nThis is a test subtitle.\n多行測試\n\n";
 
     #[test]
-    fn test_detect_true_and_false() {
-        let fmt = SrtFormat;
-        assert!(fmt.detect(SAMPLE));
-        assert!(!fmt.detect("Not a subtitle content"));
-    }
+    fn test_srt_parsing_basic() {
+        let format = SrtFormat;
+        let subtitle = format.parse(SAMPLE_SRT).unwrap();
 
-    #[test]
-    fn test_parse_multiple_entries_and_serialize_indices() {
-        let multi =
-            "1\n00:00:00,000 --> 00:00:01,000\nLine1\n\n2\n00:00:01,500 --> 00:00:02,000\nLine2\n";
-        let fmt = SrtFormat;
-        let subtitle = fmt.parse(multi).expect("解析多條目失敗");
         assert_eq!(subtitle.entries.len(), 2);
-        assert_eq!(subtitle.entries[0].text, "Line1");
-        assert_eq!(subtitle.entries[1].text, "Line2");
-        let out = fmt.serialize(&subtitle).expect("序列化多條目失敗");
-        // 檢查序列號及時間戳
-        assert!(out.starts_with("1\n00:00:00,000 --> 00:00:01,000\nLine1"));
-        assert!(out.contains("2\n00:00:01,500 --> 00:00:02,000\nLine2"));
+        assert_eq!(subtitle.format, SubtitleFormatType::Srt);
+
+        let first = &subtitle.entries[0];
+        assert_eq!(first.index, 1);
+        assert_eq!(first.start_time, Duration::from_millis(1000));
+        assert_eq!(first.end_time, Duration::from_millis(3000));
+        assert_eq!(first.text, "Hello, World!");
+
+        let second = &subtitle.entries[1];
+        assert_eq!(second.index, 2);
+        assert_eq!(second.start_time, Duration::from_millis(5000));
+        assert_eq!(second.end_time, Duration::from_millis(8000));
+        assert_eq!(second.text, "This is a test subtitle.\n多行測試");
+    }
+
+    #[test]
+    fn test_srt_serialization_roundtrip() {
+        let format = SrtFormat;
+        let subtitle = format.parse(SAMPLE_SRT).unwrap();
+        let serialized = format.serialize(&subtitle).unwrap();
+        let reparsed = format.parse(&serialized).unwrap();
+        assert_eq!(subtitle.entries.len(), reparsed.entries.len());
+        for (o, r) in subtitle.entries.iter().zip(reparsed.entries.iter()) {
+            assert_eq!(o.start_time, r.start_time);
+            assert_eq!(o.end_time, r.end_time);
+            assert_eq!(o.text, r.text);
+        }
+    }
+
+    #[test]
+    fn test_srt_detection() {
+        let format = SrtFormat;
+        assert!(format.detect(SAMPLE_SRT));
+        assert!(!format.detect("This is not SRT content"));
+        assert!(!format.detect("WEBVTT\n\n00:00:01.000 --> 00:00:03.000\nHello"));
+    }
+
+    #[test]
+    fn test_srt_invalid_format() {
+        let format = SrtFormat;
+        let invalid_time = "1\n00:00:01 --> 00:00:03\nText\n\n";
+        let subtitle = format.parse(invalid_time).unwrap();
+        assert_eq!(subtitle.entries.len(), 0);
+        let invalid_index = "invalid\n00:00:01,000 --> 00:00:03,000\nText\n\n";
+        assert!(format.parse(invalid_index).is_err());
+    }
+
+    #[test]
+    fn test_srt_empty_and_malformed_blocks() {
+        let format = SrtFormat;
+        let subtitle = format.parse("").unwrap();
+        assert_eq!(subtitle.entries.len(), 0);
+        let subtitle = format.parse("\n\n\n").unwrap();
+        assert_eq!(subtitle.entries.len(), 0);
+        let malformed = "1\n00:00:01,000 --> 00:00:03,000\n\n";
+        let subtitle = format.parse(malformed).unwrap();
+        assert_eq!(subtitle.entries.len(), 0);
+    }
+
+    #[test]
+    fn test_time_parsing_edge_cases() {
+        let format = SrtFormat;
+        let edge = "1\n23:59:59,999 --> 23:59:59,999\nEnd of day\n\n";
+        let subtitle = format.parse(edge).unwrap();
+        assert_eq!(subtitle.entries.len(), 1);
+        let entry = &subtitle.entries[0];
+        let expected = Duration::from_millis(23 * 3600000 + 59 * 60000 + 59 * 1000 + 999);
+        assert_eq!(entry.start_time, expected);
+        assert_eq!(entry.end_time, expected);
+    }
+
+    #[test]
+    fn test_file_extensions_and_name() {
+        let format = SrtFormat;
+        assert_eq!(format.file_extensions(), &["srt"]);
+        assert_eq!(format.format_name(), "SRT");
     }
 }

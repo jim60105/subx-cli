@@ -16,6 +16,106 @@ pub struct OpenAIClient {
     base_url: String,
 }
 
+// 模擬測試: OpenAIClient 與 AIProvider 介面
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use mockall::{mock, predicate::eq};
+    use serde_json::json;
+    use wiremock::matchers::{header, method, path};
+    use wiremock::{Mock, MockServer, ResponseTemplate};
+
+    mock! {
+        AIClient {}
+
+        #[async_trait]
+        impl AIProvider for AIClient {
+            async fn analyze_content(&self, request: AnalysisRequest) -> crate::Result<MatchResult>;
+            async fn verify_match(&self, verification: VerificationRequest) -> crate::Result<ConfidenceScore>;
+        }
+    }
+
+    #[tokio::test]
+    async fn test_openai_client_creation() {
+        let client = OpenAIClient::new("test-key".into(), "gpt-4o-mini".into());
+        assert_eq!(client.api_key, "test-key");
+        assert_eq!(client.model, "gpt-4o-mini");
+    }
+
+    #[tokio::test]
+    async fn test_chat_completion_success() {
+        let server = MockServer::start().await;
+        Mock::given(method("POST"))
+            .and(path("/chat/completions"))
+            .and(header("authorization", "Bearer test-key"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+                "choices": [{"message": {"content": "測試回應內容"}}]
+            })))
+            .mount(&server)
+            .await;
+        let mut client = OpenAIClient::new("test-key".into(), "gpt-4o-mini".into());
+        client.base_url = server.uri();
+        let messages = vec![json!({"role":"user","content":"測試"})];
+        let resp = client.chat_completion(messages).await.unwrap();
+        assert_eq!(resp, "測試回應內容");
+    }
+
+    #[tokio::test]
+    async fn test_chat_completion_error() {
+        let server = MockServer::start().await;
+        Mock::given(method("POST"))
+            .and(path("/chat/completions"))
+            .respond_with(ResponseTemplate::new(400).set_body_json(json!({
+                "error": {"message":"Invalid API key"}
+            })))
+            .mount(&server)
+            .await;
+        let mut client = OpenAIClient::new("bad-key".into(), "gpt-4o-mini".into());
+        client.base_url = server.uri();
+        let messages = vec![json!({"role":"user","content":"測試"})];
+        let result = client.chat_completion(messages).await;
+        assert!(result.is_err());
+    }
+
+    #[tokio::test]
+    async fn test_analyze_content_with_mock() {
+        let mut mock = MockAIClient::new();
+        let req = AnalysisRequest {
+            video_files: vec!["v.mp4".into()],
+            subtitle_files: vec!["s.srt".into()],
+            content_samples: vec![],
+        };
+        let expected = MatchResult {
+            matches: vec![],
+            confidence: 0.5,
+            reasoning: "OK".into(),
+        };
+        mock.expect_analyze_content()
+            .with(eq(req.clone()))
+            .times(1)
+            .returning(move |_| Ok(expected.clone()));
+        let res = mock.analyze_content(req.clone()).await.unwrap();
+        assert_eq!(res.confidence, 0.5);
+    }
+
+    #[test]
+    fn test_prompt_building_and_parsing() {
+        let client = OpenAIClient::new("k".into(), "m".into());
+        let request = AnalysisRequest {
+            video_files: vec!["F1.mp4".into()],
+            subtitle_files: vec!["S1.srt".into()],
+            content_samples: vec![],
+        };
+        let prompt = client.build_analysis_prompt(&request);
+        assert!(prompt.contains("F1.mp4"));
+        assert!(prompt.contains("S1.srt"));
+        assert!(prompt.contains("JSON"));
+        let json_resp = r#"{ "matches": [], "confidence":0.9, "reasoning":"r" }"#;
+        let mr = client.parse_match_result(json_resp).unwrap();
+        assert_eq!(mr.confidence, 0.9);
+    }
+}
+
 impl OpenAIClient {
     /// 建立新的 OpenAIClient
     pub fn new(api_key: String, model: String) -> Self {

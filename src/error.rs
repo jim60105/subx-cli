@@ -32,6 +32,71 @@ pub enum SubXError {
     Other(#[from] anyhow::Error),
 }
 
+// 單元測試: SubXError 錯誤類型與輔助方法
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::io;
+
+    #[test]
+    fn test_config_error_creation() {
+        let error = SubXError::config("測試配置錯誤");
+        assert!(matches!(error, SubXError::Config { .. }));
+        assert_eq!(error.to_string(), "配置錯誤: 測試配置錯誤");
+    }
+
+    #[test]
+    fn test_subtitle_format_error_creation() {
+        let error = SubXError::subtitle_format("SRT", "無效格式");
+        assert!(matches!(error, SubXError::SubtitleFormat { .. }));
+        let msg = error.to_string();
+        assert!(msg.contains("SRT"));
+        assert!(msg.contains("無效格式"));
+    }
+
+    #[test]
+    fn test_audio_processing_error_creation() {
+        let error = SubXError::audio_processing("音訊解碼失敗");
+        assert!(matches!(error, SubXError::AudioProcessing { .. }));
+        assert_eq!(error.to_string(), "音訊處理錯誤: 音訊解碼失敗");
+    }
+
+    #[test]
+    fn test_file_matching_error_creation() {
+        let error = SubXError::file_matching("匹配失敗");
+        assert!(matches!(error, SubXError::FileMatching { .. }));
+        assert_eq!(error.to_string(), "文件匹配錯誤: 匹配失敗");
+    }
+
+    #[test]
+    fn test_io_error_conversion() {
+        let io_error = io::Error::new(io::ErrorKind::NotFound, "檔案不存在");
+        let subx_error: SubXError = io_error.into();
+        assert!(matches!(subx_error, SubXError::Io(_)));
+    }
+
+    #[test]
+    fn test_exit_codes() {
+        assert_eq!(SubXError::config("test").exit_code(), 2);
+        assert_eq!(SubXError::subtitle_format("SRT", "test").exit_code(), 4);
+        assert_eq!(SubXError::audio_processing("test").exit_code(), 5);
+        assert_eq!(SubXError::file_matching("test").exit_code(), 6);
+    }
+
+    #[test]
+    fn test_user_friendly_messages() {
+        let config_error = SubXError::config("API 金鑰未設定");
+        let message = config_error.user_friendly_message();
+        assert!(message.contains("配置錯誤"));
+        assert!(message.contains("subx config --help"));
+
+        let ai_error = SubXError::ai_service("網路連接失敗".to_string());
+        let message = ai_error.user_friendly_message();
+        assert!(message.contains("AI 服務錯誤"));
+        assert!(message.contains("檢查網路連接"));
+    }
+}
+
 // 將 reqwest 錯誤轉換為 AI 服務錯誤
 impl From<reqwest::Error> for SubXError {
     fn from(err: reqwest::Error) -> Self {
@@ -83,6 +148,11 @@ impl SubXError {
         }
     }
 
+    /// 建立 AI 服務錯誤
+    pub fn ai_service<S: Into<String>>(message: S) -> Self {
+        SubXError::AiService(message.into())
+    }
+
     /// 建立文件匹配錯誤
     pub fn file_matching<S: Into<String>>(message: S) -> Self {
         SubXError::FileMatching {
@@ -97,6 +167,7 @@ impl SubXError {
             SubXError::AiService(_) => 3,
             SubXError::SubtitleFormat { .. } => 4,
             SubXError::AudioProcessing { .. } => 5,
+            SubXError::FileMatching { .. } => 6,
             _ => 1,
         }
     }

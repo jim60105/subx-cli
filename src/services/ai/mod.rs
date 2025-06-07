@@ -16,7 +16,7 @@ pub trait AIProvider: Send + Sync {
 }
 
 /// 分析請求結構
-#[derive(Debug, Serialize, Clone)]
+#[derive(Debug, Serialize, Clone, PartialEq, Eq)]
 pub struct AnalysisRequest {
     pub video_files: Vec<String>,
     pub subtitle_files: Vec<String>,
@@ -24,7 +24,7 @@ pub struct AnalysisRequest {
 }
 
 /// 字幕內容採樣
-#[derive(Debug, Serialize, Clone)]
+#[derive(Debug, Serialize, Clone, PartialEq, Eq)]
 pub struct ContentSample {
     pub filename: String,
     pub content_preview: String,
@@ -32,7 +32,7 @@ pub struct ContentSample {
 }
 
 /// 匹配結果
-#[derive(Debug, Deserialize, Clone)]
+#[derive(Debug, Deserialize, Clone, PartialEq)]
 pub struct MatchResult {
     pub matches: Vec<FileMatch>,
     pub confidence: f32,
@@ -40,7 +40,7 @@ pub struct MatchResult {
 }
 
 /// 單筆檔案匹配資訊
-#[derive(Debug, Deserialize, Clone)]
+#[derive(Debug, Deserialize, Clone, PartialEq)]
 pub struct FileMatch {
     pub video_file: String,
     pub subtitle_file: String,
@@ -49,14 +49,14 @@ pub struct FileMatch {
 }
 
 /// 信心度分數
-#[derive(Debug, Deserialize, Clone)]
+#[derive(Debug, Deserialize, Clone, PartialEq)]
 pub struct ConfidenceScore {
     pub score: f32,
     pub factors: Vec<String>,
 }
 
 /// 驗證請求結構
-#[derive(Debug, Serialize, Clone)]
+#[derive(Debug, Serialize, Clone, PartialEq, Eq)]
 pub struct VerificationRequest {
     pub video_file: String,
     pub subtitle_file: String,
