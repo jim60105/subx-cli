@@ -44,24 +44,27 @@
 ## 技術設計
 
 ### Cargo.toml 最佳化配置
+
+> 套件以實際使用到的為主，以下只是範例，實際情況可能會有所不同。
+
 ```toml
 # Cargo.toml (完整版)
 [package]
-name = "subx"
+name = "subx-cli"
 version = "0.1.0"
 edition = "2021"
-authors = ["Your Name <email@example.com>"]
+authors = ["CHEN, CHUN <jim60105@gmail.com>"]
 description = "智慧字幕處理 CLI 工具，使用 AI 技術自動匹配、重命名和處理字幕檔案"
 license = "GPLv3"
-repository = "https://github.com/yourusername/subx"
-homepage = "https://github.com/yourusername/subx"
-documentation = "https://docs.rs/subx"
+repository = "https://github.com/jim60105/subx-cli"
+homepage = "https://github.com/jim60105/subx-cli"
+documentation = "https://docs.rs/subx-cli"
 readme = "README.md"
 keywords = ["subtitle", "ai", "cli", "media", "sync"]
 categories = ["command-line-utilities", "multimedia", "text-processing"]
 
 [[bin]]
-name = "subx"
+name = "subx-cli"
 path = "src/main.rs"
 
 [dependencies]
@@ -150,9 +153,9 @@ name: CI
 
 on:
   push:
-    branches: [ main, develop ]
+    branches: [ master ]
   pull_request:
-    branches: [ main ]
+    branches: [ master ]
 
 env:
   CARGO_TERM_COLOR: always
