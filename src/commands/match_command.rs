@@ -1,10 +1,10 @@
+use crate::cli::display_match_results;
 use crate::cli::MatchArgs;
 use crate::config::Config;
 use crate::core::matcher::{MatchConfig, MatchEngine};
 use crate::error::SubXError;
 use crate::services::ai::{AIProvider, OpenAIClient};
 use crate::Result;
-use colored::Colorize;
 
 /// 執行 Match 命令，支援 Dry-run 與實際操作，並允許注入 AI 服務以便測試
 pub async fn execute(args: MatchArgs) -> Result<()> {
@@ -35,16 +35,18 @@ pub async fn execute_with_client(args: MatchArgs, ai_client: Box<dyn AIProvider>
 
     // 執行匹配運算
     let operations = engine.match_files(&args.path, args.recursive).await?;
+
+    // 顯示對映結果表格
+    display_match_results(&operations, args.dry_run);
+
     if args.dry_run {
-        println!("\n{} 預覽模式 - 未實際執行檔案操作", "ℹ".blue().bold());
         engine
             .save_cache(&args.path, args.recursive, &operations)
             .await?;
-        return Ok(());
+    } else {
+        // 執行檔案操作
+        engine.execute_operations(&operations, args.dry_run).await?;
     }
-
-    // 執行檔案操作
-    engine.execute_operations(&operations, args.dry_run).await?;
     Ok(())
 }
 

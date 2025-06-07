@@ -49,6 +49,7 @@ env_logger = "0.10"
 
 # 用戶介面
 colored = "2.0"
+tabled = "0.15"
 indicatif = "0.17"
 dialoguer = "0.10"
 md5 = "0.7"
