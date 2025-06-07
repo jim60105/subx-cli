@@ -79,9 +79,44 @@ impl MatchEngine {
         };
 
         // 4. AI 分析請求
+        // 生成 AI 分析請求：在檔名中包含相對路徑與目錄資訊，提升遞迴匹配的準確度
+        let video_files: Vec<String> = videos
+            .iter()
+            .map(|v| {
+                let rel = v
+                    .path
+                    .strip_prefix(path)
+                    .unwrap_or(&v.path)
+                    .to_string_lossy();
+                let dir = v
+                    .path
+                    .parent()
+                    .and_then(|p| p.file_name())
+                    .and_then(|n| n.to_str())
+                    .unwrap_or_default();
+                format!("{} (路徑: {}, 目錄: {})", v.name, rel, dir)
+            })
+            .collect();
+        let subtitle_files: Vec<String> = subtitles
+            .iter()
+            .map(|s| {
+                let rel = s
+                    .path
+                    .strip_prefix(path)
+                    .unwrap_or(&s.path)
+                    .to_string_lossy();
+                let dir = s
+                    .path
+                    .parent()
+                    .and_then(|p| p.file_name())
+                    .and_then(|n| n.to_str())
+                    .unwrap_or_default();
+                format!("{} (路徑: {}, 目錄: {})", s.name, rel, dir)
+            })
+            .collect();
         let analysis_request = AnalysisRequest {
-            video_files: videos.iter().map(|v| v.name.clone()).collect(),
-            subtitle_files: subtitles.iter().map(|s| s.name.clone()).collect(),
+            video_files,
+            subtitle_files,
             content_samples,
         };
 
