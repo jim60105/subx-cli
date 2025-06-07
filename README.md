@@ -2,19 +2,20 @@
 
 [![Build, Test, Audit & Coverage](https://github.com/jim60105/subx-cli/actions/workflows/build-test-audit-coverage.yml/badge.svg)](https://github.com/jim60105/subx-cli/actions/workflows/build-test-audit-coverage.yml) [![Release](https://github.com/jim60105/subx-cli/actions/workflows/release.yml/badge.svg)](https://github.com/jim60105/subx-cli/actions/workflows/release.yml) [![crates.io](https://img.shields.io/crates/v/subx-cli.svg)](https://crates.io/crates/subx-cli) [![docs.rs](https://docs.rs/subx-cli/badge.svg)](https://docs.rs/subx-cli) [![codecov](https://codecov.io/gh/jim60105/subx-cli/graph/badge.svg?token=2C53RSNNAL)](https://codecov.io/gh/jim60105/subx-cli)
 
-一個智慧字幕處理 CLI 工具，使用 AI 技術自動匹配、重命名和處理字幕文件。
+一個智慧字幕處理 CLI 工具，使用 AI 技術自動匹配、重命名和處理字幕檔案。
 
-> [!WARNING]  
-> This project is currently in a very early stage of development and isn't functional at the moment. I would appreciate it if you could star it, so you'll be notified when I release updates in the future.
+> [!NOTE]  
+> 這個專案目前處於開發階段，基本功能已經實作完成，但可能仍有改進空間。如果你發現任何問題，歡迎提交 Issue。
 
 ## 功能特色
 
-- 🤖 **AI 智慧匹配** - 自動識別影片與字幕的對應關係並重命名
+- 🤖 **AI 智慧匹配** - 使用 AI 技術自動識別影片與字幕的對應關係並重命名
 - 🔄 **格式轉換** - 支援 SRT、ASS、VTT、SUB 等主流字幕格式互轉
 - ⏰ **時間軸校正** - 自動檢測並修正字幕時間偏移問題
-- 🏃 **批量處理** - 一次處理整個資料夾的媒體文件
+- 🏃 **批量處理** - 一次處理整個資料夾的媒體檔案
 - 🔍 **Dry-run 模式** - 預覽操作結果，安全可靠
-+ 📦 **快取管理** - 管理 Dry-run 結果快取檔案
+- 📦 **快取管理** - 重複 Dry-run 可直接重用先前的分析結果，提高效率
+
 ## 安裝
 
 ### Linux
@@ -51,7 +52,7 @@ sudo cp target/release/subx-cli /usr/local/bin/
 # 設定 OpenAI API Key (用於 AI 匹配功能)
 export OPENAI_API_KEY="your-api-key-here"
 
-# 或建立配置文件
+# 或建立配置檔案
 subx-cli config set openai-key "your-api-key-here"
 ```
 
@@ -64,18 +65,21 @@ subx-cli match /path/to/media/folder
 
 # 預覽模式（不實際執行）
 subx-cli match --dry-run /path/to/media/folder
+
+# 遞迴處理子資料夾
+subx-cli match --recursive /path/to/media/folder
 ```
 
 **格式轉換**
 ```bash
-# 單文件轉換
-subx-cli convert subtitle.ass -o subtitle.srt
+# 單檔案轉換
+subx-cli convert subtitle.ass --format srt
 
 # 批量轉換
 subx-cli convert --format srt /path/to/subtitles/
 
-# 轉換並保留原文件
-subx-cli convert --keep-original subtitle.vtt -o subtitle.srt
+# 轉換並保留原檔案
+subx-cli convert --keep-original subtitle.vtt --format srt
 ```
 
 **時間軸校正**
@@ -84,10 +88,16 @@ subx-cli convert --keep-original subtitle.vtt -o subtitle.srt
 subx-cli sync video.mp4 subtitle.srt
 
 # 手動指定偏移
-subx-cli sync --offset -2.5 subtitle.srt
+subx-cli sync --offset -2.5 video.mp4 subtitle.srt
 
 # 批量同步整個資料夾
 subx-cli sync --batch /path/to/media/folder
+```
+
+**快取管理**
+```bash
+# 清除 Dry-run 快取
+subx-cli cache clear
 ```
 
 ## 使用範例
@@ -127,7 +137,7 @@ TV_Show_S01/
 
 ## 配置選項
 
-### 配置文件位置
+### 配置檔案位置
 - Linux/macOS: `~/.config/subx/config.toml`
 - Windows: `%APPDATA%\subx\config.toml`
 
@@ -137,6 +147,7 @@ TV_Show_S01/
 provider = "openai"
 model = "gpt-4o-mini"
 max_sample_length = 2000
+api_key = "your-api-key-here"  # 或使用環境變數 OPENAI_API_KEY
 
 [formats]
 default_output = "srt"
@@ -145,6 +156,9 @@ preserve_styling = true
 [sync]
 max_offset_seconds = 30
 audio_sample_rate = 16000
+
+[general]
+backup_enabled = true
 ```
 
 ## 命令參考
@@ -152,24 +166,28 @@ audio_sample_rate = 16000
 ### `subx-cli match` - AI 匹配重命名
 ```
 選項:
-  --dry-run              預覽模式，不實際執行
-  --confidence <NUM>     最低信心度閾值 (0-100)
+  <PATH>                目標資料夾路徑
+  --dry-run             預覽模式，不實際執行
+  --confidence <NUM>    最低信心度閾值 (0-100, 預設值: 80)
   --recursive           遞歸處理子資料夾
-  --backup              重命名前備份原文件
+  --backup              重命名前備份原檔案
 ```
 
 ### `subx-cli convert` - 格式轉換
 ```
 選項:
+  <INPUT>               輸入檔案或資料夾路徑
   --format <FORMAT>     目標格式 (srt|ass|vtt|sub)
-  --output, -o <FILE>   輸出文件名
-  --keep-original       保留原始文件
-  --encoding <ENC>      指定文字編碼
+  --output, -o <FILE>   輸出檔案名
+  --keep-original       保留原始檔案
+  --encoding <ENC>      指定文字編碼 (預設值: utf-8)
 ```
 
 ### `subx-cli sync` - 時間軸校正
 ```
 選項:
+  <VIDEO>               影片檔案路徑
+  <SUBTITLE>            字幕檔案路徑
   --offset <SECONDS>    手動指定偏移量
   --batch               批量處理模式
   --range <SECONDS>     偏移檢測範圍
@@ -188,7 +206,8 @@ audio_sample_rate = 16000
 ### `subx-cli cache` - Dry-run 快取管理
 ```
 選項:
-  clear           清除所有 Dry-run 快取檔案
+  clear                 清除所有 Dry-run 快取檔案
+```
 
 ### `subx-cli generate-completion` - 產生 shell 補全腳本
 ```
@@ -200,20 +219,26 @@ audio_sample_rate = 16000
 
 | 格式 | 讀取 | 寫入 | 說明 |
 |------|------|------|------|
-| SRT  | ✅   | ✅   | SubRip 字幕 |
-| ASS  | ✅   | ✅   | Advanced SSA |
-| VTT  | ✅   | ✅   | WebVTT |
-| SUB  | ✅   | ⚠️   | 多種 SUB 變體 |
+| SRT  | ✅   | ✅   | SubRip 字幕格式 |
+| ASS  | ✅   | ✅   | Advanced SubStation Alpha 格式 |
+| VTT  | ✅   | ✅   | WebVTT 格式 |
+| SUB  | ✅   | ⚠️   | 多種 SUB 變體格式 |
 
 ## 疑難排解
 
 ### 常見問題
 
 **Q: AI 匹配準確度不高怎麼辦？**
-A: 確保文件名包含足夠的識別信息（如劇名、季數、集數）。
+A: 確保檔案名包含足夠的識別資訊（如劇名、季數、集數）。同時可以嘗試調整 `--confidence` 參數。
 
 **Q: 時間軸同步失敗？**
-A: 確保影片文件可訪問，並嘗試手動指定偏移量：`subx-cli sync --offset <seconds>`
+A: 確保影片檔案可存取，並檢查檔案格式是否支援。如果自動同步不理想，可以嘗試手動指定偏移量：`subx-cli sync --offset <seconds> video.mp4 subtitle.srt`
+
+**Q: 快取檔案佔用太多空間？**
+A: 使用 `subx-cli cache clear` 指令可以清除所有快取檔案。
+
+**Q: 如何在新的影片與字幕加入後重新匹配？**
+A: 先清除快取 `subx-cli cache clear`，再重新執行 match 命令。
 
 ---
 
