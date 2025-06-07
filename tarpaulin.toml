@@ -1,0 +1,12 @@
+[tarpaulin]
+out = ["Html", "Lcov"]
+target-dir = "target/tarpaulin"
+timeout = 120
+fail-under = 50
+ignore-panics = true
+count = true
+all-features = true
+exclude = [
+    "benches/*",
+    "tests/*"
+]

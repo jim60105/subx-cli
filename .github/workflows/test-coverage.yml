@@ -1,0 +1,82 @@
+name: Test Coverage
+
+on:
+  push:
+    branches: [ master ]
+  pull_request:
+    branches: [ master ]
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  coverage:
+    name: Code Coverage
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v3
+
+    - name: Install Rust stable
+      uses: actions-rs/toolchain@v1
+      with:
+        toolchain: stable
+        override: true
+        components: llvm-tools-preview
+    
+    - name: Cache cargo registry
+      uses: actions/cache@v3
+      with:
+        path: ~/.cargo/registry
+        key: ${{ runner.os }}-cargo-registry-${{ hashFiles('**/Cargo.lock') }}
+
+    - name: Install cargo-tarpaulin
+      run: cargo install cargo-tarpaulin
+
+    - name: Run tests with coverage
+      run: |
+        cargo tarpaulin \
+          --verbose \
+          --all-features \
+          --workspace \
+          --timeout 120 \
+          --out Html \
+          --out Lcov \
+          --output-dir coverage/ \
+          --fail-under 50
+
+    - name: Upload coverage to Codecov
+      uses: codecov/codecov-action@v3
+      with:
+        files: coverage/lcov.info
+        fail_ci_if_error: true
+        verbose: true
+
+    - name: Archive coverage results
+      uses: actions/upload-artifact@v3
+      with:
+        name: coverage-report
+        path: coverage/
+
+    - name: Comment coverage on PR
+      if: github.event_name == 'pull_request'
+      uses: actions/github-script@v6
+      with:
+        script: |
+          const fs = require('fs');
+          try {
+            const coverage = fs.readFileSync('coverage/tarpaulin-report.html', 'utf8');
+            const coverageMatch = coverage.match(/(\d+\.?\d*)%/);
+            if (coverageMatch) {
+              const percentage = parseFloat(coverageMatch[1]);
+              const message = `## 🧪 測試覆蓋率報告\n\n當前覆蓋率: **${percentage}%**\n\n${percentage >= 50 ? '✅ 達成目標覆蓋率 (≥50%)' : '❌ 未達成目標覆蓋率 (≥50%)'}`;
+              github.rest.issues.createComment({
+                issue_number: context.issue.number,
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                body: message
+              });
+            }
+          } catch (error) {
+            console.log('無法讀取覆蓋率報告:', error);
+          }

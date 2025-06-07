@@ -62,11 +62,21 @@ dirs = "4.0"
 num_cpus = "1.0"
 
 [dev-dependencies]
+# testing frameworks and utilities
 tokio-test = "0.4"
 assert_cmd = "2.0"
 predicates = "3.0"
 tempfile = "3.8"
 criterion = { version = "0.5", features = ["html_reports"] }
+
+# mock and test case generation
+mockall = "0.11"
+serial_test = "3.0"
+rstest = "0.18"
+test-case = "3.0"
+
+# coverage and HTTP mocking
+wiremock = "0.5"
 
 [[bin]]
 name = "subx-cli"
