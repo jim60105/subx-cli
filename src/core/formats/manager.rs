@@ -16,9 +16,9 @@ impl FormatManager {
     pub fn new() -> Self {
         Self {
             formats: vec![
-                Box::new(crate::core::formats::srt::SrtFormat),
                 Box::new(crate::core::formats::ass::AssFormat),
                 Box::new(crate::core::formats::vtt::VttFormat),
+                Box::new(crate::core::formats::srt::SrtFormat),
                 Box::new(crate::core::formats::sub::SubFormat),
             ],
         }
