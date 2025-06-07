@@ -11,7 +11,7 @@
     - 主動參考核心文件與對話歷史以理解需求。
     - Refrain from parsing `Cargo.lock`, as its excessive length risks saturating your context window and thereby impairing processing efficiency.
     - Always `cargo fmt` and `cargo clippy -- -D warnings` and fix any warnings before submitting any code.
-    - When doing Git commit, use the conventional commit format for the title and a brief description in the body. Always commit with `--signoff --no-gpg-sign` and author & committer: `🤖 GitHub Copilot <github-copilot[bot]@users.noreply.github.com>`. Write the commit in English.
+    - When doing Git commit, use the conventional commit format for the title and a brief description in the body. Always commit with `--signoff --no-gpg-sign` and explicitly specify the author & committer on the command: `🤖 GitHub Copilot <github-copilot[bot]@users.noreply.github.com>`. Write the commit in English.
 
 # Product Backlogs 詳細指導
 每個 Product Backlog 包含完整的技術設計和實作細節：
