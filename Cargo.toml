@@ -67,7 +67,6 @@ tokio-test = "0.4"
 assert_cmd = "2.0"
 predicates = "3.0"
 tempfile = "3.8"
-criterion = { version = "0.5", features = ["html_reports"] }
 
 # mock and test case generation
 mockall = "0.11"
@@ -100,7 +99,3 @@ winapi = { version = "0.3", features = ["winuser"] }
 
 [target.'cfg(unix)'.dependencies]
 libc = "0.2"
-
-[[bench]]
-name = "audio_processing"
-harness = false
