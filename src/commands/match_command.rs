@@ -20,7 +20,8 @@ pub async fn execute(args: MatchArgs) -> Result<()> {
     let match_config = MatchConfig {
         confidence_threshold: args.confidence as f32 / 100.0,
         max_sample_length: config.ai.max_sample_length,
-        enable_content_analysis: true,
+        // Dry-run 模式下不執行內容分析以避免實際呼叫 AI 服務
+        enable_content_analysis: !args.dry_run,
         backup_enabled: args.backup || config.general.backup_enabled,
     };
     let engine = MatchEngine::new(
@@ -28,20 +29,15 @@ pub async fn execute(args: MatchArgs) -> Result<()> {
         match_config,
     );
 
-    // 若為預覽模式，顯示提示，但仍執行匹配並快取結果，僅跳過實際檔案操作
+    // 若為預覽模式，顯示提示並建立空快取，不呼叫 AI 分析或執行檔案操作
     if args.dry_run {
         println!("\n{} 預覽模式 - 未實際執行操作", "ℹ".blue().bold());
-    }
-    // 執行匹配 (Dry-run 同時快取結果)
-    let operations = engine.match_files(&args.path, args.recursive).await?;
-    if args.dry_run {
-        engine
-            .save_cache(&args.path, args.recursive, &operations)
-            .await?;
+        engine.save_cache(&args.path, args.recursive, &[]).await?;
         return Ok(());
     }
 
-    // 執行檔案操作
+    // 執行匹配並執行檔案操作
+    let operations = engine.match_files(&args.path, args.recursive).await?;
     engine.execute_operations(&operations, args.dry_run).await?;
     Ok(())
 }
@@ -50,7 +46,6 @@ pub async fn execute(args: MatchArgs) -> Result<()> {
 mod tests {
     use super::execute;
     use crate::cli::MatchArgs;
-    use crate::config::Config;
     use std::fs;
     use std::path::PathBuf;
     use tempfile::tempdir;

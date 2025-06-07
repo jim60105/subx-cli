@@ -59,8 +59,6 @@ impl FormatManager {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::core::formats::srt::SrtFormat;
-    use crate::core::formats::vtt::VttFormat;
     use crate::core::formats::SubtitleFormatType;
 
     const SAMPLE_SRT: &str = "1\n00:00:00,000 --> 00:00:01,000\nOne\n";
