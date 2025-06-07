@@ -51,45 +51,32 @@ mod tests {
     use super::execute;
     use crate::cli::MatchArgs;
     use crate::config::Config;
-    use crate::core::matcher::cache::CacheData;
-    use md5;
-    use serde_json;
     use std::fs;
     use std::path::PathBuf;
     use tempfile::tempdir;
-    use toml;
 
+    /// Dry-run 模式下應建立快取檔案，且不實際執行任何檔案操作
     #[tokio::test]
-    async fn dry_run_creates_cache_file() -> crate::Result<()> {
-        // 建立臨時媒體資料夾
-        let media_dir = tempdir().unwrap();
+    async fn dry_run_creates_cache_and_skips_execute_operations() -> crate::Result<()> {
+        // 建立臨時媒體資料夾並放入示意影片與字幕檔
+        let media_dir = tempdir()?;
         let media_path = media_dir.path().join("media");
         fs::create_dir_all(&media_path)?;
+        let video = media_path.join("video.mkv");
+        let subtitle = media_path.join("subtitle.ass");
+        fs::write(&video, b"dummy")?;
+        fs::write(&subtitle, b"dummy")?;
 
-        // 將 XDG_CONFIG_HOME 指向臨時目錄，並設定 API 金鑰
+        // 指定快取路徑到臨時資料夾，並設定 API 金鑰
         std::env::set_var("XDG_CONFIG_HOME", media_dir.path());
         std::env::set_var("OPENAI_API_KEY", "test_key");
 
-        // 計算目前配置雜湊，用於產生相容的快取檔案
-        let cfg = Config::load()?;
-        let toml = toml::to_string(&cfg).unwrap();
-        let config_hash = format!("{:x}", md5::compute(toml));
-
-        // 準備快取檔案路徑與內容
-        let cache_dir = dirs::config_dir().unwrap().join("subx");
-        fs::create_dir_all(&cache_dir)?;
-        let cache_path = cache_dir.join("match_cache.json");
-        let cache_data = CacheData {
-            cache_version: "1.0".to_string(),
-            directory: media_path.to_string_lossy().to_string(),
-            file_snapshot: Vec::new(),
-            match_operations: Vec::new(),
-            created_at: 0,
-            ai_model_used: config_hash.clone(),
-            config_hash: config_hash.clone(),
-        };
-        let json = serde_json::to_string_pretty(&cache_data).expect("序列化 CacheData 成功");
-        fs::write(&cache_path, json)?;
+        // 確認尚未產生快取檔案
+        let cache_path = dirs::config_dir()
+            .unwrap()
+            .join("subx")
+            .join("match_cache.json");
+        assert!(!cache_path.exists(), "測試開始時不應存在快取檔案");
 
         // 執行 dry-run
         let args = MatchArgs {
@@ -101,8 +88,16 @@ mod tests {
         };
         execute(args).await?;
 
-        // 驗證快取檔案仍然存在
-        assert!(cache_path.exists(), "快取檔案應在 dry_run 後建立");
+        // 驗證已建立快取檔案，且原始檔案未被移動或刪除
+        assert!(cache_path.exists(), "dry_run 後應建立快取檔案");
+        assert!(
+            video.exists(),
+            "dry_run 不應執行 execute_operations，影片檔仍須存在"
+        );
+        assert!(
+            subtitle.exists(),
+            "dry_run 不應執行 execute_operations，字幕檔仍須存在"
+        );
         Ok(())
     }
 }
