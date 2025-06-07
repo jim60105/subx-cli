@@ -64,7 +64,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v4
-    - uses: actions-rs/audit-check@v1
+    - name: Audit Rust Dependencies
+      uses: actions-rust-lang/audit@v1.2.4
 
   coverage:
     name: Code Coverage
