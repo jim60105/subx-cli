@@ -1,5 +1,7 @@
 # SubX
 
+[![CI](https://github.com/yourusername/subx/actions/workflows/ci.yml/badge.svg)](https://github.com/yourusername/subx/actions/workflows/ci.yml) [![Release](https://github.com/yourusername/subx/actions/workflows/release.yml/badge.svg)](https://github.com/yourusername/subx/actions/workflows/release.yml) [![crates.io](https://img.shields.io/crates/v/subx.svg)](https://crates.io/crates/subx) [![docs.rs](https://docs.rs/subx/badge.svg)](https://docs.rs/subx)
+
 一個智慧字幕處理 CLI 工具，使用 AI 技術自動匹配、重命名和處理字幕文件。
 
 > [!WARNING]  
@@ -13,26 +15,18 @@
 - 🏃 **批量處理** - 一次處理整個資料夾的媒體文件
 - 🔍 **Dry-run 模式** - 預覽操作結果，安全可靠
 + 📦 **快取管理** - 管理 Dry-run 結果快取檔案
-<!-- 
 ## 安裝
 
-### 從 Releases 下載
-```bash
-# macOS / Linux
-curl -L https://github.com/yourusername/subx/releases/latest/download/subx-{platform} -o subx
-chmod +x subx
-sudo mv subx /usr/local/bin/
+### Homebrew
 
-# Windows
-# 下載 subx.exe 並添加到 PATH
+```bash
+brew install yourusername/subx/subx
 ```
 
-### 從源碼編譯
+### 下載並執行安裝腳本
+
 ```bash
-git clone https://github.com/yourusername/subx.git
-cd subx
-cargo build --release
-sudo cp target/release/subx /usr/local/bin/ -->
+curl -fsSL https://raw.githubusercontent.com/yourusername/subx/main/scripts/install.sh | bash
 ```
 
 ## 快速開始
