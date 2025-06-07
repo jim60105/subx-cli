@@ -1,6 +1,6 @@
 # Codex Project Instructions (SubX)
 
-* **Project:** SubX – An intelligent subtitle utility implemented as a Rust-based CLI tool.
+* **Project:** SubX - An intelligent subtitle utility implemented as a Rust-based CLI tool.
 
 * **Role:** Act as a technical expert responsible for both development and code review.
 
@@ -20,53 +20,25 @@
 
 ---
 
-# Detailed Guidelines for Product Backlogs
+# Project Planning Structure
 
-Each product backlog entry encapsulates the complete technical design and implementation blueprint for a discrete module:
+The project development planning is organized in the `.github/plans` directory with the following structure:
 
-1. **[Project Foundation](.github/instructions/01-project-foundation.md)**
+## Backlogs
+The `backlogs` folder contains detailed technical specifications and implementation guidelines for each development phase. These serve as comprehensive references for completed features and ongoing development:
 
-   * Initialization of the Rust project, directory layout, and error-handling architecture
+* **[Backlogs Directory](.github/plans/backlogs/)**
+  * Contains numbered implementation guides from project foundation to deployment
+  * Each backlog includes complete technical design and implementation details
+  * Serves as historical reference for completed development work
 
-2. **[CLI Interface Framework](.github/instructions/02-cli-interface.md)**
+## Bug Reports and Enhancements
+The `bugs` folder contains identified issues, enhancements, and optimization opportunities:
 
-   * Command architecture, parameter parsing, and user interface specification
-
-3. **[Configuration Management System](.github/instructions/03-config-management.md)**
-
-   * TOML-based configuration, environment variable support, and validation mechanisms
-
-4. **[Subtitle Format Engine](.github/instructions/04-subtitle-format-engine.md)**
-
-   * Parsers for SRT/ASS/VTT/SUB formats and a unified data model
-
-5. **[AI Service Integration](.github/instructions/05-ai-service-integration.md)**
-
-   * Integration with the OpenAI API, prompt engineering strategies, and retry logic
-
-6. **[File Matching Engine](.github/instructions/06-file-matching-engine.md)**
-
-   * File discovery mechanisms, AI-assisted matching, and preview mode implementation
-
-7. **[Dry-run Cache & File Operation Optimization](.github/instructions/07-dryrun-cache.md)**
-
-   * Dry-run result caching, cache file design, direct reuse on cache hit, removal of language detection/season-episode/title normalization
-
-8. **[Format Conversion System](.github/instructions/08-format-conversion-system.md)**
-
-   * Cross-format subtitle transformation, style preservation, and batch processing
-
-9. **[Audio Synchronization Engine](.github/instructions/09-audio-sync-engine.md)**
-
-   * FFmpeg integration, cross-correlation analysis, and automatic alignment routines
-
-10. **[Command Integration Testing](.github/instructions/10-command-integration.md)**
-
-   * End-to-end validation, fault tolerance, and user workflow simulations
-
-11. **[Deployment and Release](.github/instructions/11-deployment-release.md)**
-
-    * CI/CD pipeline orchestration, cross-platform compilation, and automated release management
+* **[Bugs Directory](.github/plans/bugs/)**
+  * Contains detailed bug reports and enhancement requests
+  * Each item includes problem description, reproduction steps, and proposed solutions
+  * Serves as task queue for ongoing maintenance and improvements
 
 # Work Report Protocol
 
