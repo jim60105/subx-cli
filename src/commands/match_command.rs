@@ -2,53 +2,78 @@ use crate::cli::MatchArgs;
 use crate::config::Config;
 use crate::core::matcher::{MatchConfig, MatchEngine};
 use crate::error::SubXError;
-use crate::services::ai::OpenAIClient;
+use crate::services::ai::{AIProvider, OpenAIClient};
 use crate::Result;
 use colored::Colorize;
 
-/// 執行 Match 命令，支援 Dry-run 與實際操作
+/// 執行 Match 命令，支援 Dry-run 與實際操作，並允許注入 AI 服務以便測試
 pub async fn execute(args: MatchArgs) -> Result<()> {
-    // 載入配置
+    // 載入配置與建立 AI 客戶端
     let config = Config::load()?;
     let api_key = config
         .ai
         .api_key
         .clone()
         .ok_or_else(|| SubXError::config("需要設定 OPENAI API 金鑰"))?;
+    let ai_client: Box<dyn AIProvider> =
+        Box::new(OpenAIClient::new(api_key, config.ai.model.clone()));
+    execute_with_client(args, ai_client).await
+}
 
-    // 建立匹配引擎
+/// 執行 Match 流程，支援 Dry-run 與實際操作，AI 客戶端由外部注入
+pub async fn execute_with_client(args: MatchArgs, ai_client: Box<dyn AIProvider>) -> Result<()> {
+    // 載入配置並初始化匹配引擎
+    let config = Config::load()?;
     let match_config = MatchConfig {
         confidence_threshold: args.confidence as f32 / 100.0,
         max_sample_length: config.ai.max_sample_length,
-        // Dry-run 模式下不執行內容分析以避免實際呼叫 AI 服務
-        enable_content_analysis: !args.dry_run,
+        // 永遠進行內容分析，以便 Dry-run 時也能產生並快取結果
+        enable_content_analysis: true,
         backup_enabled: args.backup || config.general.backup_enabled,
     };
-    let engine = MatchEngine::new(
-        Box::new(OpenAIClient::new(api_key, config.ai.model.clone())),
-        match_config,
-    );
+    let engine = MatchEngine::new(ai_client, match_config);
 
-    // 若為預覽模式，顯示提示並建立空快取，不呼叫 AI 分析或執行檔案操作
+    // 執行匹配運算
+    let operations = engine.match_files(&args.path, args.recursive).await?;
     if args.dry_run {
-        println!("\n{} 預覽模式 - 未實際執行操作", "ℹ".blue().bold());
-        engine.save_cache(&args.path, args.recursive, &[]).await?;
+        println!("\n{} 預覽模式 - 未實際執行檔案操作", "ℹ".blue().bold());
+        engine
+            .save_cache(&args.path, args.recursive, &operations)
+            .await?;
         return Ok(());
     }
 
-    // 執行匹配並執行檔案操作
-    let operations = engine.match_files(&args.path, args.recursive).await?;
+    // 執行檔案操作
     engine.execute_operations(&operations, args.dry_run).await?;
     Ok(())
 }
 
 #[cfg(test)]
 mod tests {
-    use super::execute;
+    use super::execute_with_client;
     use crate::cli::MatchArgs;
+    use crate::services::ai::{
+        AIProvider, AnalysisRequest, ConfidenceScore, MatchResult, VerificationRequest,
+    };
+    use async_trait::async_trait;
     use std::fs;
     use std::path::PathBuf;
     use tempfile::tempdir;
+
+    struct DummyAI;
+    #[async_trait]
+    impl AIProvider for DummyAI {
+        async fn analyze_content(&self, _req: AnalysisRequest) -> crate::Result<MatchResult> {
+            Ok(MatchResult {
+                matches: Vec::new(),
+                confidence: 0.0,
+                reasoning: String::new(),
+            })
+        }
+        async fn verify_match(&self, _req: VerificationRequest) -> crate::Result<ConfidenceScore> {
+            panic!("verify_match should not be called in dry-run test");
+        }
+    }
 
     /// Dry-run 模式下應建立快取檔案，且不實際執行任何檔案操作
     #[tokio::test]
@@ -62,9 +87,8 @@ mod tests {
         fs::write(&video, b"dummy")?;
         fs::write(&subtitle, b"dummy")?;
 
-        // 指定快取路徑到臨時資料夾，並設定 API 金鑰
+        // 指定快取路徑到臨時資料夾
         std::env::set_var("XDG_CONFIG_HOME", media_dir.path());
-        std::env::set_var("OPENAI_API_KEY", "test_key");
 
         // 確認尚未產生快取檔案
         let cache_path = dirs::config_dir()
@@ -81,7 +105,7 @@ mod tests {
             confidence: 80,
             backup: false,
         };
-        execute(args).await?;
+        execute_with_client(args, Box::new(DummyAI)).await?;
 
         // 驗證已建立快取檔案，且原始檔案未被移動或刪除
         assert!(cache_path.exists(), "dry_run 後應建立快取檔案");
