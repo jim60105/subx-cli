@@ -17,16 +17,31 @@
 + 📦 **快取管理** - 管理 Dry-run 結果快取檔案
 ## 安裝
 
-### Homebrew
+### Linux
 
-```bash
-brew install jim60105/subx-cli/subx
-```
-
-### 下載並執行安裝腳本
-
+#### 方式 1：下載並執行安裝腳本
 ```bash
 curl -fsSL https://raw.githubusercontent.com/jim60105/subx-cli/main/scripts/install.sh | bash
+```
+
+#### 方式 2：直接下載預編譯檔案
+```bash
+# 下載最新版本
+curl -L "https://github.com/jim60105/subx-cli/releases/latest/download/subx-linux-x86_64" -o subx-cli
+chmod +x subx-cli
+sudo mv subx-cli /usr/local/bin/
+```
+
+#### 方式 3：使用 Cargo 編譯安裝
+```bash
+# 從 crates.io 安裝
+cargo install subx-cli
+
+# 或從原始碼編譯
+git clone https://github.com/jim60105/subx-cli.git
+cd subx-cli
+cargo build --release
+sudo cp target/release/subx-cli /usr/local/bin/
 ```
 
 ## 快速開始
@@ -37,7 +52,7 @@ curl -fsSL https://raw.githubusercontent.com/jim60105/subx-cli/main/scripts/inst
 export OPENAI_API_KEY="your-api-key-here"
 
 # 或建立配置文件
-subx config set openai-key "your-api-key-here"
+subx-cli config set openai-key "your-api-key-here"
 ```
 
 ### 2. 基本使用
@@ -45,34 +60,34 @@ subx config set openai-key "your-api-key-here"
 **字幕匹配與重命名**
 ```bash
 # 處理單個資料夾
-subx match /path/to/media/folder
+subx-cli match /path/to/media/folder
 
 # 預覽模式（不實際執行）
-subx match --dry-run /path/to/media/folder
+subx-cli match --dry-run /path/to/media/folder
 ```
 
 **格式轉換**
 ```bash
 # 單文件轉換
-subx convert subtitle.ass -o subtitle.srt
+subx-cli convert subtitle.ass -o subtitle.srt
 
 # 批量轉換
-subx convert --format srt /path/to/subtitles/
+subx-cli convert --format srt /path/to/subtitles/
 
 # 轉換並保留原文件
-subx convert --keep-original subtitle.vtt -o subtitle.srt
+subx-cli convert --keep-original subtitle.vtt -o subtitle.srt
 ```
 
 **時間軸校正**
 ```bash
 # 自動檢測偏移
-subx sync video.mp4 subtitle.srt
+subx-cli sync video.mp4 subtitle.srt
 
 # 手動指定偏移
-subx sync --offset -2.5 subtitle.srt
+subx-cli sync --offset -2.5 subtitle.srt
 
 # 批量同步整個資料夾
-subx sync --batch /path/to/media/folder
+subx-cli sync --batch /path/to/media/folder
 ```
 
 ## 使用範例
@@ -83,14 +98,14 @@ subx sync --batch /path/to/media/folder
 cd ~/Downloads/TV_Show_S01/
 
 # 2. AI 匹配並重命名字幕
-subx match --dry-run .  # 先預覽
-subx match .            # 確認後執行
+subx-cli match --dry-run .  # 先預覽
+subx-cli match .            # 確認後執行
 
 # 3. 統一轉換為 SRT 格式
-subx convert --format srt .
+subx-cli convert --format srt .
 
 # 4. 修正時間同步問題
-subx sync --batch .
+subx-cli sync --batch .
 ```
 
 ### 資料夾結構範例
@@ -134,7 +149,7 @@ audio_sample_rate = 16000
 
 ## 命令參考
 
-### `subx match` - AI 匹配重命名
+### `subx-cli match` - AI 匹配重命名
 ```
 選項:
   --dry-run              預覽模式，不實際執行
@@ -143,7 +158,7 @@ audio_sample_rate = 16000
   --backup              重命名前備份原文件
 ```
 
-### `subx convert` - 格式轉換
+### `subx-cli convert` - 格式轉換
 ```
 選項:
   --format <FORMAT>     目標格式 (srt|ass|vtt|sub)
@@ -152,7 +167,7 @@ audio_sample_rate = 16000
   --encoding <ENC>      指定文字編碼
 ```
 
-### `subx sync` - 時間軸校正
+### `subx-cli sync` - 時間軸校正
 ```
 選項:
   --offset <SECONDS>    手動指定偏移量
@@ -161,24 +176,24 @@ audio_sample_rate = 16000
   --method <METHOD>     同步方法 (audio|manual)
 ```
 
-### `subx config` - 配置管理
+### `subx-cli config` - 配置管理
 ```
 使用:
-  subx config set <KEY> <VALUE>   設定配置值
-  subx config get <KEY>           獲取配置值
-  subx config list                列出所有配置
-  subx config reset               重置配置
+  subx-cli config set <KEY> <VALUE>   設定配置值
+  subx-cli config get <KEY>           獲取配置值
+  subx-cli config list                列出所有配置
+  subx-cli config reset               重置配置
 ```
 
-### `subx cache` - Dry-run 快取管理
+### `subx-cli cache` - Dry-run 快取管理
 ```
 選項:
   clear           清除所有 Dry-run 快取檔案
 
-### `subx generate-completion` - 產生 shell 補全腳本
+### `subx-cli generate-completion` - 產生 shell 補全腳本
 ```
 使用:
-  subx generate-completion <SHELL>  支援的 shell: bash, zsh, fish, powershell, elvish
+  subx-cli generate-completion <SHELL>  支援的 shell: bash, zsh, fish, powershell, elvish
 ```
 
 ## 支援格式
@@ -198,7 +213,7 @@ audio_sample_rate = 16000
 A: 確保文件名包含足夠的識別信息（如劇名、季數、集數）。
 
 **Q: 時間軸同步失敗？**
-A: 確保影片文件可訪問，並嘗試手動指定偏移量：`subx sync --offset <seconds>`
+A: 確保影片文件可訪問，並嘗試手動指定偏移量：`subx-cli sync --offset <seconds>`
 
 ---
 

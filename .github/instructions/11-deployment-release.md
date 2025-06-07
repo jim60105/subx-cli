@@ -26,7 +26,6 @@
 ### 4. 套件和發佈
 - [ ] GitHub Releases 配置
 - [ ] 預編譯二進位檔案
-- [ ] Homebrew Formula
 - [ ] Cargo 發佈準備
 
 ### 5. 文件和範例
@@ -279,19 +278,19 @@ jobs:
         include:
         - os: ubuntu-latest
           target: x86_64-unknown-linux-gnu
-          binary_name: subx
+          binary_name: subx-cli
           asset_name: subx-linux-x86_64
         - os: windows-latest
           target: x86_64-pc-windows-msvc
-          binary_name: subx.exe
+          binary_name: subx-cli.exe
           asset_name: subx-windows-x86_64.exe
         - os: macos-latest
           target: x86_64-apple-darwin
-          binary_name: subx
+          binary_name: subx-cli
           asset_name: subx-macos-x86_64
         - os: macos-latest
           target: aarch64-apple-darwin
-          binary_name: subx
+          binary_name: subx-cli
           asset_name: subx-macos-aarch64
 
     steps:
@@ -413,43 +412,20 @@ RELEASE_URL="https://api.github.com/repos/jim60105/subx-cli/releases/latest"
 BINARY_NAME="subx-${PLATFORM}-${ARCH}"
 
 echo "正在下載 SubX 最新版本..."
-curl -L "$(curl -s $RELEASE_URL | grep "browser_download_url.*$BINARY_NAME" | cut -d '"' -f 4)" -o subx
+curl -L "$(curl -s $RELEASE_URL | grep "browser_download_url.*$BINARY_NAME" | cut -d '"' -f 4)" -o subx-cli
 
-chmod +x subx
+chmod +x subx-cli
 
 # 安裝到系統路徑
 if [[ "$EUID" -eq 0 ]]; then
-    mv subx /usr/local/bin/
-    echo "SubX 已安裝到 /usr/local/bin/subx"
+    mv subx-cli /usr/local/bin/
+    echo "SubX 已安裝到 /usr/local/bin/subx-cli"
 else
-    sudo mv subx /usr/local/bin/
-    echo "SubX 已安裝到 /usr/local/bin/subx"
+    sudo mv subx-cli /usr/local/bin/
+    echo "SubX 已安裝到 /usr/local/bin/subx-cli"
 fi
 
-echo "安裝完成! 執行 'subx --help' 開始使用"
-```
-
-### Homebrew Formula
-```ruby
-# Formula/subx.rb
-class Subx < Formula
-  desc "智慧字幕處理 CLI 工具"
-  homepage "https://github.com/jim60105/subx-cli"
-  url "https://github.com/jim60105/subx-cli/archive/v0.1.0.tar.gz"
-  sha256 "YOUR_SHA256_HERE"
-  license "GPLv3"
-
-  depends_on "rust" => :build
-  depends_on "ffmpeg" => :optional
-
-  def install
-    system "cargo", "install", *std_cargo_args
-  end
-
-  test do
-    system "#{bin}/subx", "--version"
-  end
-end
+echo "安裝完成! 執行 'subx-cli --help' 開始使用"
 ```
 
 ## 驗收標準

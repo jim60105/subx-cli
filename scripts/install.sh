@@ -23,17 +23,17 @@ RELEASE_URL="https://api.github.com/repos/jim60105/subx-cli/releases/latest"
 BINARY_NAME="subx-${PLATFORM}-${ARCH}"
 
 echo "正在下載 SubX 最新版本..."
-curl -L "$(curl -s $RELEASE_URL | grep "browser_download_url.*$BINARY_NAME" | cut -d '"' -f 4)" -o subx
+curl -L "$(curl -s $RELEASE_URL | grep "browser_download_url.*$BINARY_NAME" | cut -d '"' -f 4)" -o subx-cli
 
-chmod +x subx
+chmod +x subx-cli
 
 # 安裝到系統路徑
 if [[ "$EUID" -eq 0 ]]; then
-    mv subx /usr/local/bin/
-    echo "SubX 已安裝到 /usr/local/bin/subx"
+    mv subx-cli /usr/local/bin/
+    echo "SubX 已安裝到 /usr/local/bin/subx-cli"
 else
-    sudo mv subx /usr/local/bin/
-    echo "SubX 已安裝到 /usr/local/bin/subx"
+    sudo mv subx-cli /usr/local/bin/
+    echo "SubX 已安裝到 /usr/local/bin/subx-cli"
 fi
 
-echo "安裝完成! 執行 'subx --help' 開始使用"
+echo "安裝完成! 執行 'subx-cli --help' 開始使用"
