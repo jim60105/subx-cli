@@ -1,4 +1,6 @@
+use crate::cli::display_ai_usage;
 use crate::error::SubXError;
+use crate::services::ai::AiUsageStats;
 use crate::services::ai::{
     AIProvider, AnalysisRequest, ConfidenceScore, MatchResult, VerificationRequest,
 };
@@ -6,6 +8,7 @@ use crate::Result;
 use async_trait::async_trait;
 use reqwest::Client;
 use serde_json::json;
+use serde_json::Value;
 use std::time::Duration;
 
 /// OpenAI 客戶端實作
@@ -157,10 +160,27 @@ impl OpenAIClient {
             )));
         }
 
-        let response_json: serde_json::Value = response.json().await?;
+        let response_json: Value = response.json().await?;
         let content = response_json["choices"][0]["message"]["content"]
             .as_str()
             .ok_or_else(|| SubXError::AiService("無效的 API 回應格式".to_string()))?;
+
+        // 解析使用統計並顯示
+        if let Some(usage_obj) = response_json.get("usage") {
+            if let (Some(p), Some(c), Some(t)) = (
+                usage_obj.get("prompt_tokens").and_then(Value::as_u64),
+                usage_obj.get("completion_tokens").and_then(Value::as_u64),
+                usage_obj.get("total_tokens").and_then(Value::as_u64),
+            ) {
+                let stats = AiUsageStats {
+                    model: self.model.clone(),
+                    prompt_tokens: p as u32,
+                    completion_tokens: c as u32,
+                    total_tokens: t as u32,
+                };
+                display_ai_usage(&stats);
+            }
+        }
 
         Ok(content.to_string())
     }

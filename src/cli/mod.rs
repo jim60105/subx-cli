@@ -15,7 +15,7 @@ pub use convert_args::{ConvertArgs, OutputSubtitleFormat};
 pub use generate_completion_args::GenerateCompletionArgs;
 pub use match_args::MatchArgs;
 pub use sync_args::{SyncArgs, SyncMethod};
-pub use ui::{create_progress_bar, print_error, print_success, print_warning};
+pub use ui::{create_progress_bar, display_ai_usage, print_error, print_success, print_warning};
 
 /// SubX CLI 主體
 #[derive(Parser, Debug)]

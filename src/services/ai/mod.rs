@@ -63,6 +63,28 @@ pub struct VerificationRequest {
     pub match_factors: Vec<String>,
 }
 
+/// AI 使用統計資訊
+#[derive(Debug, Clone)]
+pub struct AiUsageStats {
+    /// 使用的模型名稱
+    pub model: String,
+    /// Prompt tokens 使用量
+    pub prompt_tokens: u32,
+    /// Completion tokens 使用量
+    pub completion_tokens: u32,
+    /// 總 tokens 使用量
+    pub total_tokens: u32,
+}
+
+/// AI 回應內容及使用統計
+#[derive(Debug, Clone)]
+pub struct AiResponse {
+    /// 回應內容文字
+    pub content: String,
+    /// 使用統計資訊
+    pub usage: Option<AiUsageStats>,
+}
+
 pub mod cache;
 pub mod openai;
 pub mod prompts;

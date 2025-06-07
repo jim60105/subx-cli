@@ -29,3 +29,13 @@ pub fn create_progress_bar(total: u64) -> ProgressBar {
     );
     pb
 }
+
+/// 顯示 AI API 呼叫使用統計資訊
+pub fn display_ai_usage(usage: &crate::services::ai::AiUsageStats) {
+    println!("🤖 AI API 呼叫詳情:");
+    println!("   模型: {}", usage.model);
+    println!("   Prompt tokens: {}", usage.prompt_tokens);
+    println!("   Completion tokens: {}", usage.completion_tokens);
+    println!("   Total tokens: {}", usage.total_tokens);
+    println!();
+}
