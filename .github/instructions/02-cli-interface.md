@@ -52,7 +52,7 @@
 use clap::{Parser, Subcommand};
 
 #[derive(Parser)]
-#[command(name = "subx")]
+#[command(name = "subx-cli")]
 #[command(about = "智慧字幕處理 CLI 工具")]
 #[command(version = env!("CARGO_PKG_VERSION"))]
 pub struct Cli {

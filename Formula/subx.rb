@@ -1,7 +1,7 @@
 class Subx < Formula
   desc "智慧字幕處理 CLI 工具"
-  homepage "https://github.com/yourusername/subx"
-  url "https://github.com/yourusername/subx/archive/v0.1.0.tar.gz"
+  homepage "https://github.com/jim60105/subx-cli"
+  url "https://github.com/jim60105/subx-cli/archive/v0.1.0.tar.gz"
   sha256 "YOUR_SHA256_HERE"
   license "GPL-3.0-or-later"
 

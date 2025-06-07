@@ -58,13 +58,13 @@ src/
 ### Cargo.toml 基礎配置
 ```toml
 [package]
-name = "subx"
+name = "subx-cli"
 version = "0.1.0"
 edition = "2021"
-authors = ["Your Name <your.email@example.com>"]
-description = "智慧字幕處理 CLI 工具"
+authors = ["CHEN, CHUN <jim60105@gmail.com>"]
+description = "智慧字幕處理 CLI 工具，使用 AI 技術自動匹配、重命名和處理字幕檔案"
 license = "GPLv3"
-repository = "https://github.com/yourusername/subx"
+repository = "https://github.com/jim60105/subx-cli"
 keywords = ["subtitle", "cli", "ai", "video"]
 categories = ["command-line-utilities", "multimedia"]
 
@@ -103,7 +103,7 @@ predicates = "3.0"
 tempfile = "3.8"
 
 [[bin]]
-name = "subx"
+name = "subx-cli"
 path = "src/main.rs"
 ```
 

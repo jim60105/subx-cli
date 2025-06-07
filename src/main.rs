@@ -4,7 +4,7 @@ async fn main() {
     // 初始化日誌
     env_logger::init();
 
-    let result = subx::cli::run().await;
+    let result = subx_cli::cli::run().await;
     match result {
         Ok(_) => std::process::exit(0),
         Err(e) => {

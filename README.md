@@ -1,6 +1,6 @@
-# SubX
+# SubX-CLI
 
-[![CI](https://github.com/yourusername/subx/actions/workflows/ci.yml/badge.svg)](https://github.com/yourusername/subx/actions/workflows/ci.yml) [![Release](https://github.com/yourusername/subx/actions/workflows/release.yml/badge.svg)](https://github.com/yourusername/subx/actions/workflows/release.yml) [![crates.io](https://img.shields.io/crates/v/subx.svg)](https://crates.io/crates/subx) [![docs.rs](https://docs.rs/subx/badge.svg)](https://docs.rs/subx)
+[![CI](https://github.com/jim60105/subx-cli/actions/workflows/ci.yml/badge.svg)](https://github.com/jim60105/subx-cli/actions/workflows/ci.yml) [![Release](https://github.com/jim60105/subx-cli/actions/workflows/release.yml/badge.svg)](https://github.com/jim60105/subx-cli/actions/workflows/release.yml) [![crates.io](https://img.shields.io/crates/v/subx-cli.svg)](https://crates.io/crates/subx-cli) [![docs.rs](https://docs.rs/subx-cli/badge.svg)](https://docs.rs/subx-cli)
 
 一個智慧字幕處理 CLI 工具，使用 AI 技術自動匹配、重命名和處理字幕文件。
 
@@ -20,13 +20,13 @@
 ### Homebrew
 
 ```bash
-brew install yourusername/subx/subx
+brew install jim60105/subx-cli/subx
 ```
 
 ### 下載並執行安裝腳本
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/yourusername/subx/main/scripts/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/jim60105/subx-cli/main/scripts/install.sh | bash
 ```
 
 ## 快速開始

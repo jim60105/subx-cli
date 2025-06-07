@@ -19,7 +19,7 @@ case $OS in
 esac
 
 # 下載最新版本
-RELEASE_URL="https://api.github.com/repos/yourusername/subx/releases/latest"
+RELEASE_URL="https://api.github.com/repos/jim60105/subx-cli/releases/latest"
 BINARY_NAME="subx-${PLATFORM}-${ARCH}"
 
 echo "正在下載 SubX 最新版本..."

@@ -409,7 +409,7 @@ case $OS in
 esac
 
 # 下載最新版本
-RELEASE_URL="https://api.github.com/repos/yourusername/subx/releases/latest"
+RELEASE_URL="https://api.github.com/repos/jim60105/subx-cli/releases/latest"
 BINARY_NAME="subx-${PLATFORM}-${ARCH}"
 
 echo "正在下載 SubX 最新版本..."
@@ -434,8 +434,8 @@ echo "安裝完成! 執行 'subx --help' 開始使用"
 # Formula/subx.rb
 class Subx < Formula
   desc "智慧字幕處理 CLI 工具"
-  homepage "https://github.com/yourusername/subx"
-  url "https://github.com/yourusername/subx/archive/v0.1.0.tar.gz"
+  homepage "https://github.com/jim60105/subx-cli"
+  url "https://github.com/jim60105/subx-cli/archive/v0.1.0.tar.gz"
   sha256 "YOUR_SHA256_HERE"
   license "GPLv3"
 
