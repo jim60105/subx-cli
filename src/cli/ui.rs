@@ -84,16 +84,6 @@ pub fn display_match_results(results: &[MatchOperation], is_dry_run: bool) {
     );
 }
 
-/// 路徑或檔名過長時進行截斷顯示
-#[allow(dead_code)]
-fn truncate_path(path: &str, max_len: usize) -> String {
-    if path.len() <= max_len {
-        path.to_string()
-    } else {
-        format!("...{}", &path[path.len() - max_len + 3..])
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -109,13 +99,5 @@ mod tests {
 
         let table = create_match_table(rows);
         assert!(table.contains("movie1.mp4"));
-    }
-
-    #[test]
-    fn test_path_truncation() {
-        let long_path = "/very/long/path/to/some/movie/file.mp4";
-        let truncated = truncate_path(long_path, 20);
-        assert!(truncated.len() <= 20);
-        assert!(truncated.starts_with("..."));
     }
 }
