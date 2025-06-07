@@ -6,7 +6,7 @@
 ## 完成項目
 
 ### 1. 測試基礎設施建立
-- [ ] 設定測試覆蓋率工具 (cargo-tarpaulin)
+- [ ] 設定測試覆蓋率工具 (cargo-llvm-cov)
 - [ ] 新增 mockall 框架用於模擬測試
 - [ ] 建立測試資料產生器
 - [ ] 設定 CI/CD 測試覆蓋率檢查
@@ -96,26 +96,11 @@ mockall = "0.11"
 serial_test = "3.0"
 rstest = "0.18"
 test-case = "3.0"
-tarpaulin = "0.27"
 wiremock = "0.5"
 ```
 
 **測試覆蓋率工具設定：**
-```toml
-# tarpaulin.toml
-[tarpaulin]
-out = ["Html", "Lcov"]
-target-dir = "target/tarpaulin"
-timeout = 120
-fail-under = 50
-ignore-panics = true
-count = true
-all-features = true
-exclude = [
-    "benches/*",
-    "tests/*"
-]
-```
+測試覆蓋率使用 `cargo llvm-cov`，無需額外配置檔案。
 
 ### 錯誤處理模組測試實作
 ```rust
@@ -778,20 +763,18 @@ jobs:
         path: ~/.cargo/registry
         key: ${{ runner.os }}-cargo-registry-${{ hashFiles('**/Cargo.lock') }}
     
-    - name: Install cargo-tarpaulin
-      run: cargo install cargo-tarpaulin
+    - name: Install cargo-llvm-cov
+      uses: taiki-e/install-action@cargo-llvm-cov
     
     - name: Run tests with coverage
       run: |
-        cargo tarpaulin \
-          --verbose \
+        cargo llvm-cov \
           --all-features \
           --workspace \
-          --timeout 120 \
-          --out Html \
-          --out Lcov \
+          --html \
           --output-dir coverage/ \
-          --fail-under 50
+          --lcov \
+          --output-path coverage/lcov.info
     
     - name: Upload coverage to Codecov
       uses: codecov/codecov-action@v3
@@ -813,7 +796,7 @@ jobs:
         script: |
           const fs = require('fs');
           try {
-            const coverage = fs.readFileSync('coverage/tarpaulin-report.html', 'utf8');
+            const coverage = fs.readFileSync('coverage/index.html', 'utf8');
             // 解析覆蓋率百分比並留言到 PR
             const coverageMatch = coverage.match(/(\d+\.?\d*)%/);
             if (coverageMatch) {
