@@ -10,42 +10,30 @@
 
 ## 受影響的配置項目
 
-### 完全未使用的配置項目 (需要移除)
+### 計劃保留的配置項目 (未來實作功能)
 
-#### 1. `formats.default_encoding`
-- **狀態**: 完全未使用
-- **原因**: 未在任何檔案讀取或轉換邏輯中使用
-- **影響**: 使用者設定此項目無任何效果
+> **重要**: 以下配置項目雖然目前未使用，但在 Backlog #14 中計劃實作對應功能，因此應予以保留：
 
-#### 2. `sync.audio_sample_rate`
-- **狀態**: 完全未使用
-- **原因**: AudioAnalyzer 硬編碼為 16000
-- **影響**: 配置值被忽略
+#### 保留項目清單
+1. `formats.default_encoding` - 計劃實作檔案編碼自動檢測功能
+2. `sync.audio_sample_rate` - 計劃實作音訊採樣率動態配置功能
+3. `sync.dialogue_detection_threshold` - 計劃實作對話檢測功能
+4. `sync.min_dialogue_duration_ms` - 計劃實作對話檢測功能
+5. `general.max_concurrent_jobs` - 計劃實作平行處理系統
 
-#### 3. `sync.dialogue_detection_threshold`
-- **狀態**: 完全未使用
-- **原因**: 對話檢測功能未實作
-- **影響**: 無對應功能支援
+### 確認需要移除的配置項目
 
-#### 4. `sync.min_dialogue_duration_ms`
-- **狀態**: 完全未使用
-- **原因**: 對話檢測功能未實作
-- **影響**: 無對應功能支援
-
-#### 5. `general.default_confidence`
-- **狀態**: 完全未使用
+#### 1. `general.default_confidence`
+- **狀態**: 完全未使用且無實作計劃
 - **原因**: CLI 參數有預設值但未連結配置
 - **影響**: 與命令列參數重複
+- **決定**: 移除
 
-#### 6. `general.max_concurrent_jobs`
-- **狀態**: 完全未使用
-- **原因**: 無平行處理邏輯使用此設定
-- **影響**: 平行處理功能未實作
-
-#### 7. `general.log_level`
-- **狀態**: 完全未使用
+#### 2. `general.log_level`
+- **狀態**: 完全未使用且無實作計劃
 - **原因**: 使用 env_logger，從 RUST_LOG 環境變數讀取
 - **影響**: 與環境變數機制重複
+- **決定**: 移除
 
 ## 清理計劃
 
@@ -55,61 +43,30 @@
 ```rust
 // 修改 src/config.rs
 
-// 移除 FormatsConfig 中的 default_encoding
-#[derive(Debug, Serialize, Deserialize, Clone)]
-pub struct FormatsConfig {
-    pub default_output: String,
-    pub preserve_styling: bool,
-    // 移除: pub default_encoding: String,
-}
-
-// 移除 SyncConfig 中的對話檢測相關配置
-#[derive(Debug, Serialize, Deserialize, Clone)]
-pub struct SyncConfig {
-    pub max_offset_seconds: f32,
-    // 移除: pub audio_sample_rate: u32,
-    pub correlation_threshold: f32,
-    // 移除: pub dialogue_detection_threshold: f32,
-    // 移除: pub min_dialogue_duration_ms: u64,
-}
-
 // 移除 GeneralConfig 中的無用配置
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct GeneralConfig {
     pub backup_enabled: bool,
+    // 保留計劃實作的配置項目:
+    pub max_concurrent_jobs: usize,  // 保留 - Backlog #14
     // 移除: pub default_confidence: u8,
-    // 移除: pub max_concurrent_jobs: usize,
     // 移除: pub log_level: String,
 }
+
+// FormatsConfig 和 SyncConfig 維持不變，因為它們的所有項目都計劃實作
 ```
 
 #### 1.2 更新預設配置實作
 ```rust
 // 修改 src/config.rs 中的 Default 實作
-impl Default for FormatsConfig {
-    fn default() -> Self {
-        Self {
-            default_output: "srt".to_string(),
-            preserve_styling: true,
-            // 移除 default_encoding 預設值
-        }
-    }
-}
 
-impl Default for SyncConfig {
-    fn default() -> Self {
-        Self {
-            max_offset_seconds: 30.0,
-            correlation_threshold: 0.7,
-            // 移除對話檢測相關預設值
-        }
-    }
-}
+// FormatsConfig 和 SyncConfig 維持現有預設值，因為所有項目都計劃實作
 
 impl Default for GeneralConfig {
     fn default() -> Self {
         Self {
             backup_enabled: false,
+            max_concurrent_jobs: 4,  // 保留 - Backlog #14
             // 移除其他無用預設值
         }
     }
@@ -129,17 +86,17 @@ pub fn handle_config_command(args: &ConfigArgs) -> crate::error::Result<()> {
                 "ai.model" => { /* ... */ },
                 "formats.default_output" => { /* ... */ },
                 "formats.preserve_styling" => { /* ... */ },
+                "formats.default_encoding" => { /* ... */ },  // 保留 - Backlog #14
                 "sync.max_offset_seconds" => { /* ... */ },
                 "sync.correlation_threshold" => { /* ... */ },
+                "sync.audio_sample_rate" => { /* ... */ },  // 保留 - Backlog #14
+                "sync.dialogue_detection_threshold" => { /* ... */ },  // 保留 - Backlog #14
+                "sync.min_dialogue_duration_ms" => { /* ... */ },  // 保留 - Backlog #14
                 "general.backup_enabled" => { /* ... */ },
+                "general.max_concurrent_jobs" => { /* ... */ },  // 保留 - Backlog #14
                 
                 // 移除無用配置的處理
-                // "formats.default_encoding" => { /* 移除 */ },
-                // "sync.audio_sample_rate" => { /* 移除 */ },
-                // "sync.dialogue_detection_threshold" => { /* 移除 */ },
-                // "sync.min_dialogue_duration_ms" => { /* 移除 */ },
                 // "general.default_confidence" => { /* 移除 */ },
-                // "general.max_concurrent_jobs" => { /* 移除 */ },
                 // "general.log_level" => { /* 移除 */ },
                 
                 _ => return Err(ConfigError::InvalidKey(key.clone()).into()),
@@ -154,7 +111,7 @@ pub fn handle_config_command(args: &ConfigArgs) -> crate::error::Result<()> {
 
 #### 2.1 更新配置檔案模板
 ```toml
-# 更新 config.toml 模板，移除無用配置項目
+# 更新 config.toml 模板，僅移除確認無用的配置項目
 
 [ai]
 provider = "openai"
@@ -168,35 +125,36 @@ retry_delay_ms = 1000
 [formats]
 default_output = "srt"
 preserve_styling = true
-# 移除: default_encoding = "utf-8"
+default_encoding = "utf-8"  # 保留 - Backlog #14 計劃實作
 
 [sync]
 max_offset_seconds = 30.0
 correlation_threshold = 0.7
-# 移除: audio_sample_rate = 16000
-# 移除: dialogue_detection_threshold = 0.01
-# 移除: min_dialogue_duration_ms = 500
+audio_sample_rate = 16000  # 保留 - Backlog #14 計劃實作
+dialogue_detection_threshold = 0.01  # 保留 - Backlog #14 計劃實作
+min_dialogue_duration_ms = 500  # 保留 - Backlog #14 計劃實作
 
 [general]
 backup_enabled = false
+max_concurrent_jobs = 4  # 保留 - Backlog #14 計劃實作
 # 移除: default_confidence = 80
-# 移除: max_concurrent_jobs = 4
 # 移除: log_level = "info"
 ```
 
 #### 2.2 更新說明文件
 ```markdown
 # 更新 README.md 和配置說明文件
-# 移除對無用配置項目的說明
-# 簡化配置項目清單
+# 僅移除對確認無用配置項目的說明 (default_confidence, log_level)
+# 為計劃實作的配置項目添加 "功能開發中" 標記
 ```
 
 ### 階段 3: 測試更新 (預估工時: 2 小時)
 
 #### 3.1 移除相關測試
 ```rust
-// 移除 tests/ 中對無用配置的測試
+// 移除 tests/ 中對已確認無用配置的測試 (default_confidence, log_level)
 // 確保移除配置後現有測試仍然通過
+// 保留對計劃實作配置項目的測試或添加待實作標記
 ```
 
 #### 3.2 加入向後相容性測試
@@ -208,27 +166,34 @@ mod backward_compatibility_tests {
     #[test]
     fn test_old_config_file_still_works() {
         // 測試包含舊配置項目的檔案仍能正常載入
-        // 舊配置項目應被忽略而不報錯
+        // 已移除的配置項目應被忽略而不報錯
         let config_content = r#"
 [ai]
 model = "gpt-4"
 
 [formats]
 default_output = "srt"
-default_encoding = "utf-8"  # 舊配置項目
+default_encoding = "utf-8"  # 計劃實作的配置項目，應正常載入
 
 [sync]
 max_offset_seconds = 30.0
-dialogue_detection_threshold = 0.01  # 舊配置項目
+dialogue_detection_threshold = 0.01  # 計劃實作的配置項目，應正常載入
 
 [general]
 backup_enabled = true
-log_level = "debug"  # 舊配置項目
+default_confidence = 80  # 已移除的配置項目，應被忽略
+log_level = "debug"  # 已移除的配置項目，應被忽略
+max_concurrent_jobs = 4  # 計劃實作的配置項目，應正常載入
 "#;
 
         // 確保能成功解析且不報錯
         let config: Result<Config, _> = toml::from_str(config_content);
-        assert!(config.is_ok(), "舊配置檔案應該能正常載入");
+        assert!(config.is_ok(), "包含舊配置項目的檔案應該能正常載入");
+        
+        let config = config.unwrap();
+        // 驗證計劃實作的配置項目被正確載入
+        assert_eq!(config.general.max_concurrent_jobs, 4);
+        assert_eq!(config.formats.default_encoding, "utf-8");
     }
 }
 ```
@@ -242,21 +207,34 @@ impl Config {
     pub fn load_with_migration_warning(path: &Path) -> crate::error::Result<Self> {
         let content = std::fs::read_to_string(path)?;
         
-        // 檢查是否包含已移除的配置項目
-        let deprecated_keys = [
-            "formats.default_encoding",
-            "sync.audio_sample_rate",
-            "sync.dialogue_detection_threshold",
-            "sync.min_dialogue_duration_ms",
+        // 檢查是否包含已確認移除的配置項目
+        let removed_keys = [
             "general.default_confidence",
-            "general.max_concurrent_jobs",
             "general.log_level",
         ];
         
-        for key in &deprecated_keys {
+        // 檢查是否包含計劃實作的配置項目
+        let planned_keys = [
+            "formats.default_encoding",
+            "sync.audio_sample_rate", 
+            "sync.dialogue_detection_threshold",
+            "sync.min_dialogue_duration_ms",
+            "general.max_concurrent_jobs",
+        ];
+        
+        for key in &removed_keys {
             if content.contains(key) {
                 eprintln!(
                     "⚠️  警告: 配置項目 '{}' 已被移除，將被忽略", 
+                    key
+                );
+            }
+        }
+        
+        for key in &planned_keys {
+            if content.contains(key) {
+                eprintln!(
+                    "ℹ️  資訊: 配置項目 '{}' 功能開發中，目前設定將被忽略", 
                     key
                 );
             }
@@ -273,20 +251,25 @@ impl Config {
 
 ## 特殊情況處理
 
-### audio_sample_rate 的特殊處理
-由於 AudioAnalyzer 硬編碼為 16000，需要決定：
-1. **選項 A**: 移除配置，保持硬編碼
-2. **選項 B**: 實作配置支援 (移至 Backlog)
+### 重要決策：保留計劃實作的配置項目
 
-**建議選擇選項 A**，因為：
-- 音訊分析通常有最佳採樣率
-- 避免使用者錯誤配置導致分析失敗
-- 簡化配置檔案
+**依據 Backlog #14 的實作計劃**，以下配置項目雖然目前未使用，但已規劃實作對應功能，因此**不予移除**：
 
-### dialogue_detection 相關配置
-這些配置對應未實作的功能，應該：
-1. 移除配置項目
-2. 在未來實作對話檢測功能時重新加入
+1. `formats.default_encoding` - 檔案編碼自動檢測功能
+2. `sync.audio_sample_rate` - 音訊採樣率動態配置功能
+3. `sync.dialogue_detection_threshold` - 對話檢測功能
+4. `sync.min_dialogue_duration_ms` - 對話檢測功能  
+5. `general.max_concurrent_jobs` - 平行處理系統
+
+### 確認移除的配置項目處理
+
+#### general.default_confidence
+- **原因**: 與 CLI 參數功能重複
+- **處理方式**: 完全移除，使用 CLI 參數的預設值機制
+
+#### general.log_level  
+- **原因**: 與環境變數 RUST_LOG 機制重複
+- **處理方式**: 完全移除，維持標準的日誌配置方式
 
 ## 測試計劃
 
@@ -301,14 +284,16 @@ mod config_cleanup_tests {
         let config = Config::default();
         let serialized = toml::to_string(&config).unwrap();
         
-        // 確保序列化後不包含已移除的欄位
-        assert!(!serialized.contains("default_encoding"));
-        assert!(!serialized.contains("audio_sample_rate"));
-        assert!(!serialized.contains("dialogue_detection_threshold"));
-        assert!(!serialized.contains("min_dialogue_duration_ms"));
+        // 確保序列化後不包含已確認移除的欄位
         assert!(!serialized.contains("default_confidence"));
-        assert!(!serialized.contains("max_concurrent_jobs"));
         assert!(!serialized.contains("log_level"));
+        
+        // 確保序列化後包含計劃實作的欄位
+        assert!(serialized.contains("default_encoding"));
+        assert!(serialized.contains("audio_sample_rate"));
+        assert!(serialized.contains("dialogue_detection_threshold"));
+        assert!(serialized.contains("min_dialogue_duration_ms"));
+        assert!(serialized.contains("max_concurrent_jobs"));
     }
 
     #[test]
@@ -334,29 +319,37 @@ default_output = "srt"
 # 測試移除配置後的命令功能
 cargo test --test integration_tests
 
-# 測試配置命令不接受已移除的配置項目
-subx-cli config set formats.default_encoding utf-8  # 應該報錯
+# 測試配置命令不接受已確認移除的配置項目
+subx-cli config set general.default_confidence 80  # 應該報錯
 subx-cli config set general.log_level debug  # 應該報錯
+
+# 測試配置命令接受計劃實作的配置項目
+subx-cli config set formats.default_encoding utf-8  # 應該成功
+subx-cli config set general.max_concurrent_jobs 8  # 應該成功
 ```
 
 ## 驗收標準
 
 ### 功能驗收
-- [ ] 移除的配置項目不再出現在程式碼中
+- [ ] 確認移除的配置項目不再出現在程式碼中 (僅 default_confidence, log_level)
+- [ ] 計劃實作的配置項目被保留且可正常設定
 - [ ] 舊配置檔案仍能正常載入（向後相容）
-- [ ] config 命令不再接受已移除的配置項目
+- [ ] config 命令不再接受已確認移除的配置項目
+- [ ] config 命令接受計劃實作的配置項目
 - [ ] 所有現有功能正常運作
 
 ### 程式碼品質驗收
 - [ ] 通過所有現有測試
 - [ ] 新增的測試涵蓋向後相容性
 - [ ] 程式碼通過 `cargo clippy` 和 `cargo fmt` 檢查
-- [ ] 移除了所有相關的死程式碼
+- [ ] 移除了確認無用的死程式碼
+- [ ] 保留了計劃實作功能的配置結構
 
 ### 文件品質驗收
-- [ ] 配置檔案模板已更新
+- [ ] 配置檔案模板已更新 (僅移除確認無用的項目)
 - [ ] README 和說明文件已更新
-- [ ] 移除了對無用配置的說明
+- [ ] 移除了對確認無用配置的說明
+- [ ] 為計劃實作的配置添加了適當標記
 
 ## 風險評估
 
@@ -380,7 +373,14 @@ subx-cli config set general.log_level debug  # 應該報錯
 
 ## 完成後效益
 
-- **簡化配置**: 移除 7 個無用配置項目
-- **減少困惑**: 使用者不會被無效配置誤導
-- **降低維護成本**: 減少需要維護的程式碼量
-- **提升程式碼品質**: 移除死程式碼和無用依賴
+- **精準清理**: 僅移除 2 個確認無用的配置項目 (default_confidence, log_level)
+- **保護未來功能**: 保留 5 個計劃實作的配置項目，避免重複工作
+- **減少困惑**: 使用者不會被確認無效的配置誤導
+- **平衡維護成本**: 在清理冗餘與保留未來功能間取得平衡
+- **提升程式碼品質**: 移除確認的死程式碼，保持未來擴展性
+
+## 與其他計劃的協調
+
+- **Backlog #14**: 協調確保計劃實作的配置項目不被移除
+- **Bug #08**: 硬編碼配置值修復，專注於已使用但硬編碼的配置
+- **Backlog #13**: 統一配置管理，等待此清理完成後進行重構
