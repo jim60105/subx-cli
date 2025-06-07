@@ -53,7 +53,7 @@ sudo cp target/release/subx-cli /usr/local/bin/
 export OPENAI_API_KEY="your-api-key-here"
 
 # 或建立配置檔案
-subx-cli config set openai-key "your-api-key-here"
+subx-cli config set ai.api_key "your-api-key-here"
 ```
 
 ### 2. 基本使用
