@@ -16,6 +16,7 @@
   * Refrain from parsing `Cargo.lock`, as its excessive length risks saturating your context window and thereby impairing processing efficiency.
   * Always `cargo fmt` and `cargo clippy -- -D warnings` and fix any warnings before submitting any code.
   * Git commit after completing your work, using the conventional commit format for the title and a brief description in the body. Always commit with `--signoff` and `--no-gpg-sign`. Write the commit in English.
+  * Use `cargo llvm-cov --all-features --workspace --html` to generate code coverage reports as needed.
 
 ---
 
