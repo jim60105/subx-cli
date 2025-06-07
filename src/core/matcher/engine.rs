@@ -1,6 +1,7 @@
 use crate::services::ai::{AIProvider, AnalysisRequest, ContentSample};
 use std::path::Path;
 
+use crate::core::language::LanguageDetector;
 use crate::core::matcher::cache::{CacheData, OpItem, SnapshotItem};
 use crate::core::matcher::{FileDiscovery, MediaFile, MediaFileType};
 use crate::Result;
@@ -19,6 +20,116 @@ pub struct MatchConfig {
     pub max_sample_length: usize,
     pub enable_content_analysis: bool,
     pub backup_enabled: bool,
+}
+
+#[cfg(test)]
+mod language_name_tests {
+    use super::*;
+    use crate::core::language::LanguageSource;
+    use crate::core::matcher::discovery::{MediaFile, MediaFileType};
+    use crate::services::ai::{
+        AIProvider, AnalysisRequest, ConfidenceScore, MatchResult, VerificationRequest,
+    };
+    use async_trait::async_trait;
+    use std::path::PathBuf;
+
+    struct DummyAI;
+    #[async_trait]
+    impl AIProvider for DummyAI {
+        async fn analyze_content(&self, _req: AnalysisRequest) -> crate::Result<MatchResult> {
+            unimplemented!()
+        }
+        async fn verify_match(&self, _req: VerificationRequest) -> crate::Result<ConfidenceScore> {
+            unimplemented!()
+        }
+    }
+
+    #[test]
+    fn test_generate_subtitle_name_with_directory_language() {
+        let engine = MatchEngine::new(
+            Box::new(DummyAI),
+            MatchConfig {
+                confidence_threshold: 0.0,
+                max_sample_length: 0,
+                enable_content_analysis: false,
+                backup_enabled: false,
+            },
+        );
+        let video = MediaFile {
+            path: PathBuf::from("movie01.mp4"),
+            file_type: MediaFileType::Video,
+            size: 0,
+            name: "movie01".to_string(),
+            extension: "mp4".to_string(),
+        };
+        let subtitle = MediaFile {
+            path: PathBuf::from("tc/subtitle01.ass"),
+            file_type: MediaFileType::Subtitle,
+            size: 0,
+            name: "subtitle01".to_string(),
+            extension: "ass".to_string(),
+        };
+        let new_name = engine.generate_subtitle_name(&video, &subtitle);
+        assert_eq!(new_name, "movie01.tc.ass");
+    }
+
+    #[test]
+    fn test_generate_subtitle_name_with_filename_language() {
+        let engine = MatchEngine::new(
+            Box::new(DummyAI),
+            MatchConfig {
+                confidence_threshold: 0.0,
+                max_sample_length: 0,
+                enable_content_analysis: false,
+                backup_enabled: false,
+            },
+        );
+        let video = MediaFile {
+            path: PathBuf::from("movie02.mp4"),
+            file_type: MediaFileType::Video,
+            size: 0,
+            name: "movie02".to_string(),
+            extension: "mp4".to_string(),
+        };
+        let subtitle = MediaFile {
+            path: PathBuf::from("subtitle02.sc.ass"),
+            file_type: MediaFileType::Subtitle,
+            size: 0,
+            name: "subtitle02".to_string(),
+            extension: "ass".to_string(),
+        };
+        let new_name = engine.generate_subtitle_name(&video, &subtitle);
+        assert_eq!(new_name, "movie02.sc.ass");
+    }
+
+    #[test]
+    fn test_generate_subtitle_name_without_language() {
+        let engine = MatchEngine::new(
+            Box::new(DummyAI),
+            MatchConfig {
+                confidence_threshold: 0.0,
+                max_sample_length: 0,
+                enable_content_analysis: false,
+                backup_enabled: false,
+            },
+        );
+        let video = MediaFile {
+            path: PathBuf::from("movie03.mp4"),
+            file_type: MediaFileType::Video,
+            size: 0,
+            name: "movie03".to_string(),
+            extension: "mp4".to_string(),
+        };
+        let subtitle = MediaFile {
+            path: PathBuf::from("subtitle03.ass"),
+            file_type: MediaFileType::Subtitle,
+            size: 0,
+            name: "subtitle03".to_string(),
+            extension: "ass".to_string(),
+        };
+        let new_name = engine.generate_subtitle_name(&video, &subtitle);
+        assert_eq!(new_name, "movie03.ass");
+    }
 }
 
 /// 單次匹配操作結果
@@ -179,7 +290,12 @@ impl MatchEngine {
     }
 
     fn generate_subtitle_name(&self, video: &MediaFile, subtitle: &MediaFile) -> String {
-        format!("{}.{}", video.name, subtitle.extension)
+        let detector = LanguageDetector::new();
+        if let Some(code) = detector.get_primary_language(&subtitle.path) {
+            format!("{}.{}.{}", video.name, code, subtitle.extension)
+        } else {
+            format!("{}.{}", video.name, subtitle.extension)
+        }
     }
 
     /// 執行匹配操作，支援 Dry-run 模式

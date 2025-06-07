@@ -9,6 +9,7 @@ pub use discovery::{FileDiscovery, MediaFile, MediaFileType};
 pub use engine::{MatchConfig, MatchEngine, MatchOperation};
 // pub use filename_analyzer::{FilenameAnalyzer, ParsedFilename};
 pub mod cache;
+use crate::core::language::{LanguageDetector, LanguageInfo};
 use crate::error::SubXError;
 use crate::Result;
 use std::path::{Path, PathBuf};
@@ -26,6 +27,8 @@ pub struct FileInfo {
     pub directory: String,
     /// 目錄深度（相對於根目錄）
     pub depth: usize,
+    /// 偵測出的語言編碼（如 tc、sc、en）
+    pub language: Option<LanguageInfo>,
 }
 
 impl FileInfo {
@@ -48,12 +51,15 @@ impl FileInfo {
             .unwrap_or_default()
             .to_string();
         let depth = relative_path.matches(std::path::MAIN_SEPARATOR).count();
+        let detector = LanguageDetector::new();
+        let language = detector.detect_from_path(&full_path);
         Ok(Self {
             name,
             relative_path,
             full_path,
             directory,
             depth,
+            language,
         })
     }
 }
