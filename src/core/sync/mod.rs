@@ -1,2 +1,5 @@
-//! Core sync 模組待實作
-#![allow(dead_code)]
+//! Core 同步模組
+
+pub mod engine;
+
+pub use engine::{SyncConfig, SyncEngine, SyncMethod, SyncResult};

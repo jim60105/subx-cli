@@ -56,7 +56,7 @@ pub async fn run() -> crate::Result<()> {
             crate::commands::convert_command::execute(args).await?;
         }
         Commands::Sync(args) => {
-            println!("執行 Sync 命令: {:?}", args);
+            crate::commands::sync_command::execute(args).await?;
         }
         Commands::Config(args) => {
             crate::commands::config_command::execute(args).await?;

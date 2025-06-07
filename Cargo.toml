@@ -53,6 +53,10 @@ dialoguer = "0.10"
 md5 = "0.7"
 
 # 配置管理相依：路徑解析與多核心檢測
+# 音訊處理
+symphonia = { version = "0.5", features = ["all"] }
+
+# 配置管理相依：路徑解析與多核心檢測
 dirs = "4.0"
 num_cpus = "1.0"
 

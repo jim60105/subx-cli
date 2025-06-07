@@ -47,7 +47,12 @@ impl From<walkdir::Error> for SubXError {
         }
     }
 }
-
+// 將 symphonia 錯誤轉換為音訊處理錯誤
+impl From<symphonia::core::errors::Error> for SubXError {
+    fn from(err: symphonia::core::errors::Error) -> Self {
+        SubXError::audio_processing(err.to_string())
+    }
+}
 /// SubX 應用程式的 Result 類型
 pub type SubXResult<T> = Result<T, SubXError>;
 
