@@ -148,17 +148,27 @@ provider = "openai"
 model = "gpt-4o-mini"
 max_sample_length = 2000
 api_key = "your-api-key-here"  # 或使用環境變數 OPENAI_API_KEY
+temperature = 0.3
+retry_attempts = 3
+retry_delay_ms = 1000
 
 [formats]
 default_output = "srt"
 preserve_styling = true
+default_encoding = "utf-8"
 
 [sync]
-max_offset_seconds = 30
+max_offset_seconds = 30.0
 audio_sample_rate = 16000
+correlation_threshold = 0.7
+dialogue_detection_threshold = 0.01
+min_dialogue_duration_ms = 500
 
 [general]
-backup_enabled = true
+backup_enabled = false
+default_confidence = 80
+max_concurrent_jobs = 16
+log_level = "info"
 ```
 
 ## 命令參考

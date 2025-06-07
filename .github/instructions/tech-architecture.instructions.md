@@ -32,9 +32,9 @@ SubX 是一個基於 Rust 開發的 CLI 工具，專注於智慧字幕處理。�
 
 ## 核心模組設計
 
-### 1. CLI Interface Layer (`src/cli/`)
+### 1. CLI Layer (`src/cli/` and `src/commands/`)
 
-**責任**: 用戶界面和命令解析
+**責任**: 用戶界面、命令解析以及命令執行邏輯。
 
 ```rust
 // src/cli/mod.rs
@@ -48,6 +48,8 @@ pub enum Commands {
     Convert(ConvertArgs),
     Sync(SyncArgs),
     Config(ConfigArgs),
+    Cache(CacheArgs), // Added
+    GenerateCompletion(GenerateCompletionArgs), // Added
 }
 ```
 
@@ -57,9 +59,42 @@ pub enum Commands {
 - `colored` - 彩色輸出
 - `dialoguer` - 互動式提示
 
-### 2. Core Engine (`src/core/`)
+**Command Handlers (`src/commands/`)**:
+- 此目錄包含每個 CLI 命令的邏輯 (例如 `match_command.rs`, `convert_command.rs`, `sync_command.rs` 等)。
+- 每個命令模組從 `src/cli/` 層取得已解析的參數，並透過與 `Core Engine` 和 `Services Layer` 互動來協調操作。
 
-#### 2.1 Match Engine (`src/core/matcher/`)
+### 2. Configuration Module (`src/config.rs`)
+
+**責任**: 管理應用程式的組態設定。
+
+- 負責載入、解析和提供對應用程式設定（例如從 `config.toml` 檔案或環境變數）的存取。
+- 為應用程式的其他模組（如 `Core Engine` 和 `Services Layer`）提供組態資訊。
+- `README.md` 中詳細說明了使用者可見的組態選項及其檔案位置。
+
+*Conceptual Structure:*
+```rust
+// src/config.rs
+pub struct AppConfig {
+    pub ai: AiConfig,
+    pub formats: FormatsConfig,
+    pub sync: SyncConfig,
+    // ... other general settings
+}
+
+pub struct AiConfig {
+    pub provider: String,
+    pub model: String,
+    // ... etc.
+}
+
+// Functions to load and save configuration
+// pub fn load_config() -> Result<AppConfig>;
+// pub fn save_config(config: &AppAppConfig) -> Result<()>;
+```
+
+### 3. Core Engine (`src/core/`)
+
+#### 3.1 Match Engine (`src/core/matcher/`)
 
 **責任**: AI 驅動的檔案匹配邏輯
 
@@ -81,7 +116,7 @@ pub trait AIProvider {
 2. **Content Sampling** - 字幕內容採樣
 3. **AI Similarity** - 語義相似度分析
 
-#### 2.2 Format Engine (`src/core/formats/`)
+#### 3.2 Format Engine (`src/core/formats/`)
 
 **責任**: 字幕格式解析和轉換
 
@@ -105,7 +140,7 @@ pub struct Subtitle {
 - **VTT Parser** (`vtt.rs`) - WebVTT
 - **SUB Parser** (`sub.rs`) - 多種 SUB 變體
 
-#### 2.3 Sync Engine (`src/core/sync/`)
+#### 3.3 Sync Engine (`src/core/sync/`)
 
 **責任**: 時間軸同步和校正
 
@@ -129,9 +164,9 @@ pub struct SyncResult {
 3. **Cross-Correlation Analysis** - 交叉相關分析
 4. **Optimal Offset Detection** - 最佳偏移檢測
 
-### 3. External Services Integration
+### 4. External Services Integration
 
-#### 3.1 AI Service (`src/services/ai/`)
+#### 4.1 AI Service (`src/services/ai/`)
 
 ```rust
 // src/services/ai/openai.rs
@@ -150,7 +185,7 @@ impl AIProvider for OpenAIClient {
 }
 ```
 
-#### 3.2 Audio Processing (`src/services/audio/`)
+#### 4.2 Audio Processing (`src/services/audio/`)
 
 ```rust
 // src/services/audio/mod.rs
