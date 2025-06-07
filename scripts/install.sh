@@ -2,38 +2,54 @@
 
 set -e
 
-# 檢測作業系統和架構
+# Detect operating system and architecture
 OS=$(uname -s | tr '[:upper:]' '[:lower:]')
 ARCH=$(uname -m)
 
 case $ARCH in
     x86_64) ARCH="x86_64" ;;
     arm64|aarch64) ARCH="aarch64" ;;
-    *) echo "不支援的架構: $ARCH"; exit 1 ;;
+    *) echo "Error: Unsupported architecture: $ARCH"; exit 1 ;;
 esac
 
 case $OS in
     linux) PLATFORM="linux" ;;
     darwin) PLATFORM="macos" ;;
-    *) echo "不支援的作業系統: $OS"; exit 1 ;;
+    *) echo "Error: Unsupported operating system: $OS"; exit 1 ;;
 esac
 
-# 下載最新版本
+echo "Detected platform: $PLATFORM ($ARCH)"
+
+# Download latest release
 RELEASE_URL="https://api.github.com/repos/jim60105/subx-cli/releases/latest"
 BINARY_NAME="subx-${PLATFORM}-${ARCH}"
 
-echo "正在下載 SubX 最新版本..."
-curl -L "$(curl -s $RELEASE_URL | grep "browser_download_url.*$BINARY_NAME" | cut -d '"' -f 4)" -o subx-cli
+echo "Downloading SubX latest version..."
+DOWNLOAD_URL=$(curl -s $RELEASE_URL | grep "browser_download_url.*$BINARY_NAME" | cut -d '"' -f 4)
+
+if [ -z "$DOWNLOAD_URL" ]; then
+    echo "Error: Could not find download file for $PLATFORM-$ARCH"
+    exit 1
+fi
+
+echo "Download URL: $DOWNLOAD_URL"
+curl -L "$DOWNLOAD_URL" -o subx-cli
+
+if [ ! -f "subx-cli" ]; then
+    echo "Error: Download failed"
+    exit 1
+fi
 
 chmod +x subx-cli
 
-# 安裝到系統路徑
+# Install to system path
+echo "Installing to system path..."
 if [[ "$EUID" -eq 0 ]]; then
     mv subx-cli /usr/local/bin/
-    echo "SubX 已安裝到 /usr/local/bin/subx-cli"
+    echo "SubX has been installed to /usr/local/bin/subx-cli"
 else
     sudo mv subx-cli /usr/local/bin/
-    echo "SubX 已安裝到 /usr/local/bin/subx-cli"
+    echo "SubX has been installed to /usr/local/bin/subx-cli"
 fi
 
-echo "安裝完成! 執行 'subx-cli --help' 開始使用"
+echo "Installation complete! Run 'subx-cli --help' to get started"

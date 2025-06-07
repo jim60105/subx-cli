@@ -22,7 +22,7 @@
 
 #### 方式 1：下載並執行安裝腳本
 ```bash
-curl -fsSL https://raw.githubusercontent.com/jim60105/subx-cli/main/scripts/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/jim60105/subx-cli/master/scripts/install.sh | bash
 ```
 
 #### 方式 2：直接下載預編譯檔案
