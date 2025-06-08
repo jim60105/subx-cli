@@ -1,5 +1,5 @@
 use subx_cli::core::parallel::{
-    FileProcessingTask, ProcessingOperation, Task, TaskResult, TaskScheduler,
+    FileProcessingTask, ProcessingOperation, TaskResult, TaskScheduler,
 };
 use tempfile::TempDir;
 
@@ -14,7 +14,7 @@ async fn test_batch_file_processing() {
             .await
             .unwrap();
     }
-    let scheduler = TaskScheduler::new().unwrap();
+    let scheduler = TaskScheduler::new_with_defaults(); // 使用預設設定而不是依賴配置
     let mut tasks: Vec<Box<dyn subx_cli::core::parallel::Task + Send + Sync>> = Vec::new();
     for name in &test_files {
         let path = temp.path().join(name);

@@ -6,4 +6,3 @@ pub mod worker;
 
 pub use scheduler::TaskScheduler;
 pub use task::{FileProcessingTask, ProcessingOperation, Task, TaskResult, TaskStatus};
-pub use worker::{Worker, WorkerPool};

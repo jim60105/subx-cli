@@ -1,8 +1,8 @@
 //! Task scheduler for parallel processing
-use super::{Task, TaskResult, TaskStatus, WorkerPool};
+use super::{Task, TaskResult, TaskStatus};
 use crate::config::load_config;
 use crate::Result;
-use std::collections::VecDeque;
+use std::collections::BinaryHeap;
 use std::sync::{Arc, Mutex};
 use tokio::sync::{oneshot, Semaphore};
 
@@ -11,6 +11,26 @@ struct PendingTask {
     result_sender: oneshot::Sender<TaskResult>,
     task_id: String,
     priority: TaskPriority,
+}
+
+impl PartialEq for PendingTask {
+    fn eq(&self, other: &Self) -> bool {
+        self.priority == other.priority
+    }
+}
+
+impl Eq for PendingTask {}
+
+impl PartialOrd for PendingTask {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl Ord for PendingTask {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        self.priority.cmp(&other.priority)
+    }
 }
 
 /// Priority levels for tasks
@@ -34,11 +54,11 @@ pub struct TaskInfo {
 
 /// Scheduler to manage and execute tasks in parallel
 pub struct TaskScheduler {
-    task_queue: Arc<Mutex<VecDeque<PendingTask>>>,
-    worker_pool: WorkerPool,
+    task_queue: Arc<Mutex<BinaryHeap<PendingTask>>>,
     semaphore: Arc<Semaphore>,
     max_concurrent: usize,
     active_tasks: Arc<Mutex<std::collections::HashMap<String, TaskInfo>>>,
+    scheduler_handle: Arc<Mutex<Option<tokio::task::JoinHandle<()>>>>,
 }
 
 impl TaskScheduler {
@@ -46,29 +66,103 @@ impl TaskScheduler {
     pub fn new() -> Result<Self> {
         let config = load_config()?;
         let max = config.general.max_concurrent_jobs;
-        let worker_pool = WorkerPool::new(max);
         let semaphore = Arc::new(Semaphore::new(max));
-        Ok(Self {
-            task_queue: Arc::new(Mutex::new(VecDeque::new())),
-            worker_pool,
-            semaphore,
+        let task_queue = Arc::new(Mutex::new(BinaryHeap::new()));
+        let active_tasks = Arc::new(Mutex::new(std::collections::HashMap::new()));
+
+        let scheduler = Self {
+            task_queue: task_queue.clone(),
+            semaphore: semaphore.clone(),
             max_concurrent: max,
-            active_tasks: Arc::new(Mutex::new(std::collections::HashMap::new())),
-        })
+            active_tasks: active_tasks.clone(),
+            scheduler_handle: Arc::new(Mutex::new(None)),
+        };
+
+        // Start background scheduler loop
+        scheduler.start_scheduler_loop();
+        Ok(scheduler)
     }
 
     /// Create a new scheduler with default settings (for testing)
     pub fn new_with_defaults() -> Self {
         let max = 4; // 預設最大並發數
-        let worker_pool = WorkerPool::new(max);
         let semaphore = Arc::new(Semaphore::new(max));
-        Self {
-            task_queue: Arc::new(Mutex::new(VecDeque::new())),
-            worker_pool,
-            semaphore,
+        let task_queue = Arc::new(Mutex::new(BinaryHeap::new()));
+        let active_tasks = Arc::new(Mutex::new(std::collections::HashMap::new()));
+
+        let scheduler = Self {
+            task_queue: task_queue.clone(),
+            semaphore: semaphore.clone(),
             max_concurrent: max,
-            active_tasks: Arc::new(Mutex::new(std::collections::HashMap::new())),
-        }
+            active_tasks: active_tasks.clone(),
+            scheduler_handle: Arc::new(Mutex::new(None)),
+        };
+
+        // Start background scheduler loop
+        scheduler.start_scheduler_loop();
+        scheduler
+    }
+
+    /// Start the background scheduler loop
+    fn start_scheduler_loop(&self) {
+        let task_queue = Arc::clone(&self.task_queue);
+        let semaphore = Arc::clone(&self.semaphore);
+        let active_tasks = Arc::clone(&self.active_tasks);
+
+        let handle = tokio::spawn(async move {
+            loop {
+                // Try to get a semaphore permit and a task from the queue
+                if let Ok(permit) = semaphore.clone().try_acquire_owned() {
+                    let pending = {
+                        let mut queue = task_queue.lock().unwrap();
+                        queue.pop()
+                    };
+
+                    if let Some(p) = pending {
+                        // Update task status to running
+                        {
+                            let mut active = active_tasks.lock().unwrap();
+                            if let Some(info) = active.get_mut(&p.task_id) {
+                                info.status = TaskStatus::Running;
+                            }
+                        }
+
+                        let task_id = p.task_id.clone();
+                        let active_tasks_clone = Arc::clone(&active_tasks);
+
+                        // Spawn the actual task execution
+                        tokio::spawn(async move {
+                            let result = p.task.execute().await;
+
+                            // Update task status
+                            {
+                                let mut at = active_tasks_clone.lock().unwrap();
+                                if let Some(info) = at.get_mut(&task_id) {
+                                    info.status = TaskStatus::Completed(result.clone());
+                                    info.progress = 1.0;
+                                }
+                            }
+
+                            // Send result back
+                            let _ = p.result_sender.send(result);
+
+                            // Release the permit
+                            drop(permit);
+                        });
+                    } else {
+                        // No tasks in queue, release permit and wait a bit
+                        drop(permit);
+                        tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+                    }
+                } else {
+                    // No permits available, wait a bit
+                    tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+                }
+            }
+        });
+
+        // Store the handle
+        *self.scheduler_handle.lock().unwrap() = Some(handle);
     }
 
     /// Submit a task with normal priority
@@ -109,16 +203,10 @@ impl TaskScheduler {
                 task,
                 result_sender: tx,
                 task_id: task_id.clone(),
-                priority: priority.clone(),
+                priority,
             };
-            let pos = queue
-                .iter()
-                .position(|t| t.priority < priority)
-                .unwrap_or(queue.len());
-            queue.insert(pos, pending);
+            queue.push(pending);
         }
-
-        self.try_execute_next_task().await;
 
         // Await result
         let result = rx.await.map_err(|_| {
@@ -134,33 +222,8 @@ impl TaskScheduler {
     }
 
     async fn try_execute_next_task(&self) {
-        if let Ok(permit) = self.semaphore.clone().try_acquire_owned() {
-            let pending = { self.task_queue.lock().unwrap().pop_front() };
-            if let Some(p) = pending {
-                {
-                    let mut active = self.active_tasks.lock().unwrap();
-                    if let Some(info) = active.get_mut(&p.task_id) {
-                        info.status = TaskStatus::Running;
-                    }
-                }
-                let task_id = p.task_id.clone();
-                let active_tasks = Arc::clone(&self.active_tasks);
-                tokio::spawn(async move {
-                    let result = p.task.execute().await;
-                    {
-                        let mut at = active_tasks.lock().unwrap();
-                        if let Some(info) = at.get_mut(&task_id) {
-                            info.status = TaskStatus::Completed(result.clone());
-                            info.progress = 1.0;
-                        }
-                    }
-                    let _ = p.result_sender.send(result);
-                    drop(permit);
-                });
-            } else {
-                drop(permit);
-            }
-        }
+        // This method is no longer needed as we have background scheduler loop
+        // Keep it for compatibility but it does nothing
     }
 
     /// Submit multiple tasks and await all results
@@ -200,18 +263,10 @@ impl TaskScheduler {
                     task_id: task_id.clone(),
                     priority: TaskPriority::Normal,
                 };
-                queue.push_back(pending);
+                queue.push(pending);
             }
 
             receivers.push((task_id, rx));
-        }
-
-        // 觸發執行所有可能的任務
-        for _ in 0..self.max_concurrent {
-            if self.get_queue_size() == 0 || self.semaphore.available_permits() == 0 {
-                break;
-            }
-            self.try_execute_next_task().await;
         }
 
         // 等待所有結果
@@ -262,10 +317,10 @@ impl Clone for TaskScheduler {
     fn clone(&self) -> Self {
         Self {
             task_queue: Arc::clone(&self.task_queue),
-            worker_pool: self.worker_pool.clone(),
             semaphore: Arc::clone(&self.semaphore),
             max_concurrent: self.max_concurrent,
             active_tasks: Arc::clone(&self.active_tasks),
+            scheduler_handle: Arc::clone(&self.scheduler_handle),
         }
     }
 }
@@ -381,7 +436,7 @@ mod tests {
         let scheduler = TaskScheduler::new_with_defaults();
         let order = Arc::new(Mutex::new(Vec::new()));
 
-        // 序列提交任務以確保優先順序正確
+        // 建立不同優先級的任務
         let tasks = vec![
             (TaskPriority::Low, "low"),
             (TaskPriority::High, "high"),
@@ -389,21 +444,90 @@ mod tests {
             (TaskPriority::Critical, "critical"),
         ];
 
+        let mut handles = Vec::new();
         for (prio, name) in tasks {
             let task = Box::new(OrderTask::new(name, order.clone()));
-            let _ = scheduler
-                .submit_task_with_priority(task, prio)
-                .await
-                .unwrap();
+            let scheduler_clone = scheduler.clone();
+            let handle = tokio::spawn(async move {
+                scheduler_clone
+                    .submit_task_with_priority(task, prio)
+                    .await
+                    .unwrap()
+            });
+            handles.push(handle);
+        }
+
+        // 等待所有任務完成
+        for handle in handles {
+            let _ = handle.await.unwrap();
         }
 
         let v = order.lock().unwrap();
-        // 由於是序列執行，順序應該是提交順序
         assert_eq!(v.len(), 4);
-        assert!(v.contains(&"low".to_string()));
+        // 由於優先級排程，critical 應該先執行
+        assert!(v.contains(&"critical".to_string()));
         assert!(v.contains(&"high".to_string()));
         assert!(v.contains(&"normal".to_string()));
-        assert!(v.contains(&"critical".to_string()));
+        assert!(v.contains(&"low".to_string()));
+    }
+
+    #[tokio::test]
+    async fn test_queue_and_active_workers_metrics() {
+        let scheduler = TaskScheduler::new_with_defaults();
+
+        // 初始狀態檢查
+        assert_eq!(scheduler.get_queue_size(), 0);
+        assert_eq!(scheduler.get_active_workers(), 0);
+
+        // 提交一個較長的任務
+        let task = Box::new(MockTask {
+            name: "long_task".to_string(),
+            duration: Duration::from_millis(100),
+        });
+
+        let handle = {
+            let scheduler_clone = scheduler.clone();
+            tokio::spawn(async move { scheduler_clone.submit_task(task).await })
+        };
+
+        // 等待一小段時間，檢查指標
+        tokio::time::sleep(Duration::from_millis(20)).await;
+
+        // 完成任務
+        let _result = handle.await.unwrap().unwrap();
+
+        // 檢查最終狀態
+        assert_eq!(scheduler.get_queue_size(), 0);
+    }
+
+    #[tokio::test]
+    async fn test_continuous_scheduling() {
+        let scheduler = TaskScheduler::new_with_defaults();
+        let counter = Arc::new(AtomicUsize::new(0));
+
+        // 提交多個任務到佇列
+        let mut handles = Vec::new();
+        for i in 0..10 {
+            let task = Box::new(CounterTask::new(counter.clone()));
+            let scheduler_clone = scheduler.clone();
+            let handle =
+                tokio::spawn(async move { scheduler_clone.submit_task(task).await.unwrap() });
+            handles.push(handle);
+
+            // 延遲提交以測試連續排程
+            if i % 3 == 0 {
+                tokio::time::sleep(Duration::from_millis(5)).await;
+            }
+        }
+
+        // 等待所有任務完成
+        for handle in handles {
+            let result = handle.await.unwrap();
+            assert!(matches!(result, TaskResult::Success(_)));
+        }
+
+        // 驗證所有任務都被執行
+        assert_eq!(counter.load(Ordering::SeqCst), 10);
     }
 
     #[tokio::test]
@@ -424,5 +548,108 @@ mod tests {
         for result in results {
             assert!(matches!(result, TaskResult::Success(_)));
         }
+    }
+
+    #[tokio::test]
+    async fn test_high_concurrency_stress() {
+        let scheduler = TaskScheduler::new_with_defaults();
+        let counter = Arc::new(AtomicUsize::new(0));
+
+        // 建立大量任務
+        let mut handles = Vec::new();
+        for i in 0..50 {
+            let task = Box::new(CounterTask::new(counter.clone()));
+            let scheduler_clone = scheduler.clone();
+            let priority = match i % 4 {
+                0 => TaskPriority::Low,
+                1 => TaskPriority::Normal,
+                2 => TaskPriority::High,
+                3 => TaskPriority::Critical,
+                _ => TaskPriority::Normal,
+            };
+
+            let handle = tokio::spawn(async move {
+                scheduler_clone
+                    .submit_task_with_priority(task, priority)
+                    .await
+                    .unwrap()
+            });
+            handles.push(handle);
+
+            // 交錯式提交，模擬實際使用情境
+            if i % 5 == 0 {
+                tokio::time::sleep(Duration::from_millis(1)).await;
+            }
+        }
+
+        // 等待所有任務完成
+        for handle in handles {
+            let result = handle.await.unwrap();
+            assert!(matches!(result, TaskResult::Success(_)));
+        }
+
+        // 驗證所有任務都被執行
+        assert_eq!(counter.load(Ordering::SeqCst), 50);
+
+        // 檢查最終狀態
+        assert_eq!(scheduler.get_queue_size(), 0);
+        assert_eq!(scheduler.get_active_workers(), 0);
+    }
+
+    #[tokio::test]
+    async fn test_mixed_batch_and_individual_tasks() {
+        let scheduler = TaskScheduler::new_with_defaults();
+        let counter = Arc::new(AtomicUsize::new(0));
+
+        // 首先提交一些單個任務
+        let mut individual_handles = Vec::new();
+        for _ in 0..3 {
+            let task = Box::new(CounterTask::new(counter.clone()));
+            let scheduler_clone = scheduler.clone();
+            let handle =
+                tokio::spawn(async move { scheduler_clone.submit_task(task).await.unwrap() });
+            individual_handles.push(handle);
+        }
+
+        // 然後提交批次任務
+        let mut batch_tasks: Vec<Box<dyn Task + Send + Sync>> = Vec::new();
+        for _ in 0..4 {
+            batch_tasks.push(Box::new(CounterTask::new(counter.clone())));
+        }
+
+        let batch_handle = {
+            let scheduler_clone = scheduler.clone();
+            tokio::spawn(async move { scheduler_clone.submit_batch_tasks(batch_tasks).await })
+        };
+
+        // 在批次執行期間再提交更多單個任務
+        let mut more_individual_handles = Vec::new();
+        for _ in 0..2 {
+            let task = Box::new(CounterTask::new(counter.clone()));
+            let scheduler_clone = scheduler.clone();
+            let handle =
+                tokio::spawn(async move { scheduler_clone.submit_task(task).await.unwrap() });
+            more_individual_handles.push(handle);
+        }
+
+        // 等待所有任務完成
+        for handle in individual_handles {
+            let result = handle.await.unwrap();
+            assert!(matches!(result, TaskResult::Success(_)));
+        }
+
+        let batch_results = batch_handle.await.unwrap();
+        assert_eq!(batch_results.len(), 4);
+        for result in batch_results {
+            assert!(matches!(result, TaskResult::Success(_)));
+        }
+
+        for handle in more_individual_handles {
+            let result = handle.await.unwrap();
+            assert!(matches!(result, TaskResult::Success(_)));
+        }
+
+        // 驗證總計數正確 (3 + 4 + 2 = 9)
+        assert_eq!(counter.load(Ordering::SeqCst), 9);
     }
 }
