@@ -52,11 +52,59 @@ impl ConfigValidator for AIConfigValidator {
                 "重試次數不能超過 10 次".to_string(),
             ));
         }
+        // Validate base_url format
+        if let Err(e) = validate_base_url(&config.ai.base_url) {
+            return Err(ConfigError::InvalidValue(
+                "ai.base_url".to_string(),
+                e.to_string(),
+            ));
+        }
         Ok(())
     }
 
     fn validator_name(&self) -> &'static str {
         "ai_config"
+    }
+}
+
+fn validate_base_url(url: &str) -> Result<(), String> {
+    use url::Url;
+    let parsed = Url::parse(url).map_err(|e| format!("無效的 URL 格式: {}", e))?;
+
+    if !matches!(parsed.scheme(), "http" | "https") {
+        return Err("base URL 必須使用 http 或 https 協定".to_string());
+    }
+
+    if parsed.host().is_none() {
+        return Err("base URL 必須包含有效的主機名稱".to_string());
+    }
+
+    Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::validate_base_url;
+
+    #[test]
+    fn valid_base_url_https() {
+        assert!(validate_base_url("https://api.example.com/v1").is_ok());
+    }
+
+    #[test]
+    fn valid_base_url_http() {
+        assert!(validate_base_url("http://localhost:8000").is_ok());
+    }
+
+    #[test]
+    fn invalid_base_url_scheme() {
+        assert!(validate_base_url("ftp://example.com").is_err());
+    }
+
+    #[test]
+    fn invalid_base_url_no_host() {
+        // Valid scheme but missing authority/host
+        assert!(validate_base_url("http://").is_err());
     }
 }
 

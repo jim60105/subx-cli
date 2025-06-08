@@ -12,12 +12,39 @@ pub struct PartialConfig {
     pub general: PartialGeneralConfig,
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::config::Config;
+
+    #[test]
+    fn test_partial_ai_config_merge_and_to_complete_base_url() {
+        // 初始部分配置，含預設 base_url
+        let mut base = PartialConfig::default();
+        // 覆蓋 base_url 欄位
+        let mut override_cfg = PartialConfig::default();
+        override_cfg.ai.base_url = Some("https://override.example.com/v1".to_string());
+
+        base.merge(override_cfg).unwrap();
+        let complete = base.to_complete_config().unwrap();
+        assert_eq!(complete.ai.base_url, "https://override.example.com/v1");
+    }
+
+    #[test]
+    fn test_partial_ai_config_to_complete_default_base_url() {
+        let base = PartialConfig::default();
+        let complete = base.to_complete_config().unwrap();
+        assert_eq!(complete.ai.base_url, Config::default().ai.base_url);
+    }
+}
+
 /// Partial AI configuration.
 #[derive(Debug, Default, Serialize, Deserialize)]
 pub struct PartialAIConfig {
     pub provider: Option<String>,
     pub api_key: Option<String>,
     pub model: Option<String>,
+    pub base_url: Option<String>,
     pub max_sample_length: Option<usize>,
     pub temperature: Option<f32>,
     pub retry_attempts: Option<u32>,
@@ -63,6 +90,9 @@ impl PartialConfig {
         }
         if let Some(v) = other.ai.model {
             self.ai.model = Some(v);
+        }
+        if let Some(v) = other.ai.base_url {
+            self.ai.base_url = Some(v);
         }
         if let Some(v) = other.ai.max_sample_length {
             self.ai.max_sample_length = Some(v);
@@ -122,6 +152,7 @@ impl PartialConfig {
             provider: self.ai.provider.clone().unwrap_or(default.ai.provider),
             api_key: self.ai.api_key.clone().or(default.ai.api_key),
             model: self.ai.model.clone().unwrap_or(default.ai.model),
+            base_url: self.ai.base_url.clone().unwrap_or(default.ai.base_url),
             max_sample_length: self
                 .ai
                 .max_sample_length

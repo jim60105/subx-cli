@@ -128,13 +128,32 @@ mod tests {
 }
 
 impl OpenAIClient {
-    /// 建立新的 OpenAIClient
+    /// 建立新的 OpenAIClient (使用預設 base_url)
     pub fn new(
         api_key: String,
         model: String,
         temperature: f32,
         retry_attempts: u32,
         retry_delay_ms: u64,
+    ) -> Self {
+        Self::new_with_base_url(
+            api_key,
+            model,
+            temperature,
+            retry_attempts,
+            retry_delay_ms,
+            "https://api.openai.com/v1".to_string(),
+        )
+    }
+
+    /// 建立新的 OpenAIClient，支援自訂 base_url
+    pub fn new_with_base_url(
+        api_key: String,
+        model: String,
+        temperature: f32,
+        retry_attempts: u32,
+        retry_delay_ms: u64,
+        base_url: String,
     ) -> Self {
         let client = Client::builder()
             .timeout(Duration::from_secs(30))
@@ -147,8 +166,49 @@ impl OpenAIClient {
             temperature,
             retry_attempts,
             retry_delay_ms,
-            base_url: "https://api.openai.com/v1".to_string(),
+            base_url: base_url.trim_end_matches('/').to_string(),
         }
+    }
+
+    /// 從統一配置建立客戶端
+    pub fn from_config(config: &crate::config::AIConfig) -> crate::Result<Self> {
+        let api_key = config
+            .api_key
+            .as_ref()
+            .ok_or_else(|| crate::error::SubXError::config("缺少 OpenAI API Key"))?;
+
+        // 驗證 base URL 格式
+        Self::validate_base_url(&config.base_url)?;
+
+        Ok(Self::new_with_base_url(
+            api_key.clone(),
+            config.model.clone(),
+            config.temperature,
+            config.retry_attempts,
+            config.retry_delay_ms,
+            config.base_url.clone(),
+        ))
+    }
+
+    /// 驗證 base URL 格式
+    fn validate_base_url(url: &str) -> crate::Result<()> {
+        use url::Url;
+        let parsed = Url::parse(url)
+            .map_err(|e| crate::error::SubXError::config(format!("無效的 base URL: {}", e)))?;
+
+        if !matches!(parsed.scheme(), "http" | "https") {
+            return Err(crate::error::SubXError::config(
+                "base URL 必須使用 http 或 https 協定".to_string(),
+            ));
+        }
+
+        if parsed.host().is_none() {
+            return Err(crate::error::SubXError::config(
+                "base URL 必須包含有效的主機名稱".to_string(),
+            ));
+        }
+
+        Ok(())
     }
 
     async fn chat_completion(&self, messages: Vec<serde_json::Value>) -> Result<String> {

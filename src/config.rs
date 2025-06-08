@@ -195,6 +195,7 @@ pub struct AIConfig {
     pub provider: String,
     pub api_key: Option<String>,
     pub model: String,
+    pub base_url: String,
     pub max_sample_length: usize,
     pub temperature: f32,
     pub retry_attempts: u32,
@@ -233,6 +234,7 @@ impl Default for Config {
                 provider: "openai".to_string(),
                 api_key: None,
                 model: "gpt-4o-mini".to_string(),
+                base_url: "https://api.openai.com/v1".to_string(),
                 max_sample_length: 2000,
                 temperature: 0.3,
                 retry_attempts: 3,
@@ -313,6 +315,7 @@ impl Config {
                 "provider" => Ok(self.ai.provider.clone()),
                 "api_key" => Ok(self.ai.api_key.clone().unwrap_or_default()),
                 "model" => Ok(self.ai.model.clone()),
+                "base_url" => Ok(self.ai.base_url.clone()),
                 _ => Err(SubXError::config(format!("無效的 AI 配置鍵: {}", key))),
             },
             "formats" => match parts[1] {

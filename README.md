@@ -52,8 +52,12 @@ sudo cp target/release/subx-cli /usr/local/bin/
 # 設定 OpenAI API Key (用於 AI 匹配功能)
 export OPENAI_API_KEY="your-api-key-here"
 
-# 或建立配置檔案
+# 可選：設定自訂 OpenAI Base URL (用於 Azure OpenAI 或私有部署)
+export OPENAI_BASE_URL="https://api.azure.com/openai/v1"
+
+# 或通過配置檔案指令設定
 subx-cli config set ai.api_key "your-api-key-here"
+subx-cli config set ai.base_url "https://api.azure.com/openai/v1"
 ```
 
 ### 2. 基本使用
@@ -146,6 +150,7 @@ TV_Show_S01/
 [ai]
 provider = "openai"
 model = "gpt-4o-mini"
+base_url = "https://api.openai.com/v1"  # 預設 API 端點，可由 OPENAI_BASE_URL 覆蓋
 max_sample_length = 2000
 api_key = "your-api-key-here"  # 或使用環境變數 OPENAI_API_KEY
 temperature = 0.3

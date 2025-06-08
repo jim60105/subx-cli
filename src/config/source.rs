@@ -73,6 +73,9 @@ impl ConfigSource for EnvSource {
         if let Ok(provider) = std::env::var("SUBX_AI_PROVIDER") {
             config.ai.provider = Some(provider);
         }
+        if let Ok(base_url) = std::env::var("OPENAI_BASE_URL") {
+            config.ai.base_url = Some(base_url);
+        }
         if let Ok(backup) = std::env::var("SUBX_BACKUP_ENABLED") {
             config.general.backup_enabled = Some(backup.parse().unwrap_or(false));
         }
