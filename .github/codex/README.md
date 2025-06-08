@@ -34,7 +34,7 @@
 
 ### 必填欄位
 - `title`: 任務標題
-- `date`: 完成日期 (YYYY-MM-DD)
+- `date`: 完成日期 (YYYY-MM-DDTHH:MM:SSZ)
 - `任務`: 任務描述
 - `實作內容`: 主要變更內容
 

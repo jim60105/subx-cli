@@ -1,12 +1,14 @@
 ---
 title: "Job Report: [任務類型] #[編號] - [任務標題]"
-date: "[YYYY-MM-DD]"
+date: "[YYYY-MM-DDTHH:MM:SSZ]"
 ---
 
 # [任務類型] #[編號] - [任務標題] 工作報告
 
-**日期**：[YYYY-MM-DD]  
+**日期**：[YYYY-MM-DDTHH:MM:SSZ]  
 **任務**：[簡要描述此次任務的目標]
+
+> Always get the date with `date -u +"%Y-%m-%dT%H:%M:%SZ"` command.
 
 ## 一、實作內容
 

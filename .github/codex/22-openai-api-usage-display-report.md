@@ -1,11 +1,11 @@
 ---
 title: "Job Report: Bug #01 - 顯示 OpenAI API 呼叫細節"
-date: "2025-06-11"
+date: "2025-06-07T21:51:52Z"
 ---
 
 # Bug Fix #01 - OpenAI API 呼叫細節顯示
 
-**日期**：2025-06-11  
+**日期**：2025-06-07T21:51:52Z  
 **任務**：於 chat_completion 中解析並顯示 OpenAI API 呼叫的模型名稱與 token 使用統計
 
 ## 一、擴充 AI 服務結構

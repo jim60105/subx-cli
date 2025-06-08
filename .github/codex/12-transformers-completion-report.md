@@ -1,11 +1,11 @@
 ---
 title: "Job Report: Transformers 方法補完"
-date: "2025-06-06"
+date: "2025-06-06T12:57:58Z"
 ---
 
 # Transformers 方法補完 工作報告
 
-**日期**：2025-06-06  
+**日期**：2025-06-06T12:57:58Z  
 **任務**：完成 src/core/formats/transformers.rs 中 ASS↔VTT、VTT↔SRT、VTT↔ASS 轉換方法實作
 
 ## 一、主要變更

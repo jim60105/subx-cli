@@ -1,11 +1,11 @@
 ---
 title: "Job Report: Backlog #07 - 依賴反轉 OpenAIClient 並修正 Dry-run 快取邏輯"
-date: "2025-06-10"
+date: "2025-06-07T11:29:31Z"
 ---
 
 # Backlog #07 - 依賴反轉 OpenAIClient 並修正 Dry-run 快取邏輯
 
-**日期**：2025-06-10  
+**日期**：2025-06-07T11:29:31Z  
 **任務**：將 OpenAIClient 由內部建立改為注入，以便測試；並調整 Dry-run 行為為執行內容分析與結果快取
 
 ## 一、依賴反轉（Dependency Injection）

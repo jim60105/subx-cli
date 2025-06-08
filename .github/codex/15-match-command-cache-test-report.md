@@ -1,11 +1,11 @@
 ---
 title: "Job Report: Backlog #07 - 為 MatchCommand 增加 Dry-run 快取單元測試"
-date: "2025-06-08"
+date: "2025-06-07T03:32:38Z"
 ---
 
 # Backlog #07 - 為 MatchCommand 增加 Dry-run 快取單元測試
 
-**日期**：2025-06-08  
+**日期**：2025-06-07T03:32:38Z  
 **任務**：撰寫單元測試，驗證在 `dry_run` 模式下是否會建立快取檔案
 
 ## 一、調整 `match_command.rs` 執行邏輯
