@@ -260,3 +260,16 @@ impl SubXError {
         }
     }
 }
+
+// aus 錯誤轉換
+impl From<aus::AudioError> for SubXError {
+    fn from(error: aus::AudioError) -> Self {
+        SubXError::audio_processing(format!("{:?}", error))
+    }
+}
+
+impl From<aus::spectrum::SpectrumError> for SubXError {
+    fn from(error: aus::spectrum::SpectrumError) -> Self {
+        SubXError::audio_processing(format!("頻譜處理錯誤: {:?}", error))
+    }
+}

@@ -64,6 +64,8 @@ md5 = "0.7"
 # 配置管理相依：路徑解析與多核心檢測
 # 音訊處理
 symphonia = { version = "0.5", features = ["all"] }
+# 音訊處理系統遷移至 aus crate
+aus = "0.1.8"
 
 # 配置管理相依：路徑解析與多核心檢測
 dirs = "4.0"
@@ -88,6 +90,10 @@ wiremock = "0.5"
 [[bin]]
 name = "subx-cli"
 path = "src/main.rs"
+
+[[bin]]
+name = "migration_validator"
+path = "src/bin/migration_validator.rs"
 
 [profile.release]
 opt-level = 3

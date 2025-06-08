@@ -25,6 +25,20 @@ pub use resampler::{
     SampleRateOptimizer,
 };
 
+pub mod aus_adapter;
+pub use aus_adapter::AusAdapter;
+
+pub mod migration;
+
+pub mod analyzer_v2;
+pub use analyzer_v2::{AudioFeatures, AusAudioAnalyzer, FrameFeatures};
+
+pub mod dialogue_detector_v2;
+pub use dialogue_detector_v2::AusDialogueDetector;
+
+pub mod benchmarks;
+pub use benchmarks::{BenchmarkResult, PerformanceBenchmark};
+
 /// 音訊能量包絡
 #[derive(Debug, Clone)]
 pub struct AudioEnvelope {
