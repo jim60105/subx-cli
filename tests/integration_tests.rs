@@ -58,8 +58,6 @@ fn test_sync_command(dir: &Path) {
         .arg(&subtitle)
         .arg("--offset")
         .arg("1")
-        .arg("--method")
-        .arg("manual")
         .assert()
         .success()
         .stdout(predicate::str::contains("已應用手動偏移"));

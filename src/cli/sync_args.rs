@@ -1,5 +1,5 @@
 // src/cli/sync_args.rs
-use clap::{Args, ValueEnum};
+use clap::Args;
 use std::path::PathBuf;
 
 /// 時間軸同步校正參數
@@ -22,15 +22,53 @@ pub struct SyncArgs {
     /// 偏移檢測範圍 (秒)
     #[arg(long)]
     pub range: Option<f64>,
-
-    /// 同步方法 (audio|manual)
-    #[arg(long, value_enum)]
-    pub method: SyncMethod,
 }
 
-/// 支援的同步方法
-#[derive(ValueEnum, Clone, Debug)]
+/// 同步方法
+#[derive(Debug, Clone, PartialEq)]
 pub enum SyncMethod {
-    Audio,
+    /// 自動同步：使用音訊分析
+    Auto,
+    /// 手動偏移：使用指定的時間偏移
     Manual,
+}
+
+impl SyncArgs {
+    /// 根據 offset 參數自動判斷同步方法
+    pub fn sync_method(&self) -> SyncMethod {
+        if self.offset.is_some() {
+            SyncMethod::Manual
+        } else {
+            SyncMethod::Auto
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_sync_method_selection_manual() {
+        let args = SyncArgs {
+            video: PathBuf::from("video.mp4"),
+            subtitle: PathBuf::from("subtitle.srt"),
+            offset: Some(2.5),
+            batch: false,
+            range: None,
+        };
+        assert_eq!(args.sync_method(), SyncMethod::Manual);
+    }
+
+    #[test]
+    fn test_sync_method_selection_auto() {
+        let args = SyncArgs {
+            video: PathBuf::from("video.mp4"),
+            subtitle: PathBuf::from("subtitle.srt"),
+            offset: None,
+            batch: false,
+            range: None,
+        };
+        assert_eq!(args.sync_method(), SyncMethod::Auto);
+    }
 }

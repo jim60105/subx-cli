@@ -201,7 +201,6 @@ log_level = "info"
   --offset <SECONDS>    手動指定偏移量
   --batch               批量處理模式
   --range <SECONDS>     偏移檢測範圍
-  --method <METHOD>     同步方法 (audio|manual)
 ```
 
 ### `subx-cli config` - 配置管理
