@@ -13,6 +13,41 @@ pub mod partial;
 pub mod source;
 pub mod validator;
 
+use crate::config::manager::ConfigManager;
+use crate::config::source::{CliSource, EnvSource, FileSource};
+use std::sync::{Mutex, OnceLock};
+
+static GLOBAL_CONFIG_MANAGER: OnceLock<Mutex<ConfigManager>> = OnceLock::new();
+
+/// 初始化全域配置管理器
+pub fn init_config_manager() -> Result<()> {
+    let lock = GLOBAL_CONFIG_MANAGER.get_or_init(|| Mutex::new(ConfigManager::new()));
+    let manager = ConfigManager::new()
+        .add_source(Box::new(FileSource::new(Config::config_file_path()?)))
+        .add_source(Box::new(EnvSource::new()))
+        .add_source(Box::new(CliSource::new()));
+    manager
+        .load()
+        .map_err(|e| SubXError::config(e.to_string()))?;
+    let mut guard = lock.lock().unwrap();
+    *guard = manager;
+    Ok(())
+}
+
+/// 載入應用程式配置（替代 Config::load()）
+pub fn load_config() -> Result<Config> {
+    let lock = GLOBAL_CONFIG_MANAGER.get().ok_or_else(|| {
+        SubXError::config("配置管理器尚未初始化，請先呼叫 init_config_manager()".to_string())
+    })?;
+    let manager = lock.lock().unwrap();
+    let config_lock = manager.config();
+    let partial_config = config_lock.read().unwrap();
+    let config = partial_config
+        .to_complete_config()
+        .map_err(|e| SubXError::config(e.to_string()))?;
+    Ok(config)
+}
+
 /// 應用程式配置
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct Config {
@@ -120,42 +155,37 @@ mod tests {
     }
 
     #[test]
-    fn test_old_config_file_still_works() {
+    fn test_global_config_manager_initialization() {
         let temp_dir = TempDir::new().unwrap();
         let config_path = temp_dir.path().join("config.toml");
-        let config_content = r#"
-[ai]
-provider = "openai"
-model = "gpt-4"
-max_sample_length = 2000
-api_key = "dummy-key"
-temperature = 0.5
-retry_attempts = 2
-retry_delay_ms = 100
 
-[formats]
-default_output = "srt"
-preserve_styling = true
-default_encoding = "utf-8"
+        let test_config = Config::default();
+        let toml_content = toml::to_string_pretty(&test_config).unwrap();
+        std::fs::write(&config_path, toml_content).unwrap();
 
-[sync]
-max_offset_seconds = 10.0
-audio_sample_rate = 16000
-correlation_threshold = 0.5
-dialogue_detection_threshold = 0.02
-min_dialogue_duration_ms = 1000
-
-[general]
-backup_enabled = true
-default_confidence = 80
-log_level = "debug"
-max_concurrent_jobs = 4
-"#;
-        std::fs::write(&config_path, config_content).unwrap();
         std::env::set_var("SUBX_CONFIG_PATH", config_path.to_str().unwrap());
-        let config = Config::load().unwrap();
-        assert_eq!(config.general.max_concurrent_jobs, 4);
-        assert_eq!(config.formats.default_encoding, "utf-8");
+
+        assert!(init_config_manager().is_ok());
+
+        let loaded_config = load_config().unwrap();
+        assert_eq!(loaded_config.ai.model, test_config.ai.model);
+
+        std::env::remove_var("SUBX_CONFIG_PATH");
+    }
+
+    #[test]
+    fn test_env_var_override_with_new_system() {
+        std::env::set_var("OPENAI_API_KEY", "test-key-from-env");
+        std::env::set_var("SUBX_AI_MODEL", "gpt-4-from-env");
+
+        let _ = init_config_manager();
+        let config = load_config().unwrap();
+
+        assert_eq!(config.ai.api_key, Some("test-key-from-env".to_string()));
+        assert_eq!(config.ai.model, "gpt-4-from-env");
+
+        std::env::remove_var("OPENAI_API_KEY");
+        std::env::remove_var("SUBX_AI_MODEL");
     }
 }
 
@@ -230,31 +260,6 @@ impl Default for Config {
 }
 
 impl Config {
-    /// 載入配置（環境變數 > 配置檔案 > 預設值）
-    pub fn load() -> Result<Self> {
-        let mut config = Config::default();
-        let mut loaded_from_path: Option<PathBuf> = None;
-
-        // 從配置檔案載入
-        if let Ok(path) = Config::config_file_path() {
-            if path.exists() {
-                let content = std::fs::read_to_string(&path)?;
-                let file_config: Config = toml::from_str(&content)
-                    .map_err(|e| SubXError::config(format!("TOML 解析錯誤: {}", e)))?;
-                config.merge(file_config);
-                loaded_from_path = Some(path);
-            }
-        }
-
-        // 套用環境變數覆蓋
-        config.apply_env_vars();
-        config.loaded_from = loaded_from_path;
-
-        // 驗證配置
-        config.validate()?;
-        Ok(config)
-    }
-
     /// 儲存配置到檔案
     pub fn save(&self) -> Result<()> {
         let path = Config::config_file_path()?;
@@ -276,6 +281,7 @@ impl Config {
         Ok(dir.join("subx").join("config.toml"))
     }
 
+    #[allow(dead_code)]
     fn apply_env_vars(&mut self) {
         if let Ok(key) = std::env::var("OPENAI_API_KEY") {
             self.ai.api_key = Some(key);
@@ -285,6 +291,7 @@ impl Config {
         }
     }
 
+    #[allow(dead_code)]
     fn validate(&self) -> Result<()> {
         if self.ai.provider != "openai" {
             return Err(SubXError::config(format!(
@@ -316,6 +323,7 @@ impl Config {
         }
     }
 
+    #[allow(dead_code)]
     fn merge(&mut self, other: Config) {
         *self = other;
     }

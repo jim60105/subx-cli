@@ -1,12 +1,12 @@
 use crate::cli::{ConvertArgs, OutputSubtitleFormat};
-use crate::config::Config;
+use crate::config::load_config;
 use crate::core::file_manager::FileManager;
 use crate::core::formats::converter::{ConversionConfig, FormatConverter};
 use crate::error::SubXError;
 
 /// 執行格式轉換命令
 pub async fn execute(args: ConvertArgs) -> crate::Result<()> {
-    let app_config = Config::load()?;
+    let app_config = load_config()?;
     let config = ConversionConfig {
         preserve_styling: app_config.formats.preserve_styling,
         target_encoding: args.encoding.clone(),

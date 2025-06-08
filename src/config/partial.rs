@@ -4,6 +4,7 @@ use serde::{Deserialize, Serialize};
 
 /// Partial configuration for all sections.
 #[derive(Debug, Default, Serialize, Deserialize)]
+#[serde(default)]
 pub struct PartialConfig {
     pub ai: PartialAIConfig,
     pub formats: PartialFormatsConfig,
@@ -106,5 +107,87 @@ impl PartialConfig {
             self.general.max_concurrent_jobs = Some(v);
         }
         Ok(())
+    }
+}
+
+impl PartialConfig {
+    /// 轉換為完整配置，使用預設值填充缺少的欄位
+    pub fn to_complete_config(
+        &self,
+    ) -> Result<crate::config::Config, crate::config::manager::ConfigError> {
+        use crate::config::{AIConfig, Config, FormatsConfig, GeneralConfig, SyncConfig};
+        let default = Config::default();
+
+        let ai = AIConfig {
+            provider: self.ai.provider.clone().unwrap_or(default.ai.provider),
+            api_key: self.ai.api_key.clone().or(default.ai.api_key),
+            model: self.ai.model.clone().unwrap_or(default.ai.model),
+            max_sample_length: self
+                .ai
+                .max_sample_length
+                .unwrap_or(default.ai.max_sample_length),
+            temperature: self.ai.temperature.unwrap_or(default.ai.temperature),
+            retry_attempts: self.ai.retry_attempts.unwrap_or(default.ai.retry_attempts),
+            retry_delay_ms: self.ai.retry_delay_ms.unwrap_or(default.ai.retry_delay_ms),
+        };
+
+        let formats = FormatsConfig {
+            default_output: self
+                .formats
+                .default_output
+                .clone()
+                .unwrap_or(default.formats.default_output),
+            preserve_styling: self
+                .formats
+                .preserve_styling
+                .unwrap_or(default.formats.preserve_styling),
+            default_encoding: self
+                .formats
+                .default_encoding
+                .clone()
+                .unwrap_or(default.formats.default_encoding),
+        };
+
+        let sync = SyncConfig {
+            max_offset_seconds: self
+                .sync
+                .max_offset_seconds
+                .unwrap_or(default.sync.max_offset_seconds),
+            audio_sample_rate: self
+                .sync
+                .audio_sample_rate
+                .unwrap_or(default.sync.audio_sample_rate),
+            correlation_threshold: self
+                .sync
+                .correlation_threshold
+                .unwrap_or(default.sync.correlation_threshold),
+            dialogue_detection_threshold: self
+                .sync
+                .dialogue_detection_threshold
+                .unwrap_or(default.sync.dialogue_detection_threshold),
+            min_dialogue_duration_ms: self
+                .sync
+                .min_dialogue_duration_ms
+                .unwrap_or(default.sync.min_dialogue_duration_ms),
+        };
+
+        let general = GeneralConfig {
+            backup_enabled: self
+                .general
+                .backup_enabled
+                .unwrap_or(default.general.backup_enabled),
+            max_concurrent_jobs: self
+                .general
+                .max_concurrent_jobs
+                .unwrap_or(default.general.max_concurrent_jobs),
+        };
+
+        Ok(Config {
+            ai,
+            formats,
+            sync,
+            general,
+            loaded_from: None,
+        })
     }
 }

@@ -1,6 +1,5 @@
 //! Configuration sources for loading partial configuration.
 
-use crate::cli::ConfigArgs;
 use crate::config::manager::ConfigError;
 use crate::config::partial::PartialConfig;
 use std::path::PathBuf;
@@ -33,6 +32,9 @@ impl FileSource {
 
 impl ConfigSource for FileSource {
     fn load(&self) -> Result<PartialConfig, ConfigError> {
+        if !self.path.exists() {
+            return Ok(PartialConfig::default());
+        }
         let content = std::fs::read_to_string(&self.path)?;
         let cfg = toml::from_str(&content).map_err(|e| ConfigError::ParseError(e.to_string()))?;
         Ok(cfg)
@@ -51,31 +53,34 @@ impl ConfigSource for FileSource {
 }
 
 /// Environment variable configuration source.
-pub struct EnvSource {
-    prefix: String,
-}
+pub struct EnvSource;
 
 impl EnvSource {
-    /// Create a new environment source with a variable prefix.
-    pub fn new(prefix: String) -> Self {
-        Self { prefix }
+    pub fn new() -> Self {
+        Self
     }
 }
 
 impl ConfigSource for EnvSource {
     fn load(&self) -> Result<PartialConfig, ConfigError> {
-        let mut cfg = PartialConfig::default();
-        if let Ok(val) = std::env::var(format!("{}OPENAI_API_KEY", self.prefix)) {
-            cfg.ai.api_key = Some(val);
+        let mut config = PartialConfig::default();
+        if let Ok(api_key) = std::env::var("OPENAI_API_KEY") {
+            config.ai.api_key = Some(api_key);
         }
-        if let Ok(val) = std::env::var(format!("{}AI_MODEL", self.prefix)) {
-            cfg.ai.model = Some(val);
+        if let Ok(model) = std::env::var("SUBX_AI_MODEL") {
+            config.ai.model = Some(model);
         }
-        Ok(cfg)
+        if let Ok(provider) = std::env::var("SUBX_AI_PROVIDER") {
+            config.ai.provider = Some(provider);
+        }
+        if let Ok(backup) = std::env::var("SUBX_BACKUP_ENABLED") {
+            config.general.backup_enabled = Some(backup.parse().unwrap_or(false));
+        }
+        Ok(config)
     }
 
     fn priority(&self) -> u8 {
-        5
+        5 // 中等優先權，高於檔案但低於 CLI
     }
 
     fn source_name(&self) -> &'static str {
@@ -83,31 +88,37 @@ impl ConfigSource for EnvSource {
     }
 }
 
-/// Command-line arguments configuration source.
-pub struct ArgsSource {
-    args: ConfigArgs,
-}
+/// Command line arguments configuration source.
+pub struct CliSource;
 
-impl ArgsSource {
-    /// Create a new args source from parsed CLI arguments.
-    pub fn new(args: ConfigArgs) -> Self {
-        Self { args }
+impl CliSource {
+    pub fn new() -> Self {
+        Self {}
     }
 }
 
-impl ConfigSource for ArgsSource {
+impl ConfigSource for CliSource {
     fn load(&self) -> Result<PartialConfig, ConfigError> {
-        let cfg = PartialConfig::default();
-        // TODO: map ConfigArgs to PartialConfig
-        let _ = &self.args;
-        Ok(cfg)
+        Ok(PartialConfig::default())
     }
 
     fn priority(&self) -> u8 {
-        0
+        1 // 最高優先權
     }
 
     fn source_name(&self) -> &'static str {
-        "command_line"
+        "cli"
+    }
+}
+
+impl Default for EnvSource {
+    fn default() -> Self {
+        EnvSource::new()
+    }
+}
+
+impl Default for CliSource {
+    fn default() -> Self {
+        CliSource::new()
     }
 }

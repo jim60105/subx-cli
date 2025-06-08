@@ -1,6 +1,6 @@
 use crate::cli::display_match_results;
 use crate::cli::MatchArgs;
-use crate::config::Config;
+use crate::config::load_config;
 use crate::core::matcher::{MatchConfig, MatchEngine};
 use crate::error::SubXError;
 use crate::services::ai::{AIProvider, OpenAIClient};
@@ -9,7 +9,7 @@ use crate::Result;
 /// 執行 Match 命令，支援 Dry-run 與實際操作，並允許注入 AI 服務以便測試
 pub async fn execute(args: MatchArgs) -> Result<()> {
     // 載入配置與建立 AI 客戶端
-    let config = Config::load()?;
+    let config = load_config()?;
     let api_key = config
         .ai
         .api_key
@@ -28,7 +28,7 @@ pub async fn execute(args: MatchArgs) -> Result<()> {
 /// 執行 Match 流程，支援 Dry-run 與實際操作，AI 客戶端由外部注入
 pub async fn execute_with_client(args: MatchArgs, ai_client: Box<dyn AIProvider>) -> Result<()> {
     // 載入配置並初始化匹配引擎
-    let config = Config::load()?;
+    let config = load_config()?;
     let match_config = MatchConfig {
         confidence_threshold: args.confidence as f32 / 100.0,
         max_sample_length: config.ai.max_sample_length,
@@ -59,6 +59,7 @@ pub async fn execute_with_client(args: MatchArgs, ai_client: Box<dyn AIProvider>
 mod tests {
     use super::execute_with_client;
     use crate::cli::MatchArgs;
+    use crate::config::init_config_manager;
     use crate::services::ai::{
         AIProvider, AnalysisRequest, ConfidenceScore, MatchResult, VerificationRequest,
     };
@@ -96,6 +97,8 @@ mod tests {
 
         // 指定快取路徑到臨時資料夾
         std::env::set_var("XDG_CONFIG_HOME", media_dir.path());
+        // 初始化配置管理器，以便使用新系統載入默認配置
+        init_config_manager()?;
 
         // 確認尚未產生快取檔案
         let cache_path = dirs::config_dir()

@@ -6,7 +6,7 @@ use crate::core::matcher::cache::{CacheData, OpItem, SnapshotItem};
 use crate::core::matcher::{FileDiscovery, MediaFile, MediaFileType};
 use crate::Result;
 
-use crate::config::Config;
+use crate::config::load_config;
 use crate::error::SubXError;
 use dirs;
 use md5;
@@ -447,7 +447,7 @@ impl MatchEngine {
 
     /// 計算目前配置雜湊，用於快取驗證
     fn calculate_config_hash(&self) -> Result<String> {
-        let config = Config::load()?;
+        let config = load_config()?;
         let toml = toml::to_string(&config)
             .map_err(|e| SubXError::config(format!("TOML 序列化錯誤: {}", e)))?;
         Ok(format!("{:x}", md5::compute(toml)))

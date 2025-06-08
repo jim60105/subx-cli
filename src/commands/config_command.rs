@@ -1,5 +1,5 @@
 use crate::cli::{ConfigAction, ConfigArgs};
-use crate::config::Config;
+use crate::config::{load_config, Config};
 use crate::error::SubXError;
 use crate::Result;
 
@@ -7,7 +7,7 @@ use crate::Result;
 pub async fn execute(args: ConfigArgs) -> Result<()> {
     match args.action {
         ConfigAction::Set { key, value } => {
-            let mut config = Config::load()?;
+            let mut config = load_config()?;
             let parts: Vec<&str> = key.splitn(2, '.').collect();
             if parts.len() == 2 {
                 match parts[0] {
@@ -41,12 +41,12 @@ pub async fn execute(args: ConfigArgs) -> Result<()> {
             println!("設定 {} = {}", key, config.get_value(&key)?);
         }
         ConfigAction::Get { key } => {
-            let config = Config::load()?;
+            let config = load_config()?;
             let value = config.get_value(&key)?;
             println!("{}", value);
         }
         ConfigAction::List => {
-            let config = Config::load()?;
+            let config = load_config()?;
             if let Some(path) = &config.loaded_from {
                 println!("# 配置檔案路徑: {}\n", path.display());
             }
