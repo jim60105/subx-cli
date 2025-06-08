@@ -250,5 +250,33 @@ A: 先清除快取 `subx-cli cache clear`，再重新執行 match 命令。
 
 ---
 
+## 統一配置管理系統
+
+本工具採用統一的配置管理系統，支援多種來源（檔案、環境變數、命令列參數），並具備驗證與動態熱重載功能。以下為範例程式碼：
+
+```rust
+use subx_cli::config::Config;
+use subx_cli::config::manager::ConfigManager;
+use subx_cli::config::source::{FileSource, EnvSource, ArgsSource};
+use subx_cli::config::validator::{AIConfigValidator, SyncConfigValidator, FormatsConfigValidator, GeneralConfigValidator};
+
+# #[tokio::main]
+# async fn main() -> Result<(), Box<dyn std::error::Error>> {
+let mut config_manager = ConfigManager::new()
+    .add_source(Box::new(FileSource::new(Config::config_file_path()?)))
+    .add_source(Box::new(EnvSource::new("SUBX_".to_string())))
+    .add_source(Box::new(ArgsSource::new(cli_args_config))) // cli_args_config 為命令列配置參數
+    .add_validator(Box::new(AIConfigValidator))
+    .add_validator(Box::new(SyncConfigValidator))
+    .add_validator(Box::new(FormatsConfigValidator))
+    .add_validator(Box::new(GeneralConfigValidator));
+
+config_manager.load()?;
+let config = config_manager.config().read().unwrap().clone();
+// 後續使用 config 進行操作
+# Ok(())
+# }
+```
+
 > [!NOTE]  
 > This project is fully developed using GitHub Copilot and Codex CLI, with an attempt to maintain the maintainability of the software architecture. My goal is to practice controlling and planning professional software engineering work entirely through prompt engineering with AI. This is what professional vibe coding should be.
