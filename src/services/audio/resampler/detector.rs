@@ -3,7 +3,12 @@
 
 use crate::services::audio::{AudioData, AudioMetadata};
 use crate::Result;
+use std::fs::File;
 use std::path::Path;
+use symphonia::core::formats::FormatOptions;
+use symphonia::core::io::MediaSourceStream;
+use symphonia::core::probe::Hint;
+use symphonia::default::get_probe;
 
 /// 採樣率檢測器
 pub struct SampleRateDetector {
@@ -22,22 +27,46 @@ impl SampleRateDetector {
     }
 
     /// 檢測音訊檔案的採樣率
-    pub async fn detect_sample_rate<P: AsRef<Path>>(&self, _audio_path: P) -> Result<u32> {
-        // 實作音訊檔案採樣率檢測
-        // 1. 讀取音訊檔案標頭資訊
-        // 2. 解析採樣率元資料
-        // 3. 驗證採樣率有效性
-        // 4. 返回檢測結果
-        todo!("實作採樣率檢測")
+    pub async fn detect_sample_rate<P: AsRef<Path>>(&self, audio_path: P) -> Result<u32> {
+        // 讀取檔頭並解析採樣率
+        let file = File::open(audio_path.as_ref())?;
+        let mss = MediaSourceStream::new(Box::new(file), Default::default());
+
+        let format_opts = FormatOptions::default();
+        let metadata_opts = Default::default();
+        let hint = Hint::new();
+        let probed = get_probe().format(&hint, mss, &format_opts, &metadata_opts)?;
+        let format = probed.format;
+        let track = format
+            .tracks()
+            .iter()
+            .find(|t| t.codec_params.sample_rate.is_some())
+            .ok_or_else(|| {
+                crate::error::SubXError::audio_processing(
+                    "找不到音訊軌道 for sample rate detection",
+                )
+            })?;
+        let rate = track.codec_params.sample_rate.unwrap();
+        if self.is_supported_rate(rate) {
+            Ok(rate)
+        } else {
+            Err(crate::error::SubXError::audio_processing(
+                format!("不支援的採樣率: {}", rate),
+            ))
+        }
     }
 
     /// 檢測音訊資料的採樣率
-    pub fn detect_from_data(&self, _audio_data: &AudioData) -> Result<u32> {
-        // 從音訊資料中檢測採樣率
-        // 1. 分析音訊頻譜特徵
-        // 2. 計算可能的採樣率
-        // 3. 驗證檢測結果
-        todo!("從音訊資料檢測採樣率")
+    pub fn detect_from_data(&self, audio_data: &AudioData) -> Result<u32> {
+        // 從 AudioData 直接使用其 sample_rate
+        let rate = audio_data.sample_rate;
+        if self.is_supported_rate(rate) {
+            Ok(rate)
+        } else {
+            Err(crate::error::SubXError::audio_processing(
+                format!("不支援的採樣率: {}", rate),
+            ))
+        }
     }
 
     /// 驗證採樣率是否受支援

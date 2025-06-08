@@ -171,10 +171,47 @@ impl AudioAnalyzer {
     /// 載入音訊檔案並回傳原始樣本資料
     pub async fn load_audio_file<P: AsRef<std::path::Path>>(
         &self,
-        _audio_path: P,
+        audio_path: P,
     ) -> crate::Result<AudioData> {
-        // TODO: 實作音訊檔案讀取並回傳 AudioData
-        todo!("load_audio_file 未實作")
+        // 讀取並解碼音訊檔案，回傳原始樣本資料
+        let path = audio_path.as_ref();
+        let file = std::fs::File::open(path)?;
+        let mss = MediaSourceStream::new(Box::new(file), Default::default());
+
+        let format_opts = FormatOptions::default();
+        let metadata_opts = Default::default();
+        let hint = Hint::new();
+        let probed = get_probe().format(&hint, mss, &format_opts, &metadata_opts)?;
+        let mut format = probed.format;
+        let track = format
+            .tracks()
+            .iter()
+            .find(|t| t.codec_params.sample_rate.is_some())
+            .ok_or_else(|| SubXError::audio_processing("找不到音訊軌道"))?;
+        let track_id = track.id;
+        let sample_rate = track.codec_params.sample_rate.unwrap();
+        let channels = track.codec_params.channels.map(|c| c.count()).unwrap_or(1);
+
+        let mut decoder = get_codecs().make(&track.codec_params, &DecoderOptions::default())?;
+        let mut samples = Vec::new();
+
+        while let Ok(packet) = format.next_packet() {
+            if packet.track_id() == track_id {
+                let audio_buf = decoder.decode(&packet)?;
+                let mut sample_buf =
+                    SampleBuffer::<f32>::new(audio_buf.capacity() as u64, *audio_buf.spec());
+                sample_buf.copy_interleaved_ref(audio_buf.clone());
+                samples.extend(sample_buf.samples());
+            }
+        }
+
+        let duration = samples.len() as f32 / (sample_rate as f32 * channels as f32);
+        Ok(AudioData {
+            samples,
+            sample_rate,
+            channels,
+            duration,
+        })
     }
 
     /// 使用最佳採樣率分析音訊

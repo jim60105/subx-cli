@@ -145,8 +145,8 @@ impl SampleRateOptimizer {
     }
 
     fn calculate_spectral_centroid(&self, _samples: &[f32]) -> Result<f32> {
-        // 實作頻譜質心計算
-        todo!("計算頻譜質心")
+        // 頻譜質心計算暫不實作，預設為 0
+        Ok(0.0)
     }
 
     fn calculate_zero_crossing_rate(&self, samples: &[f32]) -> Result<f32> {
