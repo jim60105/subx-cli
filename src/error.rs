@@ -38,6 +38,9 @@ pub enum SubXError {
     /// 檔案操作失敗錯誤
     #[error("檔案操作失敗: {0}")]
     FileOperationFailed(String),
+    /// 命令執行錯誤
+    #[error("{0}")]
+    CommandExecution(String),
 
     /// 一般錯誤
     #[error("未知錯誤: {0}")]
@@ -171,6 +174,25 @@ impl SubXError {
             message: message.into(),
         }
     }
+    /// 建立平行處理錯誤
+    pub fn parallel_processing(msg: String) -> Self {
+        SubXError::CommandExecution(format!("並行處理錯誤: {}", msg))
+    }
+    /// 建立任務執行失敗錯誤
+    pub fn task_execution_failed(task_id: String, reason: String) -> Self {
+        SubXError::CommandExecution(format!("任務 {} 執行失敗: {}", task_id, reason))
+    }
+    /// 建立工作者池耗盡錯誤
+    pub fn worker_pool_exhausted() -> Self {
+        SubXError::CommandExecution("工作者池資源已耗盡".to_string())
+    }
+    /// 建立任務超時錯誤
+    pub fn task_timeout(task_id: String, duration: std::time::Duration) -> Self {
+        SubXError::CommandExecution(format!(
+            "任務 {} 執行超時，限制時間: {:?}",
+            task_id, duration
+        ))
+    }
     /// 建立對話檢測失敗錯誤
     pub fn dialogue_detection_failed<S: Into<String>>(msg: S) -> Self {
         SubXError::AudioProcessing {
@@ -231,6 +253,7 @@ impl SubXError {
             SubXError::FileNotFound(path) => format!("檔案不存在: {}", path),
             SubXError::InvalidFileName(name) => format!("無效的檔案名稱: {}", name),
             SubXError::FileOperationFailed(msg) => format!("檔案操作失敗: {}", msg),
+            SubXError::CommandExecution(msg) => msg.clone(),
             SubXError::Other(err) => {
                 format!("未知錯誤: {}\n提示: 請回報此問題", err)
             }

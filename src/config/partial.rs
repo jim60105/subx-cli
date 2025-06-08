@@ -10,6 +10,7 @@ pub struct PartialConfig {
     pub formats: PartialFormatsConfig,
     pub sync: PartialSyncConfig,
     pub general: PartialGeneralConfig,
+    pub parallel: PartialParallelConfig,
 }
 
 #[cfg(test)]
@@ -86,6 +87,19 @@ pub struct PartialSyncConfig {
 pub struct PartialGeneralConfig {
     pub backup_enabled: Option<bool>,
     pub max_concurrent_jobs: Option<usize>,
+    pub task_timeout_seconds: Option<u64>,
+    pub enable_progress_bar: Option<bool>,
+    pub worker_idle_timeout_seconds: Option<u64>,
+}
+
+/// Partial parallel processing configuration
+#[derive(Debug, Default, Serialize, Deserialize)]
+pub struct PartialParallelConfig {
+    pub cpu_intensive_limit: Option<usize>,
+    pub io_intensive_limit: Option<usize>,
+    pub task_queue_size: Option<usize>,
+    pub enable_task_priorities: Option<bool>,
+    pub auto_balance_workers: Option<bool>,
 }
 
 impl PartialConfig {
@@ -157,6 +171,30 @@ impl PartialConfig {
         if let Some(v) = other.general.max_concurrent_jobs {
             self.general.max_concurrent_jobs = Some(v);
         }
+        if let Some(v) = other.general.task_timeout_seconds {
+            self.general.task_timeout_seconds = Some(v);
+        }
+        if let Some(v) = other.general.enable_progress_bar {
+            self.general.enable_progress_bar = Some(v);
+        }
+        if let Some(v) = other.general.worker_idle_timeout_seconds {
+            self.general.worker_idle_timeout_seconds = Some(v);
+        }
+        if let Some(v) = other.parallel.cpu_intensive_limit {
+            self.parallel.cpu_intensive_limit = Some(v);
+        }
+        if let Some(v) = other.parallel.io_intensive_limit {
+            self.parallel.io_intensive_limit = Some(v);
+        }
+        if let Some(v) = other.parallel.task_queue_size {
+            self.parallel.task_queue_size = Some(v);
+        }
+        if let Some(v) = other.parallel.enable_task_priorities {
+            self.parallel.enable_task_priorities = Some(v);
+        }
+        if let Some(v) = other.parallel.auto_balance_workers {
+            self.parallel.auto_balance_workers = Some(v);
+        }
         Ok(())
     }
 }
@@ -166,7 +204,9 @@ impl PartialConfig {
     pub fn to_complete_config(
         &self,
     ) -> Result<crate::config::Config, crate::config::manager::ConfigError> {
-        use crate::config::{AIConfig, Config, FormatsConfig, GeneralConfig, SyncConfig};
+        use crate::config::{
+            AIConfig, Config, FormatsConfig, GeneralConfig, ParallelConfig, SyncConfig,
+        };
         let default = Config::default();
 
         let ai = AIConfig {
@@ -257,13 +297,48 @@ impl PartialConfig {
                 .general
                 .max_concurrent_jobs
                 .unwrap_or(default.general.max_concurrent_jobs),
+            task_timeout_seconds: self
+                .general
+                .task_timeout_seconds
+                .unwrap_or(default.general.task_timeout_seconds),
+            enable_progress_bar: self
+                .general
+                .enable_progress_bar
+                .unwrap_or(default.general.enable_progress_bar),
+            worker_idle_timeout_seconds: self
+                .general
+                .worker_idle_timeout_seconds
+                .unwrap_or(default.general.worker_idle_timeout_seconds),
         };
 
+        let parallel = ParallelConfig {
+            cpu_intensive_limit: self
+                .parallel
+                .cpu_intensive_limit
+                .unwrap_or(default.parallel.cpu_intensive_limit),
+            io_intensive_limit: self
+                .parallel
+                .io_intensive_limit
+                .unwrap_or(default.parallel.io_intensive_limit),
+            task_queue_size: self
+                .parallel
+                .task_queue_size
+                .unwrap_or(default.parallel.task_queue_size),
+            enable_task_priorities: self
+                .parallel
+                .enable_task_priorities
+                .unwrap_or(default.parallel.enable_task_priorities),
+            auto_balance_workers: self
+                .parallel
+                .auto_balance_workers
+                .unwrap_or(default.parallel.auto_balance_workers),
+        };
         Ok(Config {
             ai,
             formats,
             sync,
             general,
+            parallel,
             loaded_from: None,
         })
     }

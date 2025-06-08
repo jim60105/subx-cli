@@ -1,0 +1,209 @@
+//! Worker pool and worker definitions for parallel processing
+use super::task::{Task, TaskResult};
+use std::collections::HashMap;
+use std::sync::{Arc, Mutex};
+use tokio::task::JoinHandle;
+use uuid::Uuid;
+
+/// Pool managing active workers
+pub struct WorkerPool {
+    workers: Arc<Mutex<HashMap<Uuid, WorkerInfo>>>,
+    max_workers: usize,
+}
+
+#[derive(Debug)]
+struct WorkerInfo {
+    handle: JoinHandle<TaskResult>,
+    task_id: String,
+    start_time: std::time::Instant,
+    worker_type: WorkerType,
+}
+
+#[derive(Debug, Clone)]
+pub enum WorkerType {
+    CpuIntensive,
+    IoIntensive,
+    Mixed,
+}
+
+impl WorkerPool {
+    pub fn new(max_workers: usize) -> Self {
+        Self {
+            workers: Arc::new(Mutex::new(HashMap::new())),
+            max_workers,
+        }
+    }
+
+    /// Execute a task by spawning a worker
+    pub async fn execute(&self, task: Box<dyn Task + Send + Sync>) -> Result<TaskResult, String> {
+        let worker_id = Uuid::new_v4();
+        let task_id = task.task_id();
+        let worker_type = self.determine_worker_type(task.task_type());
+
+        {
+            let workers = self.workers.lock().unwrap();
+            if workers.len() >= self.max_workers {
+                return Err("工作者池已滿".to_string());
+            }
+        }
+
+        let handle = tokio::spawn(async move { task.execute().await });
+
+        {
+            let mut workers = self.workers.lock().unwrap();
+            workers.insert(
+                worker_id,
+                WorkerInfo {
+                    handle,
+                    task_id: task_id.clone(),
+                    start_time: std::time::Instant::now(),
+                    worker_type,
+                },
+            );
+        }
+
+        // For simplicity, return immediately indicating submission
+        Ok(TaskResult::Success("任務已提交".to_string()))
+    }
+
+    fn determine_worker_type(&self, task_type: &str) -> WorkerType {
+        match task_type {
+            "convert" => WorkerType::CpuIntensive,
+            "sync" => WorkerType::Mixed,
+            "match" => WorkerType::IoIntensive,
+            "validate" => WorkerType::IoIntensive,
+            _ => WorkerType::Mixed,
+        }
+    }
+
+    /// Number of active workers
+    pub fn get_active_count(&self) -> usize {
+        self.workers.lock().unwrap().len()
+    }
+
+    /// Maximum capacity of worker pool
+    pub fn get_capacity(&self) -> usize {
+        self.max_workers
+    }
+
+    /// Statistics about current workers
+    pub fn get_worker_stats(&self) -> WorkerStats {
+        let workers = self.workers.lock().unwrap();
+        let mut cpu = 0;
+        let mut io = 0;
+        let mut mixed = 0;
+        for w in workers.values() {
+            match w.worker_type {
+                WorkerType::CpuIntensive => cpu += 1,
+                WorkerType::IoIntensive => io += 1,
+                WorkerType::Mixed => mixed += 1,
+            }
+        }
+        WorkerStats {
+            total_active: workers.len(),
+            cpu_intensive_count: cpu,
+            io_intensive_count: io,
+            mixed_count: mixed,
+            max_capacity: self.max_workers,
+        }
+    }
+
+    /// Shutdown and wait for all workers
+    pub async fn shutdown(&self) {
+        let workers = { std::mem::take(&mut *self.workers.lock().unwrap()) };
+        for (id, info) in workers {
+            println!("等待工作者 {} 完成任務 {}", id, info.task_id);
+            let _ = info.handle.await;
+        }
+    }
+
+    /// List active worker infos
+    pub fn list_active_workers(&self) -> Vec<ActiveWorkerInfo> {
+        let workers = self.workers.lock().unwrap();
+        workers
+            .iter()
+            .map(|(id, info)| ActiveWorkerInfo {
+                worker_id: *id,
+                task_id: info.task_id.clone(),
+                worker_type: info.worker_type.clone(),
+                runtime: info.start_time.elapsed(),
+            })
+            .collect()
+    }
+}
+
+impl Clone for WorkerPool {
+    fn clone(&self) -> Self {
+        Self {
+            workers: Arc::clone(&self.workers),
+            max_workers: self.max_workers,
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct WorkerStats {
+    pub total_active: usize,
+    pub cpu_intensive_count: usize,
+    pub io_intensive_count: usize,
+    pub mixed_count: usize,
+    pub max_capacity: usize,
+}
+
+#[derive(Debug, Clone)]
+pub struct ActiveWorkerInfo {
+    pub worker_id: Uuid,
+    pub task_id: String,
+    pub worker_type: WorkerType,
+    pub runtime: std::time::Duration,
+}
+
+/// Represents an individual worker for monitoring
+pub struct Worker {
+    id: Uuid,
+    status: WorkerStatus,
+}
+
+#[derive(Debug, Clone)]
+pub enum WorkerStatus {
+    Idle,
+    Busy(String),
+    Stopped,
+    Error(String),
+}
+
+impl Worker {
+    pub fn new() -> Self {
+        Self {
+            id: Uuid::new_v4(),
+            status: WorkerStatus::Idle,
+        }
+    }
+
+    pub fn id(&self) -> Uuid {
+        self.id
+    }
+
+    pub fn status(&self) -> &WorkerStatus {
+        &self.status
+    }
+
+    pub fn set_status(&mut self, status: WorkerStatus) {
+        self.status = status;
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn test_worker_pool_capacity() {
+        let pool = WorkerPool::new(2);
+        assert_eq!(pool.get_capacity(), 2);
+        assert_eq!(pool.get_active_count(), 0);
+        let stats = pool.get_worker_stats();
+        assert_eq!(stats.max_capacity, 2);
+        assert_eq!(stats.total_active, 0);
+    }
+}

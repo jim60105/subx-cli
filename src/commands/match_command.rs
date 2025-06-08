@@ -1,7 +1,11 @@
 use crate::cli::display_match_results;
 use crate::cli::MatchArgs;
+use crate::config::init_config_manager;
 use crate::config::load_config;
-use crate::core::matcher::{MatchConfig, MatchEngine};
+use crate::core::matcher::{FileDiscovery, MatchConfig, MatchEngine, MediaFileType};
+use crate::core::parallel::{
+    FileProcessingTask, ProcessingOperation, Task, TaskResult, TaskScheduler,
+};
 use crate::error::SubXError;
 use crate::services::ai::{AIProvider, OpenAIClient};
 use crate::Result;
@@ -53,6 +57,114 @@ pub async fn execute_with_client(args: MatchArgs, ai_client: Box<dyn AIProvider>
         engine.execute_operations(&operations, args.dry_run).await?;
     }
     Ok(())
+}
+
+/// Execute parallel match over multiple files using the parallel processing system
+pub async fn execute_parallel_match(
+    directory: &std::path::Path,
+    recursive: bool,
+    output: Option<&std::path::Path>,
+) -> Result<()> {
+    init_config_manager()?;
+    let scheduler = TaskScheduler::new()?;
+    let discovery = FileDiscovery::new();
+    let files = discovery.scan_directory(directory, recursive)?;
+    let mut tasks: Vec<Box<dyn Task + Send + Sync>> = Vec::new();
+    for f in files
+        .iter()
+        .filter(|f| matches!(f.file_type, MediaFileType::Video))
+    {
+        let task = Box::new(FileProcessingTask {
+            input_path: f.path.clone(),
+            output_path: output.map(|p| p.to_path_buf()),
+            operation: ProcessingOperation::MatchFiles { recursive },
+        });
+        tasks.push(task);
+    }
+    if tasks.is_empty() {
+        println!("未找到需要處理的影片檔案");
+        return Ok(());
+    }
+    println!("準備並行處理 {} 個檔案", tasks.len());
+    println!("最大並行數: {}", scheduler.get_active_workers());
+    let progress_bar = create_progress_bar(tasks.len());
+    let results = monitor_batch_execution(&scheduler, tasks, &progress_bar).await?;
+    let (mut ok, mut failed, mut partial) = (0, 0, 0);
+    for r in &results {
+        match r {
+            TaskResult::Success(_) => ok += 1,
+            TaskResult::Failed(_) | TaskResult::Cancelled => failed += 1,
+            TaskResult::PartialSuccess(_, _) => partial += 1,
+        }
+    }
+    println!("\n處理完成統計:");
+    println!("  ✓ 成功: {} 個檔案", ok);
+    if partial > 0 {
+        println!("  ⚠ 部分成功: {} 個檔案", partial);
+    }
+    if failed > 0 {
+        println!("  ✗ 失敗: {} 個檔案", failed);
+        for (i, r) in results.iter().enumerate() {
+            if matches!(r, TaskResult::Failed(_)) {
+                println!("  失敗詳情 {}: {}", i + 1, r);
+            }
+        }
+    }
+    Ok(())
+}
+
+async fn monitor_batch_execution(
+    scheduler: &TaskScheduler,
+    tasks: Vec<Box<dyn Task + Send + Sync>>,
+    progress_bar: &indicatif::ProgressBar,
+) -> Result<Vec<TaskResult>> {
+    use tokio::time::{interval, Duration};
+    let handles: Vec<_> = tasks
+        .into_iter()
+        .map(|t| {
+            let s = scheduler.clone();
+            tokio::spawn(async move { s.submit_task(t).await })
+        })
+        .collect();
+    let mut ticker = interval(Duration::from_millis(500));
+    let mut completed = 0;
+    let total = handles.len();
+    let mut results = Vec::new();
+    for mut h in handles {
+        loop {
+            tokio::select! {
+                res = &mut h => {
+                    match res {
+                        Ok(Ok(r)) => results.push(r),
+                        Ok(Err(_)) => results.push(TaskResult::Failed("任務執行錯誤".into())),
+                        Err(_) => results.push(TaskResult::Cancelled),
+                    }
+                    completed += 1;
+                    progress_bar.set_position(completed);
+                    break;
+                }
+                _ = ticker.tick() => {
+                    let active = scheduler.list_active_tasks().len();
+                    let queued = scheduler.get_queue_size();
+                    progress_bar.set_message(format!("執行中: {} | 佇列: {} | 已完成: {}/{}", active, queued, completed, total));
+                }
+            }
+        }
+    }
+    progress_bar.finish_with_message("所有任務已完成");
+    Ok(results)
+}
+
+fn create_progress_bar(total: usize) -> indicatif::ProgressBar {
+    use indicatif::ProgressStyle;
+    let pb = indicatif::ProgressBar::new(total as u64);
+    pb.set_style(
+        ProgressStyle::default_bar()
+            .template("{spinner:.green} [{elapsed_precise}] [{bar:40.cyan/blue}] {pos}/{len} {msg}")
+            .unwrap()
+            .progress_chars("#>-"),
+    );
+    pb
 }
 
 #[cfg(test)]

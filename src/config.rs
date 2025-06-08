@@ -55,6 +55,7 @@ pub struct Config {
     pub formats: FormatsConfig,
     pub sync: SyncConfig,
     pub general: GeneralConfig,
+    pub parallel: ParallelConfig,
     #[serde(skip)]
     pub loaded_from: Option<PathBuf>,
 }
@@ -252,6 +253,31 @@ impl SyncConfig {
 pub struct GeneralConfig {
     pub backup_enabled: bool,
     pub max_concurrent_jobs: usize,
+    pub task_timeout_seconds: u64,
+    pub enable_progress_bar: bool,
+    pub worker_idle_timeout_seconds: u64,
+}
+
+/// 並行處理相關配置
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct ParallelConfig {
+    pub cpu_intensive_limit: usize,
+    pub io_intensive_limit: usize,
+    pub task_queue_size: usize,
+    pub enable_task_priorities: bool,
+    pub auto_balance_workers: bool,
+}
+
+impl Default for ParallelConfig {
+    fn default() -> Self {
+        ParallelConfig {
+            cpu_intensive_limit: 2,
+            io_intensive_limit: 8,
+            task_queue_size: 100,
+            enable_task_priorities: true,
+            auto_balance_workers: true,
+        }
+    }
 }
 
 impl Default for Config {
@@ -288,7 +314,11 @@ impl Default for Config {
             general: GeneralConfig {
                 backup_enabled: false,
                 max_concurrent_jobs: 4,
+                task_timeout_seconds: 3600,
+                enable_progress_bar: true,
+                worker_idle_timeout_seconds: 300,
             },
+            parallel: ParallelConfig::default(),
             loaded_from: None,
         }
     }
