@@ -34,11 +34,12 @@ pub struct FileInfo {
 impl FileInfo {
     /// 建立 FileInfo，root_path 為搜尋根目錄
     pub fn new(full_path: PathBuf, root_path: &Path) -> Result<Self> {
+        // 統一使用 Unix 風格分隔符，確保跨平台一致性
         let relative_path = full_path
             .strip_prefix(root_path)
             .map_err(|e| SubXError::Other(e.into()))?
             .to_string_lossy()
-            .to_string();
+            .replace('\\', "/");
         let name = full_path
             .file_name()
             .and_then(|n| n.to_str())
@@ -50,7 +51,8 @@ impl FileInfo {
             .and_then(|n| n.to_str())
             .unwrap_or_default()
             .to_string();
-        let depth = relative_path.matches(std::path::MAIN_SEPARATOR).count();
+        // 使用 '/' 作為分隔符計算深度
+        let depth = relative_path.matches('/').count();
         let detector = LanguageDetector::new();
         let language = detector.detect_from_path(&full_path);
         Ok(Self {
@@ -82,6 +84,27 @@ mod tests {
         assert_eq!(info.relative_path, "season1/episode1.mp4");
         assert_eq!(info.directory, "season1");
         assert_eq!(info.depth, 1);
+        Ok(())
+    }
+
+    #[test]
+    fn test_file_info_deep_path() -> Result<()> {
+        let temp = TempDir::new().unwrap();
+        let root = temp.path();
+
+        // 測試多層目錄
+        let file_path = root
+            .join("series")
+            .join("season1")
+            .join("episodes")
+            .join("ep01.mp4");
+        std::fs::create_dir_all(file_path.parent().unwrap()).unwrap();
+        std::fs::write(&file_path, b"").unwrap();
+
+        let info = FileInfo::new(file_path.clone(), root)?;
+        assert_eq!(info.relative_path, "series/season1/episodes/ep01.mp4");
+        assert_eq!(info.depth, 3);
+
         Ok(())
     }
 }
