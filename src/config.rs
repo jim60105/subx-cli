@@ -6,6 +6,11 @@ use std::path::PathBuf;
 
 use crate::{error::SubXError, Result};
 
+// Submodules for unified configuration management core
+pub mod manager;
+pub mod partial;
+pub mod source;
+
 /// 應用程式配置
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct Config {
