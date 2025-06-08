@@ -9,8 +9,8 @@ async fn test_aus_audio_loading() {
     let test_audio = PathBuf::from("tests/fixtures/test_audio.wav");
     if test_audio.exists() {
         let audio_file = analyzer.load_audio_file(&test_audio).await.unwrap();
-        assert!(audio_file.sample_rate() > 0);
-        assert!(audio_file.duration_seconds() > 0.0);
+        assert!(audio_file.sample_rate > 0);
+        assert!(audio_file.duration > 0.0);
     }
 }
 
@@ -19,7 +19,7 @@ async fn test_aus_envelope_extraction() {
     let analyzer = AusAudioAnalyzer::new(16000);
     let test_audio = PathBuf::from("tests/fixtures/test_audio.wav");
     if test_audio.exists() {
-        let envelope = analyzer.extract_envelope_v2(&test_audio).await.unwrap();
+        let envelope = analyzer.extract_envelope(&test_audio).await.unwrap();
         assert!(!envelope.samples.is_empty());
         assert!(envelope.duration > 0.0);
     }

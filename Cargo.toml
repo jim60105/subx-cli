@@ -91,10 +91,6 @@ wiremock = "0.5"
 name = "subx-cli"
 path = "src/main.rs"
 
-[[bin]]
-name = "migration_validator"
-path = "src/bin/migration_validator.rs"
-
 [profile.release]
 opt-level = 3
 lto = true

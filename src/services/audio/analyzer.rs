@@ -1,6 +1,6 @@
-//! 基於 aus crate 的音訊分析器 (v2)
+//! 基於 aus crate 的音訊分析器
 
-use crate::services::audio::AudioEnvelope;
+use crate::services::audio::{AudioData, AudioEnvelope};
 use crate::{error::SubXError, Result};
 use aus::{analysis, operations, spectrum, AudioFile, WindowType};
 use std::path::Path;
@@ -37,8 +37,20 @@ impl AusAudioAnalyzer {
         Ok(audio_file)
     }
 
-    /// 提取音訊能量包絡使用 aus
-    pub async fn extract_envelope_v2(&self, audio_path: &Path) -> Result<AudioEnvelope> {
+    /// 載入音訊檔案並轉換為 AudioData 格式
+    pub async fn load_audio_data<P: AsRef<Path>>(&self, audio_path: P) -> Result<AudioData> {
+        let audio_file = self.load_audio_file(audio_path).await?;
+        let samples: Vec<f32> = audio_file.samples[0].iter().map(|&x| x as f32).collect();
+        Ok(AudioData {
+            samples,
+            sample_rate: audio_file.sample_rate,
+            channels: audio_file.num_channels,
+            duration: audio_file.duration as f32,
+        })
+    }
+
+    /// 提取音訊能量包絡
+    pub async fn extract_envelope<P: AsRef<Path>>(&self, audio_path: P) -> Result<AudioEnvelope> {
         let audio_file = self.load_audio_file(audio_path).await?;
         let samples = &audio_file.samples[0];
         let mut energy_samples = Vec::new();
@@ -52,6 +64,37 @@ impl AusAudioAnalyzer {
             sample_rate: self.sample_rate,
             duration,
         })
+    }
+
+    /// 偵測對話段落 (相容舊介面)
+    pub fn detect_dialogue(
+        &self,
+        envelope: &AudioEnvelope,
+        threshold: f32,
+    ) -> Vec<crate::services::audio::DialogueSegment> {
+        let mut segments = Vec::new();
+        let mut in_dialogue = false;
+        let mut start = 0.0;
+        let time_per_sample = envelope.duration / envelope.samples.len() as f32;
+
+        for (i, &e) in envelope.samples.iter().enumerate() {
+            let t = i as f32 * time_per_sample;
+            if e > threshold && !in_dialogue {
+                in_dialogue = true;
+                start = t;
+            } else if e <= threshold && in_dialogue {
+                in_dialogue = false;
+                if t - start > 0.5 {
+                    segments.push(crate::services::audio::DialogueSegment {
+                        start_time: start,
+                        end_time: t,
+                        intensity: e,
+                    });
+                }
+            }
+        }
+
+        segments
     }
 
     /// 音訊特徵分析使用 aus

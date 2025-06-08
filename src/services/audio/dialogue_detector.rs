@@ -1,4 +1,4 @@
-//! 基於 aus crate 的對話檢測器 (v2)
+//! 基於 aus crate 的對話檢測器
 
 use crate::services::audio::DialogueSegment;
 use crate::Result;
@@ -27,7 +27,7 @@ impl AusDialogueDetector {
     }
 
     /// 多特徵對話檢測
-    pub fn detect_dialogue_v2(&self, audio_file: &AudioFile) -> Result<Vec<DialogueSegment>> {
+    pub fn detect_dialogue(&self, audio_file: &AudioFile) -> Result<Vec<DialogueSegment>> {
         let samples = &audio_file.samples[0];
         let sample_rate = audio_file.sample_rate;
         let stft_result = spectrum::rstft(

@@ -40,7 +40,7 @@ impl DialogueDetector {
     async fn load_audio(&self, audio_path: &Path) -> Result<AudioData> {
         use crate::services::audio::AudioAnalyzer;
         let analyzer = AudioAnalyzer::new(self.config.audio_sample_rate);
-        analyzer.load_audio_file(audio_path).await
+        analyzer.load_audio_data(audio_path).await
     }
 
     fn optimize_segments(&self, segments: Vec<DialogueSegment>) -> Vec<DialogueSegment> {
