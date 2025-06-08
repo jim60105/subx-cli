@@ -18,6 +18,13 @@ pub struct AudioAnalyzer {
     hop_size: usize,
 }
 
+pub mod resampler;
+
+pub use resampler::{
+    AudioResampler, OptimizationResult, ResampleConfig, ResampleQuality, SampleRateDetector,
+    SampleRateOptimizer,
+};
+
 /// 音訊能量包絡
 #[derive(Debug, Clone)]
 pub struct AudioEnvelope {
@@ -32,6 +39,23 @@ pub struct DialogueSegment {
     pub start_time: f32,
     pub end_time: f32,
     pub intensity: f32,
+}
+
+/// 音訊原始資料元資料
+#[derive(Debug, Clone)]
+pub struct AudioMetadata {
+    pub sample_rate: u32,
+    pub channels: usize,
+    pub duration: f32,
+}
+
+/// 音訊原始樣本資料
+#[derive(Debug, Clone)]
+pub struct AudioData {
+    pub samples: Vec<f32>,
+    pub sample_rate: u32,
+    pub channels: usize,
+    pub duration: f32,
 }
 
 impl AudioAnalyzer {
@@ -113,7 +137,6 @@ impl AudioAnalyzer {
 
         energy_samples
     }
-
     /// 偵測對話段落
     pub fn detect_dialogue(
         &self,
@@ -143,5 +166,34 @@ impl AudioAnalyzer {
         }
 
         segments
+    }
+
+    /// 載入音訊檔案並回傳原始樣本資料
+    pub async fn load_audio_file<P: AsRef<std::path::Path>>(
+        &self,
+        _audio_path: P,
+    ) -> crate::Result<AudioData> {
+        // TODO: 實作音訊檔案讀取並回傳 AudioData
+        todo!("load_audio_file 未實作")
+    }
+
+    /// 使用最佳採樣率分析音訊
+    pub async fn analyze_with_optimal_rate<P: AsRef<std::path::Path>>(
+        &mut self,
+        audio_path: P,
+    ) -> crate::Result<AudioData> {
+        // 1. 載入音訊檔案
+        let audio_data = self.load_audio_file(audio_path).await?;
+        // 2. 最佳化採樣率
+        let optimizer = SampleRateOptimizer::new()?;
+        let auto_opt = optimizer.auto_optimize(&audio_data).await?;
+        // 3. 如需重採樣則執行
+        if let Some(sugg) = auto_opt.optimization_result.optimization {
+            let config = ResampleConfig::new(sugg.recommended_rate);
+            let mut resampler = AudioResampler::new(config)?;
+            resampler.resample(&audio_data, sugg.recommended_rate)
+        } else {
+            Ok(audio_data)
+        }
     }
 }

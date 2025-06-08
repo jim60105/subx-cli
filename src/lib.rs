@@ -1,4 +1,11 @@
 //! SubX library root.
+#![allow(
+    clippy::new_without_default,
+    clippy::manual_clamp,
+    clippy::useless_vec,
+    clippy::items_after_test_module,
+    clippy::needless_borrow
+)]
 
 /// 套件版本
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");

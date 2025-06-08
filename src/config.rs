@@ -218,6 +218,27 @@ pub struct SyncConfig {
     pub correlation_threshold: f32,
     pub dialogue_detection_threshold: f32,
     pub min_dialogue_duration_ms: u64,
+    /// 重採樣品質（low, medium, high, best）
+    pub resample_quality: String,
+    /// 是否自動檢測原始採樣率
+    pub auto_detect_sample_rate: bool,
+    /// 是否啟用智慧重採樣
+    pub enable_smart_resampling: bool,
+}
+
+impl SyncConfig {
+    /// 取得重採樣品質設定
+    pub fn resample_quality(&self) -> String {
+        self.resample_quality.clone()
+    }
+    /// 是否啟用自動檢測原始採樣率
+    pub fn auto_detect_sample_rate(&self) -> bool {
+        self.auto_detect_sample_rate
+    }
+    /// 是否啟用智慧重採樣
+    pub fn enable_smart_resampling(&self) -> bool {
+        self.enable_smart_resampling
+    }
 }
 
 /// 一般配置
@@ -251,6 +272,9 @@ impl Default for Config {
                 correlation_threshold: 0.7,
                 dialogue_detection_threshold: 0.01,
                 min_dialogue_duration_ms: 500,
+                resample_quality: "high".to_string(),
+                auto_detect_sample_rate: true,
+                enable_smart_resampling: true,
             },
             general: GeneralConfig {
                 backup_enabled: false,
