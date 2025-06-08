@@ -148,7 +148,12 @@ impl FormatConverter {
     /// 讀取檔案並轉為 UTF-8 字串
     async fn read_file_with_encoding(&self, path: &Path) -> crate::Result<String> {
         let bytes = tokio::fs::read(path).await?;
-        crate::core::formats::encoding::convert_to_utf8(&bytes)
+        // 自動檢測編碼並轉換為 UTF-8
+        let detector = crate::core::formats::encoding::EncodingDetector::new()?;
+        let info = detector.detect_encoding(&bytes)?;
+        let converter = crate::core::formats::encoding::EncodingConverter::new();
+        let conversion = converter.convert_to_utf8(&bytes, &info.charset)?;
+        Ok(conversion.converted_text)
     }
 
     /// 寫入檔案（暫以 UTF-8 編碼）

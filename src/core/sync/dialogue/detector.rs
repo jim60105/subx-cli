@@ -1,5 +1,5 @@
 use crate::config::{load_config, SyncConfig};
-use crate::core::sync::dialogue::{EnergyAnalyzer, DialogueSegment};
+use crate::core::sync::dialogue::{DialogueSegment, EnergyAnalyzer};
 use crate::services::audio::AudioData;
 use crate::Result;
 use std::path::Path;
@@ -18,7 +18,10 @@ impl DialogueDetector {
             config.dialogue_detection_threshold,
             config.min_dialogue_duration_ms,
         );
-        Ok(Self { energy_analyzer, config })
+        Ok(Self {
+            energy_analyzer,
+            config,
+        })
     }
 
     /// 執行對話檢測，回傳語音活動片段清單
@@ -28,7 +31,9 @@ impl DialogueDetector {
             return Ok(Vec::new());
         }
         let audio_data = self.load_audio(audio_path).await?;
-        let segments = self.energy_analyzer.analyze(&audio_data.samples, audio_data.sample_rate);
+        let segments = self
+            .energy_analyzer
+            .analyze(&audio_data.samples, audio_data.sample_rate);
         Ok(self.optimize_segments(segments))
     }
 
@@ -64,7 +69,15 @@ impl DialogueDetector {
     /// 計算語音佔比，以評估語音活動程度
     pub fn get_speech_ratio(&self, segments: &[DialogueSegment]) -> f32 {
         let total: f64 = segments.iter().map(|s| s.duration()).sum();
-        let speech: f64 = segments.iter().filter(|s| s.is_speech).map(|s| s.duration()).sum();
-        if total > 0.0 { (speech / total) as f32 } else { 0.0 }
+        let speech: f64 = segments
+            .iter()
+            .filter(|s| s.is_speech)
+            .map(|s| s.duration())
+            .sum();
+        if total > 0.0 {
+            (speech / total) as f32
+        } else {
+            0.0
+        }
     }
 }

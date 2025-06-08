@@ -57,6 +57,8 @@ pub struct PartialFormatsConfig {
     pub default_output: Option<String>,
     pub preserve_styling: Option<bool>,
     pub default_encoding: Option<String>,
+    /// 編碼檢測信心度閾值（0.0-1.0）
+    pub encoding_detection_confidence: Option<f32>,
 }
 
 /// Partial sync configuration.
@@ -195,7 +197,11 @@ impl PartialConfig {
                 .formats
                 .default_encoding
                 .clone()
-                .unwrap_or(default.formats.default_encoding),
+                .unwrap_or(default.formats.default_encoding.clone()),
+            encoding_detection_confidence: self
+                .formats
+                .encoding_detection_confidence
+                .unwrap_or(default.formats.encoding_detection_confidence),
         };
 
         let sync = SyncConfig {

@@ -1,5 +1,5 @@
-use std::collections::VecDeque;
 use super::segment::DialogueSegment;
+use std::collections::VecDeque;
 
 /// 音訊能量分析器，用於語音活動檢測
 pub struct EnergyAnalyzer {

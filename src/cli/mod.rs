@@ -3,6 +3,7 @@
 mod cache_args;
 mod config_args;
 mod convert_args;
+mod detect_encoding_args;
 mod generate_completion_args;
 mod match_args;
 mod sync_args;
@@ -13,6 +14,7 @@ pub use cache_args::{CacheAction, CacheArgs};
 use clap::{Parser, Subcommand};
 pub use config_args::{ConfigAction, ConfigArgs};
 pub use convert_args::{ConvertArgs, OutputSubtitleFormat};
+pub use detect_encoding_args::DetectEncodingArgs;
 pub use generate_completion_args::GenerateCompletionArgs;
 pub use match_args::MatchArgs;
 pub use sync_args::{SyncArgs, SyncMethod};
@@ -38,6 +40,8 @@ pub enum Commands {
     Match(MatchArgs),
     /// 轉換字幕格式
     Convert(ConvertArgs),
+    /// 檔案編碼檢測
+    DetectEncoding(DetectEncodingArgs),
     /// 時間軸同步校正
     Sync(SyncArgs),
     /// 配置管理
@@ -73,6 +77,12 @@ pub async fn run() -> crate::Result<()> {
         }
         Commands::Cache(args) => {
             crate::commands::cache_command::execute(args).await?;
+        }
+        Commands::DetectEncoding(args) => {
+            crate::commands::detect_encoding_command::detect_encoding_command(
+                &args.file_paths,
+                args.verbose,
+            )?;
         }
     }
     Ok(())

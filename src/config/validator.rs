@@ -150,6 +150,14 @@ impl ConfigValidator for FormatsConfigValidator {
                 "預設編碼不能為空".to_string(),
             ));
         }
+        if config.formats.encoding_detection_confidence < 0.0
+            || config.formats.encoding_detection_confidence > 1.0
+        {
+            return Err(ConfigError::InvalidValue(
+                "formats.encoding_detection_confidence".to_string(),
+                "編碼檢測信心度必須介於 0.0 和 1.0 之間".to_string(),
+            ));
+        }
         Ok(())
     }
 

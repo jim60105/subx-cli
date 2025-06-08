@@ -1,16 +1,16 @@
-pub mod detector;
 pub mod analyzer;
+pub mod detector;
 pub mod segment;
 
-pub use detector::DialogueDetector;
 pub use analyzer::EnergyAnalyzer;
+pub use detector::DialogueDetector;
 pub use segment::{DialogueSegment, SilenceSegment};
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use tempfile::TempDir;
     use crate::config::init_config_manager;
+    use tempfile::TempDir;
 
     #[test]
     fn test_config_loading() {

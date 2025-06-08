@@ -1,4 +1,5 @@
 use crate::core::formats::{Subtitle, SubtitleFormat};
+use log::{info, warn};
 
 /// 格式管理器：自動檢測與選擇適當的解析器
 pub struct FormatManager {
@@ -53,6 +54,32 @@ impl FormatManager {
             .iter()
             .find(|f| f.file_extensions().contains(&ext_lc.as_str()))
             .map(|f| f.as_ref())
+    }
+
+    /// 讀取字幕並自動檢測並轉換編碼為 UTF-8
+    pub fn read_subtitle_with_encoding_detection(&self, file_path: &str) -> crate::Result<String> {
+        let detector = crate::core::formats::encoding::EncodingDetector::new()?;
+        let info = detector.detect_file_encoding(file_path)?;
+        let converter = crate::core::formats::encoding::EncodingConverter::new();
+        let result = converter.convert_file_to_utf8(file_path, &info)?;
+        let validation = converter.validate_conversion(&result);
+        if !validation.is_valid {
+            warn!("Encoding conversion warnings: {:?}", validation.warnings);
+        }
+        info!(
+            "Detected encoding: {:?} (confidence: {:.2})",
+            info.charset, info.confidence
+        );
+        Ok(result.converted_text)
+    }
+
+    /// 取得檔案的編碼信息
+    pub fn get_encoding_info(
+        &self,
+        file_path: &str,
+    ) -> crate::Result<crate::core::formats::encoding::EncodingInfo> {
+        let detector = crate::core::formats::encoding::EncodingDetector::new()?;
+        detector.detect_file_encoding(file_path)
     }
 }
 

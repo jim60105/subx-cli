@@ -161,6 +161,7 @@ retry_delay_ms = 1000
 default_output = "srt"
 preserve_styling = true
 default_encoding = "utf-8"
+encoding_detection_confidence = 0.7
 
 [sync]
 max_offset_seconds = 30.0
@@ -196,6 +197,14 @@ max_concurrent_jobs = 4
   --output, -o <FILE>   輸出檔案名
   --keep-original       保留原始檔案
   --encoding <ENC>      指定文字編碼 (預設值: utf-8)
+```
+
+### `subx-cli detect-encoding` - 檔案編碼檢測
+
+```
+選項:
+  <FILES>...             目標檔案路徑
+  -v, --verbose          顯示詳細樣本文字
 ```
 
 ### `subx-cli sync` - 時間軸校正

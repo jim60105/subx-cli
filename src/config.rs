@@ -208,6 +208,8 @@ pub struct FormatsConfig {
     pub default_output: String,
     pub preserve_styling: bool,
     pub default_encoding: String,
+    /// 編碼檢測信心度閾值（0.0-1.0）
+    pub encoding_detection_confidence: f32,
 }
 
 /// 音訊同步相關配置
@@ -269,6 +271,7 @@ impl Default for Config {
                 default_output: "srt".to_string(),
                 preserve_styling: true,
                 default_encoding: "utf-8".to_string(),
+                encoding_detection_confidence: 0.7,
             },
             sync: SyncConfig {
                 max_offset_seconds: 30.0,
