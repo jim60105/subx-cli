@@ -26,6 +26,18 @@ pub enum SubXError {
     /// 文件匹配錯誤
     #[error("文件匹配錯誤: {message}")]
     FileMatching { message: String },
+    /// 檔案已存在錯誤
+    #[error("檔案已存在: {0}")]
+    FileAlreadyExists(String),
+    /// 檔案不存在錯誤
+    #[error("檔案不存在: {0}")]
+    FileNotFound(String),
+    /// 無效的檔案名稱錯誤
+    #[error("無效的檔案名稱: {0}")]
+    InvalidFileName(String),
+    /// 檔案操作失敗錯誤
+    #[error("檔案操作失敗: {0}")]
+    FileOperationFailed(String),
 
     /// 一般錯誤
     #[error("未知錯誤: {0}")]
@@ -197,6 +209,10 @@ impl SubXError {
             SubXError::FileMatching { message } => {
                 format!("檔案匹配錯誤: {}\n提示: 檢查檔案路徑和格式", message)
             }
+            SubXError::FileAlreadyExists(path) => format!("檔案已存在: {}", path),
+            SubXError::FileNotFound(path) => format!("檔案不存在: {}", path),
+            SubXError::InvalidFileName(name) => format!("無效的檔案名稱: {}", name),
+            SubXError::FileOperationFailed(msg) => format!("檔案操作失敗: {}", msg),
             SubXError::Other(err) => {
                 format!("未知錯誤: {}\n提示: 請回報此問題", err)
             }
