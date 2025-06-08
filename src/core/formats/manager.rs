@@ -66,6 +66,8 @@ mod tests {
     const SAMPLE_VTT: &str = "WEBVTT\n\n1\n00:00:00.000 --> 00:00:01.000\nOne\n";
     const SAMPLE_WEBVTT_THREE_LINES: &str = "WEBVTT\n\n1\n00:00:01.000 --> 00:00:03.000\n第一句字幕內容\n\n2\n00:00:04.000 --> 00:00:06.000\n第二句字幕內容\n\n3\n00:00:07.000 --> 00:00:09.000\n第三句字幕內容\n";
 
+    const COMPLEX_WEBVTT: &str = "WEBVTT\n\nNOTE 這是註解，應該被忽略\n\nSTYLE\n::cue {\n  background-color: black;\n  color: white;\n}\n\n1\n00:00:01.000 --> 00:00:03.500\n第一句字幕內容\n包含多行文字\n\n2\n00:00:04.200 --> 00:00:07.800\n第二句字幕內容\n\n3\n00:00:08.000 --> 00:00:10.000\n第三句字幕內容\n";
+
     #[test]
     fn test_get_format_by_name_and_extension() {
         let mgr = FormatManager::new();
@@ -131,5 +133,23 @@ mod tests {
         // 驗證其他字幕內容
         assert_eq!(subtitle.entries[1].text, "第二句字幕內容");
         assert_eq!(subtitle.entries[2].text, "第三句字幕內容");
+    }
+
+    #[test]
+    fn test_webvtt_parse_auto_with_complex_content() {
+        let mgr = FormatManager::new();
+        let subtitle = mgr
+            .parse_auto(COMPLEX_WEBVTT)
+            .expect("Failed to parse complex WEBVTT");
+
+        // 驗證自動檢測為 WEBVTT 格式並解析三條字幕（忽略 NOTE 和 STYLE）
+        assert_eq!(subtitle.format, SubtitleFormatType::Vtt);
+        assert_eq!(subtitle.entries.len(), 3);
+
+        // 驗證第一條字幕包含多行文字及正確的時間解析
+        let first = &subtitle.entries[0];
+        assert_eq!(first.text, "第一句字幕內容\n包含多行文字");
+        assert_eq!(first.start_time, Duration::from_millis(1000));
+        assert_eq!(first.end_time, Duration::from_millis(3500));
     }
 }

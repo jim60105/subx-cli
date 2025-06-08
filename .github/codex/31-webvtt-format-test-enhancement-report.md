@@ -6,12 +6,14 @@ date: "2025-06-11"
 ## Bug Fix #07: WEBVTT 格式測試增強
 
 **日期**：2025-06-11  
-**任務**：新增針對 WEBVTT 格式的 parse_auto() 測試，以驗證三句字幕及第一句字幕的內容與時間解析正確性。
+**任務**：新增針對 WEBVTT 格式的 parse_auto() 測試，以驗證三句字幕、包含多行文字的字幕內容及第一句字幕的時間解析正確性。
 
 ## 一、核心變更
 
-1. 在 `src/core/formats/manager.rs` 測試模組中新增對 `Duration` 的引入、新增範本常數與測試函式  
-   【F:src/core/formats/manager.rs†L62-L67】【F:src/core/formats/manager.rs†L91-L134】
+1. 在 `src/core/formats/manager.rs` 測試模組中新增基礎範本常數與第一句字幕測試函式  
+   【F:src/core/formats/manager.rs†L62-L67】【F:src/core/formats/manager.rs†L91-L136】
+2. 在 `src/core/formats/manager.rs` 測試模組中新增 `COMPLEX_WEBVTT` 範本常數及多行字幕測試函式  
+   【F:src/core/formats/manager.rs†L69-L70】【F:src/core/formats/manager.rs†L138-L154】
 
 ## 二、驗證
 
