@@ -32,7 +32,8 @@ mod tests {
         assert_eq!(config.ai.provider, "openai");
         assert_eq!(config.ai.model, "gpt-4o-mini");
         assert_eq!(config.formats.default_output, "srt");
-        assert_eq!(config.general.default_confidence, 80);
+        assert!(!config.general.backup_enabled);
+        assert_eq!(config.general.max_concurrent_jobs, 4);
     }
 
     #[test]
@@ -110,6 +111,45 @@ mod tests {
         assert_eq!(base_config.ai.model, "gpt-4");
         assert!(base_config.general.backup_enabled);
     }
+
+    #[test]
+    fn test_old_config_file_still_works() {
+        let temp_dir = TempDir::new().unwrap();
+        let config_path = temp_dir.path().join("config.toml");
+        let config_content = r#"
+[ai]
+provider = "openai"
+model = "gpt-4"
+max_sample_length = 2000
+api_key = "dummy-key"
+temperature = 0.5
+retry_attempts = 2
+retry_delay_ms = 100
+
+[formats]
+default_output = "srt"
+preserve_styling = true
+default_encoding = "utf-8"
+
+[sync]
+max_offset_seconds = 10.0
+audio_sample_rate = 16000
+correlation_threshold = 0.5
+dialogue_detection_threshold = 0.02
+min_dialogue_duration_ms = 1000
+
+[general]
+backup_enabled = true
+default_confidence = 80
+log_level = "debug"
+max_concurrent_jobs = 4
+"#;
+        std::fs::write(&config_path, config_content).unwrap();
+        std::env::set_var("SUBX_CONFIG_PATH", config_path.to_str().unwrap());
+        let config = Config::load().unwrap();
+        assert_eq!(config.general.max_concurrent_jobs, 4);
+        assert_eq!(config.formats.default_encoding, "utf-8");
+    }
 }
 
 /// AI 相關配置
@@ -146,9 +186,7 @@ pub struct SyncConfig {
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct GeneralConfig {
     pub backup_enabled: bool,
-    pub default_confidence: u8,
     pub max_concurrent_jobs: usize,
-    pub log_level: String,
 }
 
 impl Default for Config {
@@ -177,9 +215,7 @@ impl Default for Config {
             },
             general: GeneralConfig {
                 backup_enabled: false,
-                default_confidence: 80,
-                max_concurrent_jobs: num_cpus::get_physical(),
-                log_level: "info".to_string(),
+                max_concurrent_jobs: 4,
             },
             loaded_from: None,
         }

@@ -166,9 +166,7 @@ min_dialogue_duration_ms = 500
 
 [general]
 backup_enabled = false
-default_confidence = 80
-max_concurrent_jobs = 16
-log_level = "info"
+max_concurrent_jobs = 4
 ```
 
 ## 命令參考
