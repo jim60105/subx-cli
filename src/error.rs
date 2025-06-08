@@ -171,6 +171,24 @@ impl SubXError {
             message: message.into(),
         }
     }
+    /// 建立對話檢測失敗錯誤
+    pub fn dialogue_detection_failed<S: Into<String>>(msg: S) -> Self {
+        SubXError::AudioProcessing {
+            message: format!("對話檢測失敗: {}", msg.into()),
+        }
+    }
+    /// 建立無效音訊格式錯誤
+    pub fn invalid_audio_format<S: Into<String>>(format: S) -> Self {
+        SubXError::AudioProcessing {
+            message: format!("不支援的音訊格式: {}", format.into()),
+        }
+    }
+    /// 建立無效對話片段錯誤
+    pub fn dialogue_segment_invalid<S: Into<String>>(reason: S) -> Self {
+        SubXError::AudioProcessing {
+            message: format!("無效的對話片段: {}", reason.into()),
+        }
+    }
     /// 取得對應退出狀態碼
     pub fn exit_code(&self) -> i32 {
         match self {

@@ -3,6 +3,7 @@ use crate::config::load_config;
 use crate::core::formats::manager::FormatManager;
 use crate::core::formats::Subtitle;
 use crate::core::matcher::{FileDiscovery, MediaFileType};
+use crate::core::sync::dialogue::DialogueDetector;
 use crate::core::sync::{SyncConfig, SyncEngine, SyncResult};
 use crate::error::SubXError;
 use crate::Result;
@@ -20,6 +21,13 @@ pub async fn execute(args: SyncArgs) -> Result<()> {
         min_dialogue_length: app_config.sync.min_dialogue_duration_ms as f32 / 1000.0,
     };
     let sync_engine = SyncEngine::new(config);
+    // 若啟用對話檢測，先行偵測語音片段與比例
+    if app_config.sync.enable_dialogue_detection {
+        let detector = DialogueDetector::new()?;
+        let segs = detector.detect_dialogue(&args.video).await?;
+        println!("檢測到 {} 個對話片段", segs.len());
+        println!("語音比例: {:.1}%", detector.get_speech_ratio(&segs) * 100.0);
+    }
 
     if let Some(manual_offset) = args.offset {
         let mut subtitle = load_subtitle(&args.subtitle).await?;

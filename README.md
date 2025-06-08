@@ -168,6 +168,8 @@ audio_sample_rate = 16000
 correlation_threshold = 0.7
 dialogue_detection_threshold = 0.01
 min_dialogue_duration_ms = 500
+dialogue_merge_gap_ms = 500
+enable_dialogue_detection = true
 
 [general]
 backup_enabled = false

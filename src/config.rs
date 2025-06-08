@@ -218,6 +218,10 @@ pub struct SyncConfig {
     pub correlation_threshold: f32,
     pub dialogue_detection_threshold: f32,
     pub min_dialogue_duration_ms: u64,
+    /// 對話片段合併間隔（毫秒）
+    pub dialogue_merge_gap_ms: u64,
+    /// 是否啟用對話檢測
+    pub enable_dialogue_detection: bool,
     /// 重採樣品質（low, medium, high, best）
     pub resample_quality: String,
     /// 是否自動檢測原始採樣率
@@ -272,6 +276,8 @@ impl Default for Config {
                 correlation_threshold: 0.7,
                 dialogue_detection_threshold: 0.01,
                 min_dialogue_duration_ms: 500,
+                dialogue_merge_gap_ms: 500,
+                enable_dialogue_detection: true,
                 resample_quality: "high".to_string(),
                 auto_detect_sample_rate: true,
                 enable_smart_resampling: true,

@@ -67,6 +67,10 @@ pub struct PartialSyncConfig {
     pub correlation_threshold: Option<f32>,
     pub dialogue_detection_threshold: Option<f32>,
     pub min_dialogue_duration_ms: Option<u64>,
+    /// 對話片段合併間隔（毫秒）
+    pub dialogue_merge_gap_ms: Option<u64>,
+    /// 是否啟用對話檢測
+    pub enable_dialogue_detection: Option<bool>,
     /// 重採樣品質設定（low, medium, high, best）
     pub resample_quality: Option<String>,
     /// 是否自動檢測原始採樣率
@@ -215,6 +219,14 @@ impl PartialConfig {
                 .sync
                 .min_dialogue_duration_ms
                 .unwrap_or(default.sync.min_dialogue_duration_ms),
+            dialogue_merge_gap_ms: self
+                .sync
+                .dialogue_merge_gap_ms
+                .unwrap_or(default.sync.dialogue_merge_gap_ms),
+            enable_dialogue_detection: self
+                .sync
+                .enable_dialogue_detection
+                .unwrap_or(default.sync.enable_dialogue_detection),
             resample_quality: self
                 .sync
                 .resample_quality

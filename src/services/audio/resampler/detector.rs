@@ -50,9 +50,10 @@ impl SampleRateDetector {
         if self.is_supported_rate(rate) {
             Ok(rate)
         } else {
-            Err(crate::error::SubXError::audio_processing(
-                format!("不支援的採樣率: {}", rate),
-            ))
+            Err(crate::error::SubXError::audio_processing(format!(
+                "不支援的採樣率: {}",
+                rate
+            )))
         }
     }
 
@@ -63,9 +64,10 @@ impl SampleRateDetector {
         if self.is_supported_rate(rate) {
             Ok(rate)
         } else {
-            Err(crate::error::SubXError::audio_processing(
-                format!("不支援的採樣率: {}", rate),
-            ))
+            Err(crate::error::SubXError::audio_processing(format!(
+                "不支援的採樣率: {}",
+                rate
+            )))
         }
     }
 
