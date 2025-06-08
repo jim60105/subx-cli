@@ -13,6 +13,10 @@ pub trait ConfigSource: Send + Sync {
     fn priority(&self) -> u8;
     /// Source name for debugging.
     fn source_name(&self) -> &'static str;
+    /// File system paths to watch for changes (only file-based sources need override).
+    fn watch_paths(&self) -> Vec<PathBuf> {
+        Vec::new()
+    }
 }
 
 /// File-based configuration source.
@@ -40,6 +44,9 @@ impl ConfigSource for FileSource {
 
     fn source_name(&self) -> &'static str {
         "file"
+    }
+    fn watch_paths(&self) -> Vec<PathBuf> {
+        vec![self.path.clone()]
     }
 }
 

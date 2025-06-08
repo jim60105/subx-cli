@@ -1,6 +1,10 @@
 //! Configuration manager core module.
 
+use std::io;
 use std::sync::{Arc, RwLock};
+
+use notify::{EventKind, RecommendedWatcher, RecursiveMode, Watcher};
+use tokio::sync::watch;
 
 use crate::config::partial::PartialConfig;
 use crate::config::source::ConfigSource;
@@ -39,18 +43,43 @@ impl std::fmt::Display for ConfigError {
 
 impl std::error::Error for ConfigError {}
 
+impl Clone for ConfigError {
+    fn clone(&self) -> Self {
+        match self {
+            ConfigError::Io(err) => ConfigError::Io(io::Error::new(err.kind(), err.to_string())),
+            ConfigError::ParseError(s) => ConfigError::ParseError(s.clone()),
+            ConfigError::InvalidValue(f, m) => ConfigError::InvalidValue(f.clone(), m.clone()),
+            ConfigError::ValidationError(s) => ConfigError::ValidationError(s.clone()),
+        }
+    }
+}
+
+/// Events signaled when configuration changes or errors occur.
+#[derive(Debug, Clone)]
+pub enum ConfigChangeEvent {
+    /// Initial event when watcher starts.
+    Initial,
+    /// Configuration successfully updated.
+    Updated,
+    /// Error occurred during configuration load.
+    Error(ConfigError),
+}
+
 /// Manager to load and merge configuration from multiple sources.
 pub struct ConfigManager {
     sources: Vec<Box<dyn ConfigSource>>,
     config: Arc<RwLock<PartialConfig>>,
+    change_notifier: watch::Sender<ConfigChangeEvent>,
 }
 
 impl ConfigManager {
     /// Create a new configuration manager.
     pub fn new() -> Self {
+        let (tx, _rx) = watch::channel(ConfigChangeEvent::Initial);
         Self {
             sources: Vec::new(),
             config: Arc::new(RwLock::new(PartialConfig::default())),
+            change_notifier: tx,
         }
     }
 
@@ -62,16 +91,30 @@ impl ConfigManager {
 
     /// Load configuration by merging all sources in order of priority.
     pub fn load(&self) -> Result<(), ConfigError> {
-        let mut merged = PartialConfig::default();
-        let mut sources = self.sources.iter().collect::<Vec<_>>();
-        sources.sort_by_key(|s| s.priority());
-        for source in sources {
-            let cfg = source.load()?;
-            merged.merge(cfg)?;
+        let result: Result<(), ConfigError> = (|| {
+            let mut merged = PartialConfig::default();
+            let mut sources = self.sources.iter().collect::<Vec<_>>();
+            sources.sort_by_key(|s| s.priority());
+            for source in sources {
+                let cfg = source.load()?;
+                merged.merge(cfg)?;
+            }
+            let mut lock = self.config.write().unwrap();
+            *lock = merged;
+            Ok(())
+        })();
+        match result {
+            Ok(_) => {
+                let _ = self.change_notifier.send(ConfigChangeEvent::Updated);
+                Ok(())
+            }
+            Err(err) => {
+                let _ = self
+                    .change_notifier
+                    .send(ConfigChangeEvent::Error(err.clone()));
+                Err(err)
+            }
         }
-        let mut lock = self.config.write().unwrap();
-        *lock = merged;
-        Ok(())
     }
 
     /// Get current configuration.
@@ -83,5 +126,53 @@ impl ConfigManager {
 impl Default for ConfigManager {
     fn default() -> Self {
         Self::new()
+    }
+}
+
+impl ConfigManager {
+    /// Subscribe to configuration change events.
+    pub fn subscribe_changes(&self) -> watch::Receiver<ConfigChangeEvent> {
+        self.change_notifier.subscribe()
+    }
+
+    /// Watch file-based configuration sources for changes and auto-reload.
+    /// Returns a receiver for change events and a watcher handle to keep alive.
+    pub fn watch(self) -> notify::Result<(watch::Receiver<ConfigChangeEvent>, RecommendedWatcher)> {
+        // Wrap manager in Arc to share with watcher closure
+        let this = Arc::new(self);
+        let tx = this.change_notifier.clone();
+        let rx = this.change_notifier.subscribe();
+        let this_clone = Arc::clone(&this);
+        let tx_clone = tx.clone();
+        let mut watcher: RecommendedWatcher = RecommendedWatcher::new(
+            move |res: notify::Result<notify::Event>| match res {
+                Ok(event) => {
+                    if matches!(
+                        event.kind,
+                        EventKind::Modify(_) | EventKind::Create(_) | EventKind::Remove(_)
+                    ) {
+                        if let Err(e) = this_clone.load() {
+                            let _ = tx_clone.send(ConfigChangeEvent::Error(e));
+                        }
+                    }
+                }
+                Err(err) => {
+                    let _ = tx_clone.send(ConfigChangeEvent::Error(ConfigError::Io(
+                        io::Error::other(err.to_string()),
+                    )));
+                }
+            },
+            notify::Config::default(),
+        )?;
+        for source in &this.sources {
+            for path in source.watch_paths() {
+                watcher.watch(&path, RecursiveMode::NonRecursive)?;
+            }
+        }
+        // initial load trigger
+        if let Err(e) = this.load() {
+            let _ = tx.send(ConfigChangeEvent::Error(e));
+        }
+        Ok((rx, watcher))
     }
 }
