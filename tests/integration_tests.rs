@@ -65,7 +65,6 @@ fn test_sync_command(dir: &Path) {
         .stdout(predicate::str::contains("已應用手動偏移"));
 }
 
-
 #[test]
 #[ignore]
 fn test_full_workflow() {
