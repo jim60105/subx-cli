@@ -10,8 +10,6 @@ pub use resampler::{
 pub mod aus_adapter;
 pub use aus_adapter::AusAdapter;
 
-pub mod migration;
-
 pub mod analyzer;
 pub use analyzer::{AudioFeatures, AusAudioAnalyzer, FrameFeatures};
 

@@ -10,7 +10,6 @@ pub struct AusAudioAnalyzer {
     sample_rate: u32,
     window_size: usize,
     hop_size: usize,
-    migration_config: super::migration::MigrationConfig,
 }
 
 impl AusAudioAnalyzer {
@@ -20,7 +19,6 @@ impl AusAudioAnalyzer {
             sample_rate,
             window_size: 1024,
             hop_size: 512,
-            migration_config: Default::default(),
         }
     }
 
