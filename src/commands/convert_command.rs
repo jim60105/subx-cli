@@ -1,25 +1,38 @@
-use crate::cli::ConvertArgs;
+use crate::cli::{ConvertArgs, OutputSubtitleFormat};
+use crate::config::Config;
 use crate::core::file_manager::FileManager;
 use crate::core::formats::converter::{ConversionConfig, FormatConverter};
+use crate::error::SubXError;
 
 /// 執行格式轉換命令
 pub async fn execute(args: ConvertArgs) -> crate::Result<()> {
+    let app_config = Config::load()?;
     let config = ConversionConfig {
-        preserve_styling: true, // 從配置讀取
+        preserve_styling: app_config.formats.preserve_styling,
         target_encoding: args.encoding.clone(),
         keep_original: args.keep_original,
         validate_output: true,
     };
     let converter = FormatConverter::new(config);
 
+    // 預設輸出格式轉換為 enum，若配置無效則回報錯誤
+    let default_output = match app_config.formats.default_output.as_str() {
+        "srt" => OutputSubtitleFormat::Srt,
+        "ass" => OutputSubtitleFormat::Ass,
+        "vtt" => OutputSubtitleFormat::Vtt,
+        "sub" => OutputSubtitleFormat::Sub,
+        other => return Err(SubXError::config(format!("未知的預設輸出格式: {}", other))),
+    };
+    let output_format = args.format.clone().unwrap_or(default_output);
     if args.input.is_file() {
         // 單檔案轉換
+        let format_str = output_format.to_string();
         let output_path = args
             .output
-            .unwrap_or_else(|| args.input.with_extension(args.format.to_string()));
+            .unwrap_or_else(|| args.input.with_extension(format_str.clone()));
         let mut file_manager = FileManager::new();
         match converter
-            .convert_file(&args.input, &output_path, &args.format.to_string())
+            .convert_file(&args.input, &output_path, &format_str)
             .await
         {
             Ok(result) => {
@@ -52,8 +65,9 @@ pub async fn execute(args: ConvertArgs) -> crate::Result<()> {
         }
     } else {
         // 批量轉換
+        let format_str = output_format.to_string();
         let results = converter
-            .convert_batch(&args.input, &args.format.to_string(), true)
+            .convert_batch(&args.input, &format_str, true)
             .await?;
         let success_count = results.iter().filter(|r| r.success).count();
         let total_count = results.len();

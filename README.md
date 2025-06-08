@@ -200,7 +200,8 @@ log_level = "info"
   <SUBTITLE>            字幕檔案路徑
   --offset <SECONDS>    手動指定偏移量
   --batch               批量處理模式
-  --range <SECONDS>     偏移檢測範圍
+  --range <SECONDS>     偏移檢測範圍 (預設值: 配置檔案中的 max_offset_seconds)
+  --threshold <THRESHOLD>  相關性閾值 (0-1，預設值: 配置檔案中的 correlation_threshold)
 ```
 
 ### `subx-cli config` - 配置管理

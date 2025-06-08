@@ -10,12 +10,17 @@ use reqwest::Client;
 use serde_json::json;
 use serde_json::Value;
 use std::time::Duration;
+use tokio::time;
 
+/// OpenAI 客戶端實作
 /// OpenAI 客戶端實作
 pub struct OpenAIClient {
     client: Client,
     api_key: String,
     model: String,
+    temperature: f32,
+    retry_attempts: u32,
+    retry_delay_ms: u64,
     base_url: String,
 }
 
@@ -40,9 +45,12 @@ mod tests {
 
     #[tokio::test]
     async fn test_openai_client_creation() {
-        let client = OpenAIClient::new("test-key".into(), "gpt-4o-mini".into());
+        let client = OpenAIClient::new("test-key".into(), "gpt-4o-mini".into(), 0.5, 2, 100);
         assert_eq!(client.api_key, "test-key");
         assert_eq!(client.model, "gpt-4o-mini");
+        assert_eq!(client.temperature, 0.5);
+        assert_eq!(client.retry_attempts, 2);
+        assert_eq!(client.retry_delay_ms, 100);
     }
 
     #[tokio::test]
@@ -56,7 +64,7 @@ mod tests {
             })))
             .mount(&server)
             .await;
-        let mut client = OpenAIClient::new("test-key".into(), "gpt-4o-mini".into());
+        let mut client = OpenAIClient::new("test-key".into(), "gpt-4o-mini".into(), 0.3, 1, 0);
         client.base_url = server.uri();
         let messages = vec![json!({"role":"user","content":"測試"})];
         let resp = client.chat_completion(messages).await.unwrap();
@@ -73,7 +81,7 @@ mod tests {
             })))
             .mount(&server)
             .await;
-        let mut client = OpenAIClient::new("bad-key".into(), "gpt-4o-mini".into());
+        let mut client = OpenAIClient::new("bad-key".into(), "gpt-4o-mini".into(), 0.3, 1, 0);
         client.base_url = server.uri();
         let messages = vec![json!({"role":"user","content":"測試"})];
         let result = client.chat_completion(messages).await;
@@ -103,7 +111,7 @@ mod tests {
 
     #[test]
     fn test_prompt_building_and_parsing() {
-        let client = OpenAIClient::new("k".into(), "m".into());
+        let client = OpenAIClient::new("k".into(), "m".into(), 0.1, 0, 0);
         let request = AnalysisRequest {
             video_files: vec!["F1.mp4".into()],
             subtitle_files: vec!["S1.srt".into()],
@@ -121,7 +129,13 @@ mod tests {
 
 impl OpenAIClient {
     /// 建立新的 OpenAIClient
-    pub fn new(api_key: String, model: String) -> Self {
+    pub fn new(
+        api_key: String,
+        model: String,
+        temperature: f32,
+        retry_attempts: u32,
+        retry_delay_ms: u64,
+    ) -> Self {
         let client = Client::builder()
             .timeout(Duration::from_secs(30))
             .build()
@@ -130,6 +144,9 @@ impl OpenAIClient {
             client,
             api_key,
             model,
+            temperature,
+            retry_attempts,
+            retry_delay_ms,
             base_url: "https://api.openai.com/v1".to_string(),
         }
     }
@@ -138,18 +155,17 @@ impl OpenAIClient {
         let request_body = json!({
             "model": self.model,
             "messages": messages,
-            "temperature": 0.3,
+            "temperature": self.temperature,
             "max_tokens": 1000,
         });
 
-        let response = self
+        let request = self
             .client
             .post(format!("{}/chat/completions", self.base_url))
             .header("Authorization", format!("Bearer {}", self.api_key))
             .header("Content-Type", "application/json")
-            .json(&request_body)
-            .send()
-            .await?;
+            .json(&request_body);
+        let response = self.make_request_with_retry(request).await?;
 
         if !response.status().is_success() {
             let status = response.status();
@@ -206,5 +222,25 @@ impl AIProvider for OpenAIClient {
         ];
         let response = self.chat_completion(messages).await?;
         self.parse_confidence_score(&response)
+    }
+}
+
+impl OpenAIClient {
+    async fn make_request_with_retry(
+        &self,
+        request: reqwest::RequestBuilder,
+    ) -> reqwest::Result<reqwest::Response> {
+        let mut attempts = 0;
+        loop {
+            match request.try_clone().unwrap().send().await {
+                Ok(resp) => return Ok(resp),
+                Err(_e) if (attempts as u32) < self.retry_attempts => {
+                    attempts += 1;
+                    time::sleep(Duration::from_millis(self.retry_delay_ms)).await;
+                    continue;
+                }
+                Err(e) => return Err(e),
+            }
+        }
     }
 }

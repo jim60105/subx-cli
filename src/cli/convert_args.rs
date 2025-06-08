@@ -8,9 +8,9 @@ pub struct ConvertArgs {
     /// 輸入檔案或資料夾路徑
     pub input: PathBuf,
 
-    /// 目標格式
+    /// 目標格式 (預設值由配置檔案指定)
     #[arg(long, value_enum)]
-    pub format: OutputSubtitleFormat,
+    pub format: Option<OutputSubtitleFormat>,
 
     /// 輸出檔案路徑
     #[arg(short, long)]

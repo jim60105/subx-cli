@@ -273,7 +273,6 @@ subx --config test_config.toml sync test.srt test.wav
 ### 文件更新
 - [ ] 更新配置檔案說明文件
 - [ ] 更新命令列說明 (help 文字)
-- [ ] 在 CHANGELOG.md 中記錄修復內容
 
 ## 風險評估
 

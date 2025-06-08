@@ -15,8 +15,13 @@ pub async fn execute(args: MatchArgs) -> Result<()> {
         .api_key
         .clone()
         .ok_or_else(|| SubXError::config("需要設定 OPENAI API 金鑰"))?;
-    let ai_client: Box<dyn AIProvider> =
-        Box::new(OpenAIClient::new(api_key, config.ai.model.clone()));
+    let ai_client: Box<dyn AIProvider> = Box::new(OpenAIClient::new(
+        api_key,
+        config.ai.model.clone(),
+        config.ai.temperature,
+        config.ai.retry_attempts,
+        config.ai.retry_delay_ms,
+    ));
     execute_with_client(args, ai_client).await
 }
 

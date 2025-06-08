@@ -19,9 +19,12 @@ pub struct SyncArgs {
     #[arg(long)]
     pub batch: bool,
 
-    /// 偏移檢測範圍 (秒)
+    /// 偏移檢測範圍 (秒)，可覆蓋配置檔案中的 max_offset_seconds
     #[arg(long)]
-    pub range: Option<f64>,
+    pub range: Option<f32>,
+    /// 相關性閾值，0-1 (可覆蓋配置檔案中的 correlation_threshold)
+    #[arg(long)]
+    pub threshold: Option<f32>,
 }
 
 /// 同步方法
@@ -56,6 +59,7 @@ mod tests {
             offset: Some(2.5),
             batch: false,
             range: None,
+            threshold: None,
         };
         assert_eq!(args.sync_method(), SyncMethod::Manual);
     }
@@ -68,6 +72,7 @@ mod tests {
             offset: None,
             batch: false,
             range: None,
+            threshold: None,
         };
         assert_eq!(args.sync_method(), SyncMethod::Auto);
     }

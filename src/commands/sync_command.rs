@@ -1,4 +1,5 @@
 use crate::cli::SyncArgs;
+use crate::config::Config;
 use crate::core::formats::manager::FormatManager;
 use crate::core::formats::Subtitle;
 use crate::core::matcher::{FileDiscovery, MediaFileType};
@@ -9,11 +10,14 @@ use std::path::{Path, PathBuf};
 
 /// 執行 Sync 命令
 pub async fn execute(args: SyncArgs) -> Result<()> {
+    let app_config = Config::load()?;
     let config = SyncConfig {
-        max_offset_seconds: args.range.unwrap_or(30.0) as f32,
-        correlation_threshold: 0.3,
-        dialogue_threshold: 0.01,
-        min_dialogue_length: 0.5,
+        max_offset_seconds: args.range.unwrap_or(app_config.sync.max_offset_seconds),
+        correlation_threshold: args
+            .threshold
+            .unwrap_or(app_config.sync.correlation_threshold),
+        dialogue_threshold: app_config.sync.dialogue_detection_threshold,
+        min_dialogue_length: app_config.sync.min_dialogue_duration_ms as f32 / 1000.0,
     };
     let sync_engine = SyncEngine::new(config);
 
