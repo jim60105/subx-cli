@@ -8,9 +8,14 @@ use crate::config::source::ConfigSource;
 /// Error type for configuration operations.
 #[derive(Debug)]
 pub enum ConfigError {
+    /// I/O error when reading or writing configuration.
     Io(std::io::Error),
-    Parse(String),
-    Validation(String),
+    /// Parsing error for configuration content.
+    ParseError(String),
+    /// Invalid configuration value: (field, message).
+    InvalidValue(String, String),
+    /// General validation error.
+    ValidationError(String),
 }
 
 impl From<std::io::Error> for ConfigError {
@@ -23,8 +28,11 @@ impl std::fmt::Display for ConfigError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             ConfigError::Io(err) => write!(f, "I/O error: {}", err),
-            ConfigError::Parse(err) => write!(f, "Parse error: {}", err),
-            ConfigError::Validation(err) => write!(f, "Validation error: {}", err),
+            ConfigError::ParseError(err) => write!(f, "Parse error: {}", err),
+            ConfigError::InvalidValue(field, msg) => {
+                write!(f, "Invalid value for {}: {}", field, msg)
+            }
+            ConfigError::ValidationError(err) => write!(f, "Validation error: {}", err),
         }
     }
 }

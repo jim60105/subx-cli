@@ -7,9 +7,11 @@ use std::path::PathBuf;
 use crate::{error::SubXError, Result};
 
 // Submodules for unified configuration management core
+pub mod cache;
 pub mod manager;
 pub mod partial;
 pub mod source;
+pub mod validator;
 
 /// 應用程式配置
 #[derive(Debug, Serialize, Deserialize, Clone)]

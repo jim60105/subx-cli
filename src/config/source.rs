@@ -30,7 +30,7 @@ impl FileSource {
 impl ConfigSource for FileSource {
     fn load(&self) -> Result<PartialConfig, ConfigError> {
         let content = std::fs::read_to_string(&self.path)?;
-        let cfg = toml::from_str(&content).map_err(|e| ConfigError::Parse(e.to_string()))?;
+        let cfg = toml::from_str(&content).map_err(|e| ConfigError::ParseError(e.to_string()))?;
         Ok(cfg)
     }
 
