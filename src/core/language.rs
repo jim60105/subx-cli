@@ -2,6 +2,17 @@
 //!
 //! Provides utilities to detect language codes from file paths and names,
 //! using directory names, filename patterns, and file extensions.
+//!
+//! # Examples
+//!
+//! ```rust
+//! use subx_cli::core::language::LanguageDetector;
+//! use std::path::Path;
+//!
+//! let detector = LanguageDetector::new();
+//! let info = detector.get_primary_language(Path::new("subtitle.sc.srt")).unwrap();
+//! assert_eq!(info.code, "sc");
+//! ```
 use regex::Regex;
 use std::collections::HashMap;
 use std::path::Path;
@@ -46,21 +57,21 @@ impl LanguageDetector {
     /// Initializes internal dictionaries and regex patterns for detection.
     pub fn new() -> Self {
         let mut language_codes = HashMap::new();
-        // 繁體
+        // Traditional Chinese
         language_codes.insert("tc".to_string(), "tc".to_string());
         language_codes.insert("繁中".to_string(), "tc".to_string());
         language_codes.insert("繁體".to_string(), "tc".to_string());
         language_codes.insert("cht".to_string(), "tc".to_string());
-        // 簡體
+        // Simplified Chinese
         language_codes.insert("sc".to_string(), "sc".to_string());
         language_codes.insert("簡中".to_string(), "sc".to_string());
         language_codes.insert("簡體".to_string(), "sc".to_string());
         language_codes.insert("chs".to_string(), "sc".to_string());
-        // 英文
+        // English
         language_codes.insert("en".to_string(), "en".to_string());
         language_codes.insert("英文".to_string(), "en".to_string());
         language_codes.insert("english".to_string(), "en".to_string());
-        // 日文、韓文等可按需擴充
+        // Additional languages (e.g., Japanese, Korean) can be added as needed.
 
         let filename_patterns = vec![
             Regex::new(r"\.([a-z]{2,3})\.").unwrap(), // .tc., .sc., .en.

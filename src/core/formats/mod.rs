@@ -51,7 +51,15 @@ pub struct Subtitle {
     pub format: SubtitleFormatType,
 }
 
-/// 單條字幕項目
+/// Single subtitle entry containing timing, index, and text information.
+///
+/// # Fields
+///
+/// - `index`: Sequence number of the subtitle entry.
+/// - `start_time`: Start timestamp of the subtitle entry.
+/// - `end_time`: End timestamp of the subtitle entry.
+/// - `text`: Text content of the subtitle entry.
+/// - `styling`: Optional styling information (font, color, formatting).
 #[derive(Debug, Clone)]
 pub struct SubtitleEntry {
     pub index: usize,
@@ -61,7 +69,9 @@ pub struct SubtitleEntry {
     pub styling: Option<StylingInfo>,
 }
 
-/// 字幕元資料
+/// Metadata associated with a subtitle file.
+///
+/// Contains optional title, language, encoding, frame rate, and original format.
 #[derive(Debug, Clone)]
 pub struct SubtitleMetadata {
     pub title: Option<String>,
@@ -71,7 +81,9 @@ pub struct SubtitleMetadata {
     pub original_format: SubtitleFormatType,
 }
 
-/// 樣式資訊
+/// Optional styling information for subtitle entries.
+///
+/// Includes font name, size, color, and text decoration options.
 #[derive(Debug, Clone, Default)]
 pub struct StylingInfo {
     pub font_name: Option<String>,
@@ -82,20 +94,40 @@ pub struct StylingInfo {
     pub underline: bool,
 }
 
-/// 字幕格式 Trait 定義
+/// Trait defining parsing, serialization, and detection for subtitle formats.
 pub trait SubtitleFormat {
-    /// 解析字幕內容
+    /// Parse subtitle content into a `Subtitle` data structure.
+    ///
+    /// # Arguments
+    ///
+    /// * `content` - Raw subtitle file content.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if parsing fails due to invalid format.
     fn parse(&self, content: &str) -> crate::Result<Subtitle>;
 
-    /// 序列化為字幕格式
+    /// Serialize a `Subtitle` into the specific format text.
+    ///
+    /// # Arguments
+    ///
+    /// * `subtitle` - Subtitle data to serialize.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if serialization fails.
     fn serialize(&self, subtitle: &Subtitle) -> crate::Result<String>;
 
-    /// 檢測是否為此格式
+    /// Detect whether the provided content matches this format.
+    ///
+    /// # Arguments
+    ///
+    /// * `content` - Raw subtitle file content.
     fn detect(&self, content: &str) -> bool;
 
-    /// 格式名稱
+    /// Returns the human-readable name of this subtitle format.
     fn format_name(&self) -> &'static str;
 
-    /// 支援的副檔名
+    /// Returns the supported file extensions for this format.
     fn file_extensions(&self) -> &'static [&'static str];
 }

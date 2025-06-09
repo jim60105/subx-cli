@@ -1,9 +1,41 @@
 use std::fs;
 use std::path::{Path, PathBuf};
 
-use crate::{Result, error::SubXError};
+use crate::{error::SubXError, Result};
 
-/// 安全的檔案操作管理器，用於追蹤檔案建立與移除操作，並在需要時進行回滾。
+/// Safe file operation manager with rollback capabilities.
+///
+/// The `FileManager` provides atomic file operations with automatic
+/// rollback functionality. It tracks all file creations and deletions,
+/// allowing complete operation reversal in case of errors.
+///
+/// # Use Cases
+///
+/// - Batch file operations that need to be atomic
+/// - Temporary file creation during processing
+/// - Safe file replacement with backup
+///
+/// # Examples
+///
+/// ```rust
+/// use subx_cli::core::file_manager::FileManager;
+/// use std::path::Path;
+///
+/// let mut manager = FileManager::new();
+/// // Create a new file (tracked for rollback)
+/// manager.record_creation(Path::new("output.srt"));
+/// // Remove an existing file (backed up for rollback)
+/// manager.remove_file(Path::new("old_file.srt")).unwrap();
+/// // If something goes wrong, rollback all operations
+/// manager.rollback().unwrap();
+/// ```
+///
+/// # Safety
+///
+/// The manager ensures that:
+/// - Created files are properly removed on rollback
+/// - Removed files are backed up and restored on rollback
+/// - No partial state is left after rollback completion
 pub struct FileManager {
     operations: Vec<FileOperation>,
 }
@@ -42,19 +74,50 @@ enum FileOperation {
 
 impl FileManager {
     /// 建立新的檔案管理器
+    /// Create a new `FileManager` with an empty operation log.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// # use subx_cli::core::file_manager::FileManager;
+    /// let manager = FileManager::new();
+    /// ```
     pub fn new() -> Self {
         Self {
             operations: Vec::new(),
         }
     }
 
-    /// 記錄檔案建立操作
+    /// Record a file creation operation for rollback purposes.
+    ///
+    /// # Arguments
+    ///
+    /// * `path` - Path of the file that was created.
     pub fn record_creation<P: AsRef<Path>>(&mut self, path: P) {
         self.operations
             .push(FileOperation::Created(path.as_ref().to_path_buf()));
     }
 
-    /// 安全地移除檔案
+    /// Remove a file safely and track the deletion for rollback.
+    ///
+    /// # Arguments
+    ///
+    /// * `path` - Path of the file to remove.
+    ///
+    /// # Errors
+    ///
+    /// Returns `SubXError::FileNotFound` if the file does not exist.
+    /// Returns `SubXError::FileOperationFailed` if the file removal fails.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// # use subx_cli::core::file_manager::FileManager;
+    /// # use std::path::Path;
+    /// let mut manager = FileManager::new();
+    /// manager.remove_file(Path::new("file.txt"))?;
+    /// # Ok::<(), subx_cli::error::SubXError>(())
+    /// ```
     pub fn remove_file<P: AsRef<Path>>(&mut self, path: P) -> Result<()> {
         let path_buf = path.as_ref().to_path_buf();
         if !path_buf.exists() {
@@ -69,7 +132,20 @@ impl FileManager {
         Ok(())
     }
 
-    /// 回滾所有已記錄的操作，依逆序執行
+    /// Roll back all recorded operations in reverse execution order.
+    ///
+    /// # Errors
+    ///
+    /// Returns `SubXError::FileOperationFailed` if any rollback operation fails.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// # use subx_cli::core::file_manager::FileManager;
+    /// let mut manager = FileManager::new();
+    /// manager.rollback()?;
+    /// # Ok::<(), subx_cli::error::SubXError>(())
+    /// ```
     pub fn rollback(&mut self) -> Result<()> {
         for op in self.operations.drain(..).rev() {
             match op {

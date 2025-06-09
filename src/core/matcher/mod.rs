@@ -3,7 +3,7 @@
 
 pub mod discovery;
 pub mod engine;
-// 已移除檔名分析器，簡化匹配邏輯
+// Filename analyzer removed to simplify matching logic.
 
 pub use discovery::{FileDiscovery, MediaFile, MediaFileType};
 pub use engine::{MatchConfig, MatchEngine, MatchOperation};
@@ -32,9 +32,30 @@ pub struct FileInfo {
 }
 
 impl FileInfo {
-    /// Construct a new `FileInfo`, given the full path and the search root.
+    /// Construct a new `FileInfo` given the full file path and search root path.
+    ///
+    /// # Arguments
+    ///
+    /// * `full_path` - Absolute path to the media file.
+    /// * `root_path` - Root directory for file discovery; used to compute relative paths.
+    ///
+    /// # Errors
+    ///
+    /// Returns `SubXError::Other` if stripping the prefix fails.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use subx_cli::core::matcher::FileInfo;
+    /// use std::path::PathBuf;
+    ///
+    /// let root = PathBuf::from("/media/videos");
+    /// let file_path = root.join("episode1.mp4");
+    /// let info = FileInfo::new(file_path.clone(), &root).unwrap();
+    /// assert_eq!(info.name, "episode1.mp4");
+    /// ```
     pub fn new(full_path: PathBuf, root_path: &Path) -> Result<Self> {
-        // 統一使用 Unix 風格分隔符，確保跨平台一致性
+        // Normalize path separators to Unix style for cross-platform consistency.
         let relative_path = full_path
             .strip_prefix(root_path)
             .map_err(|e| SubXError::Other(e.into()))?
@@ -51,7 +72,7 @@ impl FileInfo {
             .and_then(|n| n.to_str())
             .unwrap_or_default()
             .to_string();
-        // 使用 '/' 作為分隔符計算深度
+        // Use '/' as separator to calculate directory depth.
         let depth = relative_path.matches('/').count();
         let detector = LanguageDetector::new();
         let language = detector.detect_from_path(&full_path);
