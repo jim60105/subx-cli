@@ -28,10 +28,10 @@
 //!
 //! ```rust,no_run
 //! use subx_cli::config::load_config;
-//! 
+//!
 //! // Load configuration
 //! let config = load_config().expect("Failed to load configuration");
-//! 
+//!
 //! // Use the configuration for processing...
 //! ```
 //!
@@ -58,14 +58,9 @@
 //!
 //! // Create a file source
 //! let file_source = FileSource::new(PathBuf::from("config.toml"));
-//! 
-//! // Use with configuration manager...
-//! ```
-//!     .add_source(Box::new(FileSource::new(
-//!         PathBuf::from("config.toml")
-//!     )));
 //!
-//! // Load and access configuration
+//! // Use with configuration manager
+//! manager.add_source(Box::new(file_source));
 //! manager.load().expect("Failed to load config");
 //! let config = manager.config();
 //! ```
@@ -86,9 +81,11 @@
 //! # Feature Flags
 //!
 //! SubX supports several optional features:
-//! - `ai` - AI service integrations (default)
-//! - `audio` - Audio processing capabilities (default)
-//! - `parallel` - Parallel processing support (default)
+//! ```text
+//! - ai - AI service integrations (default)
+//! - audio - Audio processing capabilities (default)  
+//! - parallel - Parallel processing support (default)
+//! ```
 #![allow(
     clippy::new_without_default,
     clippy::manual_clamp,

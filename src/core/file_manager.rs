@@ -25,7 +25,7 @@
 //!
 //! // Process multiple files
 //! // ... processing logic ...
-//! 
+//!
 //! // If something goes wrong, rollback
 //! manager.rollback()?;
 //! # Ok::<(), Box<dyn std::error::Error>>(())

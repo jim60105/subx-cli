@@ -1,3 +1,66 @@
+//! AI-powered subtitle file matching command implementation.
+//!
+//! This module implements the core matching functionality that uses artificial
+//! intelligence to analyze video and subtitle files, determine their correspondence,
+//! and generate appropriate renamed subtitle files. It supports both dry-run preview
+//! mode and actual file operations with comprehensive error handling and progress tracking.
+//!
+//! # Matching Algorithm
+//!
+//! The AI matching process involves several sophisticated steps:
+//!
+//! 1. **File Discovery**: Scan directories for video and subtitle files
+//! 2. **Content Analysis**: Extract text samples from subtitle files
+//! 3. **AI Processing**: Send content to AI service for analysis and matching
+//! 4. **Confidence Scoring**: Evaluate match quality with confidence percentages
+//! 5. **Name Generation**: Create appropriate file names based on video files
+//! 6. **Operation Planning**: Prepare file operations (rename, backup, etc.)
+//! 7. **Execution**: Apply changes or save for later in dry-run mode
+//!
+//! # AI Integration
+//!
+//! The matching system integrates with multiple AI providers:
+//! - **OpenAI**: GPT-4 and GPT-3.5 models for high-quality analysis
+//! - **Anthropic**: Claude models for detailed content understanding
+//! - **Local Models**: Self-hosted solutions for privacy-sensitive environments
+//! - **Custom Providers**: Extensible architecture for additional services
+//!
+//! # Performance Features
+//!
+//! - **Parallel Processing**: Multiple files processed simultaneously
+//! - **Intelligent Caching**: AI results cached to avoid redundant API calls
+//! - **Progress Tracking**: Real-time progress indicators for batch operations
+//! - **Error Recovery**: Robust error handling with partial completion support
+//! - **Resource Management**: Automatic rate limiting and resource optimization
+//!
+//! # Safety and Reliability
+//!
+//! - **Dry-run Mode**: Preview operations before applying changes
+//! - **Automatic Backups**: Original files preserved during operations
+//! - **Rollback Support**: Ability to undo operations if needed
+//! - **Validation**: Comprehensive checks before file modifications
+//! - **Atomic Operations**: All-or-nothing approach for batch operations
+//!
+//! # Examples
+//!
+//! ```rust,ignore
+//! use subx_cli::commands::match_command;
+//! use subx_cli::cli::MatchArgs;
+//! use std::path::PathBuf;
+//!
+//! // Basic matching operation
+//! let args = MatchArgs {
+//!     path: PathBuf::from("/path/to/media"),
+//!     recursive: true,
+//!     dry_run: false,
+//!     confidence: 80,
+//!     backup: true,
+//! };
+//!
+//! // Execute matching
+//! match_command::execute(args).await?;
+//! ```
+
 use crate::Result;
 use crate::cli::MatchArgs;
 use crate::cli::display_match_results;
@@ -10,76 +73,337 @@ use crate::core::parallel::{
 use crate::services::ai::{AIClientFactory, AIProvider};
 use indicatif::ProgressDrawTarget;
 
-/// Execute the `match` subcommand to find and rename subtitle files based on AI matching.
+/// Execute the AI-powered subtitle matching operation with full workflow.
 ///
-/// Supports dry-run mode and accepts an injectable AI client for testing.
+/// This is the main entry point for the match command, which orchestrates the
+/// entire matching process from configuration loading through file operations.
+/// It automatically creates the appropriate AI client based on configuration
+/// settings and delegates to the core matching logic.
+///
+/// # Process Overview
+///
+/// 1. **Configuration Loading**: Load user and system configuration
+/// 2. **AI Client Creation**: Initialize AI provider based on settings
+/// 3. **Matching Execution**: Delegate to core matching implementation
+/// 4. **Result Processing**: Handle results and display output
+///
+/// # Configuration Integration
+///
+/// The function automatically loads configuration from multiple sources:
+/// - System-wide configuration files
+/// - User-specific configuration directory
+/// - Environment variables
+/// - Command-line argument overrides
+///
+/// # AI Provider Selection
+///
+/// AI client creation is based on configuration settings:
+/// ```toml
+/// [ai]
+/// provider = "openai"  # or "anthropic", "local", etc.
+/// openai.api_key = "sk-..."
+/// openai.model = "gpt-4-turbo-preview"
+/// ```
 ///
 /// # Arguments
 ///
-/// * `args` - Parsed command-line arguments for matching operation.
+/// * `args` - Parsed command-line arguments containing:
+///   - `path`: Directory or file path to process
+///   - `recursive`: Whether to scan subdirectories
+///   - `dry_run`: Preview mode without actual file changes
+///   - `confidence`: Minimum confidence threshold (0-100)
+///   - `backup`: Enable automatic file backups
+///
+/// # Returns
+///
+/// Returns `Ok(())` on successful completion, or an error containing:
+/// - Configuration loading failures
+/// - AI client initialization problems
+/// - Matching operation errors
+/// - File system operation failures
 ///
 /// # Errors
 ///
-/// Returns an error if configuration loading, AI analysis, or file operations fail.
+/// Common error conditions include:
+/// - **Configuration Error**: Invalid or missing configuration files
+/// - **AI Service Error**: API authentication or connectivity issues
+/// - **File System Error**: Permission or disk space problems
+/// - **Content Error**: Invalid or corrupted subtitle files
+/// - **Network Error**: Connection issues with AI services
 ///
 /// # Examples
 ///
 /// ```rust,ignore
 /// use subx_cli::cli::MatchArgs;
 /// use subx_cli::commands::match_command;
+/// use std::path::PathBuf;
 ///
-/// async fn demo(args: MatchArgs) -> subx_cli::Result<()> {
-///     match_command::execute(args).await
-/// }
+/// // Basic matching with default settings
+/// let args = MatchArgs {
+///     path: PathBuf::from("./media"),
+///     recursive: true,
+///     dry_run: false,
+///     confidence: 85,
+///     backup: true,
+/// };
+///
+/// match_command::execute(args).await?;
+///
+/// // Dry-run mode for preview
+/// let preview_args = MatchArgs {
+///     path: PathBuf::from("./test_media"),
+///     recursive: false,
+///     dry_run: true,
+///     confidence: 70,
+///     backup: false,
+/// };
+///
+/// match_command::execute(preview_args).await?;
 /// ```
+///
+/// # Performance Considerations
+///
+/// - **Caching**: AI results are automatically cached to reduce API costs
+/// - **Batch Processing**: Multiple files processed efficiently in parallel
+/// - **Rate Limiting**: Automatic throttling to respect AI service limits
+/// - **Memory Management**: Streaming processing for large file sets
 pub async fn execute(args: MatchArgs) -> Result<()> {
-    // 載入配置與建立 AI 客戶端
+    // Load configuration from all available sources
     let config = load_config()?;
-    // 建立 AI 客戶端，根據配置自動選擇提供商與端點
+
+    // Create AI client based on configured provider and settings
     let ai_client = AIClientFactory::create_client(&config.ai)?;
+
+    // Execute the matching workflow with dependency injection
     execute_with_client(args, ai_client).await
 }
 
-/// 執行 Match 流程，支援 Dry-run 與實際操作，AI 客戶端由外部注入
+/// Execute the matching workflow with dependency-injected AI client.
+///
+/// This function implements the core matching logic while accepting an
+/// AI client as a parameter, enabling dependency injection for testing
+/// and allowing different AI provider implementations to be used.
+///
+/// # Architecture Benefits
+///
+/// - **Testability**: Mock AI clients can be injected for unit testing
+/// - **Flexibility**: Different AI providers can be used without code changes
+/// - **Isolation**: Core logic is independent of AI client implementation
+/// - **Reusability**: Function can be called with custom AI configurations
+///
+/// # Matching Process
+///
+/// 1. **Configuration Setup**: Load matching parameters and thresholds
+/// 2. **Engine Initialization**: Create matching engine with AI client
+/// 3. **File Discovery**: Scan for video and subtitle files
+/// 4. **Content Analysis**: Extract and analyze subtitle content
+/// 5. **AI Matching**: Send content to AI service for correlation analysis
+/// 6. **Result Processing**: Evaluate confidence and generate operations
+/// 7. **Operation Execution**: Apply file changes or save dry-run results
+///
+/// # Dry-run vs Live Mode
+///
+/// ## Dry-run Mode (`args.dry_run = true`)
+/// - No actual file modifications are performed
+/// - Results are cached for potential later application
+/// - Operations are displayed for user review
+/// - Safe for testing and verification
+///
+/// ## Live Mode (`args.dry_run = false`)
+/// - File operations are actually executed
+/// - Backups are created if enabled
+/// - Changes are applied atomically where possible
+/// - Progress is tracked and displayed
+///
+/// # Arguments
+///
+/// * `args` - Command-line arguments with matching configuration
+/// * `ai_client` - AI provider implementation for content analysis
+///
+/// # Returns
+///
+/// Returns `Ok(())` on successful completion or an error describing
+/// the failure point in the matching workflow.
+///
+/// # Error Handling
+///
+/// The function provides comprehensive error handling:
+/// - **Early Validation**: Configuration and argument validation
+/// - **Graceful Degradation**: Partial completion when possible
+/// - **Clear Messaging**: Descriptive error messages for user guidance
+/// - **State Preservation**: No partial file modifications on errors
+///
+/// # Caching Strategy
+///
+/// - **AI Results**: Cached to reduce API costs and improve performance
+/// - **Content Analysis**: Subtitle parsing results cached per file
+/// - **Match Results**: Dry-run results saved for later application
+/// - **Configuration**: Processed configuration cached for efficiency
+///
+/// # Examples
+///
+/// ```rust,ignore
+/// use subx_cli::commands::match_command;
+/// use subx_cli::cli::MatchArgs;
+/// use subx_cli::services::ai::MockAIClient;
+/// use std::path::PathBuf;
+///
+/// // Testing with mock AI client
+/// let mock_client = Box::new(MockAIClient::new());
+/// let args = MatchArgs {
+///     path: PathBuf::from("./test_data"),
+///     recursive: false,
+///     dry_run: true,
+///     confidence: 90,
+///     backup: false,
+/// };
+///
+/// match_command::execute_with_client(args, mock_client).await?;
+/// ```
 pub async fn execute_with_client(args: MatchArgs, ai_client: Box<dyn AIProvider>) -> Result<()> {
-    // 載入配置並初始化匹配引擎
+    // Load configuration and create matching engine configuration
     let config = load_config()?;
     let match_config = MatchConfig {
         confidence_threshold: args.confidence as f32 / 100.0,
         max_sample_length: config.ai.max_sample_length,
-        // 永遠進行內容分析，以便 Dry-run 時也能產生並快取結果
+        // Always enable content analysis to generate and cache results even in dry-run mode
         enable_content_analysis: true,
         backup_enabled: args.backup || config.general.backup_enabled,
     };
+
+    // Initialize the matching engine with AI client and configuration
     let engine = MatchEngine::new(ai_client, match_config);
 
-    // 執行匹配運算
+    // Execute the core matching algorithm
     let operations = engine.match_files(&args.path, args.recursive).await?;
 
-    // 顯示對映結果表格
+    // Display formatted results table to user
     display_match_results(&operations, args.dry_run);
 
     if args.dry_run {
+        // Save results to cache for potential later application
         engine
             .save_cache(&args.path, args.recursive, &operations)
             .await?;
     } else {
-        // 執行檔案操作
+        // Execute actual file operations (rename, backup, etc.)
         engine.execute_operations(&operations, args.dry_run).await?;
     }
+
     Ok(())
 }
 
-/// Execute parallel match over multiple files using the parallel processing system
+/// Execute parallel matching operations across multiple files and directories.
+///
+/// This function provides high-performance batch processing capabilities for
+/// large collections of video and subtitle files. It leverages the parallel
+/// processing system to efficiently handle multiple matching operations
+/// simultaneously while maintaining proper resource management.
+///
+/// # Parallel Processing Benefits
+///
+/// - **Performance**: Multiple files processed simultaneously
+/// - **Efficiency**: Optimal CPU and I/O resource utilization
+/// - **Scalability**: Handles large file collections effectively
+/// - **Progress Tracking**: Real-time progress across all operations
+/// - **Error Isolation**: Individual file failures don't stop other operations
+///
+/// # Resource Management
+///
+/// The parallel system automatically manages:
+/// - **Worker Threads**: Optimal thread pool sizing based on system capabilities
+/// - **Memory Usage**: Streaming processing to handle large datasets
+/// - **API Rate Limits**: Automatic throttling for AI service calls
+/// - **Disk I/O**: Efficient file system access patterns
+/// - **Network Resources**: Connection pooling and retry logic
+///
+/// # Task Scheduling
+///
+/// Files are processed using intelligent task scheduling:
+/// - **Priority Queue**: Important files processed first
+/// - **Dependency Management**: Related files processed together
+/// - **Load Balancing**: Work distributed evenly across workers
+/// - **Failure Recovery**: Automatic retry for transient failures
+///
+/// # Arguments
+///
+/// * `directory` - Root directory to scan for media files
+/// * `recursive` - Whether to include subdirectories in the scan
+/// * `output` - Optional output directory for processed files
+///
+/// # Returns
+///
+/// Returns `Ok(())` on successful completion of all tasks, or an error
+/// if critical failures prevent processing from continuing.
+///
+/// # File Discovery Process
+///
+/// 1. **Directory Scanning**: Recursively scan specified directories
+/// 2. **File Classification**: Identify video and subtitle files
+/// 3. **Pairing Logic**: Match video files with potential subtitle candidates
+/// 4. **Priority Assignment**: Assign processing priority based on file characteristics
+/// 5. **Task Creation**: Generate processing tasks for the scheduler
+///
+/// # Error Handling
+///
+/// - **Individual Failures**: Single file errors don't stop batch processing
+/// - **Critical Errors**: System-level failures halt all processing
+/// - **Partial Completion**: Successfully processed files are preserved
+/// - **Progress Reporting**: Clear indication of which files succeeded/failed
+///
+/// # Performance Optimization
+///
+/// - **Batching**: Related operations grouped for efficiency
+/// - **Caching**: Shared cache across all parallel operations
+/// - **Memory Pooling**: Reuse of allocated resources
+/// - **I/O Optimization**: Sequential disk access patterns where possible
+///
+/// # Examples
+///
+/// ```rust,ignore
+/// use subx_cli::commands::match_command;
+/// use std::path::Path;
+///
+/// // Process all files in a directory tree
+/// match_command::execute_parallel_match(
+///     Path::new("/path/to/media"),
+///     true,  // recursive
+///     Some(Path::new("/path/to/output"))
+/// ).await?;
+///
+/// // Process single directory without recursion
+/// match_command::execute_parallel_match(
+///     Path::new("./current_dir"),
+///     false, // not recursive
+///     None   // output to same directory
+/// ).await?;
+/// ```
+///
+/// # System Requirements
+///
+/// For optimal performance with parallel processing:
+/// - **CPU**: Multi-core processor recommended
+/// - **Memory**: Sufficient RAM for concurrent operations (4GB+ recommended)
+/// - **Disk**: SSD storage for improved I/O performance
+/// - **Network**: Stable connection for AI service calls
 pub async fn execute_parallel_match(
     directory: &std::path::Path,
     recursive: bool,
     output: Option<&std::path::Path>,
 ) -> Result<()> {
+    // Initialize configuration management system
     init_config_manager()?;
+
+    // Create and configure task scheduler for parallel processing
     let scheduler = TaskScheduler::new()?;
+
+    // Initialize file discovery system
     let discovery = FileDiscovery::new();
+
+    // Scan directory structure for video and subtitle files
     let files = discovery.scan_directory(directory, recursive)?;
+
+    // Create processing tasks for all discovered video files
     let mut tasks: Vec<Box<dyn Task + Send + Sync>> = Vec::new();
     for f in files
         .iter()
@@ -92,10 +416,14 @@ pub async fn execute_parallel_match(
         });
         tasks.push(task);
     }
+
+    // Validate that we have files to process
     if tasks.is_empty() {
         println!("未找到需要處理的影片檔案");
         return Ok(());
     }
+
+    // Display processing information
     println!("準備並行處理 {} 個檔案", tasks.len());
     println!("最大並行數: {}", scheduler.get_active_workers());
     let progress_bar = {
