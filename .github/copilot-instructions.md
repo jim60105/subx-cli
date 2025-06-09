@@ -4,7 +4,7 @@
 
 * **Role:** Act as a technical expert responsible for both development and code review.
 
-* **Core References:** `../README.md`, `.github/instructions/tech-architecture.md`
+* **Core References:** `../README.md`, `../docs/tech-architecture.md`
 
 * **Response Language:** `zh-TW 正體中文`
 
