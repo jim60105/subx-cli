@@ -55,8 +55,8 @@
 
 | 配置項目 | 類型 | 預設值 | 實際使用位置 | 使用方式 | 使用的子命令 | 狀態 |
 |---------|------|---------|-------------|---------|-------------|------|
-| `cpu_intensive_limit` | usize | 2 | **呼叫樹:**<br>• `ParallelConfig::from_app_config()` (line 70) → `src/core/parallel/config.rs:70`<br>• `ParallelConfig::validate()` (line 88) → `src/core/parallel/config.rs:88`<br>• `TaskScheduler::new()` (line 68) → `src/core/parallel/scheduler.rs:68` | CPU 密集型任務限制配置，用於調度器驗證 | `subx-cli match`（批次處理模式） | ⚠️ 已定義且載入，但調度器未實際限制 CPU 密集型任務 |
-| `io_intensive_limit` | usize | 8 | **呼叫樹:**<br>• `ParallelConfig::from_app_config()` (line 71) → `src/core/parallel/config.rs:71`<br>• `ParallelConfig::validate()` (line 95) → `src/core/parallel/config.rs:95`<br>• `TaskScheduler::new()` (line 68) → `src/core/parallel/scheduler.rs:68` | I/O 密集型任務限制配置，用於調度器驗證 | `subx-cli match`（批次處理模式） | ⚠️ 已定義且載入，但調度器未實際限制 I/O 密集型任務 |
+| `cpu_intensive_limit` | usize | 2 | **呼叫樹:**<br>• `ParallelConfig::from_app_config()` (line 70) → `src/core/parallel/config.rs:70`<br>• `ParallelConfig::validate()` (line 88) → `src/core/parallel/config.rs:88`<br>• `TaskScheduler::new()` (line 68) → `src/core/parallel/scheduler.rs:68` | CPU 密集型任務限制配置，用於調度器驗證 | `subx-cli match`（批次處理模式） | 🗑️ **待移除** - 死代碼，調度器完全未使用此限制 (見 Bug #12) |
+| `io_intensive_limit` | usize | 8 | **呼叫樹:**<br>• `ParallelConfig::from_app_config()` (line 71) → `src/core/parallel/config.rs:71`<br>• `ParallelConfig::validate()` (line 95) → `src/core/parallel/config.rs:95`<br>• `TaskScheduler::new()` (line 68) → `src/core/parallel/scheduler.rs:68` | I/O 密集型任務限制配置，用於調度器驗證 | `subx-cli match`（批次處理模式） | 🗑️ **待移除** - 死代碼，調度器完全未使用此限制 (見 Bug #12) |
 | `task_queue_size` | usize | 100 | **呼叫樹:**<br>• `ParallelConfig::from_app_config()` (line 72) → `src/core/parallel/config.rs:72`<br>• `TaskScheduler::new()` (line 68) → `src/core/parallel/scheduler.rs:68`<br>• `TaskScheduler::submit_task()` (line 276) → `src/core/parallel/scheduler.rs:276`<br>• 用於控制任務佇列最大長度 | 任務佇列大小限制，控制記憶體使用 | `subx-cli match`（批次處理模式） | ✅ 使用中 |
 | `enable_task_priorities` | bool | true | **呼叫樹:**<br>• `ParallelConfig::from_app_config()` (line 73) → `src/core/parallel/config.rs:73`<br>• `TaskScheduler::new()` (line 68) → `src/core/parallel/scheduler.rs:68`<br>• `TaskScheduler::submit_task()` (line 292) → `src/core/parallel/scheduler.rs:292`<br>• 控制任務佇列中的優先級排序邏輯 | 啟用任務優先級排程，影響任務執行順序 | `subx-cli match`（批次處理模式） | ✅ 使用中 |
 | `auto_balance_workers` | bool | true | **呼叫樹:**<br>• `ParallelConfig::from_app_config()` (line 74) → `src/core/parallel/config.rs:74`<br>• `TaskScheduler::new()` (line 87) → `src/core/parallel/scheduler.rs:87`<br>• 決定是否啟用 LoadBalancer | 自動平衡工作負載，啟用負載平衡器 | `subx-cli match`（批次處理模式） | ✅ 使用中 |
@@ -66,20 +66,24 @@
 
 - ✅ **使用中**: 配置項目已完全整合並在程式碼中實際使用
 - ⚠️ **已定義但未使用**: 配置項目已定義並可設定，但核心功能未實作或未讀取此設定
+- 🗑️ **待移除**: 配置項目為死代碼，完全未被使用，應移除以避免混淆
 - ❌ **未使用**: 配置項目完全未在程式碼中使用（已移除此類別）
 
 ## 總結
 
-### 完全整合的配置 (27 項) - 含詳細呼叫樹
+### 完全整合的配置 (25 項) - 含詳細呼叫樹
 - **AI 配置**: 8/8 項已使用，包含完整的從環境變數載入到實際 API 呼叫的路徑，包括 provider 選擇和自訂 base_url
 - **格式配置**: 4/4 項已使用，包含編碼檢測、格式轉換流程
 - **同步配置**: 8/10 項已使用，主要在 SyncCommand 和相關引擎中使用，包含音訊處理、對話檢測和自動採樣率檢測
 - **一般配置**: 5/5 項已使用，包含備份、並行任務調度、進度條顯示和逾時設定
-- **並行處理配置**: 4/6 項已完全使用（task_queue_size, enable_task_priorities, auto_balance_workers, queue_overflow_strategy），2 項已載入但未完全實作功能區分
+- **並行處理配置**: 4/6 項已完全使用（task_queue_size, enable_task_priorities, auto_balance_workers, queue_overflow_strategy）
 
-### 需要進一步整合的配置 (3 項)
+### 需要進一步整合的配置 (1 項)
 主要集中在：
 1. **音訊處理功能**: `enable_smart_resampling` （智慧重採樣功能未實作）
-2. **並行處理功能**: `cpu_intensive_limit`, `io_intensive_limit` （已載入但調度器未實際區分任務類型）
+
+### 待移除的死代碼配置 (2 項)
+主要集中在：
+1. **並行處理功能**: `cpu_intensive_limit`, `io_intensive_limit` （已載入但調度器完全未使用，見 Bug #12）
 
 這些配置項目都在配置系統中正確定義並可設定，但對應的功能實作尚未完成或未完全使用配置。
