@@ -1,4 +1,29 @@
 //! Configuration sources for loading partial configuration.
+//!
+//! This module defines the [`ConfigSource`] trait and its implementations
+//! (`FileSource`, `EnvSource`, `CliSource`) for loading `PartialConfig`
+//! from various sources such as files, environment variables, or CLI arguments.
+//!
+//! # Examples
+//!
+//! ```rust
+//! use std::path::PathBuf;
+//! use subx_cli::config::source::{ConfigSource, FileSource, EnvSource, CliSource};
+//! use subx_cli::config::manager::ConfigError;
+//! use subx_cli::config::partial::PartialConfig;
+//!
+//! // Load from a TOML configuration file
+//! let file_src = FileSource::new(PathBuf::from("config.toml"));
+//! let cfg: PartialConfig = file_src.load().expect("Failed to load file config");
+//!
+//! // Load from environment variables
+//! let env_src = EnvSource::new();
+//! let cfg = env_src.load().expect("Failed to load env config");
+//!
+//! // CLI source (placeholder for CLI argument-based config)
+//! let cli_src = CliSource::new();
+//! let cfg = cli_src.load().expect("Failed to load CLI config");
+//! ```
 
 use crate::config::manager::ConfigError;
 use crate::config::partial::PartialConfig;

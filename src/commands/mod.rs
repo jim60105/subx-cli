@@ -1,4 +1,21 @@
-//! SubX 命令執行模組
+//! SubX command execution module.
+//!
+//! This module contains implementations of each CLI subcommand's business logic,
+//! including AI matching, format conversion, synchronization, encoding detection,
+//! configuration management, and cache operations.
+//!
+//! # Examples
+//!
+//! ```rust,ignore
+//! use subx_cli::cli::Cli;
+//! use subx_cli::commands;
+//!
+//! // Execute the match command logic
+//! async fn run_match() -> subx_cli::Result<()> {
+//!     let args = Cli::parse().command;
+//!     commands::match_command::execute(args).await
+//! }
+//! ```
 pub mod cache_command;
 pub mod config_command;
 pub mod convert_command;

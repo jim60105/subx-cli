@@ -1,4 +1,37 @@
-//! Configuration manager core module.
+//! Manager to load, merge, and watch configuration from multiple sources.
+//!
+//! The `ConfigManager` orchestrates loading partial configurations from
+//! different [`ConfigSource`]s, merging them according to priority, and
+//! notifying subscribers about configuration changes.
+//!
+//! # Examples
+//!
+//! ```rust
+//! use std::path::PathBuf;
+//! use subx_cli::config::manager::{ConfigManager, ConfigChangeEvent};
+//! use subx_cli::config::source::FileSource;
+//!
+//! // Initialize manager with a file-based source
+//! let manager = ConfigManager::new()
+//!     .add_source(Box::new(FileSource::new(PathBuf::from("config.toml"))));
+//!
+//! // Load configuration and retrieve current settings
+//! manager.load().expect("Failed to load configuration");
+//! let cfg = manager.config().read().unwrap();
+//! println!("Loaded configuration: {:?}", *cfg);
+//!
+//! // Watch for changes asynchronously (requires Tokio runtime)
+//! let (mut rx, _watcher) = manager.watch().expect("Watcher setup failed");
+//! tokio::spawn(async move {
+//!     while rx.changed().await.is_ok() {
+//!         match *rx.borrow() {
+//!             ConfigChangeEvent::Updated => println!("Configuration updated"),
+//!             ConfigChangeEvent::Error(ref e) => eprintln!("Error: {}", e),
+//!             ConfigChangeEvent::Initial => (),
+//!         }
+//!     }
+//! });
+//! ```
 
 use std::io;
 use std::sync::{Arc, RwLock};

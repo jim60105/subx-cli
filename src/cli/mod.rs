@@ -1,4 +1,33 @@
-//! SubX CLI 模組
+//! Command-line interface for the SubX subtitle processing tool.
+//!
+//! This module provides the top-level CLI application structure and subcommands
+//! for AI-powered matching, subtitle format conversion, audio synchronization,
+//! encoding detection, configuration management, cache operations, and shell
+//! completion generation.
+//!
+//! # Architecture
+//!
+//! The CLI is built using `clap` and follows a subcommand pattern:
+//! - `match` - AI-powered subtitle file matching and renaming
+//! - `convert` - Subtitle format conversion between standards
+//! - `sync` - Audio-subtitle synchronization and timing adjustment
+//! - `detect-encoding` - Character encoding detection and conversion
+//! - `config` - Configuration management and inspection
+//! - `cache` - Cache inspection and dry-run management
+//! - `generate-completion` - Shell completion script generation
+//!
+//! # Examples
+//!
+//! ```bash
+//! # Basic subtitle matching
+//! subx match /path/to/videos /path/to/subtitles
+//!
+//! # Convert SRT to ASS format
+//! subx convert --input file.srt --output file.ass --format ass
+//!
+//! # Detect file encoding
+//! subx detect-encoding *.srt
+//! ```
 
 mod cache_args;
 mod config_args;

@@ -1,4 +1,19 @@
 //! Configuration validators for unified configuration management.
+//!
+//! This module defines the [`ConfigValidator`] trait and concrete validators
+//! (`AIConfigValidator`, `SyncConfigValidator`, `FormatsConfigValidator`,
+//! `GeneralConfigValidator`) to ensure that a complete [`Config`] meets
+//! expected constraints and business rules.
+//!
+//! # Examples
+//!
+//! ```rust
+//! use subx_cli::config::{Config, manager::ConfigError};
+//! use subx_cli::config::validator::{ConfigValidator, AIConfigValidator};
+//!
+//! let config = Config::default();
+//! AIConfigValidator.validate(&config).expect("AI configuration invalid");
+//! ```
 
 use crate::config::Config;
 use crate::config::manager::ConfigError;
