@@ -10,6 +10,15 @@ homepage = "https://github.com/jim60105/subx-cli"
 keywords = ["subtitle", "cli", "ai", "video"]
 categories = ["command-line-utilities", "multimedia"]
 
+[package.metadata.docs.rs]
+all-features = true
+rustdoc-args = ["--cfg", "docsrs"]
+
+[lints.rustdoc]
+broken_intra_doc_links = "deny"
+missing_docs = "warn"
+private_doc_tests = "warn"
+
 [dependencies]
 # CLI 框架
 clap = { version = "4.5", features = ["derive", "cargo"] }

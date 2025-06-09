@@ -55,6 +55,14 @@ jobs:
     - name: Check clippy
       run: cargo clippy -- -D warnings
 
+    - name: Check documentation
+      run: |
+        cargo clippy -- -W missing_docs -D warnings
+        cargo doc --all-features --no-deps --document-private-items 2>&1 | tee doc_output.log && ! grep -i "warning\|error" doc_output.log
+
+    - name: Test documentation examples
+      run: cargo test --doc --verbose
+
     - name: Run tests
       run: cargo test --verbose
       env:
