@@ -55,9 +55,15 @@ export OPENAI_API_KEY="your-api-key-here"
 # 可選：設定自訂 OpenAI Base URL (用於 Azure OpenAI 或私有部署)
 export OPENAI_BASE_URL="https://api.azure.com/openai/v1"
 
+# 可選：啟用備份功能
+export SUBX_BACKUP_ENABLED="true"
+
 # 或通過配置檔案指令設定
 subx-cli config set ai.api_key "your-api-key-here"
 subx-cli config set ai.base_url "https://api.azure.com/openai/v1"
+subx-cli config set ai.model "gpt-4o-mini"
+subx-cli config set general.backup_enabled true
+subx-cli config set general.max_concurrent_jobs 8  # 增加並發數
 ```
 
 ### 2. 基本使用
@@ -148,42 +154,71 @@ TV_Show_S01/
 ### 配置範例
 ```toml
 [ai]
+# AI 服務提供商，目前支援 "openai"
 provider = "openai"
+# 使用的 AI 模型
 model = "gpt-4o-mini"
-base_url = "https://api.openai.com/v1"  # 預設 API 端點，可由 OPENAI_BASE_URL 覆蓋
-max_sample_length = 2000
-api_key = "your-api-key-here"  # 或使用環境變數 OPENAI_API_KEY
+# API 端點，可由 OPENAI_BASE_URL 環境變數覆蓋
+base_url = "https://api.openai.com/v1"
+# API 金鑰，可由 OPENAI_API_KEY 環境變數覆蓋
+api_key = "your-api-key-here"
+# AI 回應隨機性控制 (0.0-2.0)
 temperature = 0.3
+# 傳送給 AI 的內容長度上限
+max_sample_length = 2000
+# API 請求失敗重試次數
 retry_attempts = 3
+# 重試間隔 (毫秒)
 retry_delay_ms = 1000
 
 [formats]
+# 預設輸出格式
 default_output = "srt"
+# 轉換時是否保留樣式
 preserve_styling = true
+# 預設文字編碼
 default_encoding = "utf-8"
+# 編碼檢測信心度閾值 (0.0-1.0)
 encoding_detection_confidence = 0.7
 
 [sync]
+# 音訊同步的最大偏移範圍 (秒)
 max_offset_seconds = 30.0
-audio_sample_rate = 16000
+# 音訊相關性分析閾值 (0.0-1.0)
 correlation_threshold = 0.7
+# 對話檢測的音訊能量閾值
 dialogue_detection_threshold = 0.01
+# 最小對話片段持續時間 (毫秒)
 min_dialogue_duration_ms = 500
+# 對話片段合併間隔 (毫秒)
 dialogue_merge_gap_ms = 500
+# 是否啟用對話檢測功能
 enable_dialogue_detection = true
+# 音訊處理採樣率 (Hz)
+audio_sample_rate = 16000
+# 是否自動檢測音訊採樣率
 auto_detect_sample_rate = true
 
 [general]
+# 是否啟用檔案備份，可由 SUBX_BACKUP_ENABLED 環境變數覆蓋
 backup_enabled = false
+# 最大並發任務數
 max_concurrent_jobs = 4
+# 任務執行逾時時間 (秒)
 task_timeout_seconds = 3600
+# 是否顯示進度條
 enable_progress_bar = true
+# 工作執行緒閒置逾時 (秒)
 worker_idle_timeout_seconds = 300
 
 [parallel]
+# 任務佇列大小限制
 task_queue_size = 100
+# 是否啟用任務優先級排程
 enable_task_priorities = true
+# 是否啟用自動負載平衡
 auto_balance_workers = true
+# 佇列溢出策略 ("block" | "drop_oldest" | "reject")
 queue_overflow_strategy = "block"
 ```
 
@@ -197,6 +232,11 @@ queue_overflow_strategy = "block"
   --confidence <NUM>    最低信心度閾值 (0-100, 預設值: 80)
   --recursive           遞歸處理子資料夾
   --backup              重命名前備份原檔案
+
+配置支援:
+  - AI 設定: 支援自訂 API 端點、模型、溫度等參數
+  - 並行處理: 支援最大並發數、任務佇列大小、優先級排程等
+  - 一般設定: 支援備份、進度條、逾時控制等
 ```
 
 ### `subx-cli convert` - 格式轉換
@@ -207,14 +247,19 @@ queue_overflow_strategy = "block"
   --output, -o <FILE>   輸出檔案名
   --keep-original       保留原始檔案
   --encoding <ENC>      指定文字編碼 (預設值: utf-8)
+
+配置支援:
+  - 格式設定: 預設輸出格式、樣式保留、編碼檢測等
 ```
 
 ### `subx-cli detect-encoding` - 檔案編碼檢測
-
 ```
 選項:
   <FILES>...             目標檔案路徑
   -v, --verbose          顯示詳細樣本文字
+
+配置支援:
+  - 格式設定: 編碼檢測信心度閾值、預設編碼等
 ```
 
 ### `subx-cli sync` - 時間軸校正
@@ -226,6 +271,10 @@ queue_overflow_strategy = "block"
   --batch               批量處理模式
   --range <SECONDS>     偏移檢測範圍 (預設值: 配置檔案中的 max_offset_seconds)
   --threshold <THRESHOLD>  相關性閾值 (0-1，預設值: 配置檔案中的 correlation_threshold)
+
+配置支援:
+  - 同步設定: 最大偏移範圍、相關性閾值、對話檢測等
+  - 音訊處理: 採樣率、對話檢測閾值、片段合併等
 ```
 
 ### `subx-cli config` - 配置管理
@@ -263,16 +312,33 @@ queue_overflow_strategy = "block"
 ### 常見問題
 
 **Q: AI 匹配準確度不高怎麼辦？**
-A: 確保檔案名包含足夠的識別資訊（如劇名、季數、集數）。同時可以嘗試調整 `--confidence` 參數。
+A: 確保檔案名包含足夠的識別資訊（如劇名、季數、集數）。同時可以嘗試調整 `--confidence` 參數或配置 AI 模型溫度：`subx-cli config set ai.temperature 0.1`
 
 **Q: 時間軸同步失敗？**
-A: 確保影片檔案可存取，並檢查檔案格式是否支援。如果自動同步不理想，可以嘗試手動指定偏移量：`subx-cli sync --offset <seconds> video.mp4 subtitle.srt`
+A: 確保影片檔案可存取，並檢查檔案格式是否支援。如果自動同步不理想，可以嘗試：
+- 手動指定偏移量：`subx-cli sync --offset <seconds> video.mp4 subtitle.srt`
+- 調整同步配置：`subx-cli config set sync.correlation_threshold 0.6`
+- 啟用對話檢測：`subx-cli config set sync.enable_dialogue_detection true`
+
+**Q: 處理大量檔案時性能不佳？**
+A: 可以調整並行處理配置：
+```bash
+subx-cli config set general.max_concurrent_jobs 8     # 增加並發數
+subx-cli config set parallel.task_queue_size 200     # 增加佇列大小
+subx-cli config set parallel.auto_balance_workers true # 啟用負載平衡
+```
+
+**Q: 編碼檢測不準確？**
+A: 調整檢測信心度閾值：`subx-cli config set formats.encoding_detection_confidence 0.8`
 
 **Q: 快取檔案佔用太多空間？**
 A: 使用 `subx-cli cache clear` 指令可以清除所有快取檔案。
 
 **Q: 如何在新的影片與字幕加入後重新匹配？**
 A: 先清除快取 `subx-cli cache clear`，再重新執行 match 命令。
+
+**Q: 任務執行逾時怎麼辦？**
+A: 增加逾時時間：`subx-cli config set general.task_timeout_seconds 7200`  # 設定為 2 小時
 
 ---
 
