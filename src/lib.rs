@@ -16,6 +16,10 @@ pub mod config;
 pub use config::{init_config_manager, load_config};
 pub mod core;
 pub mod error;
+/// Convenient type alias for `Result<T, SubXError>`.
+///
+/// This type alias simplifies error handling throughout the SubX library
+/// by providing a default error type for all fallible operations.
 pub type Result<T> = error::SubXResult<T>;
 
 pub mod services;

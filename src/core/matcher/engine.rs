@@ -1,3 +1,17 @@
+//! File matching engine that uses AI content analysis to align video and subtitle files.
+//!
+//! This module provides the `MatchEngine`, which orchestrates discovery,
+//! content sampling, AI analysis, and caching to generate subtitle matching operations.
+//!
+//! # Examples
+//!
+//! ```rust,ignore
+//! use subx_cli::core::matcher::engine::{MatchEngine, MatchConfig};
+//! // Create a match engine with default configuration
+//! let config = MatchConfig { confidence_threshold: 0.8, max_sample_length: 1024, enable_content_analysis: true, backup_enabled: false };
+//! let engine = MatchEngine::new(Box::new(DummyAI), config);
+//! ```
+
 use crate::services::ai::{AIProvider, AnalysisRequest, ContentSample};
 use std::path::Path;
 
@@ -453,19 +467,6 @@ impl MatchEngine {
         Ok(dir.join("subx").join("match_cache.json"))
     }
 
-//! File matching engine that uses AI content analysis to align video and subtitle files.
-//!
-//! This module provides the `MatchEngine`, which orchestrates discovery,
-//! content sampling, AI analysis, and caching to generate subtitle matching operations.
-//!
-//! # Examples
-//!
-//! ```rust
-//! use subx_cli::core::matcher::engine::{MatchEngine, MatchConfig};
-//! // Create a match engine with default configuration
-//! let config = MatchConfig { confidence_threshold: 0.8, max_sample_length: 1024, enable_content_analysis: true, backup_enabled: false };
-//! let engine = MatchEngine::new(Box::new(DummyAI), config);
-//! ```
     /// 計算目前配置雜湊，用於快取驗證
     fn calculate_config_hash(&self) -> Result<String> {
         let config = load_config()?;

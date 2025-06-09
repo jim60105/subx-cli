@@ -3,6 +3,7 @@ use clap::{Args, Subcommand};
 /// 快取管理參數
 #[derive(Args, Debug)]
 pub struct CacheArgs {
+    /// The cache action to perform.
     #[command(subcommand)]
     pub action: CacheAction,
 }

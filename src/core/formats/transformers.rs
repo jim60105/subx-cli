@@ -1,3 +1,17 @@
+//! Subtitle transformers for converting between different subtitle formats.
+//!
+//! This module provides utility methods to transform subtitle objects
+//! into various target formats using the `FormatConverter`.
+//!
+//! # Examples
+//!
+//! ```rust,ignore
+//! use subx_cli::core::formats::{FormatConverter, Subtitle};
+//! // Convert a subtitle object to a target format
+//! let converter = FormatConverter::new();
+//! let transformed = converter.transform_subtitle(subtitle.clone(), "ass").unwrap();
+//! ```
+
 use crate::core::formats::converter::FormatConverter;
 use crate::core::formats::{Subtitle, SubtitleFormatType};
 
@@ -101,19 +115,6 @@ impl FormatConverter {
         }
         subtitle.format = SubtitleFormatType::Srt;
         Ok(subtitle)
-//! Subtitle transformers for converting between different subtitle formats.
-//!
-//! This module provides utility methods to transform subtitle objects
-//! into various target formats using the `FormatConverter`.
-//!
-//! # Examples
-//!
-//! ```rust
-//! use subx_cli::core::formats::{FormatConverter, Subtitle};
-//! // Convert a subtitle object to a target format
-//! let converter = FormatConverter::new();
-//! let transformed = converter.transform_subtitle(subtitle.clone(), "ass").unwrap();
-//! ```
     }
 
     /// VTT 轉 ASS

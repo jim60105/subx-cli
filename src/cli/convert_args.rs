@@ -28,9 +28,13 @@ pub struct ConvertArgs {
 /// 支援的輸出字幕格式
 #[derive(ValueEnum, Clone, Debug, PartialEq, Eq)]
 pub enum OutputSubtitleFormat {
+    /// SubRip (.srt) format
     Srt,
+    /// Advanced SubStation Alpha (.ass) format
     Ass,
+    /// WebVTT (.vtt) format
     Vtt,
+    /// MicroDVD/SubViewer (.sub) format
     Sub,
 }
 

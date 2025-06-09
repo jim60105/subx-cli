@@ -1,3 +1,15 @@
+//! Caching utilities for the file matching engine.
+//!
+//! Defines cache data structures and operations to store and retrieve
+//! previous matching results for faster repeated execution.
+//!
+//! # Examples
+//!
+//! ```rust
+//! use subx_cli::core::matcher::cache::{CacheData, SnapshotItem, OpItem};
+//! // Load existing cache or initialize a new one
+//! ```
+
 use serde::{Deserialize, Serialize};
 
 /// Snapshot item representing a file state for directory comparison.
@@ -39,14 +51,3 @@ impl CacheData {
         Ok(data)
     }
 }
-//! Caching utilities for the file matching engine.
-//!
-//! Defines cache data structures and operations to store and retrieve
-//! previous matching results for faster repeated execution.
-//!
-//! # Examples
-//!
-//! ```rust
-//! use subx_cli::core::matcher::cache::{CacheData, SnapshotItem, OpItem};
-//! // Load existing cache or initialize a new one
-//! ```

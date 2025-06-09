@@ -1,3 +1,17 @@
+//! Web Video Text Tracks (WebVTT) subtitle format implementation.
+//!
+//! This module provides parsing, serialization, and detection capabilities
+//! for the WebVTT subtitle format, including timestamp parsing and formatting.
+//!
+//! # Examples
+//!
+//! ```rust
+//! use subx_cli::core::formats::{SubtitleFormat, vtt::VttFormat};
+//! let vtt = VttFormat;
+//! let content = "WEBVTT\n\n00:00:01.000 --> 00:00:03.000\nHello";
+//! let subtitle = vtt.parse(content).unwrap();
+//! ```
+
 use crate::Result;
 use crate::core::formats::{
     Subtitle, SubtitleEntry, SubtitleFormat, SubtitleFormatType, SubtitleMetadata,
@@ -181,19 +195,6 @@ mod tests {
         let out = fmt.serialize(&subtitle).expect("serialize multiple failed");
         assert!(out.contains("WEBVTT"));
         assert!(out.contains("1\n"));
-//! Web Video Text Tracks (WebVTT) subtitle format implementation.
-//!
-//! This module provides parsing, serialization, and detection capabilities
-//! for the WebVTT subtitle format, including timestamp parsing and formatting.
-//!
-//! # Examples
-//!
-//! ```rust
-//! use subx_cli::core::formats::{SubtitleFormat, VttFormat};
-//! let vtt = VttFormat;
-//! let content = "WEBVTT\n\n00:00:01.000 --> 00:00:03.000\nHello";
-//! let subtitle = vtt.parse(content).unwrap();
-//! ```
         assert!(out.contains("2\n"));
     }
 }

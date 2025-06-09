@@ -1,3 +1,16 @@
+//! Subtitle format manager that detects and dispatches to the appropriate parser.
+//!
+//! This module provides the `FormatManager`, which automatically detects
+//! subtitle formats and selects the correct parser for loading and saving.
+//!
+//! # Examples
+//!
+//! ```rust
+//! use subx_cli::core::formats::manager::FormatManager;
+//! let manager = FormatManager::new();
+//! let subtitle = manager.parse_auto("... content ...").unwrap();
+//! ```
+
 use crate::core::formats::{Subtitle, SubtitleFormat};
 use log::{info, warn};
 
@@ -180,18 +193,6 @@ mod tests {
         let first = &subtitle.entries[0];
         assert_eq!(first.text, "第一句字幕內容\n包含多行文字");
         assert_eq!(first.start_time, Duration::from_millis(1000));
-//! Subtitle format manager that detects and dispatches to the appropriate parser.
-//!
-//! This module provides the `FormatManager`, which automatically detects
-//! subtitle formats and selects the correct parser for loading and saving.
-//!
-//! # Examples
-//!
-//! ```rust
-//! use subx_cli::core::formats::manager::FormatManager;
-//! let manager = FormatManager::new();
-//! let subtitle = manager.parse("... content ...").unwrap();
-//! ```
         assert_eq!(first.end_time, Duration::from_millis(3500));
     }
 }

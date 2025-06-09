@@ -1,3 +1,17 @@
+//! MicroDVD/SubViewer SUB subtitle format implementation.
+//!
+//! This module provides parsing, serialization, and detection capabilities
+//! for the MicroDVD/SubViewer SUB subtitle format, which uses frame-based timing.
+//!
+//! # Examples
+//!
+//! ```rust
+//! use subx_cli::core::formats::{SubtitleFormat, sub::SubFormat};
+//! let sub = SubFormat;
+//! let content = "{0}{25}Hello\n";
+//! let subtitle = sub.parse(content).unwrap();
+//! ```
+
 use crate::Result;
 use crate::core::formats::{
     Subtitle, SubtitleEntry, SubtitleFormat, SubtitleFormatType, SubtitleMetadata,
@@ -145,19 +159,6 @@ mod tests {
         let fmt = SubFormat;
         let out = fmt.serialize(&subtitle).expect("serialize fps failed");
         // 1s * 50fps = 50 frames
-//! MicroDVD/SubViewer SUB subtitle format implementation.
-//!
-//! This module provides parsing, serialization, and detection
-//! for the MicroDVD/SubViewer SUB subtitle format, based on frame counts.
-//!
-//! # Examples
-//!
-//! ```rust
-//! use subx_cli::core::formats::{SubtitleFormat, SubFormat};
-//! let sub = SubFormat;
-//! let content = "{0}{25}Hello\n";
-//! let subtitle = sub.parse(content).unwrap();
-//! ```
         assert!(out.contains("{50}{100}X"));
     }
 }

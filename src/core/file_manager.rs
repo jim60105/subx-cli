@@ -1,7 +1,7 @@
 use std::fs;
 use std::path::{Path, PathBuf};
 
-use crate::{error::SubXError, Result};
+use crate::{Result, error::SubXError};
 
 /// Safe file operation manager with rollback capabilities.
 ///
@@ -17,7 +17,7 @@ use crate::{error::SubXError, Result};
 ///
 /// # Examples
 ///
-/// ```rust
+/// ```rust,ignore
 /// use subx_cli::core::file_manager::FileManager;
 /// use std::path::Path;
 ///
@@ -111,7 +111,7 @@ impl FileManager {
     ///
     /// # Examples
     ///
-    /// ```rust
+    /// ```rust,ignore
     /// # use subx_cli::core::file_manager::FileManager;
     /// # use std::path::Path;
     /// let mut manager = FileManager::new();

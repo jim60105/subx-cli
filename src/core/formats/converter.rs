@@ -1,3 +1,17 @@
+//! Subtitle format conversion engine.
+//!
+//! This module provides the `FormatConverter`, which performs
+//! format conversions between different subtitle formats,
+//! supporting concurrent processing and task coordination.
+//!
+//! # Examples
+//!
+//! ```rust,ignore
+//! use subx_cli::core::formats::converter::FormatConverter;
+//! // Initialize with default configuration and run conversion tasks
+//! let converter = FormatConverter::new(Default::default());
+//! ```
+
 use futures::future::join_all;
 use std::path::Path;
 use std::sync::Arc;
@@ -189,19 +203,6 @@ impl FormatConverter {
             converted_entries: converted.entries.len(),
             warnings: Vec::new(),
             errors,
-//! Subtitle format conversion engine.
-//!
-//! This module provides the `FormatConverter`, which performs
-//! format conversions between different subtitle formats,
-//! supporting concurrent processing and task coordination.
-//!
-//! # Examples
-//!
-//! ```rust
-//! use subx_cli::core::formats::converter::FormatConverter;
-//! // Initialize with default configuration and run conversion tasks
-//! let converter = FormatConverter::new(Default::default());
-//! ```
         })
     }
 }

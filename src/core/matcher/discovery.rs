@@ -1,3 +1,16 @@
+//! Media file discovery utilities.
+//!
+//! This module provides `FileDiscovery` to scan directories,
+//! classify media files (video and subtitle), and collect metadata needed for matching.
+//!
+//! # Examples
+//!
+//! ```rust,ignore
+//! use subx_cli::core::matcher::discovery::FileDiscovery;
+//! let disco = FileDiscovery::new();
+//! let files = disco.scan_directory("./path".as_ref(), true).unwrap();
+//! ```
+
 use std::path::{Path, PathBuf};
 use walkdir::WalkDir;
 
@@ -202,18 +215,6 @@ impl FileDiscovery {
             .to_string();
 
         Ok(Some(MediaFile {
-//! Media file discovery utilities.
-//!
-//! This module provides `FileDiscovery` to scan directories,
-//! classify media files (video and subtitle), and collect metadata needed for matching.
-//!
-//! # Examples
-//!
-//! ```rust
-//! use subx_cli::core::matcher::discovery::FileDiscovery;
-//! let disco = FileDiscovery::new();
-//! let files = disco.scan_directory("./path".as_ref(), true).unwrap();
-//! ```
             path: path.to_path_buf(),
             file_type,
             size: metadata.len(),

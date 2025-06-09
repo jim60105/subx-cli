@@ -1,3 +1,15 @@
+//! Audio energy analyzer for dialogue segment detection.
+//!
+//! This module provides `EnergyAnalyzer` to detect speech activity in audio
+//! streams based on energy thresholds and segment durations.
+//!
+//! # Examples
+//!
+//! ```rust
+//! use subx_cli::core::sync::dialogue::EnergyAnalyzer;
+//! // Analyze audio envelope to detect dialogue segments
+//! ```
+
 use super::segment::DialogueSegment;
 use std::collections::VecDeque;
 
@@ -73,14 +85,3 @@ impl EnergyAnalyzer {
             .collect()
     }
 }
-//! Audio energy analyzer for dialogue segment detection.
-//!
-//! This module provides `EnergyAnalyzer` to detect speech activity in audio
-//! streams based on energy thresholds and segment durations.
-//!
-//! # Examples
-//!
-//! ```rust
-//! use subx_cli::core::sync::dialogue::EnergyAnalyzer;
-//! // Analyze audio envelope to detect dialogue segments
-//! ```

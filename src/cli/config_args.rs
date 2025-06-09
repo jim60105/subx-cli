@@ -4,6 +4,7 @@ use clap::{Args, Subcommand};
 /// 配置管理參數
 #[derive(Args, Debug)]
 pub struct ConfigArgs {
+    /// The configuration action to perform.
     #[command(subcommand)]
     pub action: ConfigAction,
 }
