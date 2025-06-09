@@ -17,6 +17,22 @@ jobs:
     steps:
     - uses: actions/checkout@v4
     
+    - name: Extract changelog content
+      id: extract_changelog
+      run: |
+        # Extract the latest version's changelog content
+        VERSION="${{ github.ref_name }}"
+        # Remove 'v' prefix if present
+        VERSION_NUM="${VERSION#v}"
+        
+        # Find the section for this version and extract content until next version or end
+        awk "/^## \[$VERSION_NUM\]/{flag=1; next} /^## \[/{if(flag) exit} flag" CHANGELOG.md > release_notes.md
+        
+        # If no specific version found, use a default message
+        if [ ! -s release_notes.md ]; then
+          echo "Release $VERSION" > release_notes.md
+        fi
+    
     - name: Create Release
       id: create_release
       uses: softprops/action-gh-release@v2
@@ -25,7 +41,7 @@ jobs:
         name: Release ${{ github.ref_name }}
         draft: false
         prerelease: false
-        generate_release_notes: true
+        body_path: release_notes.md
 
   build:
     name: Build and Upload
