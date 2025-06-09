@@ -3,7 +3,7 @@ use super::{Task, TaskResult, TaskStatus};
 use crate::Result;
 use crate::config::{Config, load_config};
 use crate::core::parallel::config::ParallelConfig;
-use std::collections::BinaryHeap;
+use std::collections::VecDeque;
 use std::sync::{Arc, Mutex};
 use tokio::sync::{Semaphore, oneshot};
 
@@ -35,7 +35,7 @@ impl Ord for PendingTask {
 }
 
 /// Priority levels for tasks
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub enum TaskPriority {
     Low = 0,
     Normal = 1,
@@ -57,7 +57,7 @@ pub struct TaskInfo {
 pub struct TaskScheduler {
     /// Parallel processing configuration
     _config: ParallelConfig,
-    task_queue: Arc<Mutex<BinaryHeap<PendingTask>>>,
+    task_queue: Arc<Mutex<VecDeque<PendingTask>>>,
     semaphore: Arc<Semaphore>,
     active_tasks: Arc<Mutex<std::collections::HashMap<String, TaskInfo>>>,
     scheduler_handle: Arc<Mutex<Option<tokio::task::JoinHandle<()>>>>,
@@ -70,7 +70,7 @@ impl TaskScheduler {
         let config = ParallelConfig::from_app_config(&app_config);
         config.validate()?;
         let semaphore = Arc::new(Semaphore::new(config.max_concurrent_jobs));
-        let task_queue = Arc::new(Mutex::new(BinaryHeap::new()));
+        let task_queue = Arc::new(Mutex::new(VecDeque::new()));
         let active_tasks = Arc::new(Mutex::new(std::collections::HashMap::new()));
 
         let scheduler = Self {
@@ -93,7 +93,7 @@ impl TaskScheduler {
         let config = ParallelConfig::from_app_config(&default_app_config);
         let _ = config.validate();
         let semaphore = Arc::new(Semaphore::new(config.max_concurrent_jobs));
-        let task_queue = Arc::new(Mutex::new(BinaryHeap::new()));
+        let task_queue = Arc::new(Mutex::new(VecDeque::new()));
         let active_tasks = Arc::new(Mutex::new(std::collections::HashMap::new()));
 
         let scheduler = Self {
@@ -114,6 +114,7 @@ impl TaskScheduler {
         let task_queue = Arc::clone(&self.task_queue);
         let semaphore = Arc::clone(&self.semaphore);
         let active_tasks = Arc::clone(&self.active_tasks);
+        let config = self._config.clone();
 
         let handle = tokio::spawn(async move {
             loop {
@@ -121,9 +122,20 @@ impl TaskScheduler {
                 if let Ok(permit) = semaphore.clone().try_acquire_owned() {
                     let pending = {
                         let mut queue = task_queue.lock().unwrap();
-                        queue.pop()
+                        // select next task by priority or FIFO
+                        if config.enable_task_priorities {
+                            // find highest priority task
+                            if let Some((idx, _)) =
+                                queue.iter().enumerate().max_by_key(|(_, t)| t.priority)
+                            {
+                                queue.remove(idx)
+                            } else {
+                                None
+                            }
+                        } else {
+                            queue.pop_front()
+                        }
                     };
-
                     if let Some(p) = pending {
                         // Update task status to running
                         {
@@ -202,7 +214,7 @@ impl TaskScheduler {
             );
         }
 
-        // Enqueue task
+        // Enqueue task with or without priority
         {
             let mut queue = self.task_queue.lock().unwrap();
             let pending = PendingTask {
@@ -211,7 +223,16 @@ impl TaskScheduler {
                 task_id: task_id.clone(),
                 priority,
             };
-            queue.push(pending);
+            if self._config.enable_task_priorities {
+                // insert by priority (higher first)
+                let pos = queue
+                    .iter()
+                    .position(|t| t.priority < pending.priority)
+                    .unwrap_or(queue.len());
+                queue.insert(pos, pending);
+            } else {
+                queue.push_back(pending);
+            }
         }
 
         // Await result
@@ -260,7 +281,7 @@ impl TaskScheduler {
                 );
             }
 
-            // 將任務加入佇列
+            // 將任務加入佇列 (批次採相同優先級或 FIFO)
             {
                 let mut queue = self.task_queue.lock().unwrap();
                 let pending = PendingTask {
@@ -269,7 +290,15 @@ impl TaskScheduler {
                     task_id: task_id.clone(),
                     priority: TaskPriority::Normal,
                 };
-                queue.push(pending);
+                if self._config.enable_task_priorities {
+                    let pos = queue
+                        .iter()
+                        .position(|t| t.priority < pending.priority)
+                        .unwrap_or(queue.len());
+                    queue.insert(pos, pending);
+                } else {
+                    queue.push_back(pending);
+                }
             }
 
             receivers.push((task_id, rx));
