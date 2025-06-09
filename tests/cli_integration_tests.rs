@@ -18,7 +18,7 @@ async fn test_help_display() {
     cmd.arg("--help")
         .assert()
         .success()
-        .stdout(predicate::str::contains("智慧字幕處理 CLI 工具"));
+        .stdout(predicate::str::contains("Main CLI application structure"));
 }
 
 #[tokio::test]
