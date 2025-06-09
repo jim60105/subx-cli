@@ -118,7 +118,7 @@ default_output = "vtt"
         let res = v.validate(&full);
         assert!(res.is_err());
         if let Err(e) = res {
-            assert!(e.to_string().contains("不支援的 AI 提供商"));
+            assert!(e.to_string().contains("Unsupported AI provider"));
         }
     }
 

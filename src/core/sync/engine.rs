@@ -22,28 +22,48 @@ pub struct SyncEngine {
 }
 
 /// Configuration parameters for the subtitle synchronization process.
+///
+/// Controls various aspects of the audio-subtitle synchronization algorithm,
+/// including detection thresholds and search ranges.
 #[derive(Debug, Clone)]
 pub struct SyncConfig {
+    /// Maximum time offset to search for synchronization (in seconds)
     pub max_offset_seconds: f32,
+    /// Minimum correlation threshold for accepting a sync match
     pub correlation_threshold: f32,
+    /// Threshold for detecting dialogue in audio analysis
     pub dialogue_threshold: f32,
+    /// Minimum length required for dialogue segments (in seconds)
     pub min_dialogue_length: f32,
 }
 
 /// Result of the subtitle synchronization process.
+///
+/// Contains detailed information about the synchronization outcome,
+/// including timing adjustments and confidence metrics.
 #[derive(Debug)]
 pub struct SyncResult {
+    /// Time offset in seconds to apply to subtitle timing
     pub offset_seconds: f32,
+    /// Confidence level of the synchronization result (0.0 to 1.0)
     pub confidence: f32,
+    /// Method used to achieve synchronization
     pub method_used: SyncMethod,
+    /// Peak correlation value found during analysis
     pub correlation_peak: f32,
 }
 
 /// Available methods for synchronizing subtitles with audio.
+///
+/// Represents different algorithms and approaches that can be used
+/// to determine the correct timing offset between audio and subtitles.
 #[derive(Debug)]
 pub enum SyncMethod {
+    /// Correlation-based synchronization using audio analysis
     AudioCorrelation,
+    /// Manual offset specified by the user
     ManualOffset,
+    /// Pattern matching between subtitle and audio timing
     PatternMatching,
 }
 

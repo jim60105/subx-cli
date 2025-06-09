@@ -19,14 +19,26 @@ struct WorkerInfo {
     worker_type: WorkerType,
 }
 
+/// Type of work performed by a worker thread.
+///
+/// Categorizes workers based on their primary resource usage pattern
+/// to enable optimal scheduling and resource allocation.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum WorkerType {
+    /// Workers that primarily consume CPU resources
     CpuIntensive,
+    /// Workers that primarily perform I/O operations
     IoIntensive,
+    /// Workers that perform a mix of CPU and I/O operations
     Mixed,
 }
 
 impl WorkerPool {
+    /// Creates a new worker pool with the specified maximum number of workers.
+    ///
+    /// # Arguments
+    ///
+    /// * `max_workers` - The maximum number of concurrent workers allowed
     pub fn new(max_workers: usize) -> Self {
         Self {
             workers: Arc::new(Mutex::new(HashMap::new())),
@@ -141,20 +153,36 @@ impl Clone for WorkerPool {
     }
 }
 
+/// Statistics about the current state of the worker pool.
+///
+/// Provides insights into worker utilization and capacity across
+/// different worker types.
 #[derive(Debug, Clone)]
 pub struct WorkerStats {
+    /// Total number of currently active workers
     pub total_active: usize,
+    /// Number of active CPU-intensive workers
     pub cpu_intensive_count: usize,
+    /// Number of active I/O-intensive workers
     pub io_intensive_count: usize,
+    /// Number of active mixed-type workers
     pub mixed_count: usize,
+    /// Maximum number of workers allowed in the pool
     pub max_capacity: usize,
 }
 
+/// Information about an active worker in the pool.
+///
+/// Contains runtime information about a worker currently executing a task.
 #[derive(Debug, Clone)]
 pub struct ActiveWorkerInfo {
+    /// Unique identifier for the worker
     pub worker_id: Uuid,
+    /// Identifier of the task being executed
     pub task_id: String,
+    /// Type of work this worker performs
     pub worker_type: WorkerType,
+    /// How long the worker has been running the current task
     pub runtime: std::time::Duration,
 }
 
@@ -164,15 +192,24 @@ pub struct Worker {
     status: WorkerStatus,
 }
 
+/// Current status of a worker in the pool.
+///
+/// Tracks the state of individual workers from creation through execution
+/// and potential error conditions.
 #[derive(Debug, Clone)]
 pub enum WorkerStatus {
+    /// Worker is available and waiting for tasks
     Idle,
+    /// Worker is executing a task (contains task ID)
     Busy(String),
+    /// Worker has been stopped and is no longer available
     Stopped,
+    /// Worker encountered an error (contains error message)
     Error(String),
 }
 
 impl Worker {
+    /// Creates a new worker with a unique ID and idle status.
     pub fn new() -> Self {
         Self {
             id: Uuid::new_v4(),
@@ -180,14 +217,21 @@ impl Worker {
         }
     }
 
+    /// Returns the unique identifier of this worker.
     pub fn id(&self) -> Uuid {
         self.id
     }
 
+    /// Returns the current status of this worker.
     pub fn status(&self) -> &WorkerStatus {
         &self.status
     }
 
+    /// Updates the status of this worker.
+    ///
+    /// # Arguments
+    ///
+    /// * `status` - The new status to set for this worker
     pub fn set_status(&mut self, status: WorkerStatus) {
         self.status = status;
     }

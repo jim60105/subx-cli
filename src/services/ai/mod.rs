@@ -266,17 +266,27 @@ pub struct FileMatch {
     pub match_factors: Vec<String>,
 }
 
-/// 信心度分數
+/// Confidence score for AI matching decisions.
+///
+/// Represents the AI system's confidence in a particular match along
+/// with the reasoning factors that led to that decision.
 #[derive(Debug, Deserialize, Clone, PartialEq)]
 pub struct ConfidenceScore {
+    /// Numerical confidence score (typically 0.0 to 1.0)
     pub score: f32,
+    /// List of factors that influenced the confidence score
     pub factors: Vec<String>,
 }
 
-/// 驗證請求結構
+/// Verification request structure for AI validation.
+///
+/// Used to request verification of a potential match between
+/// a video file and subtitle file from the AI system.
 #[derive(Debug, Serialize, Clone, PartialEq, Eq)]
 pub struct VerificationRequest {
+    /// Path to the video file
     pub video_file: String,
+    /// Path to the subtitle file
     pub subtitle_file: String,
     pub match_factors: Vec<String>,
 }

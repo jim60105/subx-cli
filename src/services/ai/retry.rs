@@ -1,11 +1,18 @@
 use crate::Result;
 use tokio::time::{Duration, sleep};
 
-/// 重試設定
+/// Retry configuration for AI service operations.
+///
+/// Configures the retry behavior for AI API calls, including
+/// backoff strategies and maximum attempt limits.
 pub struct RetryConfig {
+    /// Maximum number of retry attempts
     pub max_attempts: usize,
+    /// Initial delay between retries
     pub base_delay: Duration,
+    /// Maximum delay between retries
     pub max_delay: Duration,
+    /// Multiplier for exponential backoff
     pub backoff_multiplier: f64,
 }
 

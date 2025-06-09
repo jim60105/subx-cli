@@ -47,13 +47,21 @@ pub enum SubXError {
     ///
     /// Contains a human-readable message describing the issue.
     #[error("Configuration error: {message}")]
-    Config { message: String },
+    Config {
+        /// Description of the configuration error
+        message: String,
+    },
 
     /// Subtitle format error indicating invalid timestamps or structure.
     ///
     /// Provides the subtitle format and detailed message.
     #[error("Subtitle format error [{format}]: {message}")]
-    SubtitleFormat { format: String, message: String },
+    SubtitleFormat {
+        /// The subtitle format that caused the error (e.g., "SRT", "ASS")
+        format: String,
+        /// Detailed error message describing the issue
+        message: String,
+    },
 
     /// AI service encountered an error.
     ///
@@ -65,13 +73,19 @@ pub enum SubXError {
     ///
     /// Provides a message describing the audio processing failure.
     #[error("Audio processing error: {message}")]
-    AudioProcessing { message: String },
+    AudioProcessing {
+        /// Description of the audio processing error
+        message: String,
+    },
 
     /// Error during file matching or discovery.
     ///
     /// Contains details about path resolution or pattern matching failures.
     #[error("File matching error: {message}")]
-    FileMatching { message: String },
+    FileMatching {
+        /// Description of the file matching error
+        message: String,
+    },
     /// Indicates that a file operation failed because the target exists.
     #[error("File already exists: {0}")]
     FileAlreadyExists(String),

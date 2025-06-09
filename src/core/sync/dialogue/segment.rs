@@ -9,11 +9,20 @@
 //! use subx_cli::core::sync::dialogue::segment::DialogueSegment;
 //! let speech = DialogueSegment::new_speech(0.0, 1.5);
 //! ```
+
+/// Represents a segment of audio containing dialogue or silence.
+///
+/// Used by the audio synchronization system to identify speech patterns
+/// in audio files for subtitle timing alignment.
 #[derive(Debug, Clone)]
 pub struct DialogueSegment {
+    /// Start time of the segment in seconds
     pub start_time: f64,
+    /// End time of the segment in seconds
     pub end_time: f64,
+    /// Whether this segment contains speech
     pub is_speech: bool,
+    /// Confidence level of the speech detection (0.0 to 1.0)
     pub confidence: f32,
 }
 
@@ -58,16 +67,22 @@ impl DialogueSegment {
     }
 }
 
-/// 靜默片段資料結構，可用於額外處理或分析
+/// Silence segment data structure for additional processing or analysis.
+///
+/// Represents periods of silence in audio that can be used for
+/// subtitle timing adjustments and synchronization optimization.
 #[derive(Debug, Clone)]
 pub struct SilenceSegment {
+    /// Start time of the silence segment in seconds
     pub start_time: f64,
+    /// End time of the silence segment in seconds
     pub end_time: f64,
+    /// Duration of the silence segment in seconds
     pub duration: f64,
 }
 
 impl SilenceSegment {
-    /// 建立靜默片段
+    /// Creates a new silence segment with the specified time range.
     pub fn new(start: f64, end: f64) -> Self {
         Self {
             start_time: start,

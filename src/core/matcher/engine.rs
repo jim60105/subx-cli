@@ -28,11 +28,18 @@ use serde_json;
 use toml;
 
 /// Configuration settings for the file matching engine.
+///
+/// Controls various aspects of the subtitle-to-video matching process,
+/// including confidence thresholds and analysis options.
 #[derive(Debug, Clone)]
 pub struct MatchConfig {
+    /// Minimum confidence score required for a successful match (0.0 to 1.0)
     pub confidence_threshold: f32,
+    /// Maximum number of characters to sample from subtitle content
     pub max_sample_length: usize,
+    /// Whether to enable advanced content analysis for matching
     pub enable_content_analysis: bool,
+    /// Whether to create backup files before operations
     pub backup_enabled: bool,
 }
 
@@ -146,12 +153,20 @@ mod language_name_tests {
 }
 
 /// Match operation result representing a single video-subtitle match.
+///
+/// Contains all information about a successful match between a video file
+/// and a subtitle file, including confidence metrics and reasoning.
 #[derive(Debug)]
 pub struct MatchOperation {
+    /// The matched video file
     pub video_file: MediaFile,
+    /// The matched subtitle file
     pub subtitle_file: MediaFile,
+    /// The new filename for the subtitle file
     pub new_subtitle_name: String,
+    /// Confidence score of the match (0.0 to 1.0)
     pub confidence: f32,
+    /// List of reasons supporting this match
     pub reasoning: Vec<String>,
 }
 

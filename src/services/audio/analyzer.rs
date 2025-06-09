@@ -125,15 +125,26 @@ impl AusAudioAnalyzer {
     }
 }
 
-/// 音訊特徵資料結構
+/// Audio feature data structure containing extracted characteristics.
+///
+/// Contains frame-by-frame audio features extracted from audio analysis,
+/// used for dialogue detection and subtitle synchronization.
 #[derive(Debug, Clone)]
 pub struct AudioFeatures {
+    /// Vector of feature data for each audio frame
     pub frames: Vec<FrameFeatures>,
 }
 
+/// Feature data for a single audio frame.
+///
+/// Contains various audio characteristics computed for a short
+/// time window of audio data.
 #[derive(Debug, Clone)]
 pub struct FrameFeatures {
+    /// Spectral centroid indicating the "brightness" of the sound
     pub spectral_centroid: f32,
+    /// Spectral entropy measuring randomness in the frequency domain
     pub spectral_entropy: f32,
+    /// Zero crossing rate indicating the noisiness of the signal
     pub zero_crossing_rate: f32,
 }

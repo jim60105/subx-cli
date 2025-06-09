@@ -10,6 +10,9 @@ pub struct ByteAnalyzer {
 }
 
 impl ByteAnalyzer {
+    /// Creates a new ByteAnalyzer instance.
+    ///
+    /// Initializes empty frequency maps and resets counters.
     pub fn new() -> Self {
         Self {
             byte_frequency: HashMap::new(),
@@ -18,6 +21,21 @@ impl ByteAnalyzer {
         }
     }
 
+    /// Analyzes the given byte data and returns encoding analysis results.
+    ///
+    /// # Arguments
+    ///
+    /// * `data` - The byte data to analyze for encoding detection
+    ///
+    /// # Returns
+    ///
+    /// Returns an `AnalysisResult` containing statistical information about
+    /// the data that can be used for encoding detection.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the analysis cannot be completed due to
+    /// insufficient data or computational issues.
     pub fn analyze(&mut self, data: &[u8]) -> Result<AnalysisResult> {
         self.collect_statistics(data);
         self.calculate_metrics()
@@ -110,22 +128,37 @@ impl ByteAnalyzer {
     }
 }
 
-/// 統計分析結果
+/// Statistical analysis result for encoding detection.
+///
+/// Contains various metrics computed from byte data analysis that help
+/// determine the most likely character encoding for text data.
 #[derive(Debug, Clone)]
 pub struct AnalysisResult {
+    /// Ratio of ASCII characters (0-127) in the data
     pub ascii_ratio: f32,
+    /// Shannon entropy of the byte distribution
     pub entropy: f32,
+    /// Ratio of control characters in the data
     pub control_char_ratio: f32,
+    /// Frequency distribution of all bytes
     pub byte_distribution: HashMap<u8, usize>,
+    /// List of encodings ordered by likelihood
     pub likely_encodings: Vec<Charset>,
 }
 
-/// 基於語言模型的統計分析器
+/// Statistical language model-based analyzer for encoding detection.
+///
+/// Uses statistical models and language patterns to improve encoding
+/// detection accuracy beyond simple byte frequency analysis.
 pub struct StatisticalAnalyzer {
     language_models: HashMap<Charset, LanguageModel>,
 }
 
 impl StatisticalAnalyzer {
+    /// Creates a new StatisticalAnalyzer with pre-built language models.
+    ///
+    /// Initializes language models for various character encodings to
+    /// enable statistical analysis of text patterns.
     pub fn new() -> Self {
         Self {
             language_models: Self::build_language_models(),
@@ -167,6 +200,21 @@ impl StatisticalAnalyzer {
         models
     }
 
+    /// Analyzes byte data using language models to determine encoding likelihood.
+    ///
+    /// # Arguments
+    ///
+    /// * `data` - The byte data to analyze
+    ///
+    /// # Returns
+    ///
+    /// Returns a HashMap mapping each charset to its likelihood score.
+    /// Higher scores indicate higher likelihood that the data is encoded
+    /// in that character set.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the model scoring calculation fails.
     pub fn analyze_with_models(&self, data: &[u8]) -> Result<HashMap<Charset, f32>> {
         let mut scores = HashMap::new();
         for (cs, model) in &self.language_models {

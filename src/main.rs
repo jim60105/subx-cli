@@ -1,12 +1,20 @@
-// src/main.rs
+//! SubX CLI Application Entry Point
+//!
+//! This module contains the main entry point for the SubX subtitle processing
+//! command-line application. It initializes logging, configuration management,
+//! and handles the application lifecycle.
+
 #[tokio::main]
 async fn main() {
-    // 初始化日誌
+    // Initialize logging subsystem
     env_logger::init();
 
-    // 初始化配置管理器
+    // Initialize configuration manager
     if let Err(e) = subx_cli::config::init_config_manager() {
-        eprintln!("配置初始化失敗: {}", e.user_friendly_message());
+        eprintln!(
+            "Configuration initialization failed: {}",
+            e.user_friendly_message()
+        );
         std::process::exit(1);
     }
 

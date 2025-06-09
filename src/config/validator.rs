@@ -160,13 +160,13 @@ pub struct AIConfigValidator;
 
 impl ConfigValidator for AIConfigValidator {
     fn validate(&self, config: &Config) -> Result<(), ConfigError> {
-        // 驗證 provider 是否受支援
+        // Validate provider is supported
         match config.ai.provider.as_str() {
             "openai" => {}
             other => {
                 return Err(ConfigError::InvalidValue(
                     "ai.provider".to_string(),
-                    format!("不支援的 AI 提供商: {}", other),
+                    format!("Unsupported AI provider: {}", other),
                 ));
             }
         }
@@ -174,7 +174,7 @@ impl ConfigValidator for AIConfigValidator {
             if !api_key.starts_with("sk-") {
                 return Err(ConfigError::InvalidValue(
                     "ai.api_key".to_string(),
-                    "OpenAI API 金鑰必須以 'sk-' 開頭".to_string(),
+                    "OpenAI API key must start with 'sk-'".to_string(),
                 ));
             }
         }

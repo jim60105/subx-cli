@@ -4,14 +4,23 @@ use anyhow::anyhow;
 use encoding_rs::{BIG5, Encoding, GBK, ISO_8859_2, SHIFT_JIS, UTF_8, WINDOWS_1252};
 use std::collections::HashMap;
 
-/// 編碼轉換結果
+/// Result of an encoding conversion operation.
+///
+/// Contains the converted text along with metadata about the conversion
+/// process, including error information and encoding details.
 #[derive(Debug, Clone)]
 pub struct ConversionResult {
+    /// The converted text in the target encoding
     pub converted_text: String,
+    /// The original character encoding that was detected
     pub original_encoding: Charset,
+    /// The target encoding for conversion
     pub target_encoding: Charset,
+    /// Number of bytes processed during conversion
     pub bytes_processed: usize,
+    /// Whether any errors occurred during conversion
     pub had_errors: bool,
+    /// Total number of conversion errors encountered
     pub error_count: usize,
 }
 
@@ -127,11 +136,17 @@ impl EncodingConverter {
     }
 }
 
-/// 驗證結果結構
+/// Result of encoding validation process.
+///
+/// Contains validation status, confidence level, and any warnings
+/// about potential encoding issues.
 #[derive(Debug, Clone)]
 pub struct ValidationResult {
+    /// Whether the encoding validation passed
     pub is_valid: bool,
+    /// Confidence level in the validation result (0.0 to 1.0)
     pub confidence: f32,
+    /// List of validation warnings
     pub warnings: Vec<String>,
 }
 

@@ -35,22 +35,37 @@ impl Ord for PendingTask {
     }
 }
 
-/// Priority levels for tasks
+/// Priority levels for task execution scheduling.
+///
+/// Determines the execution order of tasks in the queue, with higher
+/// priority tasks being processed before lower priority ones.
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub enum TaskPriority {
+    /// Low priority for background operations
     Low = 0,
+    /// Normal priority for standard operations
     Normal = 1,
+    /// High priority for user-initiated operations
     High = 2,
+    /// Critical priority for system operations
     Critical = 3,
 }
 
-/// Information about an active task
+/// Information about an active task in the scheduler.
+///
+/// Contains runtime information about a task currently being processed
+/// or queued for execution.
 #[derive(Debug, Clone)]
 pub struct TaskInfo {
+    /// Unique identifier for the task
     pub task_id: String,
+    /// Type of task being executed
     pub task_type: String,
+    /// Current status of the task
     pub status: TaskStatus,
+    /// When the task started execution
     pub start_time: std::time::Instant,
+    /// Current progress percentage (0.0 to 1.0)
     pub progress: f32,
 }
 

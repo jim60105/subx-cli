@@ -17,12 +17,20 @@ use walkdir::WalkDir;
 use crate::Result;
 
 /// Media file record representing a discovered file.
+///
+/// Contains metadata about a media file discovered during the scanning process,
+/// including its path, type classification, and basic file properties.
 #[derive(Debug, Clone)]
 pub struct MediaFile {
+    /// Full path to the media file
     pub path: PathBuf,
+    /// Classification of the file (Video or Subtitle)
     pub file_type: MediaFileType,
+    /// File size in bytes
     pub size: u64,
+    /// Base filename without extension
     pub name: String,
+    /// File extension (without the dot)
     pub extension: String,
 }
 
@@ -122,9 +130,14 @@ impl Default for FileDiscovery {
 }
 
 /// Enumeration of supported media file types.
+///
+/// Classifies discovered files into their primary categories for
+/// processing by the subtitle matching system.
 #[derive(Debug, Clone)]
 pub enum MediaFileType {
+    /// Video file (e.g., .mp4, .mkv, .avi)
     Video,
+    /// Subtitle file (e.g., .srt, .ass, .vtt)
     Subtitle,
 }
 

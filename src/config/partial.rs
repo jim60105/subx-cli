@@ -159,17 +159,29 @@ pub struct PartialAIConfig {
     ///
     /// Helps control API costs and processing time.
     pub max_sample_length: Option<usize>,
+
+    /// Temperature parameter for AI response generation (0.0 to 1.0)
     pub temperature: Option<f32>,
+
+    /// Number of retry attempts for failed AI requests
     pub retry_attempts: Option<u32>,
+
+    /// Delay in milliseconds between retry attempts
     pub retry_delay_ms: Option<u64>,
 }
 
 /// Partial formats configuration.
 #[derive(Debug, Default, Serialize, Deserialize)]
 pub struct PartialFormatsConfig {
+    /// Default output format for subtitle conversions
     pub default_output: Option<String>,
+
+    /// Whether to preserve original styling during format conversion
     pub preserve_styling: Option<bool>,
+
+    /// Default text encoding for subtitle files
     pub default_encoding: Option<String>,
+
     /// Confidence threshold for encoding detection (0.0-1.0).
     pub encoding_detection_confidence: Option<f32>,
 }
@@ -177,15 +189,27 @@ pub struct PartialFormatsConfig {
 /// Partial sync configuration.
 #[derive(Debug, Default, Serialize, Deserialize)]
 pub struct PartialSyncConfig {
+    /// Maximum time offset to search for synchronization (in seconds)
     pub max_offset_seconds: Option<f32>,
+
+    /// Audio sample rate for processing (in Hz)
     pub audio_sample_rate: Option<u32>,
+
+    /// Minimum correlation threshold for accepting sync matches
     pub correlation_threshold: Option<f32>,
+
+    /// Threshold for detecting dialogue in audio analysis
     pub dialogue_detection_threshold: Option<f32>,
+
+    /// Minimum duration for dialogue segments (in milliseconds)
     pub min_dialogue_duration_ms: Option<u64>,
+
     /// Interval in milliseconds to merge dialogue segments.
     pub dialogue_merge_gap_ms: Option<u64>,
+
     /// Enable dialogue detection.
     pub enable_dialogue_detection: Option<bool>,
+
     /// Enable automatic audio sample rate detection.
     pub auto_detect_sample_rate: Option<bool>,
 }
@@ -193,10 +217,19 @@ pub struct PartialSyncConfig {
 /// Partial general configuration.
 #[derive(Debug, Default, Serialize, Deserialize)]
 pub struct PartialGeneralConfig {
+    /// Whether to create backup files before modifications
     pub backup_enabled: Option<bool>,
+
+    /// Maximum number of concurrent processing jobs
     pub max_concurrent_jobs: Option<usize>,
+
+    /// Task timeout in seconds
     pub task_timeout_seconds: Option<u64>,
+
+    /// Whether to show progress bars during operations
     pub enable_progress_bar: Option<bool>,
+
+    /// Worker idle timeout in seconds before shutdown
     pub worker_idle_timeout_seconds: Option<u64>,
 }
 

@@ -45,15 +45,25 @@ pub struct ConversionConfig {
     pub validate_output: bool,
 }
 
-/// 轉換結果
+/// Result of a subtitle format conversion operation.
+///
+/// Contains detailed information about the conversion process including
+/// success status, format information, entry counts, and any issues encountered.
 #[derive(Debug)]
 pub struct ConversionResult {
+    /// Whether the conversion completed successfully
     pub success: bool,
+    /// Input subtitle format (e.g., "srt", "ass")
     pub input_format: String,
+    /// Output subtitle format (e.g., "srt", "ass")
     pub output_format: String,
+    /// Number of subtitle entries in the original file
     pub original_entries: usize,
+    /// Number of subtitle entries successfully converted
     pub converted_entries: usize,
+    /// Non-fatal warnings encountered during conversion
     pub warnings: Vec<String>,
+    /// Errors encountered during conversion
     pub errors: Vec<String>,
 }
 

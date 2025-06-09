@@ -2,36 +2,59 @@
 use async_trait::async_trait;
 use std::fmt;
 
-/// Trait defining a unit of work
+/// Trait defining a unit of work that can be executed asynchronously.
+///
+/// All tasks in the parallel processing system must implement this trait
+/// to provide execution logic and metadata.
 #[async_trait]
 pub trait Task: Send + Sync {
+    /// Executes the task and returns the result.
     async fn execute(&self) -> TaskResult;
+    /// Returns the type identifier for this task.
     fn task_type(&self) -> &'static str;
+    /// Returns a unique identifier for this specific task instance.
     fn task_id(&self) -> String;
+    /// Returns an estimated duration for the task execution.
     fn estimated_duration(&self) -> Option<std::time::Duration> {
         None
     }
+    /// Returns a human-readable description of the task.
     fn description(&self) -> String {
-        format!("{} 任務", self.task_type())
+        format!("{} task", self.task_type())
     }
 }
 
-/// Result of task execution
+/// Result of task execution indicating success, failure, or partial completion.
+///
+/// Provides detailed information about the outcome of a task execution,
+/// including success/failure status and descriptive messages.
 #[derive(Debug, Clone)]
 pub enum TaskResult {
+    /// Task completed successfully with a result message
     Success(String),
+    /// Task failed with an error message
     Failed(String),
+    /// Task was cancelled before completion
     Cancelled,
+    /// Task partially completed with success and failure messages
     PartialSuccess(String, String),
 }
 
-/// Status of a task
+/// Current execution status of a task in the system.
+///
+/// Tracks the lifecycle of a task from initial queuing through completion
+/// or failure, providing detailed status information.
 #[derive(Debug, Clone)]
 pub enum TaskStatus {
+    /// Task is queued and waiting for execution
     Pending,
+    /// Task is currently being executed
     Running,
+    /// Task completed successfully or with partial success
     Completed(TaskResult),
+    /// Task failed during execution
     Failed(String),
+    /// Task was cancelled before or during execution
     Cancelled,
 }
 
@@ -40,9 +63,9 @@ impl fmt::Display for TaskResult {
         match self {
             TaskResult::Success(msg) => write!(f, "✓ {}", msg),
             TaskResult::Failed(msg) => write!(f, "✗ {}", msg),
-            TaskResult::Cancelled => write!(f, "⚠ 任務被取消"),
+            TaskResult::Cancelled => write!(f, "⚠ Task cancelled"),
             TaskResult::PartialSuccess(success, warn) => {
-                write!(f, "⚠ {} (警告: {})", success, warn)
+                write!(f, "⚠ {} (warning: {})", success, warn)
             }
         }
     }
@@ -51,28 +74,52 @@ impl fmt::Display for TaskResult {
 impl fmt::Display for TaskStatus {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            TaskStatus::Pending => write!(f, "等待中"),
-            TaskStatus::Running => write!(f, "執行中"),
-            TaskStatus::Completed(result) => write!(f, "已完成: {}", result),
-            TaskStatus::Failed(msg) => write!(f, "失敗: {}", msg),
-            TaskStatus::Cancelled => write!(f, "已取消"),
+            TaskStatus::Pending => write!(f, "Pending"),
+            TaskStatus::Running => write!(f, "Running"),
+            TaskStatus::Completed(result) => write!(f, "Completed: {}", result),
+            TaskStatus::Failed(msg) => write!(f, "Failed: {}", msg),
+            TaskStatus::Cancelled => write!(f, "Cancelled"),
         }
     }
 }
 
-/// Task for processing files (convert, sync, match, validate)
+/// Task for processing files (convert, sync, match, validate).
+///
+/// Represents a file processing operation that can be executed
+/// asynchronously in the parallel processing system.
 pub struct FileProcessingTask {
+    /// Path to the input file to be processed
     pub input_path: std::path::PathBuf,
+    /// Optional output path for the processed file
     pub output_path: Option<std::path::PathBuf>,
+    /// The specific operation to perform on the file
     pub operation: ProcessingOperation,
 }
 
-/// Supported operations for file processing
+/// Supported operations for file processing tasks.
+///
+/// Defines the different types of operations that can be performed
+/// on subtitle and video files in the processing system.
 #[derive(Debug, Clone)]
 pub enum ProcessingOperation {
-    ConvertFormat { from: String, to: String },
-    SyncSubtitle { audio_path: std::path::PathBuf },
-    MatchFiles { recursive: bool },
+    /// Convert subtitle format from one type to another
+    ConvertFormat {
+        /// Source format (e.g., "srt", "ass")
+        from: String,
+        /// Target format (e.g., "srt", "ass")
+        to: String,
+    },
+    /// Synchronize subtitle timing with audio
+    SyncSubtitle {
+        /// Path to the audio file for synchronization
+        audio_path: std::path::PathBuf,
+    },
+    /// Match subtitle files with video files
+    MatchFiles {
+        /// Whether to search recursively in subdirectories
+        recursive: bool,
+    },
+    /// Validate subtitle file format and structure
     ValidateFormat,
 }
 
