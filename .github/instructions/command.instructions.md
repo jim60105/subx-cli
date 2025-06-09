@@ -37,9 +37,7 @@
 | `enable_dialogue_detection` | bool | true | **呼叫樹:**<br>• `SyncCommand::execute()` (line 25) → `src/commands/sync_command.rs:25`<br>• `DialogueDetector::detect_dialogue()` (line 30) → `src/core/sync/dialogue/detector.rs:30` | 是否啟用對話檢測功能 | `subx-cli sync` | ✅ 使用中 |
 | `audio_sample_rate` | u32 | 16000 | **呼叫樹:**<br>• `ResampleConfig::from_config()` (line 63) → `src/services/audio/resampler/converter.rs:63`<br>• `AudioResampler::from_config()` 接收參數<br>• `DialogueDetector::load_audio()` (line 46) → `src/core/sync/dialogue/detector.rs:46` | 音訊處理的採樣率 | `subx-cli sync`（透過 DialogueDetector） | ✅ 使用中 |
 | `dialogue_merge_gap_ms` | u64 | 500 | **呼叫樹:**<br>• `SyncCommand::execute()` (line 26) → `src/commands/sync_command.rs:26`<br>• `DialogueDetector::new()` (line 19) → `src/core/sync/dialogue/detector.rs:19`<br>• `DialogueDetector::optimize_segments()` (line 56) → `src/core/sync/dialogue/detector.rs:56`<br>• 用於對話片段合併的間隔時間計算 | 對話片段合併間隔，控制相鄰對話合併邏輯 | `subx-cli sync`（透過 DialogueDetector） | ✅ 使用中 |
-| `resample_quality` | String | "high" | **呼叫樹:**<br>• `ResampleConfig::from_config()` (line 64) → `src/services/audio/resampler/converter.rs:64`<br>• `ResampleQuality::from_string()` (line 28) → `src/services/audio/resampler/converter.rs:28`<br>• `AudioResampler::create_interpolator()` 使用品質設定 | 音訊重採樣品質設定 | `subx-cli sync`（透過 DialogueDetector） | ✅ 使用中 |
 | `auto_detect_sample_rate` | bool | true | **呼叫樹:**<br>• `SyncCommand::execute()` → 載入配置<br>• `DialogueDetector::new()` (line 15) → `src/core/sync/dialogue/detector.rs:15`<br>• `DialogueDetector::load_audio()` (line 44) → `src/core/sync/dialogue/detector.rs:44`<br>• `AusSampleRateDetector::auto_detect_if_enabled()` (line 94) → `src/services/audio/resampler/detector.rs:94`<br>• 決定是否自動檢測音訊檔案的採樣率 | 自動檢測音訊採樣率，失敗時回退到配置值 | `subx-cli sync` | ✅ 使用中 |
-| `enable_smart_resampling` | bool | true | • `PartialConfig` 定義與合併<br>• `SyncConfig::enable_smart_resampling()` 方法 | 啟用智慧重採樣 | 無（功能未實作） | ⚠️ 已定義但功能未實作 |
 
 ### 一般配置 (`[general]`)
 
@@ -75,12 +73,3 @@
 - **同步配置**: 8/10 項已使用，主要在 SyncCommand 和相關引擎中使用，包含音訊處理、對話檢測和自動採樣率檢測
 - **一般配置**: 5/5 項已使用，包含備份、並行任務調度、進度條顯示和逾時設定
 - **並行處理配置**: 4/6 項已完全使用（task_queue_size, enable_task_priorities, auto_balance_workers, queue_overflow_strategy）
-
-### 需要進一步整合的配置 (1 項)
-主要集中在：
-1. **音訊處理功能**: `enable_smart_resampling` （智慧重採樣功能未實作）
-
-### 待移除的死代碼配置 (2 項)
-主要集中在：
-
-這些配置項目都在配置系統中正確定義並可設定，但對應的功能實作尚未完成或未完全使用配置。

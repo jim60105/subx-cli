@@ -171,9 +171,7 @@ dialogue_detection_threshold = 0.01
 min_dialogue_duration_ms = 500
 dialogue_merge_gap_ms = 500
 enable_dialogue_detection = true
-resample_quality = "high"
 auto_detect_sample_rate = true
-enable_smart_resampling = true
 
 [general]
 backup_enabled = false

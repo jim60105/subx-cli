@@ -38,14 +38,15 @@ impl DialogueDetector {
     }
 
     async fn load_audio(&self, audio_path: &Path) -> Result<AudioData> {
-        use crate::services::audio::AudioAnalyzer;
-        use crate::services::audio::resampler::detector::AusSampleRateDetector;
+        use crate::services::audio::{AudioAnalyzer, AusAdapter};
 
         // 根據配置決定是否自動檢測採樣率
-        let detector = AusSampleRateDetector::new();
-        let sample_rate = detector
-            .auto_detect_if_enabled(audio_path, &self.config)
-            .await?;
+        let sample_rate = if self.config.auto_detect_sample_rate {
+            let adapter = AusAdapter::new(self.config.audio_sample_rate);
+            adapter.read_audio_file(audio_path)?.sample_rate
+        } else {
+            self.config.audio_sample_rate
+        };
         let analyzer = AudioAnalyzer::new(sample_rate);
         analyzer.load_audio_data(audio_path).await
     }

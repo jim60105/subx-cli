@@ -75,12 +75,8 @@ pub struct PartialSyncConfig {
     pub dialogue_merge_gap_ms: Option<u64>,
     /// 是否啟用對話檢測
     pub enable_dialogue_detection: Option<bool>,
-    /// 重採樣品質設定（low, medium, high, best）
-    pub resample_quality: Option<String>,
     /// 是否自動檢測原始採樣率
     pub auto_detect_sample_rate: Option<bool>,
-    /// 是否啟用智慧重採樣
-    pub enable_smart_resampling: Option<bool>,
 }
 
 /// Partial general configuration.
@@ -157,14 +153,8 @@ impl PartialConfig {
         if let Some(v) = other.sync.min_dialogue_duration_ms {
             self.sync.min_dialogue_duration_ms = Some(v);
         }
-        if let Some(v) = other.sync.resample_quality {
-            self.sync.resample_quality = Some(v);
-        }
         if let Some(v) = other.sync.auto_detect_sample_rate {
             self.sync.auto_detect_sample_rate = Some(v);
-        }
-        if let Some(v) = other.sync.enable_smart_resampling {
-            self.sync.enable_smart_resampling = Some(v);
         }
         if let Some(v) = other.general.backup_enabled {
             self.general.backup_enabled = Some(v);
@@ -271,19 +261,10 @@ impl PartialConfig {
                 .sync
                 .enable_dialogue_detection
                 .unwrap_or(default.sync.enable_dialogue_detection),
-            resample_quality: self
-                .sync
-                .resample_quality
-                .clone()
-                .unwrap_or(default.sync.resample_quality.clone()),
             auto_detect_sample_rate: self
                 .sync
                 .auto_detect_sample_rate
                 .unwrap_or(default.sync.auto_detect_sample_rate),
-            enable_smart_resampling: self
-                .sync
-                .enable_smart_resampling
-                .unwrap_or(default.sync.enable_smart_resampling),
         };
 
         let general = GeneralConfig {

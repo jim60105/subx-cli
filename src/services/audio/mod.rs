@@ -1,12 +1,5 @@
 //! SubX 音訊服務模組
 
-pub mod resampler;
-
-pub use resampler::{
-    AudioResampler, OptimizationResult, ResampleConfig, ResampleQuality, SampleRateDetector,
-    SampleRateOptimizer,
-};
-
 pub mod aus_adapter;
 pub use aus_adapter::AusAdapter;
 
