@@ -1,0 +1,155 @@
+<svg width="800" height="300" viewBox="0 0 800 300" xmlns="http://www.w3.org/2000/svg">
+  <!-- Background with gradient -->
+  <defs>
+    <linearGradient id="bg-gradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#667eea;stop-opacity:1" />
+      <stop offset="50%" style="stop-color:#764ba2;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#f093fb;stop-opacity:1" />
+    </linearGradient>
+    <linearGradient id="text-gradient" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" style="stop-color:#ffffff;stop-opacity:1" />
+      <stop offset="50%" style="stop-color:#f8f9ff;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#e8f2ff;stop-opacity:1" />
+    </linearGradient>
+    <linearGradient id="icon-gradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#4ade80;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#22d3ee;stop-opacity:1" />
+    </linearGradient>
+    <!-- Glowing effect -->
+    <filter id="glow">
+      <feGaussianBlur stdDeviation="3" result="coloredBlur"/>
+      <feMerge> 
+        <feMergeNode in="coloredBlur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+  </defs>
+  
+  <!-- Background -->
+  <rect width="800" height="300" fill="url(#bg-gradient)" rx="20"/>
+  
+  <!-- Decorative circles -->
+  <circle cx="100" cy="80" r="40" fill="rgba(255,255,255,0.1)" opacity="0.6">
+    <animate attributeName="r" values="40;50;40" dur="4s" repeatCount="indefinite"/>
+  </circle>
+  <circle cx="700" cy="220" r="30" fill="rgba(255,255,255,0.1)" opacity="0.4">
+    <animate attributeName="r" values="30;40;30" dur="5s" repeatCount="indefinite"/>
+  </circle>
+  <circle cx="750" cy="60" r="20" fill="rgba(255,255,255,0.2)" opacity="0.5">
+    <animate attributeName="r" values="20;25;20" dur="3s" repeatCount="indefinite"/>
+  </circle>
+  
+  <!-- Subtitle lines animation -->
+  <g opacity="0.3">
+    <!-- Moving subtitle lines -->
+    <rect x="50" y="200" width="200" height="3" fill="rgba(255,255,255,0.6)" rx="2">
+      <animate attributeName="width" values="200;300;200" dur="3s" repeatCount="indefinite"/>
+    </rect>
+    <rect x="50" y="210" width="150" height="3" fill="rgba(255,255,255,0.4)" rx="2">
+      <animate attributeName="width" values="150;250;150" dur="3.5s" repeatCount="indefinite"/>
+    </rect>
+    <rect x="50" y="220" width="180" height="3" fill="rgba(255,255,255,0.5)" rx="2">
+      <animate attributeName="width" values="180;280;180" dur="4s" repeatCount="indefinite"/>
+    </rect>
+  </g>
+  
+  <!-- AI Brain Icon -->
+  <g transform="translate(50, 50)" filter="url(#glow)">
+    <animateTransform attributeName="transform" type="translate" values="50,50; 50,45; 50,50" dur="3s" repeatCount="indefinite"/>
+    <!-- Brain outline -->
+    <path d="M 30 20 Q 10 10, 15 30 Q 5 35, 10 50 Q 5 65, 20 70 Q 35 75, 50 70 Q 65 75, 80 70 Q 95 65, 90 50 Q 100 35, 85 30 Q 90 10, 70 20 Q 50 5, 30 20 Z" 
+          fill="url(#icon-gradient)" stroke="white" stroke-width="2"/>
+    <!-- Neural network nodes -->
+    <circle cx="25" cy="35" r="3" fill="white" opacity="0.8">
+      <animate attributeName="opacity" values="0.8;1;0.8" dur="2s" repeatCount="indefinite"/>
+    </circle>
+    <circle cx="40" cy="25" r="3" fill="white" opacity="0.6">
+      <animate attributeName="opacity" values="0.6;1;0.6" dur="2.5s" repeatCount="indefinite"/>
+    </circle>
+    <circle cx="55" cy="35" r="3" fill="white" opacity="0.9">
+      <animate attributeName="opacity" values="0.9;1;0.9" dur="1.8s" repeatCount="indefinite"/>
+    </circle>
+    <circle cx="70" cy="25" r="3" fill="white" opacity="0.7">
+      <animate attributeName="opacity" values="0.7;1;0.7" dur="2.2s" repeatCount="indefinite"/>
+    </circle>
+    <circle cx="25" cy="55" r="3" fill="white" opacity="0.8">
+      <animate attributeName="opacity" values="0.8;1;0.8" dur="2.8s" repeatCount="indefinite"/>
+    </circle>
+    <circle cx="45" cy="50" r="3" fill="white" opacity="0.6">
+      <animate attributeName="opacity" values="0.6;1;0.6" dur="2.3s" repeatCount="indefinite"/>
+    </circle>
+    <circle cx="65" cy="55" r="3" fill="white" opacity="0.9">
+      <animate attributeName="opacity" values="0.9;1;0.9" dur="2.1s" repeatCount="indefinite"/>
+    </circle>
+    <!-- Neural connections -->
+    <line x1="25" y1="35" x2="40" y2="25" stroke="white" stroke-width="1" opacity="0.5">
+      <animate attributeName="opacity" values="0.5;0.8;0.5" dur="2s" repeatCount="indefinite"/>
+    </line>
+    <line x1="40" y1="25" x2="55" y2="35" stroke="white" stroke-width="1" opacity="0.6">
+      <animate attributeName="opacity" values="0.6;0.9;0.6" dur="2.2s" repeatCount="indefinite"/>
+    </line>
+    <line x1="55" y1="35" x2="70" y2="25" stroke="white" stroke-width="1" opacity="0.4">
+      <animate attributeName="opacity" values="0.4;0.7;0.4" dur="1.8s" repeatCount="indefinite"/>
+    </line>
+  </g>
+  
+  <!-- Main Title -->
+  <text x="400" y="110" font-family="serif" font-size="56" font-weight="bold" 
+        text-anchor="middle" fill="url(#text-gradient)" filter="url(#glow)">
+    SubX CLI
+  </text>
+  
+  <!-- Tagline -->
+  <text x="400" y="160" font-family="serif" font-size="20" 
+        text-anchor="middle" fill="rgba(255,255,255,0.9)">
+    智慧字幕處理工具
+  </text>
+  
+  <!-- Feature icons -->
+  <g transform="translate(550, 230)">
+    <!-- AI Icon -->
+    <g opacity="0.9">
+      <text x="0" y="10" font-family="serif" font-size="24" text-anchor="middle" fill="white">🤖</text>
+      <text x="0" y="40" font-family="serif" font-size="11" text-anchor="middle" fill="white">AI 匹配</text>
+    </g>
+    
+    <!-- Convert Icon -->
+    <g transform="translate(90, 0)" opacity="0.9">
+      <text x="0" y="10" font-family="serif" font-size="24" text-anchor="middle" fill="white">🔄</text>
+      <text x="0" y="40" font-family="serif" font-size="11" text-anchor="middle" fill="white">格式轉換</text>
+    </g>
+    
+    <!-- Sync Icon -->
+    <g transform="translate(180, 0)" opacity="0.9">
+      <text x="0" y="10" font-family="serif" font-size="24" text-anchor="middle" fill="white">⏰</text>
+      <text x="0" y="40" font-family="serif" font-size="11" text-anchor="middle" fill="white">時間校正</text>
+    </g>
+  </g>
+  
+  <!-- Command line visualization -->
+  <g transform="translate(50, 250)" opacity="0.7">
+    <rect x="0" y="0" width="300" height="25" fill="rgba(0,0,0,0.3)" rx="5"/>
+    <text x="10" y="17" font-family="monospace" font-size="12" fill="#4ade80">$</text>
+    <text x="25" y="17" font-family="monospace" font-size="12" fill="white">subx-cli match --dry-run ./media</text>
+    <!-- Cursor blink -->
+    <rect x="285" y="8" width="2" height="12" fill="white">
+      <animate attributeName="opacity" values="1;0;1" dur="1s" repeatCount="indefinite"/>
+    </rect>
+  </g>
+  
+  <!-- Floating particles -->
+  <g opacity="0.4">
+    <circle cx="150" cy="100" r="2" fill="white">
+      <animateTransform attributeName="transform" type="translate" values="0,0; 5,-10; 0,0" dur="4s" repeatCount="indefinite"/>
+      <animate attributeName="opacity" values="0.4;0.8;0.4" dur="4s" repeatCount="indefinite"/>
+    </circle>
+    <circle cx="600" cy="150" r="1.5" fill="white">
+      <animateTransform attributeName="transform" type="translate" values="0,0; -3,8; 0,0" dur="5s" repeatCount="indefinite"/>
+      <animate attributeName="opacity" values="0.4;0.7;0.4" dur="5s" repeatCount="indefinite"/>
+    </circle>
+    <circle cx="720" cy="120" r="1" fill="white">
+      <animateTransform attributeName="transform" type="translate" values="0,0; 2,-5; 0,0" dur="3s" repeatCount="indefinite"/>
+      <animate attributeName="opacity" values="0.4;0.6;0.4" dur="3s" repeatCount="indefinite"/>
+    </circle>
+  </g>
+</svg>
