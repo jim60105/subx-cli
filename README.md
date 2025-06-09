@@ -171,10 +171,24 @@ dialogue_detection_threshold = 0.01
 min_dialogue_duration_ms = 500
 dialogue_merge_gap_ms = 500
 enable_dialogue_detection = true
+resample_quality = "high"
+auto_detect_sample_rate = true
+enable_smart_resampling = true
 
 [general]
 backup_enabled = false
 max_concurrent_jobs = 4
+task_timeout_seconds = 3600
+enable_progress_bar = true
+worker_idle_timeout_seconds = 300
+
+[parallel]
+cpu_intensive_limit = 2
+io_intensive_limit = 8
+task_queue_size = 100
+enable_task_priorities = true
+auto_balance_workers = true
+queue_overflow_strategy = "block"
 ```
 
 ## 命令參考
