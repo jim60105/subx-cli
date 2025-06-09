@@ -2,14 +2,17 @@
 mode: agent
 description: "This prompt is designed to guide the agent in updating the command documentation for a CLI tool, ensuring that all configuration items are accurately documented and associated with their respective subcommands. The agent will perform a comprehensive audit of the configuration items, update the documentation incrementally, and identify any new configuration items that need to be included."
 ---
-The file #file:./.github/instructions/command.instructions.md is currently outdated. Please perform a comprehensive audit of all configuration items.
-
-For each configuration item, ensure that the "Associated Subcommand" field is accurately completed to indicate the actual usage location of the configuration. Disregard any references found solely within tests, as our focus is strictly limited to real-world, operational usage. Additionally, omit documentation of configuration items that are evidently configurable via the `subx-cli config` subcommand; these do not require explicit mention.
-
-**Important:** Update the #file:./.github/instructions/command.instructions.md file incrementally. That is, revise the file immediately upon confirming the usage of each individual configuration item, rather than deferring updates until the entire review is complete.
-
-Lastly, identify any new configuration items that are not yet documented in this file and ensure their inclusion.
-
-Once all changes are completed, also update the subcommand usage documentation in #file:./README.md accordingly.
+* Review the contents of #file:.github/instructions/command.instructions.md , as it is currently outdated.
+* For **each configuration item**:
+  * Verify its correctness and relevance.
+  * Ensure the **"Actual Usage Location"** field is completed by identifying where the configuration item is actively used in the codebase.
+  * You **must** ignore all references found solely in unit or integration tests; only consider real-world, production-level usage.
+  * Exclude any configuration item that is **obviously** set through the `subx-cli config` sub-command; these do not require documentation.
+* As you validate each individual configuration item:
+  * Update #file:.github/instructions/command.instructions.md **immediately** after each clarification—**do not batch all updates at once**.
+* Cross-check the **line numbers** referenced in the call hierarchy ("呼叫樹"), and update them if necessary to reflect the current codebase.
+* Investigate whether any **new configuration items** exist that are **not yet documented** in the file, and append them accordingly.
+* Once all necessary updates are applied:
+  * Update the #file:README.md file to reflect the most recent changes to the user documentation for sub-commands.
 
 Let's do this step by step.
