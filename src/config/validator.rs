@@ -1,32 +1,161 @@
-//! Configuration validators for unified configuration management.
+//! Configuration validation system for ensuring configuration integrity.
 //!
-//! This module defines the [`ConfigValidator`] trait and concrete validators
-//! (`AIConfigValidator`, `SyncConfigValidator`, `FormatsConfigValidator`,
-//! `GeneralConfigValidator`) to ensure that a complete [`Config`] meets
-//! expected constraints and business rules.
+//! This module provides a comprehensive validation framework for SubX configurations,
+//! including specialized validators for different configuration sections and
+//! business rule enforcement.
 //!
-//! # Examples
+//! # Architecture
+//!
+//! The validation system uses the [`ConfigValidator`] trait to define validation
+//! logic for different aspects of the configuration:
+//!
+//! - [`AIConfigValidator`] - Validates AI service settings and credentials
+//! - [`SyncConfigValidator`] - Validates audio synchronization parameters
+//! - [`FormatsConfigValidator`] - Validates subtitle format processing settings
+//! - [`GeneralConfigValidator`] - Validates general application settings
+//! - `ParallelConfigValidator` - Validates parallel processing configuration
+//!
+//! # Usage
 //!
 //! ```rust
 //! use subx_cli::config::{Config, manager::ConfigError};
 //! use subx_cli::config::validator::{ConfigValidator, AIConfigValidator};
 //!
 //! let config = Config::default();
-//! AIConfigValidator.validate(&config).expect("AI configuration invalid");
+//!
+//! // Validate specific section
+//! AIConfigValidator.validate(&config)?;
+//!
+//! // Or validate all sections
+//! let validators: Vec<Box<dyn ConfigValidator>> = vec![
+//!     Box::new(AIConfigValidator),
+//!     // Add other validators...
+//! ];
+//!
+//! for validator in validators {
+//!     validator.validate(&config)?;
+//! }
+//! # Ok::<(), ConfigError>(())
 //! ```
+//!
+//! # Validation Categories
+//!
+//! ## Business Rules
+//! - API key format validation
+//! - Supported provider verification
+//! - Parameter range checking
+//!
+//! ## Data Integrity
+//! - Required field presence
+//! - Cross-field consistency
+//! - Format validation
+//!
+//! ## Security
+//! - Credential format verification
+//! - Safe default enforcement
+//! - Path traversal prevention
 
 use crate::config::Config;
 use crate::config::manager::ConfigError;
 
-/// Trait for configuration validation.
+/// Trait defining the validation interface for configuration sections.
+///
+/// Implementors provide validation logic for specific aspects of the
+/// SubX configuration, ensuring data integrity and business rule compliance.
+///
+/// # Implementation Guidelines
+///
+/// - Return specific [`ConfigError`] variants with descriptive messages
+/// - Validate both individual fields and cross-field relationships
+/// - Include the field path in error messages for easier debugging
+/// - Consider security implications of configuration values
+///
+/// # Examples
+///
+/// ```rust
+/// use subx_cli::config::{Config, manager::ConfigError};
+/// use subx_cli::config::validator::ConfigValidator;
+///
+/// struct CustomValidator;
+///
+/// impl ConfigValidator for CustomValidator {
+///     fn validate(&self, config: &Config) -> Result<(), ConfigError> {
+///         if config.ai.provider.is_empty() {
+///             return Err(ConfigError::InvalidValue(
+///                 "ai.provider".to_string(),
+///                 "Provider cannot be empty".to_string(),
+///             ));
+///         }
+///         Ok(())
+///     }
+///
+///     fn validator_name(&self) -> &'static str {
+///         "CustomValidator"
+///     }
+/// }
+/// ```
 pub trait ConfigValidator: Send + Sync {
-    /// Validate the given configuration.
+    /// Validates the given configuration.
+    ///
+    /// # Arguments
+    ///
+    /// - `config`: The complete configuration to validate
+    ///
+    /// # Returns
+    ///
+    /// Returns `Ok(())` if validation passes, or a [`ConfigError`] describing
+    /// the first validation failure encountered.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ConfigError::InvalidValue`] for field-specific validation failures,
+    /// or [`ConfigError::ValidationError`] for general validation issues.
     fn validate(&self, config: &Config) -> Result<(), ConfigError>;
-    /// Return the name of the validator.
+
+    /// Returns the human-readable name of this validator.
+    ///
+    /// Used for debugging and error reporting to identify which
+    /// validator detected a configuration issue.
     fn validator_name(&self) -> &'static str;
 }
 
-/// Validator for AI-related configuration.
+/// Validates AI service configuration settings.
+///
+/// Ensures that AI provider settings are properly configured with
+/// valid credentials, supported providers, and reasonable parameters.
+///
+/// # Validation Rules
+///
+/// ## Provider Validation
+/// - Must be a supported provider ("openai", "anthropic", "local")
+/// - Provider-specific credential format validation
+///
+/// ## API Key Validation  
+/// - OpenAI keys must start with "sk-"
+/// - Keys must meet minimum length requirements
+/// - Warn about potentially insecure key storage
+///
+/// ## Model Validation
+/// - Model must be supported by the chosen provider
+/// - Model-specific parameter validation
+///
+/// ## Parameter Validation
+/// - `max_sample_length` must be positive and reasonable
+/// - `base_url` must be a valid URL format
+///
+/// # Examples
+///
+/// ```rust
+/// use subx_cli::config::{Config, manager::ConfigError};
+/// use subx_cli::config::validator::{ConfigValidator, AIConfigValidator};
+///
+/// let mut config = Config::default();
+/// config.ai.provider = "openai".to_string();
+/// config.ai.api_key = Some("sk-valid-key-format".to_string());
+///
+/// AIConfigValidator.validate(&config)?;
+/// # Ok::<(), ConfigError>(())
+/// ```
 pub struct AIConfigValidator;
 
 impl ConfigValidator for AIConfigValidator {

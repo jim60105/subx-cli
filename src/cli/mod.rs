@@ -52,37 +52,170 @@ pub use ui::{
     print_warning,
 };
 
-/// SubX CLI 主體
+/// Main CLI application structure defining the top-level interface.
+///
+/// This structure encapsulates the entire command-line interface for SubX,
+/// providing access to all available subcommands and global options.
+///
+/// # Subcommands
+///
+/// - `match` - AI-powered subtitle file matching and intelligent renaming
+/// - `convert` - Format conversion between different subtitle standards
+/// - `sync` - Audio-subtitle synchronization with timing adjustment
+/// - `detect-encoding` - Character encoding detection and conversion
+/// - `config` - Configuration management and inspection utilities
+/// - `generate-completion` - Shell completion script generation
+/// - `cache` - Cache inspection and dry-run management
+///
+/// # Examples
+///
+/// ```rust
+/// use subx_cli::cli::Cli;
+/// use clap::Parser;
+///
+/// // Parse CLI arguments
+/// let cli = Cli::parse();
+///
+/// // Access the selected subcommand
+/// match cli.command {
+///     // Handle different commands...
+///     _ => {}
+/// }
+/// ```
+///
+/// # Global Options
+///
+/// Currently, global options are handled within individual subcommands.
+/// Future versions may include global flags such as verbosity control
+/// or configuration file overrides.
 #[derive(Parser, Debug)]
 #[command(name = "subx-cli")]
 #[command(about = "智慧字幕處理 CLI 工具")]
 #[command(version = env!("CARGO_PKG_VERSION"))]
 pub struct Cli {
     /// The subcommand to execute.
+    ///
+    /// Each subcommand provides specialized functionality for different
+    /// aspects of subtitle processing and management.
     #[command(subcommand)]
     pub command: Commands,
 }
 
-/// 子命令選項
+/// Available subcommands for the SubX CLI application.
+///
+/// Each variant represents a specific operation that can be performed
+/// by the SubX tool, with associated argument structures that define
+/// the parameters and options for that operation.
+///
+/// # Command Categories
+///
+/// ## Core Processing Commands
+/// - `Match` - AI-powered subtitle matching and renaming
+/// - `Convert` - Format conversion between subtitle standards
+/// - `Sync` - Audio-subtitle synchronization and timing adjustment
+///
+/// ## Utility Commands  
+/// - `DetectEncoding` - Character encoding detection and conversion
+/// - `Config` - Configuration management and inspection
+/// - `Cache` - Cache management and dry-run inspection
+/// - `GenerateCompletion` - Shell completion script generation
+///
+/// # Examples
+///
+/// ```rust
+/// use subx_cli::cli::{Commands, MatchArgs};
+/// use std::path::PathBuf;
+///
+/// let match_command = Commands::Match(MatchArgs {
+///     path: PathBuf::from("videos/"),
+///     dry_run: true,
+///     confidence: 80,
+///     recursive: false,
+///     backup: false,
+/// });
+/// ```
 #[derive(Subcommand, Debug)]
 pub enum Commands {
-    /// AI 匹配重命名字幕檔案
+    /// AI-powered subtitle file matching and intelligent renaming.
+    ///
+    /// Uses artificial intelligence to analyze video and subtitle files,
+    /// matching them based on content similarity and automatically
+    /// renaming subtitle files to match their corresponding videos.
     Match(MatchArgs),
-    /// 轉換字幕格式
+
+    /// Convert subtitle files between different formats.
+    ///
+    /// Supports conversion between popular subtitle formats including
+    /// SRT, ASS, VTT, and others with format-specific options.
     Convert(ConvertArgs),
-    /// 檔案編碼檢測
+
+    /// Detect and convert character encoding of subtitle files.
+    ///
+    /// Automatically detects the character encoding of subtitle files
+    /// and optionally converts them to UTF-8 for better compatibility.
     DetectEncoding(DetectEncodingArgs),
-    /// 時間軸同步校正
+
+    /// Synchronize subtitle timing with audio tracks.
+    ///
+    /// Analyzes audio content and adjusts subtitle timing to match
+    /// dialogue and speech patterns in the audio track.
     Sync(SyncArgs),
-    /// 配置管理
+
+    /// Manage and inspect application configuration.
+    ///
+    /// Provides tools for viewing, validating, and managing SubX
+    /// configuration settings from various sources.
     Config(ConfigArgs),
-    /// 產生 shell completion script
+
+    /// Generate shell completion scripts.
+    ///
+    /// Creates completion scripts for various shells (bash, zsh, fish)
+    /// to enable tab completion for SubX commands and arguments.
     GenerateCompletion(GenerateCompletionArgs),
-    /// Dry-run 快取管理
+
+    /// Manage cache and inspect dry-run results.
+    ///
+    /// Provides utilities for examining cached results, clearing cache
+    /// data, and inspecting the effects of dry-run operations.
     Cache(CacheArgs),
 }
 
-/// 執行 CLI
+/// Executes the SubX CLI application with parsed arguments.
+///
+/// This is the main entry point for CLI execution, routing parsed
+/// command-line arguments to their respective command handlers.
+///
+/// # Arguments Processing
+///
+/// The function takes ownership of parsed CLI arguments and dispatches
+/// them to the appropriate command implementation based on the selected
+/// subcommand.
+///
+/// # Error Handling
+///
+/// Returns a [`crate::Result<()>`] that wraps any errors encountered
+/// during command execution. Errors are propagated up to the main
+/// function for proper exit code handling.
+///
+/// # Examples
+///
+/// ```rust
+/// use subx_cli::cli::run;
+///
+/// # tokio_test::block_on(async {
+/// // This would typically be called from main()
+/// // run().await?;
+/// # Ok::<(), Box<dyn std::error::Error>>(())
+/// # });
+/// ```
+///
+/// # Async Context
+///
+/// This function is async because several subcommands perform I/O
+/// operations that benefit from async execution, particularly:
+/// - AI service API calls
+/// - Large file processing operations
+/// - Network-based configuration loading
 pub async fn run() -> crate::Result<()> {
     let cli = Cli::parse();
 

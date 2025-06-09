@@ -1,16 +1,86 @@
-//! Partial configuration structures and merging logic.
+//! Partial configuration structures for flexible multi-source configuration loading.
+//!
+//! This module provides partial configuration structures that support merging
+//! configurations from multiple sources (files, environment variables, CLI arguments)
+//! with proper priority handling and validation.
+//!
+//! # Design Pattern
+//!
+//! The partial configuration system uses `Option<T>` fields to distinguish between
+//! "not specified" and "explicitly set to default". This allows for proper
+//! configuration layering where higher-priority sources can override lower-priority
+//! ones without losing intentionally set default values.
+//!
+//! # Examples
+//!
+//! ```rust
+//! use subx_cli::config::partial::{PartialConfig, PartialAIConfig};
+//!
+//! // Create base configuration
+//! let mut base = PartialConfig::default();
+//! base.ai.provider = Some("openai".to_string());
+//!
+//! // Create override configuration
+//! let mut override_cfg = PartialConfig::default();
+//! override_cfg.ai.model = Some("gpt-4".to_string());
+//!
+//! // Merge configurations (override_cfg takes priority)
+//! base.merge(override_cfg).expect("Merge failed");
+//!
+//! // Convert to complete configuration
+//! let complete = base.to_complete_config().expect("Validation failed");
+//! ```
+//!
+//! # Merging Logic
+//!
+//! When merging two partial configurations:
+//! - `None` values are ignored (no change)
+//! - `Some(value)` replaces the existing value
+//! - Nested structures are recursively merged
+//! - Arrays can use different overflow strategies
 
 use crate::config::OverflowStrategy;
 use serde::{Deserialize, Serialize};
 
-/// Partial configuration for all sections.
+/// Partial configuration structure supporting multi-source merging.
+///
+/// This structure represents a configuration that can be incomplete,
+/// with `Option<T>` fields allowing for selective overrides when
+/// merging multiple configuration sources.
+///
+/// # Fields
+///
+/// - `ai`: AI service configuration (provider, API keys, models)
+/// - `formats`: Subtitle format processing settings
+/// - `sync`: Audio-subtitle synchronization parameters
+/// - `general`: General application settings
+/// - `parallel`: Parallel processing configuration
+///
+/// # Examples
+///
+/// ```rust
+/// use subx_cli::config::partial::PartialConfig;
+///
+/// let mut config = PartialConfig::default();
+/// config.ai.provider = Some("openai".to_string());
+/// config.ai.model = Some("gpt-4".to_string());
+///
+/// // Convert to complete configuration for use
+/// let complete = config.to_complete_config()?;
+/// # Ok::<(), Box<dyn std::error::Error>>(())
+/// ```
 #[derive(Debug, Default, Serialize, Deserialize)]
 #[serde(default)]
 pub struct PartialConfig {
+    /// AI service configuration options.
     pub ai: PartialAIConfig,
+    /// Subtitle format processing settings.
     pub formats: PartialFormatsConfig,
+    /// Audio synchronization parameters.
     pub sync: PartialSyncConfig,
+    /// General application settings.
     pub general: PartialGeneralConfig,
+    /// Parallel processing configuration.
     pub parallel: PartialParallelConfig,
 }
 
@@ -40,13 +110,54 @@ mod tests {
     }
 }
 
-/// Partial AI configuration.
+/// Partial AI service configuration.
+///
+/// Contains optional settings for AI service integration including
+/// provider selection, authentication, model configuration, and
+/// processing parameters.
+///
+/// # Common Providers
+///
+/// - `openai` - OpenAI GPT models
+/// - `anthropic` - Anthropic Claude models  
+/// - `local` - Local AI service endpoints
+///
+/// # Examples
+///
+/// ```rust
+/// use subx_cli::config::partial::PartialAIConfig;
+///
+/// let mut ai_config = PartialAIConfig::default();
+/// ai_config.provider = Some("openai".to_string());
+/// ai_config.model = Some("gpt-4".to_string());
+/// ai_config.max_sample_length = Some(4000);
+/// ```
 #[derive(Debug, Default, Serialize, Deserialize)]
 pub struct PartialAIConfig {
+    /// AI service provider identifier.
+    ///
+    /// Supported values: "openai", "anthropic", "local"
     pub provider: Option<String>,
+
+    /// API key for authentication with the AI service.
+    ///
+    /// Should be kept secure and loaded from environment variables
+    /// or secure configuration files.
     pub api_key: Option<String>,
+
+    /// AI model name to use for processing.
+    ///
+    /// Model availability depends on the chosen provider.
     pub model: Option<String>,
+
+    /// Base URL for AI service API endpoints.
+    ///
+    /// Useful for custom deployments or local AI services.
     pub base_url: Option<String>,
+
+    /// Maximum length of text samples sent to AI service.
+    ///
+    /// Helps control API costs and processing time.
     pub max_sample_length: Option<usize>,
     pub temperature: Option<f32>,
     pub retry_attempts: Option<u32>,
