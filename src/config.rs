@@ -22,8 +22,12 @@ static GLOBAL_CONFIG_MANAGER: OnceLock<Mutex<ConfigManager>> = OnceLock::new();
 /// 初始化全域配置管理器
 pub fn init_config_manager() -> Result<()> {
     let lock = GLOBAL_CONFIG_MANAGER.get_or_init(|| Mutex::new(ConfigManager::new()));
+
+    // 獲取配置檔案路徑（此時環境變數應該已經設定）
+    let config_path = Config::config_file_path()?;
+
     let manager = ConfigManager::new()
-        .add_source(Box::new(FileSource::new(Config::config_file_path()?)))
+        .add_source(Box::new(FileSource::new(config_path)))
         .add_source(Box::new(EnvSource::new()))
         .add_source(Box::new(CliSource::new()));
     manager

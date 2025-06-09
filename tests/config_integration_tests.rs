@@ -4,8 +4,19 @@ use std::env;
 use subx_cli::config::{init_config_manager, load_config};
 use tempfile::TempDir;
 
+/// 重置全域配置管理器（測試專用）
+fn reset_config_manager() {
+    // 清除環境變數
+    env::remove_var("SUBX_CONFIG_PATH");
+    env::remove_var("OPENAI_API_KEY");
+    env::remove_var("OPENAI_BASE_URL");
+    env::remove_var("SUBX_AI_MODEL");
+}
+
 #[test]
 fn test_full_config_integration() {
+    reset_config_manager();
+
     let temp_dir = TempDir::new().unwrap();
     let config_path = temp_dir.path().join("config.toml");
 
@@ -22,7 +33,18 @@ max_concurrent_jobs = 8
 "#;
 
     std::fs::write(&config_path, config_content).unwrap();
-    env::set_var("SUBX_CONFIG_PATH", config_path.to_str().unwrap());
+
+    // Windows 特定修復：確保檔案完全寫入
+    #[cfg(windows)]
+    std::thread::sleep(std::time::Duration::from_millis(100));
+
+    let config_path_str = config_path
+        .canonicalize()
+        .unwrap_or(config_path.clone())
+        .to_str()
+        .unwrap()
+        .to_string();
+    env::set_var("SUBX_CONFIG_PATH", &config_path_str);
     env::set_var("OPENAI_API_KEY", "env-api-key");
 
     // 測試完整流程
@@ -43,6 +65,8 @@ max_concurrent_jobs = 8
 
 #[test]
 fn test_base_url_unified_config_integration() {
+    reset_config_manager();
+
     let temp_dir = TempDir::new().unwrap();
     let config_path = temp_dir.path().join("config.toml");
 
@@ -55,7 +79,18 @@ base_url = "https://api.custom.com/v1"
 "#;
 
     std::fs::write(&config_path, config_content).unwrap();
-    env::set_var("SUBX_CONFIG_PATH", config_path.to_str().unwrap());
+
+    // Windows 特定修復：確保檔案完全寫入
+    #[cfg(windows)]
+    std::thread::sleep(std::time::Duration::from_millis(100));
+
+    let config_path_str = config_path
+        .canonicalize()
+        .unwrap_or(config_path.clone())
+        .to_str()
+        .unwrap()
+        .to_string();
+    env::set_var("SUBX_CONFIG_PATH", &config_path_str);
     env::set_var("OPENAI_BASE_URL", "https://env-override.com/v1");
 
     // 測試統一配置系統

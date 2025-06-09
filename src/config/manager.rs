@@ -97,6 +97,7 @@ impl ConfigManager {
             let mut sources = self.sources.iter().collect::<Vec<_>>();
             // 按優先順序由低到高合併：先載入優先權低的來源，再讓優先權高的來源覆蓋
             sources.sort_by_key(|s| Reverse(s.priority()));
+
             for source in sources {
                 let cfg = source.load()?;
                 merged.merge(cfg)?;
