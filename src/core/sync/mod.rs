@@ -1,4 +1,4 @@
-//! Core 同步模組
+//! Core synchronization module.
 
 pub mod dialogue;
 pub mod engine;

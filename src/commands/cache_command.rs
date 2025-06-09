@@ -1,3 +1,19 @@
+//! Cache management command implementation.
+//!
+//! This module implements the `cache` subcommand for inspecting and clearing
+//! the subtitle matching cache persisted on disk.
+//!
+//! # Examples
+//!
+//! ```rust,ignore
+//! use subx_cli::cli::CacheArgs;
+//! use subx_cli::commands::cache_command;
+//!
+//! async fn demo(args: CacheArgs) -> subx_cli::Result<()> {
+//!     cache_command::execute(args).await
+//! }
+//! ```
+//!
 use crate::Result;
 use crate::cli::CacheArgs;
 use crate::error::SubXError;

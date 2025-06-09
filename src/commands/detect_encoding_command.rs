@@ -1,3 +1,19 @@
+//! Encoding detection command implementation.
+//!
+//! This module provides the logic for the `detect-encoding` subcommand,
+//! which analyzes subtitle files to determine their character encoding.
+//!
+//! # Examples
+//!
+//! ```rust,ignore
+//! use subx_cli::commands::detect_encoding_command;
+//! use subx_cli::Result;
+//!
+//! async fn run() -> Result<()> {
+//!     detect_encoding_command::execute(std::env::args().collect()).await
+//! }
+//! ```
+//!
 use crate::Result;
 use crate::core::formats::encoding::EncodingDetector;
 use log::error;

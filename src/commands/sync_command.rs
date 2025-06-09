@@ -1,3 +1,19 @@
+//! Subtitle synchronization command implementation.
+//!
+//! This module implements the `sync` subcommand for adjusting subtitle timing
+//! based on audio waveform and dialogue detection, improving subtitle alignment.
+//!
+//! # Examples
+//!
+//! ```rust,ignore
+//! use subx_cli::cli::SyncArgs;
+//! use subx_cli::commands::sync_command;
+//!
+//! async fn demo(args: SyncArgs) -> subx_cli::Result<()> {
+//!     sync_command::execute(args).await
+//! }
+//! ```
+//!
 use crate::Result;
 use crate::cli::SyncArgs;
 use crate::config::load_config;

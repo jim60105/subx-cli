@@ -1,3 +1,19 @@
+//! Configuration management command implementation.
+//!
+//! This module provides the `config` subcommand for viewing and updating
+//! application settings at runtime, including AI, sync, and format options.
+//!
+//! # Examples
+//!
+//! ```rust,ignore
+//! use subx_cli::cli::ConfigArgs;
+//! use subx_cli::commands::config_command;
+//!
+//! async fn demo(args: ConfigArgs) -> subx_cli::Result<()> {
+//!     config_command::execute(args).await
+//! }
+//! ```
+//!
 use crate::Result;
 use crate::cli::{ConfigAction, ConfigArgs};
 use crate::config::{Config, load_config};

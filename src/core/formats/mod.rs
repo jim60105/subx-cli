@@ -1,4 +1,7 @@
-//! Core subtitle formats 模組
+//! Core subtitle formats module.
+//!
+//! Defines common types and interfaces for parsing, converting, and managing
+//! subtitle formats such as SRT, ASS, VTT, and SUB.
 #![allow(dead_code)]
 
 pub mod ass;
@@ -13,7 +16,7 @@ pub mod vtt;
 
 use std::time::Duration;
 
-/// 支援的字幕格式類型
+/// Supported subtitle format types.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum SubtitleFormatType {
     Srt,
@@ -23,7 +26,7 @@ pub enum SubtitleFormatType {
 }
 
 impl SubtitleFormatType {
-    /// 取得格式對應字串
+    /// Get the format as a lowercase string slice (e.g., "srt").
     pub fn as_str(&self) -> &'static str {
         match self {
             SubtitleFormatType::Srt => "srt",
@@ -40,7 +43,7 @@ impl std::fmt::Display for SubtitleFormatType {
     }
 }
 
-/// 統一字幕資料結構
+/// Unified subtitle data structure containing entries, metadata, and format.
 #[derive(Debug, Clone)]
 pub struct Subtitle {
     pub entries: Vec<SubtitleEntry>,

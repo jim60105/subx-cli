@@ -10,7 +10,28 @@ use crate::core::parallel::{
 use crate::services::ai::{AIClientFactory, AIProvider};
 use indicatif::ProgressDrawTarget;
 
-/// 執行 Match 命令，支援 Dry-run 與實際操作，並允許注入 AI 服務以便測試
+/// Execute the `match` subcommand to find and rename subtitle files based on AI matching.
+///
+/// Supports dry-run mode and accepts an injectable AI client for testing.
+///
+/// # Arguments
+///
+/// * `args` - Parsed command-line arguments for matching operation.
+///
+/// # Errors
+///
+/// Returns an error if configuration loading, AI analysis, or file operations fail.
+///
+/// # Examples
+///
+/// ```rust,ignore
+/// use subx_cli::cli::MatchArgs;
+/// use subx_cli::commands::match_command;
+///
+/// async fn demo(args: MatchArgs) -> subx_cli::Result<()> {
+///     match_command::execute(args).await
+/// }
+/// ```
 pub async fn execute(args: MatchArgs) -> Result<()> {
     // 載入配置與建立 AI 客戶端
     let config = load_config()?;

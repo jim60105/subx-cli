@@ -1,3 +1,19 @@
+//! Subtitle format conversion command implementation.
+//!
+//! This module provides the `convert` subcommand logic to transform subtitle files
+//! between supported formats (e.g., SRT, ASS, VTT), preserving styling and encoding.
+//!
+//! # Examples
+//!
+//! ```rust,ignore
+//! use subx_cli::cli::ConvertArgs;
+//! use subx_cli::commands::convert_command;
+//!
+//! async fn demo(args: ConvertArgs) -> subx_cli::Result<()> {
+//!     convert_command::execute(args).await
+//! }
+//! ```
+//!
 use crate::cli::{ConvertArgs, OutputSubtitleFormat};
 use crate::config::load_config;
 use crate::core::file_manager::FileManager;

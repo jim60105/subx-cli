@@ -1,4 +1,4 @@
-//! 檔案匹配引擎模組
+//! File matching engine module.
 #![allow(dead_code)]
 
 pub mod discovery;
@@ -14,25 +14,25 @@ use crate::core::language::{LanguageDetector, LanguageInfo};
 use crate::error::SubXError;
 use std::path::{Path, PathBuf};
 
-/// 增強的檔案資訊結構，包含相對路徑與目錄上下文
+/// Extended file information structure with relative paths and context metadata.
 #[derive(Debug, Clone)]
 pub struct FileInfo {
-    /// 檔案名稱（不含路徑）
+    /// File name without directory path.
     pub name: String,
-    /// 相對於搜尋根目錄的路徑
+    /// Path relative to the search root directory.
     pub relative_path: String,
-    /// 完整的絕對路徑
+    /// Absolute file system path.
     pub full_path: PathBuf,
-    /// 所在目錄名稱
+    /// Name of the parent directory containing the file.
     pub directory: String,
-    /// 目錄深度（相對於根目錄）
+    /// Directory depth relative to the root search path.
     pub depth: usize,
-    /// 偵測出的語言編碼（如 tc、sc、en）
+    /// Detected language code information (e.g., "tc", "sc", "en").
     pub language: Option<LanguageInfo>,
 }
 
 impl FileInfo {
-    /// 建立 FileInfo，root_path 為搜尋根目錄
+    /// Construct a new `FileInfo`, given the full path and the search root.
     pub fn new(full_path: PathBuf, root_path: &Path) -> Result<Self> {
         // 統一使用 Unix 風格分隔符，確保跨平台一致性
         let relative_path = full_path

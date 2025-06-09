@@ -1,16 +1,19 @@
-//! 語言編碼識別模組
+//! Language detection module.
+//!
+//! Provides utilities to detect language codes from file paths and names,
+//! using directory names, filename patterns, and file extensions.
 use regex::Regex;
 use std::collections::HashMap;
 use std::path::Path;
 
-/// 語言資訊來源
+/// Source of detected language information.
 #[derive(Debug, Clone, PartialEq)]
 pub enum LanguageSource {
-    /// 來自目錄名稱
+    /// Derived from a parent directory name.
     Directory,
-    /// 來自檔名
+    /// Derived from the file name pattern.
     Filename,
-    /// 來自副檔名前模式
+    /// Derived from the file extension or naming convention.
     Extension,
 }
 impl Default for LanguageDetector {
@@ -19,18 +22,18 @@ impl Default for LanguageDetector {
     }
 }
 
-/// 語言識別結果
+/// Detected language information, including code, source, and confidence.
 #[derive(Debug, Clone)]
 pub struct LanguageInfo {
-    /// 標準化語言編碼，如 tc、sc、en
+    /// Standardized language code (e.g., "tc", "sc", "en").
     pub code: String,
-    /// 資訊來源
+    /// Origin of the language detection result.
     pub source: LanguageSource,
-    /// 識別信心度
+    /// Confidence score of the detection (0.0 to 1.0).
     pub confidence: f32,
 }
 
-/// 語言編碼偵測器
+/// Detector for identifying language codes from filesystem paths.
 pub struct LanguageDetector {
     language_codes: HashMap<String, String>,
     directory_patterns: Vec<String>,
@@ -38,7 +41,9 @@ pub struct LanguageDetector {
 }
 
 impl LanguageDetector {
-    /// 建立新的偵測器，初始化語言字典和模式
+    /// Create a new `LanguageDetector` with default language mappings and patterns.
+    ///
+    /// Initializes internal dictionaries and regex patterns for detection.
     pub fn new() -> Self {
         let mut language_codes = HashMap::new();
         // 繁體
@@ -69,7 +74,11 @@ impl LanguageDetector {
             filename_patterns,
         }
     }
-    /// 偵測路徑中的單一語言資訊，目錄優先，再檔名
+    /// Detect a single language information from the given path.
+    ///
+    /// # Behavior
+    ///
+    /// Attempts detection by directory name first, then by filename pattern.
     pub fn detect_from_path(&self, path: &Path) -> Option<LanguageInfo> {
         if let Some(lang) = self.detect_from_directory(path) {
             return Some(lang);
@@ -80,7 +89,11 @@ impl LanguageDetector {
         None
     }
 
-    /// 偵測路徑中主要的語言編碼
+    /// Return the primary detected language code for the provided path.
+    ///
+    /// # Returns
+    ///
+    /// `Some(code)` if detected, otherwise `None`.
     pub fn get_primary_language(&self, path: &Path) -> Option<String> {
         self.detect_all_languages(path)
             .into_iter()
@@ -88,7 +101,9 @@ impl LanguageDetector {
             .map(|lang| lang.code)
     }
 
-    /// 收集所有可能的語言資訊，並依信心度排序去重
+    /// Collect all potential language detections from the path.
+    ///
+    /// Sorts results by confidence and removes duplicates by code.
     pub fn detect_all_languages(&self, path: &Path) -> Vec<LanguageInfo> {
         let mut langs = Vec::new();
         if let Some(dir_lang) = self.detect_from_directory(path) {
