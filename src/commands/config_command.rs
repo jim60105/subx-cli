@@ -250,7 +250,7 @@ pub async fn execute(args: ConfigArgs) -> Result<()> {
         ConfigAction::Set { key, value } => {
             // Load current configuration for modification
             let mut config = load_config()?;
-            
+
             // Parse hierarchical configuration key (e.g., "ai.provider")
             let parts: Vec<&str> = key.splitn(2, '.').collect();
             if parts.len() == 2 {

@@ -193,7 +193,7 @@ use std::path::Path;
 pub fn detect_encoding_command(file_paths: &[String], verbose: bool) -> Result<()> {
     // Initialize the encoding detection engine
     let detector = EncodingDetector::new()?;
-    
+
     // Process each file individually to provide isolated error handling
     for file in file_paths {
         if !Path::new(file).exists() {

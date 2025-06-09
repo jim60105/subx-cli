@@ -204,7 +204,7 @@ pub async fn execute(args: CacheArgs) -> Result<()> {
             // Determine the appropriate cache directory using standard conventions
             let dir = dirs::config_dir().ok_or_else(|| SubXError::config("無法確定快取目錄"))?;
             let path = dir.join("subx").join("match_cache.json");
-            
+
             if path.exists() {
                 // Remove the cache file with proper error handling
                 std::fs::remove_file(&path)?;
