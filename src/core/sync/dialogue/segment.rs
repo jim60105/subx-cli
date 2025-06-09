@@ -1,4 +1,14 @@
-/// 代表一段對話或靜默的資料結構
+//! Dialogue segment representing either speech or silence interval.
+//!
+//! This struct stores timing and confidence information for detected
+//! dialogue or silence regions in audio tracks.
+//!
+//! # Examples
+//!
+//! ```rust
+//! use subx_cli::core::sync::dialogue::segment::DialogueSegment;
+//! let speech = DialogueSegment::new_speech(0.0, 1.5);
+//! ```
 #[derive(Debug, Clone)]
 pub struct DialogueSegment {
     pub start_time: f64,
@@ -8,7 +18,7 @@ pub struct DialogueSegment {
 }
 
 impl DialogueSegment {
-    /// 建立新的語音片段
+    /// Creates a new `DialogueSegment` representing a speech interval.
     pub fn new_speech(start: f64, end: f64) -> Self {
         Self {
             start_time: start,
@@ -18,7 +28,7 @@ impl DialogueSegment {
         }
     }
 
-    /// 建立新的靜默片段
+    /// Creates a new `DialogueSegment` representing a silence interval.
     pub fn new_silence(start: f64, end: f64) -> Self {
         Self {
             start_time: start,
@@ -28,12 +38,12 @@ impl DialogueSegment {
         }
     }
 
-    /// 取得片段持續時間（秒）
+    /// Returns the duration of the segment in seconds.
     pub fn duration(&self) -> f64 {
         self.end_time - self.start_time
     }
 
-    /// 判斷是否與其他片段重疊
+    /// Determines if this segment overlaps with another segment.
     pub fn overlaps_with(&self, other: &DialogueSegment) -> bool {
         self.start_time < other.end_time && self.end_time > other.start_time
     }

@@ -7,7 +7,10 @@ use crate::Result;
 use crate::core::formats::Subtitle;
 use crate::core::formats::manager::FormatManager;
 
-/// 統一格式轉換器
+/// Subtitle format converter for handling conversion tasks.
+///
+/// The `FormatConverter` coordinates conversion requests across
+/// multiple subtitle formats, managing concurrency and task scheduling.
 pub struct FormatConverter {
     format_manager: FormatManager,
     pub(crate) config: ConversionConfig,
@@ -186,6 +189,19 @@ impl FormatConverter {
             converted_entries: converted.entries.len(),
             warnings: Vec::new(),
             errors,
+//! Subtitle format conversion engine.
+//!
+//! This module provides the `FormatConverter`, which performs
+//! format conversions between different subtitle formats,
+//! supporting concurrent processing and task coordination.
+//!
+//! # Examples
+//!
+//! ```rust
+//! use subx_cli::core::formats::converter::FormatConverter;
+//! // Initialize with default configuration and run conversion tasks
+//! let converter = FormatConverter::new(Default::default());
+//! ```
         })
     }
 }

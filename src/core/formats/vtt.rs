@@ -6,7 +6,10 @@ use crate::error::SubXError;
 use regex::Regex;
 use std::time::Duration;
 
-/// WebVTT (.vtt) 格式解析（暫未實作）
+/// Subtitle format implementation for WebVTT.
+///
+/// The `VttFormat` struct implements parsing, serialization, and detection
+/// for the WebVTT subtitle format.
 pub struct VttFormat;
 
 impl SubtitleFormat for VttFormat {
@@ -178,6 +181,19 @@ mod tests {
         let out = fmt.serialize(&subtitle).expect("serialize multiple failed");
         assert!(out.contains("WEBVTT"));
         assert!(out.contains("1\n"));
+//! Web Video Text Tracks (WebVTT) subtitle format implementation.
+//!
+//! This module provides parsing, serialization, and detection capabilities
+//! for the WebVTT subtitle format, including timestamp parsing and formatting.
+//!
+//! # Examples
+//!
+//! ```rust
+//! use subx_cli::core::formats::{SubtitleFormat, VttFormat};
+//! let vtt = VttFormat;
+//! let content = "WEBVTT\n\n00:00:01.000 --> 00:00:03.000\nHello";
+//! let subtitle = vtt.parse(content).unwrap();
+//! ```
         assert!(out.contains("2\n"));
     }
 }

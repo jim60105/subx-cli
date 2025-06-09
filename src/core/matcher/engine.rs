@@ -13,7 +13,7 @@ use md5;
 use serde_json;
 use toml;
 
-/// 檔案匹配引擎配置
+/// Configuration settings for the file matching engine.
 #[derive(Debug, Clone)]
 pub struct MatchConfig {
     pub confidence_threshold: f32,
@@ -131,7 +131,7 @@ mod language_name_tests {
     }
 }
 
-/// 單次匹配操作結果
+/// Match operation result representing a single video-subtitle match.
 #[derive(Debug)]
 pub struct MatchOperation {
     pub video_file: MediaFile,
@@ -141,7 +141,7 @@ pub struct MatchOperation {
     pub reasoning: Vec<String>,
 }
 
-/// 檔案匹配引擎
+/// Engine for matching video and subtitle files using AI analysis.
 pub struct MatchEngine {
     ai_client: Box<dyn AIProvider>,
     discovery: FileDiscovery,
@@ -149,8 +149,7 @@ pub struct MatchEngine {
 }
 
 impl MatchEngine {
-    /// 建立匹配引擎，注入 AI 提供者與設定
-    // analyzer 已移除
+    /// Creates a new `MatchEngine` with the given AI provider and configuration.
     pub fn new(ai_client: Box<dyn AIProvider>, config: MatchConfig) -> Self {
         Self {
             ai_client,
@@ -159,7 +158,16 @@ impl MatchEngine {
         }
     }
 
-    /// 匹配指定路徑下的影片與字幕檔案，回傳符合閾值的匹配操作
+    /// Matches video and subtitle files under the given directory.
+    ///
+    /// # Arguments
+    ///
+    /// * `path` - Directory to scan for media files.
+    /// * `recursive` - Whether to include subdirectories.
+    ///
+    /// # Returns
+    ///
+    /// A list of `MatchOperation` entries that meet the confidence threshold.
     pub async fn match_files(&self, path: &Path, recursive: bool) -> Result<Vec<MatchOperation>> {
         // 1. 探索檔案
         let files = self.discovery.scan_directory(path, recursive)?;
@@ -445,6 +453,19 @@ impl MatchEngine {
         Ok(dir.join("subx").join("match_cache.json"))
     }
 
+//! File matching engine that uses AI content analysis to align video and subtitle files.
+//!
+//! This module provides the `MatchEngine`, which orchestrates discovery,
+//! content sampling, AI analysis, and caching to generate subtitle matching operations.
+//!
+//! # Examples
+//!
+//! ```rust
+//! use subx_cli::core::matcher::engine::{MatchEngine, MatchConfig};
+//! // Create a match engine with default configuration
+//! let config = MatchConfig { confidence_threshold: 0.8, max_sample_length: 1024, enable_content_analysis: true, backup_enabled: false };
+//! let engine = MatchEngine::new(Box::new(DummyAI), config);
+//! ```
     /// 計算目前配置雜湊，用於快取驗證
     fn calculate_config_hash(&self) -> Result<String> {
         let config = load_config()?;

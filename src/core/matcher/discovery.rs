@@ -3,7 +3,7 @@ use walkdir::WalkDir;
 
 use crate::Result;
 
-/// 媒體檔案類型
+/// Media file record representing a discovered file.
 #[derive(Debug, Clone)]
 pub struct MediaFile {
     pub path: PathBuf,
@@ -108,21 +108,21 @@ impl Default for FileDiscovery {
     }
 }
 
-/// 媒體檔案類型枚舉
+/// Enumeration of supported media file types.
 #[derive(Debug, Clone)]
 pub enum MediaFileType {
     Video,
     Subtitle,
 }
 
-/// 檔案探索器
+/// File discovery engine for scanning and classifying media files.
 pub struct FileDiscovery {
     video_extensions: Vec<String>,
     subtitle_extensions: Vec<String>,
 }
 
 impl FileDiscovery {
-    /// 建立新的檔案探索器，預設辨識常見影片與字幕副檔名
+    /// Creates a new `FileDiscovery` with default video and subtitle extensions.
     pub fn new() -> Self {
         Self {
             video_extensions: vec![
@@ -146,7 +146,12 @@ impl FileDiscovery {
         }
     }
 
-    /// 掃描指定目錄，並回傳所有符合媒體類型的檔案清單
+    /// Scans the given directory and returns all media files found.
+    ///
+    /// # Arguments
+    ///
+    /// * `path` - The root directory to scan.
+    /// * `recursive` - Whether to scan subdirectories recursively.
     pub fn scan_directory(&self, path: &Path, recursive: bool) -> Result<Vec<MediaFile>> {
         let mut files = Vec::new();
 
@@ -170,7 +175,10 @@ impl FileDiscovery {
         Ok(files)
     }
 
-    /// 根據副檔名判別媒體檔案類型，並擷取基本屬性
+    /// Classifies a file by its extension and gathers its metadata.
+    ///
+    /// Returns `Some(MediaFile)` if the file is a recognized media type,
+    /// or `None` otherwise.
     fn classify_file(&self, path: &Path) -> Result<Option<MediaFile>> {
         let extension = path
             .extension()
@@ -194,6 +202,18 @@ impl FileDiscovery {
             .to_string();
 
         Ok(Some(MediaFile {
+//! Media file discovery utilities.
+//!
+//! This module provides `FileDiscovery` to scan directories,
+//! classify media files (video and subtitle), and collect metadata needed for matching.
+//!
+//! # Examples
+//!
+//! ```rust
+//! use subx_cli::core::matcher::discovery::FileDiscovery;
+//! let disco = FileDiscovery::new();
+//! let files = disco.scan_directory("./path".as_ref(), true).unwrap();
+//! ```
             path: path.to_path_buf(),
             file_type,
             size: metadata.len(),

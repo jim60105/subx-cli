@@ -5,7 +5,7 @@ use crate::core::formats::{
 use crate::error::SubXError;
 use std::time::Duration;
 
-/// ASS 樣式定義
+/// ASS style definition for subtitle entries.
 #[derive(Debug, Clone)]
 pub struct AssStyle {
     pub name: String,
@@ -21,7 +21,7 @@ pub struct AssStyle {
     pub alignment: i32,
 }
 
-/// ASS 顏色結構
+/// ASS color structure for style entries.
 #[derive(Debug, Clone)]
 pub struct Color {
     pub r: u8,
@@ -45,7 +45,10 @@ impl Color {
     }
 }
 
-/// ASS/SSA 高級字幕格式解析（暫未實作）
+/// Subtitle format implementation for ASS/SSA.
+///
+/// The `AssFormat` struct implements parsing, serialization, and detection
+/// for the ASS/SSA subtitle format.
 pub struct AssFormat;
 
 impl SubtitleFormat for AssFormat {
@@ -201,6 +204,18 @@ fn format_ass_time(duration: Duration) -> String {
     let hours = total_ms / 3600000;
     let minutes = (total_ms % 3600000) / 60000;
     let seconds = (total_ms % 60000) / 1000;
+//! Advanced SubStation Alpha (ASS/SSA) subtitle format implementation.
+//!
+//! This module provides parsing, serialization, and detection capabilities
+//! for the ASS/SSA subtitle format, including style and color definitions.
+//!
+//! # Examples
+//!
+//! ```rust
+//! use subx_cli::core::formats::{SubtitleFormat, AssFormat};
+//! let ass = AssFormat;
+//! let subtitle = ass.parse("[Events]\nDialogue: ...").unwrap();
+//! ```
     let centi = (total_ms % 1000) / 10;
     format!("{}:{:02}:{:02}.{:02}", hours, minutes, seconds, centi)
 }

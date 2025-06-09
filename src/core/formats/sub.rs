@@ -8,7 +8,10 @@ use std::time::Duration;
 
 const DEFAULT_SUB_FPS: f32 = 25.0;
 
-/// MicroDVD/SubViewer SUB 格式解析（暫未實作）
+/// Subtitle format implementation for MicroDVD/SubViewer SUB.
+///
+/// The `SubFormat` struct implements parsing, serialization, and
+/// detection for SUB files using frame-based timing.
 pub struct SubFormat;
 
 impl SubtitleFormat for SubFormat {
@@ -142,6 +145,19 @@ mod tests {
         let fmt = SubFormat;
         let out = fmt.serialize(&subtitle).expect("serialize fps failed");
         // 1s * 50fps = 50 frames
+//! MicroDVD/SubViewer SUB subtitle format implementation.
+//!
+//! This module provides parsing, serialization, and detection
+//! for the MicroDVD/SubViewer SUB subtitle format, based on frame counts.
+//!
+//! # Examples
+//!
+//! ```rust
+//! use subx_cli::core::formats::{SubtitleFormat, SubFormat};
+//! let sub = SubFormat;
+//! let content = "{0}{25}Hello\n";
+//! let subtitle = sub.parse(content).unwrap();
+//! ```
         assert!(out.contains("{50}{100}X"));
     }
 }

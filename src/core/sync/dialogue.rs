@@ -1,3 +1,7 @@
+//! Dialogue detection and analysis modules for synchronization.
+//!
+//! This module exposes submodules to detect and segment dialogue regions
+//! from audio signals, which are used to improve subtitle synchronization.
 pub mod analyzer;
 pub mod detector;
 pub mod segment;

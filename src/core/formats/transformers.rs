@@ -2,7 +2,16 @@ use crate::core::formats::converter::FormatConverter;
 use crate::core::formats::{Subtitle, SubtitleFormatType};
 
 impl FormatConverter {
-    /// 轉換字幕物件至目標格式
+    /// Transforms a subtitle object into the target format.
+    ///
+    /// # Arguments
+    ///
+    /// * `subtitle` - The subtitle object to transform.
+    /// * `target_format` - The desired subtitle format identifier (e.g., "ass", "srt").
+    ///
+    /// # Returns
+    ///
+    /// A `Result<Subtitle>` containing the transformed subtitle object or an error.
     pub(crate) fn transform_subtitle(
         &self,
         subtitle: Subtitle,
@@ -92,6 +101,19 @@ impl FormatConverter {
         }
         subtitle.format = SubtitleFormatType::Srt;
         Ok(subtitle)
+//! Subtitle transformers for converting between different subtitle formats.
+//!
+//! This module provides utility methods to transform subtitle objects
+//! into various target formats using the `FormatConverter`.
+//!
+//! # Examples
+//!
+//! ```rust
+//! use subx_cli::core::formats::{FormatConverter, Subtitle};
+//! // Convert a subtitle object to a target format
+//! let converter = FormatConverter::new();
+//! let transformed = converter.transform_subtitle(subtitle.clone(), "ass").unwrap();
+//! ```
     }
 
     /// VTT 轉 ASS

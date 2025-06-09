@@ -84,3 +84,14 @@ impl FormatConverter {
         tag_regex.replace_all(text, "").to_string()
     }
 }
+//! Styling adjustments for subtitle formats.
+//!
+//! This module provides functions to manipulate styling (e.g., fonts,
+//! colors) for subtitle entries.
+//!
+//! # Examples
+//!
+//! ```rust
+//! use subx_cli::core::formats::styling::apply_styling;
+//! // ... apply styling adjustments to entries
+//! ```

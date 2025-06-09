@@ -1,15 +1,27 @@
+//! Subtitle synchronization engine using audio analysis and pattern matching.
+//!
+//! This module provides `SyncEngine` and related types to align subtitle timing
+//! with audio tracks based on correlation and dialogue analysis.
+//!
+//! # Examples
+//!
+//! ```rust
+//! use subx_cli::core::sync::engine::{SyncEngine, SyncConfig};
+//! let config = SyncConfig { max_offset_seconds: 5.0, correlation_threshold: 0.8, dialogue_threshold: 0.5, min_dialogue_length: 1.0 };
+//! let engine = SyncEngine::new(config);
+//! ```
 use crate::Result;
 use crate::core::formats::Subtitle;
 use crate::services::audio::{AudioAnalyzer, AudioEnvelope};
 use std::path::Path;
 
-/// 同步引擎
+/// Synchronization engine for aligning subtitles with audio tracks.
 pub struct SyncEngine {
     audio_analyzer: AudioAnalyzer,
     config: SyncConfig,
 }
 
-/// 同步配置
+/// Configuration parameters for the subtitle synchronization process.
 #[derive(Debug, Clone)]
 pub struct SyncConfig {
     pub max_offset_seconds: f32,
@@ -18,7 +30,7 @@ pub struct SyncConfig {
     pub min_dialogue_length: f32,
 }
 
-/// 同步結果
+/// Result of the subtitle synchronization process.
 #[derive(Debug)]
 pub struct SyncResult {
     pub offset_seconds: f32,
@@ -27,7 +39,7 @@ pub struct SyncResult {
     pub correlation_peak: f32,
 }
 
-/// 同步方法
+/// Available methods for synchronizing subtitles with audio.
 #[derive(Debug)]
 pub enum SyncMethod {
     AudioCorrelation,
@@ -36,7 +48,7 @@ pub enum SyncMethod {
 }
 
 impl SyncEngine {
-    /// 建立同步引擎
+    /// Creates a new `SyncEngine` instance with the given configuration.
     pub fn new(config: SyncConfig) -> Self {
         Self {
             audio_analyzer: AudioAnalyzer::new(16000),
@@ -44,7 +56,12 @@ impl SyncEngine {
         }
     }
 
-    /// 自動同步字幕
+    /// Automatically adjusts subtitle timing to match the audio in the video file.
+    ///
+    /// # Arguments
+    ///
+    /// * `video_path` - Path to the source video or audio file.
+    /// * `subtitle` - The subtitle object to synchronize.
     pub async fn sync_subtitle(
         &self,
         video_path: &Path,

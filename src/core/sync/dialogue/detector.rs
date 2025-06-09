@@ -1,17 +1,29 @@
+//! Dialogue detection module combining audio analysis and configuration.
+//!
+//! Provides `DialogueDetector` to extract speech segments from audio files
+//! based on energy thresholds and configuration parameters.
+//!
+//! # Examples
+//!
+//! ```rust
+//! use subx_cli::core::sync::dialogue::detector::DialogueDetector;
+//! let detector = DialogueDetector::new().unwrap();
+//! // detector.detect_dialogue(&path).await;
+//! ```
 use crate::Result;
 use crate::config::{SyncConfig, load_config};
 use crate::core::sync::dialogue::{DialogueSegment, EnergyAnalyzer};
 use crate::services::audio::AudioData;
 use std::path::Path;
 
-/// 主對話檢測器，整合能量分析與配置
+/// Dialogue detector integrating energy analysis and sync configuration.
 pub struct DialogueDetector {
     energy_analyzer: EnergyAnalyzer,
     config: SyncConfig,
 }
 
 impl DialogueDetector {
-    /// 建立對話檢測器，從配置讀取參數
+    /// Creates a new `DialogueDetector` by loading sync parameters from configuration.
     pub fn new() -> Result<Self> {
         let config = load_config()?.sync;
         let energy_analyzer = EnergyAnalyzer::new(
@@ -24,7 +36,7 @@ impl DialogueDetector {
         })
     }
 
-    /// 執行對話檢測，回傳語音活動片段清單
+    /// Performs dialogue detection and returns a list of speech activity segments.
     pub async fn detect_dialogue(&self, audio_path: &Path) -> Result<Vec<DialogueSegment>> {
         // 若未啟用，直接回傳空列表
         if !self.config.enable_dialogue_detection {
@@ -74,7 +86,7 @@ impl DialogueDetector {
         optimized
     }
 
-    /// 計算語音佔比，以評估語音活動程度
+    /// Calculates the ratio of speech segments to total time for activity assessment.
     pub fn get_speech_ratio(&self, segments: &[DialogueSegment]) -> f32 {
         let total: f64 = segments.iter().map(|s| s.duration()).sum();
         let speech: f64 = segments

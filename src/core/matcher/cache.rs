@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 
-/// 檔案快照項目，用於比對目錄檔案狀態
+/// Snapshot item representing a file state for directory comparison.
 #[derive(Debug, Serialize, Deserialize, PartialEq, Eq, Clone)]
 pub struct SnapshotItem {
     pub name: String,
@@ -9,7 +9,7 @@ pub struct SnapshotItem {
     pub file_type: String,
 }
 
-/// 單筆匹配操作快取結構
+/// Single match operation cache item storing result details.
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct OpItem {
     pub video_file: String,
@@ -19,7 +19,7 @@ pub struct OpItem {
     pub reasoning: Vec<String>,
 }
 
-/// Dry-run 快取資料結構
+/// Dry-run cache data structure containing snapshot and match history.
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct CacheData {
     pub cache_version: String,
@@ -32,10 +32,21 @@ pub struct CacheData {
 }
 
 impl CacheData {
-    /// 從檔案載入快取資料
+    /// Loads cache data from the specified file path.
     pub fn load(path: &std::path::Path) -> Result<Self, anyhow::Error> {
         let content = std::fs::read_to_string(path)?;
         let data = serde_json::from_str(&content)?;
         Ok(data)
     }
 }
+//! Caching utilities for the file matching engine.
+//!
+//! Defines cache data structures and operations to store and retrieve
+//! previous matching results for faster repeated execution.
+//!
+//! # Examples
+//!
+//! ```rust
+//! use subx_cli::core::matcher::cache::{CacheData, SnapshotItem, OpItem};
+//! // Load existing cache or initialize a new one
+//! ```
