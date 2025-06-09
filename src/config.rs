@@ -20,6 +20,20 @@ use std::sync::{Mutex, OnceLock};
 
 static GLOBAL_CONFIG_MANAGER: OnceLock<Mutex<ConfigManager>> = OnceLock::new();
 
+/// 重置全域配置管理器（僅供測試使用）
+///
+/// 此函式會重置底層的 OnceLock，讓後續的 init_config_manager
+/// 可以重新建立新的 ConfigManager 實例。
+#[allow(invalid_reference_casting)]
+pub fn reset_global_config_manager() {
+    // 使用 ptr::write 重建 OnceLock，覆蓋先前的鎖定狀態
+    unsafe {
+        // 取得靜態變數的可變指標，並以新的 OnceLock 覆蓋先前狀態
+        let dst = &GLOBAL_CONFIG_MANAGER as *const _ as *mut OnceLock<Mutex<ConfigManager>>;
+        std::ptr::write(dst, OnceLock::new());
+    }
+}
+
 /// 初始化全域配置管理器
 pub fn init_config_manager() -> Result<()> {
     let lock = GLOBAL_CONFIG_MANAGER.get_or_init(|| Mutex::new(ConfigManager::new()));

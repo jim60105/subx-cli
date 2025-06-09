@@ -1,11 +1,12 @@
 //! 配置系統整合測試
 
 use log::debug;
+use serial_test::serial;
 use std::env;
-use subx_cli::config::{init_config_manager, load_config};
+use subx_cli::config::{init_config_manager, load_config, reset_global_config_manager};
 use tempfile::TempDir;
 
-/// 重置全域配置管理器（測試專用）
+/// 重置測試過程中可能殘留的環境與配置狀態
 fn reset_config_manager() {
     // 清除環境變數
     unsafe {
@@ -14,9 +15,12 @@ fn reset_config_manager() {
         env::remove_var("OPENAI_BASE_URL");
         env::remove_var("SUBX_AI_MODEL");
     }
+    // 重置全域配置管理器
+    reset_global_config_manager();
 }
 
 #[test]
+#[serial]
 fn test_full_config_integration() {
     // Initialize logger for test
     let _ = env_logger::builder()
@@ -119,6 +123,7 @@ max_concurrent_jobs = 8
 }
 
 #[test]
+#[serial]
 fn test_base_url_unified_config_integration() {
     // Initialize logger for test
     let _ = env_logger::builder()
