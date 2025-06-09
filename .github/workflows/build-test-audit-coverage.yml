@@ -59,9 +59,13 @@ jobs:
 
     - name: Run tests
       run: cargo test --verbose
+      env:
+        RUST_LOG: debug
 
     - name: Run integration tests
       run: cargo test --test '*' --verbose
+      env:
+        RUST_LOG: debug
 
   security:
     name: Security Audit

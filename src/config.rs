@@ -5,6 +5,7 @@ use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 
 use crate::{error::SubXError, Result};
+use log::debug;
 
 // Submodules for unified configuration management core
 pub mod cache;
@@ -25,30 +26,55 @@ pub fn init_config_manager() -> Result<()> {
 
     // 獲取配置檔案路徑（此時環境變數應該已經設定）
     let config_path = Config::config_file_path()?;
+    debug!("init_config_manager: Using config path: {:?}", config_path);
+    debug!(
+        "init_config_manager: Config path exists: {}",
+        config_path.exists()
+    );
 
     let manager = ConfigManager::new()
         .add_source(Box::new(FileSource::new(config_path)))
         .add_source(Box::new(EnvSource::new()))
         .add_source(Box::new(CliSource::new()));
-    manager
-        .load()
-        .map_err(|e| SubXError::config(e.to_string()))?;
+    debug!("init_config_manager: Created manager with 3 sources");
+
+    manager.load().map_err(|e| {
+        debug!("init_config_manager: Manager load failed: {}", e);
+        SubXError::config(e.to_string())
+    })?;
+    debug!("init_config_manager: Manager loaded successfully");
+
     let mut guard = lock.lock().unwrap();
     *guard = manager;
+    debug!("init_config_manager: Updated global manager");
     Ok(())
 }
 
 /// 載入應用程式配置（替代 Config::load()）
 pub fn load_config() -> Result<Config> {
+    debug!("load_config: Getting global config manager");
     let lock = GLOBAL_CONFIG_MANAGER.get().ok_or_else(|| {
+        debug!("load_config: Global config manager not initialized");
         SubXError::config("配置管理器尚未初始化，請先呼叫 init_config_manager()".to_string())
     })?;
+    debug!("load_config: Locking manager");
     let manager = lock.lock().unwrap();
     let config_lock = manager.config();
+    debug!("load_config: Getting partial config");
     let partial_config = config_lock.read().unwrap();
-    let config = partial_config
-        .to_complete_config()
-        .map_err(|e| SubXError::config(e.to_string()))?;
+    debug!(
+        "load_config: partial_config.ai.max_sample_length = {:?}",
+        partial_config.ai.max_sample_length
+    );
+    debug!("load_config: Converting to complete config");
+    let config = partial_config.to_complete_config().map_err(|e| {
+        debug!("load_config: to_complete_config failed: {}", e);
+        SubXError::config(e.to_string())
+    })?;
+    debug!(
+        "load_config: Final config.ai.max_sample_length = {}",
+        config.ai.max_sample_length
+    );
     Ok(config)
 }
 
@@ -343,11 +369,18 @@ impl Config {
 
     /// 取得配置檔案路徑
     pub fn config_file_path() -> Result<PathBuf> {
+        debug!("config_file_path: Checking SUBX_CONFIG_PATH environment variable");
         if let Ok(custom) = std::env::var("SUBX_CONFIG_PATH") {
-            return Ok(PathBuf::from(custom));
+            debug!("config_file_path: Using custom path from env: {}", custom);
+            let path = PathBuf::from(custom);
+            debug!("config_file_path: Custom path exists: {}", path.exists());
+            return Ok(path);
         }
+        debug!("config_file_path: SUBX_CONFIG_PATH not set, using default");
         let dir = dirs::config_dir().ok_or_else(|| SubXError::config("無法確定配置目錄"))?;
-        Ok(dir.join("subx").join("config.toml"))
+        let default_path = dir.join("subx").join("config.toml");
+        debug!("config_file_path: Default path: {:?}", default_path);
+        Ok(default_path)
     }
 
     #[allow(dead_code)]

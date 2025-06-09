@@ -1,5 +1,6 @@
 //! 配置系統整合測試
 
+use log::debug;
 use std::env;
 use subx_cli::config::{init_config_manager, load_config};
 use tempfile::TempDir;
@@ -15,6 +16,12 @@ fn reset_config_manager() {
 
 #[test]
 fn test_full_config_integration() {
+    // Initialize logger for test
+    let _ = env_logger::builder()
+        .is_test(true)
+        .filter_level(log::LevelFilter::Debug)
+        .try_init();
+
     reset_config_manager();
 
     let temp_dir = TempDir::new().unwrap();
@@ -38,18 +45,60 @@ max_concurrent_jobs = 8
     #[cfg(windows)]
     std::thread::sleep(std::time::Duration::from_millis(100));
 
+    // 添加詳細除錯資訊
+    debug!("Original config file path: {:?}", config_path);
+    debug!(
+        "Config file exists before canonicalize: {}",
+        config_path.exists()
+    );
+
+    if config_path.exists() {
+        let content = std::fs::read_to_string(&config_path).unwrap();
+        debug!("Config file content:\n{}", content);
+        debug!("Config file size: {} bytes", content.len());
+    }
+
     let config_path_str = config_path
         .canonicalize()
-        .unwrap_or(config_path.clone())
+        .unwrap_or_else(|e| {
+            debug!("Canonicalize failed: {}, using original path", e);
+            config_path.clone()
+        })
         .to_str()
         .unwrap()
         .to_string();
+
+    debug!("Final config path string: {}", config_path_str);
+    debug!("Setting SUBX_CONFIG_PATH environment variable");
     env::set_var("SUBX_CONFIG_PATH", &config_path_str);
     env::set_var("OPENAI_API_KEY", "env-api-key");
 
+    // 驗證環境變數設定
+    match env::var("SUBX_CONFIG_PATH") {
+        Ok(path) => debug!("SUBX_CONFIG_PATH = {}", path),
+        Err(e) => debug!("Failed to read SUBX_CONFIG_PATH: {}", e),
+    }
+
+    debug!("Calling init_config_manager()");
     // 測試完整流程
     assert!(init_config_manager().is_ok());
+
+    debug!("Calling load_config()");
     let config = load_config().unwrap();
+
+    // 添加詳細的配置值除錯資訊
+    debug!("Loaded config values:");
+    debug!("  config.ai.model = {}", config.ai.model);
+    debug!(
+        "  config.ai.max_sample_length = {}",
+        config.ai.max_sample_length
+    );
+    debug!("  config.ai.provider = {}", config.ai.provider);
+    debug!(
+        "  config.general.max_concurrent_jobs = {}",
+        config.general.max_concurrent_jobs
+    );
+    debug!("  config.ai.api_key = {:?}", config.ai.api_key);
 
     // 驗證檔案配置載入
     assert_eq!(config.ai.model, "gpt-4");
@@ -65,6 +114,12 @@ max_concurrent_jobs = 8
 
 #[test]
 fn test_base_url_unified_config_integration() {
+    // Initialize logger for test
+    let _ = env_logger::builder()
+        .is_test(true)
+        .filter_level(log::LevelFilter::Debug)
+        .try_init();
+
     reset_config_manager();
 
     let temp_dir = TempDir::new().unwrap();

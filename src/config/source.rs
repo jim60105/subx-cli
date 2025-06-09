@@ -2,6 +2,7 @@
 
 use crate::config::manager::ConfigError;
 use crate::config::partial::PartialConfig;
+use log::debug;
 use std::path::PathBuf;
 
 /// Trait for configuration source.
@@ -32,13 +33,33 @@ impl FileSource {
 
 impl ConfigSource for FileSource {
     fn load(&self) -> Result<PartialConfig, ConfigError> {
+        debug!("FileSource: Attempting to load from path: {:?}", self.path);
+        debug!("FileSource: Path exists: {}", self.path.exists());
+
         if !self.path.exists() {
+            debug!("FileSource: Path does not exist, returning default config");
             return Ok(PartialConfig::default());
         }
 
-        let content = std::fs::read_to_string(&self.path)?;
-        let cfg: PartialConfig =
-            toml::from_str(&content).map_err(|e| ConfigError::ParseError(e.to_string()))?;
+        let content = std::fs::read_to_string(&self.path).map_err(|e| {
+            debug!("FileSource: Failed to read file: {}", e);
+            e
+        })?;
+        debug!("FileSource: Read {} bytes from file", content.len());
+        debug!("FileSource: File content:\n{}", content);
+
+        let cfg: PartialConfig = toml::from_str(&content).map_err(|e| {
+            debug!("FileSource: TOML parsing failed: {}", e);
+            ConfigError::ParseError(e.to_string())
+        })?;
+
+        debug!("FileSource: Parsed successfully");
+        debug!(
+            "FileSource: cfg.ai.max_sample_length = {:?}",
+            cfg.ai.max_sample_length
+        );
+        debug!("FileSource: cfg.ai.model = {:?}", cfg.ai.model);
+        debug!("FileSource: cfg.ai.provider = {:?}", cfg.ai.provider);
 
         Ok(cfg)
     }

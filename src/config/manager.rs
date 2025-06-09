@@ -3,6 +3,7 @@
 use std::io;
 use std::sync::{Arc, RwLock};
 
+use log::debug;
 use notify::{EventKind, RecommendedWatcher, RecursiveMode, Watcher};
 use tokio::sync::watch;
 
@@ -92,18 +93,40 @@ impl ConfigManager {
 
     /// Load configuration by merging all sources in order of priority.
     pub fn load(&self) -> Result<(), ConfigError> {
+        debug!("ConfigManager: Starting to load configuration");
         let result: Result<(), ConfigError> = (|| {
             let mut merged = PartialConfig::default();
             let mut sources = self.sources.iter().collect::<Vec<_>>();
             // 按優先順序由低到高合併：先載入優先權低的來源，再讓優先權高的來源覆蓋
             sources.sort_by_key(|s| Reverse(s.priority()));
 
-            for source in sources {
+            debug!("ConfigManager: Loading {} sources in order", sources.len());
+            for (i, source) in sources.iter().enumerate() {
+                debug!(
+                    "ConfigManager: Loading source {} - '{}' (priority {})",
+                    i + 1,
+                    source.source_name(),
+                    source.priority()
+                );
                 let cfg = source.load()?;
+                debug!(
+                    "ConfigManager: Source '{}' returned cfg.ai.max_sample_length = {:?}",
+                    source.source_name(),
+                    cfg.ai.max_sample_length
+                );
                 merged.merge(cfg)?;
+                debug!(
+                    "ConfigManager: After merging '{}', merged.ai.max_sample_length = {:?}",
+                    source.source_name(),
+                    merged.ai.max_sample_length
+                );
             }
             let mut lock = self.config.write().unwrap();
             *lock = merged;
+            debug!(
+                "ConfigManager: Final stored config.ai.max_sample_length = {:?}",
+                lock.ai.max_sample_length
+            );
             Ok(())
         })();
         match result {
