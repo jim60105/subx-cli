@@ -26,6 +26,8 @@
 
 報告檔案命名格式：`[編號]-[任務簡稱]-report.md`
 
+> 編號是為循序增加的整數，並非任務或 Backlog 編號。請查看現有的報告檔案以獲取最新編號。
+
 **範例**：
 - `01-project-foundation-report.md`
 - `15-ai-service-integration-report.md`

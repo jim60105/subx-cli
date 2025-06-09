@@ -10,7 +10,9 @@ date: "[YYYY-MM-DDTHH:MM:SSZ]"
 **類型**：[Backlog | Bug Fix | Enhancement | Refactor | Test]  
 **狀態**：[進行中 | 已完成 | 部分完成]
 
-> Always get the date with `date -u +"%Y-%m-%dT%H:%M:%SZ"` command.
+> [!TIP]  
+> Always get the date with `date -u +"%Y-%m-%dT%H:%M:%SZ"` command.  
+> (Do not include this tip in the final report)
 
 ## 一、任務概述
 

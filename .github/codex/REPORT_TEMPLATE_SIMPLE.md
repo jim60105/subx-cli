@@ -8,7 +8,9 @@ date: "[YYYY-MM-DDTHH:MM:SSZ]"
 **日期**：[YYYY-MM-DDTHH:MM:SSZ]  
 **任務**：[簡要描述此次任務的目標]
 
-> Always get the date with `date -u +"%Y-%m-%dT%H:%M:%SZ"` command.
+> [!TIP]  
+> Always get the date with `date -u +"%Y-%m-%dT%H:%M:%SZ"` command.  
+> (Do not include this tip in the final report)
 
 ## 一、實作內容
 
