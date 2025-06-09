@@ -1,14 +1,14 @@
+use crate::Result;
 use crate::cli::display_ai_usage;
 use crate::error::SubXError;
 use crate::services::ai::AiUsageStats;
 use crate::services::ai::{
     AIProvider, AnalysisRequest, ConfidenceScore, MatchResult, VerificationRequest,
 };
-use crate::Result;
 use async_trait::async_trait;
 use reqwest::Client;
-use serde_json::json;
 use serde_json::Value;
+use serde_json::json;
 use std::time::Duration;
 use tokio::time;
 

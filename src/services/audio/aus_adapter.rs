@@ -1,6 +1,6 @@
 //! aus crate 適配器模組
 
-use crate::{error::SubXError, Result};
+use crate::{Result, error::SubXError};
 use aus::AudioFile;
 use std::path::Path;
 

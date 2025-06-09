@@ -1,6 +1,6 @@
+use crate::Result;
 use crate::core::formats::Subtitle;
 use crate::services::audio::{AudioAnalyzer, AudioEnvelope};
-use crate::Result;
 use std::path::Path;
 
 /// 同步引擎

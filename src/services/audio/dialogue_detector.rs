@@ -1,8 +1,8 @@
 //! 基於 aus crate 的對話檢測器
 
-use crate::services::audio::DialogueSegment;
 use crate::Result;
-use aus::{analysis, spectrum, AudioFile, WindowType};
+use crate::services::audio::DialogueSegment;
+use aus::{AudioFile, WindowType, analysis, spectrum};
 use std::collections::VecDeque;
 
 /// 基於 aus 分析的對話檢測器

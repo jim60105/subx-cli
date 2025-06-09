@@ -1,6 +1,6 @@
+use crate::Result;
 use crate::cli::CacheArgs;
 use crate::error::SubXError;
-use crate::Result;
 use dirs;
 
 /// 執行 Cache 命令

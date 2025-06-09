@@ -1,7 +1,7 @@
-use crate::config::{load_config, SyncConfig};
+use crate::Result;
+use crate::config::{SyncConfig, load_config};
 use crate::core::sync::dialogue::{DialogueSegment, EnergyAnalyzer};
 use crate::services::audio::AudioData;
-use crate::Result;
 use std::path::Path;
 
 /// 主對話檢測器，整合能量分析與配置

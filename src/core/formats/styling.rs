@@ -1,7 +1,7 @@
 use regex::Regex;
 
-use crate::core::formats::converter::FormatConverter;
 use crate::core::formats::StylingInfo;
+use crate::core::formats::converter::FormatConverter;
 
 impl FormatConverter {
     /// 從 SRT 標籤擷取樣式資訊

@@ -1,8 +1,8 @@
+use crate::Result;
 use crate::core::formats::{
     Subtitle, SubtitleEntry, SubtitleFormat, SubtitleFormatType, SubtitleMetadata,
 };
 use crate::error::SubXError;
-use crate::Result;
 use std::time::Duration;
 
 /// ASS 樣式定義

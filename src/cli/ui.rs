@@ -1,5 +1,5 @@
 // src/cli/ui.rs
-use crate::cli::table::{create_match_table, MatchDisplayRow};
+use crate::cli::table::{MatchDisplayRow, create_match_table};
 use crate::core::matcher::MatchOperation;
 use colored::*;
 use indicatif::{ProgressBar, ProgressStyle};

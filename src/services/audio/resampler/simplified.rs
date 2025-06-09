@@ -1,7 +1,7 @@
 //! 簡化的重採樣器
 
-use crate::services::audio::AudioData;
 use crate::Result;
+use crate::services::audio::AudioData;
 
 /// 簡化的線性重採樣器
 pub struct SimplifiedResampler {

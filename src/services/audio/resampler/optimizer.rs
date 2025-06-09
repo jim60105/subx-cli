@@ -1,11 +1,11 @@
 //! 音訊採樣率最佳化器
 #![allow(dead_code, unused_imports)]
 
-use crate::config::{load_config, SyncConfig};
-use crate::services::audio::resampler::detector::AudioUseCase;
-use crate::services::audio::resampler::QualityAssessor;
-use crate::services::audio::{AudioData, SampleRateDetector};
 use crate::Result;
+use crate::config::{SyncConfig, load_config};
+use crate::services::audio::resampler::QualityAssessor;
+use crate::services::audio::resampler::detector::AudioUseCase;
+use crate::services::audio::{AudioData, SampleRateDetector};
 
 /// 採樣率最佳化器
 pub struct SampleRateOptimizer {

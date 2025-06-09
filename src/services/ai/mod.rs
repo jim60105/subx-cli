@@ -92,4 +92,4 @@ pub mod retry;
 
 pub use cache::AICache;
 pub use openai::OpenAIClient;
-pub use retry::{retry_with_backoff, RetryConfig};
+pub use retry::{RetryConfig, retry_with_backoff};

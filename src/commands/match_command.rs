@@ -1,5 +1,6 @@
-use crate::cli::display_match_results;
+use crate::Result;
 use crate::cli::MatchArgs;
+use crate::cli::display_match_results;
 use crate::config::init_config_manager;
 use crate::config::load_config;
 use crate::core::matcher::{FileDiscovery, MatchConfig, MatchEngine, MediaFileType};
@@ -8,7 +9,6 @@ use crate::core::parallel::{
 };
 use crate::error::SubXError;
 use crate::services::ai::{AIProvider, OpenAIClient};
-use crate::Result;
 
 /// 執行 Match 命令，支援 Dry-run 與實際操作，並允許注入 AI 服務以便測試
 pub async fn execute(args: MatchArgs) -> Result<()> {
@@ -118,7 +118,7 @@ async fn monitor_batch_execution(
     tasks: Vec<Box<dyn Task + Send + Sync>>,
     progress_bar: &indicatif::ProgressBar,
 ) -> Result<Vec<TaskResult>> {
-    use tokio::time::{interval, Duration};
+    use tokio::time::{Duration, interval};
     let handles: Vec<_> = tasks
         .into_iter()
         .map(|t| {

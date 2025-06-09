@@ -1,7 +1,7 @@
-use crate::cli::{ConfigAction, ConfigArgs};
-use crate::config::{load_config, Config};
-use crate::error::SubXError;
 use crate::Result;
+use crate::cli::{ConfigAction, ConfigArgs};
+use crate::config::{Config, load_config};
+use crate::error::SubXError;
 
 /// Config 子命令執行
 pub async fn execute(args: ConfigArgs) -> Result<()> {

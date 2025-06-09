@@ -1,7 +1,7 @@
 use std::fs;
 use std::path::{Path, PathBuf};
 
-use crate::{error::SubXError, Result};
+use crate::{Result, error::SubXError};
 
 /// 安全的檔案操作管理器，用於追蹤檔案建立與移除操作，並在需要時進行回滾。
 pub struct FileManager {

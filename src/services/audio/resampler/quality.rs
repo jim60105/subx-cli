@@ -1,8 +1,8 @@
 //! 音訊重採樣品質評估器
 #![allow(dead_code, unused_imports)]
 
-use crate::services::audio::AudioData;
 use crate::Result;
+use crate::services::audio::AudioData;
 
 /// 品質評估器
 pub struct QualityAssessor {

@@ -1,5 +1,5 @@
 use crate::Result;
-use tokio::time::{sleep, Duration};
+use tokio::time::{Duration, sleep};
 
 /// 重試設定
 pub struct RetryConfig {

@@ -4,7 +4,7 @@
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 
-use crate::{error::SubXError, Result};
+use crate::{Result, error::SubXError};
 use log::debug;
 
 // Submodules for unified configuration management core

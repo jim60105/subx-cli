@@ -1,5 +1,5 @@
-use crate::core::formats::encoding::charset::Charset;
 use crate::Result;
+use crate::core::formats::encoding::charset::Charset;
 use std::collections::HashMap;
 
 /// 單字節與雙字節統計分析器
@@ -52,7 +52,7 @@ impl ByteAnalyzer {
         let ascii = self
             .byte_frequency
             .iter()
-            .filter(|(&b, _)| b < 0x80)
+            .filter(|&(&b, _)| b < 0x80)
             .map(|(_, &c)| c)
             .sum::<usize>();
         if self.total_bytes > 0 {
@@ -77,7 +77,7 @@ impl ByteAnalyzer {
         let control = self
             .byte_frequency
             .iter()
-            .filter(|(&b, _)| b < 0x20 && b != 0x09 && b != 0x0A && b != 0x0D)
+            .filter(|&(&b, _)| b < 0x20 && b != 0x09 && b != 0x0A && b != 0x0D)
             .map(|(_, &c)| c)
             .sum::<usize>();
         if self.total_bytes > 0 {

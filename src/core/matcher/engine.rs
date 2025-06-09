@@ -1,10 +1,10 @@
 use crate::services::ai::{AIProvider, AnalysisRequest, ContentSample};
 use std::path::Path;
 
+use crate::Result;
 use crate::core::language::LanguageDetector;
 use crate::core::matcher::cache::{CacheData, OpItem, SnapshotItem};
 use crate::core::matcher::{FileDiscovery, MediaFile, MediaFileType};
-use crate::Result;
 
 use crate::config::load_config;
 use crate::error::SubXError;

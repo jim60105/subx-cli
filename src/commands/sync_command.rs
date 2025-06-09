@@ -1,12 +1,12 @@
+use crate::Result;
 use crate::cli::SyncArgs;
 use crate::config::load_config;
-use crate::core::formats::manager::FormatManager;
 use crate::core::formats::Subtitle;
+use crate::core::formats::manager::FormatManager;
 use crate::core::matcher::{FileDiscovery, MediaFileType};
 use crate::core::sync::dialogue::DialogueDetector;
 use crate::core::sync::{SyncConfig, SyncEngine, SyncResult};
 use crate::error::SubXError;
-use crate::Result;
 use std::path::{Path, PathBuf};
 
 /// 執行 Sync 命令

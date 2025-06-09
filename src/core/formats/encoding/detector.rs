@@ -1,6 +1,6 @@
+use crate::Result;
 use crate::config::load_config;
 use crate::core::formats::encoding::charset::{Charset, EncodingInfo};
-use crate::Result;
 use std::fs::File;
 use std::io::Read;
 

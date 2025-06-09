@@ -1,7 +1,7 @@
 //! Configuration validators for unified configuration management.
 
-use crate::config::manager::ConfigError;
 use crate::config::Config;
+use crate::config::manager::ConfigError;
 
 /// Trait for configuration validation.
 pub trait ConfigValidator: Send + Sync {

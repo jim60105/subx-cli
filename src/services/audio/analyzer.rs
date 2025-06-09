@@ -1,8 +1,8 @@
 //! 基於 aus crate 的音訊分析器
 
 use crate::services::audio::{AudioData, AudioEnvelope};
-use crate::{error::SubXError, Result};
-use aus::{analysis, operations, spectrum, AudioFile, WindowType};
+use crate::{Result, error::SubXError};
+use aus::{AudioFile, WindowType, analysis, operations, spectrum};
 use std::path::Path;
 
 /// 基於 aus 的音訊分析器

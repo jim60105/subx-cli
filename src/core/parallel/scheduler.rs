@@ -1,10 +1,10 @@
 //! Task scheduler for parallel processing
 use super::{Task, TaskResult, TaskStatus};
-use crate::config::load_config;
 use crate::Result;
+use crate::config::load_config;
 use std::collections::BinaryHeap;
 use std::sync::{Arc, Mutex};
-use tokio::sync::{oneshot, Semaphore};
+use tokio::sync::{Semaphore, oneshot};
 
 struct PendingTask {
     task: Box<dyn Task + Send + Sync>,

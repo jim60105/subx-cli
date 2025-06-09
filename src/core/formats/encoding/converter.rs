@@ -1,7 +1,7 @@
-use crate::core::formats::encoding::charset::{Charset, EncodingInfo};
 use crate::Result;
+use crate::core::formats::encoding::charset::{Charset, EncodingInfo};
 use anyhow::anyhow;
-use encoding_rs::{Encoding, BIG5, GBK, ISO_8859_2, SHIFT_JIS, UTF_8, WINDOWS_1252};
+use encoding_rs::{BIG5, Encoding, GBK, ISO_8859_2, SHIFT_JIS, UTF_8, WINDOWS_1252};
 use std::collections::HashMap;
 
 /// 編碼轉換結果

@@ -9,9 +9,9 @@ pub use discovery::{FileDiscovery, MediaFile, MediaFileType};
 pub use engine::{MatchConfig, MatchEngine, MatchOperation};
 // pub use filename_analyzer::{FilenameAnalyzer, ParsedFilename};
 pub mod cache;
+use crate::Result;
 use crate::core::language::{LanguageDetector, LanguageInfo};
 use crate::error::SubXError;
-use crate::Result;
 use std::path::{Path, PathBuf};
 
 /// 增強的檔案資訊結構，包含相對路徑與目錄上下文

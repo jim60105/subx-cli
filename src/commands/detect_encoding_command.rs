@@ -1,5 +1,5 @@
-use crate::core::formats::encoding::EncodingDetector;
 use crate::Result;
+use crate::core::formats::encoding::EncodingDetector;
 use log::error;
 use std::path::Path;
 

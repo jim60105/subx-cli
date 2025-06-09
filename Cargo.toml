@@ -1,7 +1,7 @@
 [package]
 name = "subx-cli"
 version = "0.1.0"
-edition = "2021"
+edition = "2024"
 authors = ["CHEN, CHUN <jim60105@gmail.com>"]
 description = "智慧字幕處理 CLI 工具，使用 AI 技術自動匹配、重命名和處理字幕檔案"
 license = "GPL-3.0-or-later"
@@ -12,8 +12,8 @@ categories = ["command-line-utilities", "multimedia"]
 
 [dependencies]
 # CLI 框架
-clap = { version = "4.4", features = ["derive", "cargo"] }
-clap_complete = "4.4"
+clap = { version = "4.5", features = ["derive", "cargo"] }
+clap_complete = "4.5"
 
 # 字幕格式解析相依
 regex = "1.0"
@@ -24,7 +24,7 @@ tokio = { version = "1.0", features = ["full"] }
 
 # 錯誤處理
 anyhow = "1.0"
-thiserror = "1.0"
+thiserror = "2.0"
 
 # 序列化
 serde = { version = "1.0", features = ["derive"] }
@@ -32,7 +32,7 @@ serde_json = "1.0"
 toml = "0.8"
 
 # HTTP 客戶端
-reqwest = { version = "0.11", features = ["json", "rustls-tls"] }
+reqwest = { version = "0.12", features = ["json", "rustls-tls"] }
 
 # 檔案掃描
 walkdir = "2.3"
@@ -41,7 +41,7 @@ walkdir = "2.3"
 url = "2"
 
 # 檔案變更監控
-notify = "5.1"
+notify = "8.0"
 
 # 並行處理支援
 futures = "0.3"
@@ -52,13 +52,13 @@ uuid = { version = "1.3", features = ["v4"] }
 
 # 日誌
 log = "0.4"
-env_logger = "0.10"
+env_logger = "0.11"
 
 # 用戶介面
-colored = "2.0"
-tabled = "0.15"
+colored = "3.0"
+tabled = "0.20"
 indicatif = "0.17"
-dialoguer = "0.10"
+dialoguer = "0.11"
 md5 = "0.7"
 
 # 配置管理相依：路徑解析與多核心檢測
@@ -68,7 +68,7 @@ symphonia = { version = "0.5", features = ["all"] }
 aus = "0.1.8"
 
 # 配置管理相依：路徑解析與多核心檢測
-dirs = "4.0"
+dirs = "6.0"
 num_cpus = "1.0"
 
 [dev-dependencies]
@@ -76,16 +76,16 @@ num_cpus = "1.0"
 tokio-test = "0.4"
 assert_cmd = "2.0"
 predicates = "3.0"
-tempfile = "3.8"
+tempfile = "3.10"
 
 # mock and test case generation
-mockall = "0.11"
+mockall = "0.13"
 serial_test = "3.0"
-rstest = "0.18"
+rstest = "0.25"
 test-case = "3.0"
 
 # coverage and HTTP mocking
-wiremock = "0.5"
+wiremock = "0.6"
 
 [[bin]]
 name = "subx-cli"

@@ -1,6 +1,6 @@
 //! 基於 aus 的採樣率檢測器
 
-use crate::{error::SubXError, Result};
+use crate::{Result, error::SubXError};
 use aus::AudioFile;
 use std::path::Path;
 

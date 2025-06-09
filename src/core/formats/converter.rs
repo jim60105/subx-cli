@@ -3,9 +3,9 @@ use std::path::Path;
 use std::sync::Arc;
 use tokio::sync::Semaphore;
 
-use crate::core::formats::manager::FormatManager;
-use crate::core::formats::Subtitle;
 use crate::Result;
+use crate::core::formats::Subtitle;
+use crate::core::formats::manager::FormatManager;
 
 /// 統一格式轉換器
 pub struct FormatConverter {

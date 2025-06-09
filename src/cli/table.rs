@@ -1,4 +1,4 @@
-use tabled::settings::{object::Rows, Alignment, Modify, Style};
+use tabled::settings::{Alignment, Modify, Style, object::Rows};
 use tabled::{Table, Tabled};
 
 /// 對映結果顯示列結構

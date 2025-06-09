@@ -1,6 +1,6 @@
+use crate::Result;
 use crate::error::SubXError;
 use crate::services::ai::{AnalysisRequest, ConfidenceScore, MatchResult, VerificationRequest};
-use crate::Result;
 use serde_json;
 
 impl super::OpenAIClient {

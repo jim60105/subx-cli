@@ -1,10 +1,10 @@
 //! 音訊重採樣轉換器
 #![allow(dead_code, unused_imports)]
 
-use crate::config::{load_config, SyncConfig};
+use crate::Result;
+use crate::config::{SyncConfig, load_config};
 use crate::error::SubXError;
 use crate::services::audio::AudioData;
-use crate::Result;
 
 /// 重採樣配置結構
 #[derive(Debug, Clone)]
