@@ -41,13 +41,7 @@ date: "2025-06-09T18:57:35Z"
 
 ### 2.5 補充 core 模組總覽文件
 - 為 `src/core/mod.rs` 新增核心子系統總覽與功能描述
-- 為 `src/core/file_manager.rs` 新增檔案操作管理器文件與範例
-- 為 `src/core/language.rs` 補充語言檢測模組範例與說明
-- 為 `src/core/formats/mod.rs` 補充字幕格式核心資料結構與 `SubtitleFormat` trait 文件
-- 為 `src/core/matcher/mod.rs` 補充 `FileInfo` 文件與示例，並更新匹配邏輯說明
-- 為 `src/core/parallel/mod.rs` 補充並行處理模組總覽說明
-- 為 `src/core/sync/mod.rs` 補充同步模組總覽說明
-- 檔案變更：【F:src/core/mod.rs†L1-L16】【F:src/core/file_manager.rs†L6-L38】【F:src/core/language.rs†L1-L15】【F:src/core/formats/mod.rs†L54-L63】【F:src/core/formats/mod.rs†L72-L82】【F:src/core/formats/mod.rs†L84-L95】【F:src/core/formats/mod.rs†L97-L106】【F:src/core/matcher/mod.rs†L1-L9】【F:src/core/matcher/mod.rs†L30-L48】【F:src/core/parallel/mod.rs†L1-L8】【F:src/core/sync/mod.rs†L1-L7】
+- 檔案變更：【F:src/core/mod.rs†L1-L16】
 
 ## 三、測試與驗證
 
