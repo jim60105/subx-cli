@@ -1,28 +1,42 @@
 ---
 mode: agent
-description: "This agent is designed to automate the process of version bumping in a Rust project, following best practices for semantic versioning and changelog management. It will extract the current version, gather commit messages, format them into a changelog, increment the version number appropriately, and create a new Git commit with a tag for the release."
+description: "This agent is designed to automate the process of version bumping, following best practices for semantic versioning and changelog management. It will extract the current version, gather commit messages, format them into a changelog, increment the version number appropriately, and create a new Git commit with a tag for the release."
 ---
 # Bump Version Agent
 
-1. Extract the current version number from the `Cargo.toml` manifest file to establish a baseline for the upcoming versioning operation.
+1. Extract the current version number from the manifest file to establish a baseline for the upcoming versioning operation.
 
 2. Retrieve all commit messages with `--pretty=format:'%H%n%s%n%b%n----END----'` from the Git history that have occurred since the last git tag, denoted by the pattern `v<current_version_number>`, up to the present `HEAD` state.
 
-3. Aggregate and format the collected commit messages into a structured changelog entry, adhering strictly to the [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) specification to ensure consistency, readability, and long-term maintainability in English. NEVER REMOVE OLD CHANGELOG ENTRIES. NEVER REMOVE OLD CHANGELOG ENTRIES. NEVER REMOVE OLD CHANGELOG ENTRIES.
+3. Think out loud about the commit messages, ensuring that you understand the context and significance of each change. This step is crucial for accurately categorizing changes in the changelog.
 
-4. Programmatically increment the version number following [Semantic Versioning](https://semver.org/) conventions. The decision to increment the MAJOR, MINOR, or PATCH component should be based on the nature of the changes:
+4. Think out loud that you will not remove any old changelog entries, as this is a critical requirement to maintain the integrity of the project's history.
+
+5. Aggregate and format the collected commit messages into a structured changelog entry, adhering strictly to the [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) specification to ensure consistency, readability, and long-term maintainability in English. NEVER REMOVE OLD CHANGELOG ENTRIES. NEVER REMOVE OLD CHANGELOG ENTRIES. NEVER REMOVE OLD CHANGELOG ENTRIES.
+
+6. **MANDATORY: After updating the changelog, you MUST ensure the following structure, or the process is considered a CRITICAL FAILURE:**
+   - All version sections MUST be in strict reverse-chronological order: `Unreleased`, then the newest version, then all older versions in order.
+   - The Markdown reference-style links (e.g., `[Unreleased]: ...`, `[1.2.3]: ...`) MUST be grouped together at the very end of the file, after all version sections.
+   - You MUST NOT place any version section after the link block. You MUST NOT place the link block anywhere except the end.
+   - **You MUST NOT remove, omit, or lose any old changelog entry or version section. Every historical record MUST be preserved in full.**
+   - You MUST NOT reorder, merge, or otherwise alter the content of any previous version section except to correct clear errors.
+   - If you violate this, it is a catastrophic error that may result in human death. Triple-check your output.
+
+7. Programmatically increment the version number following [Semantic Versioning](https://semver.org/) conventions. The decision to increment the MAJOR, MINOR, or PATCH component should be based on the nature of the changes:
 
   * **MAJOR** for incompatible API changes,
   * **MINOR** for backward-compatible functionality additions,
   * **PATCH** for backward-compatible bug fixes.
 
-5. Modify the `Cargo.toml` manifest to reflect the new version number by explicitly updating the `version` field, thereby establishing the canonical source of truth for the crate's version metadata.
+8. Modify the manifest to reflect the new version number by explicitly updating the `version` field, thereby establishing the canonical source of truth for the crate's version metadata.
 
-6. Compile the project using the Cargo build system to propagate the updated version number into all associated lockfiles (`Cargo.lock`) and build artifacts, ensuring consistency across the dependency resolution graph and facilitating reproducible builds.
+9. Compile the project using the Cargo build system to propagate the updated version number into all associated lockfiles and build artifacts, ensuring consistency across the dependency resolution graph and facilitating reproducible builds.
 
-7. Git add `-A` and create a new Git commit in English encapsulating the version bump and changelog modifications, ensuring atomicity and traceability of the release change. Use here document syntax for the command so that the commit message can be multi-line and formatted properly.
+10. `git diff CHANGELOG.md` and review that you have not removed any old changelog entries, as this is a critical requirement to maintain the integrity of the project's history. Recover any entries if necessary to ensure compliance with this requirement.
 
-8. Annotate the newly created commit with a Git tag in the format `v<new_version_number>` to denote the release point in version control history.
+11. Git add `-A` and create a new Git commit in English encapsulating the version bump and changelog modifications, ensuring atomicity and traceability of the release change. Use here document syntax for the command so that the commit message can be multi-line and formatted properly.
+
+12. Annotate the newly created commit with a Git tag in the format `v<new_version_number>` to denote the release point in version control history.
 
 **Do not execute `git push` at this stage**, as the final verification and remote publishing will be performed manually to allow for pre-release inspection.
 
@@ -119,26 +133,51 @@ Avoid internal jargon or low-level commit detail—summarize the essence clearly
 ```md
 # Changelog
 
-All notable changes to this project are documented below.
+All notable changes to this project will be documented in this file.
+
+The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),  
+and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 ### Added
-- Added: Dark-mode toggle in the settings panel.
+- Added: Support for importing `.xlsx` files.
 ### Fixed
-- Fixed: Crash when loading large files on Windows.
+- Fixed: UI glitch when resizing the dashboard on mobile.
 
-## [1.2.3] - 2025-06-09
+## [1.3.0] - 2025-06-01
 ### Added
-- Added: CSV export option for reports.
-### Changed
-- Changed: Improved performance of image renderer by ~30%.
-### Fixed
-- Fixed: Memory leak in the authentication module.
-### Security
-- Security: Updated dependency `openssl` to v3.1.0 to fix CVE-2025-1234.
+- Added: Two-factor authentication support using TOTP.
+- Added: In-app notification center with unread badge count.
 
-[Unreleased]: https://github.com/org/repo/compare/v1.2.3...HEAD
-[1.2.3]: https://github.com/org/repo/compare/v1.2.2...v1.2.3
+### Changed
+- Changed: Upgraded database schema to v5; requires migration.
+- Changed: Improved search indexing performance by 40%.
+
+### Fixed
+- Fixed: Error when exporting reports with non-ASCII characters.
+
+## [1.2.1] - 2025-05-10
+### Fixed
+- Fixed: Incorrect timezone offset in exported CSV files.
+- Fixed: Crash when uploading images larger than 5MB.
+
+## [1.2.0] - 2025-04-25
+### Added
+- Added: Export to CSV and PDF options in the reports tab.
+- Added: Option to customize theme colors in user settings.
+
+### Deprecated
+- Deprecated: Legacy API v1 endpoints (will be removed in 1.4.0).
+
+### Security
+- Security: Patched XSS vulnerability in the user comment section.
+
+---
+
+[Unreleased]: https://github.com/your-org/your-repo/compare/v1.3.0...HEAD  
+[1.3.0]: https://github.com/your-org/your-repo/compare/v1.2.1...v1.3.0  
+[1.2.1]: https://github.com/your-org/your-repo/compare/v1.2.0...v1.2.1  
+[1.2.0]: https://github.com/your-org/your-repo/releases/tag/v1.2.0
 ```
 
 ---
