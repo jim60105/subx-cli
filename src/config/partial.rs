@@ -1,5 +1,6 @@
 //! Partial configuration structures and merging logic.
 
+use crate::config::OverflowStrategy;
 use serde::{Deserialize, Serialize};
 
 /// Partial configuration for all sections.
@@ -100,6 +101,8 @@ pub struct PartialParallelConfig {
     pub task_queue_size: Option<usize>,
     pub enable_task_priorities: Option<bool>,
     pub auto_balance_workers: Option<bool>,
+    /// Strategy to apply when the task queue reaches its maximum size.
+    pub queue_overflow_strategy: Option<OverflowStrategy>,
 }
 
 impl PartialConfig {
@@ -194,6 +197,9 @@ impl PartialConfig {
         }
         if let Some(v) = other.parallel.auto_balance_workers {
             self.parallel.auto_balance_workers = Some(v);
+        }
+        if let Some(v) = other.parallel.queue_overflow_strategy {
+            self.parallel.queue_overflow_strategy = Some(v);
         }
         Ok(())
     }
@@ -332,6 +338,10 @@ impl PartialConfig {
                 .parallel
                 .auto_balance_workers
                 .unwrap_or(default.parallel.auto_balance_workers),
+            queue_overflow_strategy: self
+                .parallel
+                .queue_overflow_strategy
+                .unwrap_or(default.parallel.queue_overflow_strategy),
         };
         Ok(Config {
             ai,

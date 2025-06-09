@@ -1,5 +1,5 @@
 //! Parallel processing configuration module
-use crate::config::Config;
+use crate::config::{Config, OverflowStrategy};
 use crate::error::SubXError;
 
 /// Configuration for parallel processing behavior.
@@ -17,6 +17,8 @@ pub struct ParallelConfig {
     pub enable_task_priorities: bool,
     /// Whether workers auto-balance according to load.
     pub auto_balance_workers: bool,
+    /// Strategy to apply when the task queue reaches its maximum size.
+    pub queue_overflow_strategy: OverflowStrategy,
 }
 
 #[cfg(test)]
@@ -33,6 +35,7 @@ mod tests {
             task_queue_size: 1,
             enable_task_priorities: true,
             auto_balance_workers: false,
+            queue_overflow_strategy: OverflowStrategy::Block,
         };
         assert!(invalid.validate().is_err());
 
@@ -43,6 +46,7 @@ mod tests {
             task_queue_size: 1,
             enable_task_priorities: true,
             auto_balance_workers: false,
+            queue_overflow_strategy: OverflowStrategy::Block,
         };
         assert!(valid.validate().is_ok());
     }
@@ -63,6 +67,10 @@ mod tests {
             pc.auto_balance_workers,
             app_cfg.parallel.auto_balance_workers
         );
+        assert_eq!(
+            pc.queue_overflow_strategy,
+            app_cfg.parallel.queue_overflow_strategy
+        );
     }
 }
 
@@ -77,6 +85,7 @@ impl ParallelConfig {
             task_queue_size: p.task_queue_size,
             enable_task_priorities: p.enable_task_priorities,
             auto_balance_workers: p.auto_balance_workers,
+            queue_overflow_strategy: p.queue_overflow_strategy,
         }
     }
 
@@ -100,6 +109,7 @@ impl ParallelConfig {
         if self.task_queue_size == 0 {
             return Err(SubXError::config("佇列大小 (task_queue_size) 需大於 0"));
         }
+        // Overflow strategy is always valid.
         Ok(())
     }
 }

@@ -310,6 +310,8 @@ pub struct ParallelConfig {
     pub task_queue_size: usize,
     pub enable_task_priorities: bool,
     pub auto_balance_workers: bool,
+    /// Strategy to apply when the task queue reaches its maximum size.
+    pub queue_overflow_strategy: OverflowStrategy,
 }
 
 impl Default for ParallelConfig {
@@ -320,8 +322,21 @@ impl Default for ParallelConfig {
             task_queue_size: 100,
             enable_task_priorities: true,
             auto_balance_workers: true,
+            queue_overflow_strategy: OverflowStrategy::Block,
         }
     }
+}
+
+/// Strategy to apply when the parallel task queue is full.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum OverflowStrategy {
+    /// Block until space is available.
+    Block,
+    /// Drop the oldest task in the queue.
+    DropOldest,
+    /// Reject new tasks when full.
+    Reject,
 }
 
 impl Default for Config {

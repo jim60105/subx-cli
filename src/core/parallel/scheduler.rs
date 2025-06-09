@@ -1,8 +1,9 @@
 //! Task scheduler for parallel processing
 use super::{Task, TaskResult, TaskStatus};
 use crate::Result;
-use crate::config::{Config, load_config};
+use crate::config::{Config, OverflowStrategy, load_config};
 use crate::core::parallel::config::ParallelConfig;
+use crate::error::SubXError;
 use std::collections::VecDeque;
 use std::sync::{Arc, Mutex};
 use tokio::sync::{Semaphore, oneshot};
@@ -57,6 +58,8 @@ pub struct TaskInfo {
 pub struct TaskScheduler {
     /// Parallel processing configuration
     _config: ParallelConfig,
+    /// Optional load balancer for dynamic worker adjustment
+    load_balancer: Option<crate::core::parallel::load_balancer::LoadBalancer>,
     task_queue: Arc<Mutex<VecDeque<PendingTask>>>,
     semaphore: Arc<Semaphore>,
     active_tasks: Arc<Mutex<std::collections::HashMap<String, TaskInfo>>>,
@@ -74,11 +77,16 @@ impl TaskScheduler {
         let active_tasks = Arc::new(Mutex::new(std::collections::HashMap::new()));
 
         let scheduler = Self {
-            _config: config,
+            _config: config.clone(),
             task_queue: task_queue.clone(),
             semaphore: semaphore.clone(),
             active_tasks: active_tasks.clone(),
             scheduler_handle: Arc::new(Mutex::new(None)),
+            load_balancer: if config.auto_balance_workers {
+                Some(crate::core::parallel::load_balancer::LoadBalancer::new())
+            } else {
+                None
+            },
         };
 
         // Start background scheduler loop
@@ -97,11 +105,16 @@ impl TaskScheduler {
         let active_tasks = Arc::new(Mutex::new(std::collections::HashMap::new()));
 
         let scheduler = Self {
-            _config: config,
+            _config: config.clone(),
             task_queue: task_queue.clone(),
             semaphore: semaphore.clone(),
             active_tasks: active_tasks.clone(),
             scheduler_handle: Arc::new(Mutex::new(None)),
+            load_balancer: if config.auto_balance_workers {
+                Some(crate::core::parallel::load_balancer::LoadBalancer::new())
+            } else {
+                None
+            },
         };
 
         // Start background scheduler loop
@@ -214,24 +227,41 @@ impl TaskScheduler {
             );
         }
 
-        // Enqueue task with or without priority
+        // Handle queue overflow strategy before enqueuing
+        let pending = PendingTask {
+            task,
+            result_sender: tx,
+            task_id: task_id.clone(),
+            priority,
+        };
+        if self.get_queue_size() >= self._config.task_queue_size {
+            match self._config.queue_overflow_strategy {
+                OverflowStrategy::Block => {
+                    // Block until space available
+                    while self.get_queue_size() >= self._config.task_queue_size {
+                        tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+                    }
+                }
+                OverflowStrategy::DropOldest => {
+                    let mut q = self.task_queue.lock().unwrap();
+                    q.pop_front();
+                }
+                OverflowStrategy::Reject => {
+                    return Err(SubXError::parallel_processing("任務佇列已滿".to_string()));
+                }
+            }
+        }
+        // Enqueue task according to priority setting
         {
-            let mut queue = self.task_queue.lock().unwrap();
-            let pending = PendingTask {
-                task,
-                result_sender: tx,
-                task_id: task_id.clone(),
-                priority,
-            };
+            let mut q = self.task_queue.lock().unwrap();
             if self._config.enable_task_priorities {
-                // insert by priority (higher first)
-                let pos = queue
+                let pos = q
                     .iter()
                     .position(|t| t.priority < pending.priority)
-                    .unwrap_or(queue.len());
-                queue.insert(pos, pending);
+                    .unwrap_or(q.len());
+                q.insert(pos, pending);
             } else {
-                queue.push_back(pending);
+                q.push_back(pending);
             }
         }
 
@@ -281,23 +311,42 @@ impl TaskScheduler {
                 );
             }
 
-            // 將任務加入佇列 (批次採相同優先級或 FIFO)
+            // Enqueue each task with overflow and priority handling
+            let pending = PendingTask {
+                task,
+                result_sender: tx,
+                task_id: task_id.clone(),
+                priority: TaskPriority::Normal,
+            };
+            if self.get_queue_size() >= self._config.task_queue_size {
+                match self._config.queue_overflow_strategy {
+                    OverflowStrategy::Block => {
+                        // Block until space available
+                        while self.get_queue_size() >= self._config.task_queue_size {
+                            tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+                        }
+                    }
+                    OverflowStrategy::DropOldest => {
+                        let mut q = self.task_queue.lock().unwrap();
+                        q.pop_front();
+                    }
+                    OverflowStrategy::Reject => {
+                        // Reject entire batch when queue is full
+                        return Vec::new();
+                    }
+                }
+            }
+            // Insert task according to priority setting
             {
-                let mut queue = self.task_queue.lock().unwrap();
-                let pending = PendingTask {
-                    task,
-                    result_sender: tx,
-                    task_id: task_id.clone(),
-                    priority: TaskPriority::Normal,
-                };
+                let mut q = self.task_queue.lock().unwrap();
                 if self._config.enable_task_priorities {
-                    let pos = queue
+                    let pos = q
                         .iter()
                         .position(|t| t.priority < pending.priority)
-                        .unwrap_or(queue.len());
-                    queue.insert(pos, pending);
+                        .unwrap_or(q.len());
+                    q.insert(pos, pending);
                 } else {
-                    queue.push_back(pending);
+                    q.push_back(pending);
                 }
             }
 
@@ -356,6 +405,7 @@ impl Clone for TaskScheduler {
             semaphore: Arc::clone(&self.semaphore),
             active_tasks: Arc::clone(&self.active_tasks),
             scheduler_handle: Arc::clone(&self.scheduler_handle),
+            load_balancer: self.load_balancer.clone(),
         }
     }
 }

@@ -1,5 +1,6 @@
 //! Parallel processing system module
 pub mod config;
+pub mod load_balancer;
 pub mod pool;
 pub mod scheduler;
 pub mod task;
