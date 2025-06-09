@@ -78,3 +78,82 @@ pub async fn execute(args: ConvertArgs) -> crate::Result<()> {
     }
     Ok(())
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::config::init_config_manager;
+    use std::fs;
+    use tempfile::TempDir;
+
+    #[tokio::test]
+    async fn test_convert_srt_to_vtt() -> crate::Result<()> {
+        init_config_manager()?;
+        let temp_dir = TempDir::new().unwrap();
+        let input_file = temp_dir.path().join("test.srt");
+        let output_file = temp_dir.path().join("test.vtt");
+        fs::write(
+            &input_file,
+            "1\n00:00:01,000 --> 00:00:02,000\nTest subtitle\n\n",
+        )
+        .unwrap();
+        let args = ConvertArgs {
+            input: input_file.clone(),
+            format: Some(OutputSubtitleFormat::Vtt),
+            output: Some(output_file.clone()),
+            keep_original: false,
+            encoding: String::from("utf-8"),
+        };
+        execute(args).await?;
+        let content = fs::read_to_string(&output_file).unwrap();
+        assert!(content.contains("WEBVTT"));
+        assert!(content.contains("00:00:01.000 --> 00:00:02.000"));
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_convert_batch_processing() -> crate::Result<()> {
+        init_config_manager()?;
+        let temp_dir = TempDir::new().unwrap();
+        for i in 1..=3 {
+            let file = temp_dir.path().join(format!("test{}.srt", i));
+            fs::write(
+                &file,
+                format!(
+                    "1\n00:00:0{},000 --> 00:00:0{},000\nTest {}\n\n",
+                    i,
+                    i + 1,
+                    i
+                ),
+            )
+            .unwrap();
+        }
+        let args = ConvertArgs {
+            input: temp_dir.path().to_path_buf(),
+            format: Some(OutputSubtitleFormat::Vtt),
+            output: Some(temp_dir.path().join("output")),
+            keep_original: false,
+            encoding: String::from("utf-8"),
+        };
+        // 僅檢查執行結果，不驗證實際檔案產生，由於轉換器行為外部模組控制
+        execute(args).await?;
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_convert_unsupported_format() {
+        init_config_manager().unwrap();
+        let temp_dir = TempDir::new().unwrap();
+        let input_file = temp_dir.path().join("test.txt");
+        fs::write(&input_file, "not a subtitle").unwrap();
+        let args = ConvertArgs {
+            input: input_file,
+            format: Some(OutputSubtitleFormat::Srt),
+            output: None,
+            keep_original: false,
+            encoding: String::from("utf-8"),
+        };
+        let result = execute(args).await;
+        assert!(result.is_err());
+    }
+}

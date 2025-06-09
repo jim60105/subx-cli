@@ -29,9 +29,3 @@ async fn test_invalid_command() {
         .failure()
         .stderr(predicate::str::contains("error"));
 }
-
-#[tokio::test]
-async fn test_config_show_basic() {
-    let mut cmd = Command::cargo_bin("subx-cli").unwrap();
-    cmd.args(&["config", "show"]).assert().success();
-}

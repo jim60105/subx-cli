@@ -168,7 +168,7 @@ fn create_progress_bar(total: usize) -> indicatif::ProgressBar {
 
 #[cfg(test)]
 mod tests {
-    use super::execute_with_client;
+    use super::{execute_parallel_match, execute_with_client};
     use crate::cli::MatchArgs;
     use crate::config::init_config_manager;
     use crate::services::ai::{
@@ -240,6 +240,16 @@ mod tests {
             subtitle.exists(),
             "dry_run 不應執行 execute_operations，字幕檔仍須存在"
         );
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_execute_parallel_match_no_files() -> crate::Result<()> {
+        let temp_dir = tempdir()?;
+        init_config_manager()?;
+        // 無任何影片檔案時應正常返回
+        let result = execute_parallel_match(&temp_dir.path(), false, None).await;
+        assert!(result.is_ok());
         Ok(())
     }
 }
