@@ -1,7 +1,8 @@
 //! Task scheduler for parallel processing
 use super::{Task, TaskResult, TaskStatus};
 use crate::Result;
-use crate::config::load_config;
+use crate::config::{Config, load_config};
+use crate::core::parallel::config::ParallelConfig;
 use std::collections::BinaryHeap;
 use std::sync::{Arc, Mutex};
 use tokio::sync::{Semaphore, oneshot};
@@ -54,9 +55,10 @@ pub struct TaskInfo {
 
 /// Scheduler to manage and execute tasks in parallel
 pub struct TaskScheduler {
+    /// Parallel processing configuration
+    _config: ParallelConfig,
     task_queue: Arc<Mutex<BinaryHeap<PendingTask>>>,
     semaphore: Arc<Semaphore>,
-    max_concurrent: usize,
     active_tasks: Arc<Mutex<std::collections::HashMap<String, TaskInfo>>>,
     scheduler_handle: Arc<Mutex<Option<tokio::task::JoinHandle<()>>>>,
 }
@@ -64,16 +66,17 @@ pub struct TaskScheduler {
 impl TaskScheduler {
     /// Create a new scheduler based on configuration
     pub fn new() -> Result<Self> {
-        let config = load_config()?;
-        let max = config.general.max_concurrent_jobs;
-        let semaphore = Arc::new(Semaphore::new(max));
+        let app_config = load_config()?;
+        let config = ParallelConfig::from_app_config(&app_config);
+        config.validate()?;
+        let semaphore = Arc::new(Semaphore::new(config.max_concurrent_jobs));
         let task_queue = Arc::new(Mutex::new(BinaryHeap::new()));
         let active_tasks = Arc::new(Mutex::new(std::collections::HashMap::new()));
 
         let scheduler = Self {
+            _config: config,
             task_queue: task_queue.clone(),
             semaphore: semaphore.clone(),
-            max_concurrent: max,
             active_tasks: active_tasks.clone(),
             scheduler_handle: Arc::new(Mutex::new(None)),
         };
@@ -85,15 +88,18 @@ impl TaskScheduler {
 
     /// Create a new scheduler with default settings (for testing)
     pub fn new_with_defaults() -> Self {
-        let max = 4; // 預設最大並發數
-        let semaphore = Arc::new(Semaphore::new(max));
+        // Use default application config for default testing
+        let default_app_config = Config::default();
+        let config = ParallelConfig::from_app_config(&default_app_config);
+        let _ = config.validate();
+        let semaphore = Arc::new(Semaphore::new(config.max_concurrent_jobs));
         let task_queue = Arc::new(Mutex::new(BinaryHeap::new()));
         let active_tasks = Arc::new(Mutex::new(std::collections::HashMap::new()));
 
         let scheduler = Self {
+            _config: config,
             task_queue: task_queue.clone(),
             semaphore: semaphore.clone(),
-            max_concurrent: max,
             active_tasks: active_tasks.clone(),
             scheduler_handle: Arc::new(Mutex::new(None)),
         };
@@ -294,7 +300,7 @@ impl TaskScheduler {
 
     /// Get number of active workers
     pub fn get_active_workers(&self) -> usize {
-        self.max_concurrent - self.semaphore.available_permits()
+        self._config.max_concurrent_jobs - self.semaphore.available_permits()
     }
 
     /// Get status of a specific task
@@ -316,9 +322,9 @@ impl TaskScheduler {
 impl Clone for TaskScheduler {
     fn clone(&self) -> Self {
         Self {
+            _config: self._config.clone(),
             task_queue: Arc::clone(&self.task_queue),
             semaphore: Arc::clone(&self.semaphore),
-            max_concurrent: self.max_concurrent,
             active_tasks: Arc::clone(&self.active_tasks),
             scheduler_handle: Arc::clone(&self.scheduler_handle),
         }
