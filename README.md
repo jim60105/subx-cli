@@ -52,18 +52,14 @@ sudo cp target/release/subx-cli /usr/local/bin/
 # 設定 OpenAI API Key (用於 AI 匹配功能)
 export OPENAI_API_KEY="your-api-key-here"
 
-# 可選：設定自訂 OpenAI Base URL (用於 Azure OpenAI 或私有部署)
-export OPENAI_BASE_URL="https://api.azure.com/openai/v1"
-
-# 可選：啟用備份功能
-export SUBX_BACKUP_ENABLED="true"
+# 可選：設定自訂 OpenAI Base URL (用於 OpenAI API 或私有部署)
+export OPENAI_BASE_URL="https://api.openai.com/v1"
 
 # 或通過配置檔案指令設定
 subx-cli config set ai.api_key "your-api-key-here"
-subx-cli config set ai.base_url "https://api.azure.com/openai/v1"
+subx-cli config set ai.base_url "https://api.openai.com/v1"
 subx-cli config set ai.model "gpt-4o-mini"
 subx-cli config set general.backup_enabled true
-subx-cli config set general.max_concurrent_jobs 8  # 增加並發數
 ```
 
 ### 2. 基本使用
