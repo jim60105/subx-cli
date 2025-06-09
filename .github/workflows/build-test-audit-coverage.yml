@@ -96,8 +96,23 @@ jobs:
       with:
         tool: cargo-llvm-cov
 
+    - name: Install dependencies for coverage check
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y jq bc
+
     - name: Generate code coverage
       run: cargo llvm-cov --all-features --workspace --lcov --output-path lcov.info
+
+    - name: Check coverage threshold
+      run: |
+        # Make the coverage check script executable
+        chmod +x scripts/check_coverage.sh
+        
+        # Run coverage threshold check with verbose output
+        ./scripts/check_coverage.sh --verbose
+      env:
+        COVERAGE_THRESHOLD: 75
 
     - name: Upload to codecov.io
       uses: codecov/codecov-action@v5
