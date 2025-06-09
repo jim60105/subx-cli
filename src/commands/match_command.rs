@@ -8,6 +8,7 @@ use crate::core::parallel::{
     FileProcessingTask, ProcessingOperation, Task, TaskResult, TaskScheduler,
 };
 use crate::services::ai::{AIClientFactory, AIProvider};
+use indicatif::ProgressDrawTarget;
 
 /// 執行 Match 命令，支援 Dry-run 與實際操作，並允許注入 AI 服務以便測試
 pub async fn execute(args: MatchArgs) -> Result<()> {
@@ -76,7 +77,16 @@ pub async fn execute_parallel_match(
     }
     println!("準備並行處理 {} 個檔案", tasks.len());
     println!("最大並行數: {}", scheduler.get_active_workers());
-    let progress_bar = create_progress_bar(tasks.len());
+    let progress_bar = {
+        let pb = create_progress_bar(tasks.len());
+        // 根據配置決定是否顯示進度條
+        if let Ok(cfg) = load_config() {
+            if !cfg.general.enable_progress_bar {
+                pb.set_draw_target(ProgressDrawTarget::hidden());
+            }
+        }
+        pb
+    };
     let results = monitor_batch_execution(&scheduler, tasks, &progress_bar).await?;
     let (mut ok, mut failed, mut partial) = (0, 0, 0);
     for r in &results {

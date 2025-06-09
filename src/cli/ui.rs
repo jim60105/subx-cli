@@ -2,7 +2,7 @@
 use crate::cli::table::{MatchDisplayRow, create_match_table};
 use crate::core::matcher::MatchOperation;
 use colored::*;
-use indicatif::{ProgressBar, ProgressStyle};
+use indicatif::{ProgressBar, ProgressDrawTarget, ProgressStyle};
 
 /// 列印成功訊息
 pub fn print_success(message: &str) {
@@ -22,6 +22,12 @@ pub fn print_warning(message: &str) {
 /// 建立進度條
 pub fn create_progress_bar(total: u64) -> ProgressBar {
     let pb = ProgressBar::new(total);
+    // 根據配置決定是否顯示進度條
+    if let Ok(cfg) = crate::config::load_config() {
+        if !cfg.general.enable_progress_bar {
+            pb.set_draw_target(ProgressDrawTarget::hidden());
+        }
+    }
     pb.set_style(
         ProgressStyle::default_bar()
             .template(

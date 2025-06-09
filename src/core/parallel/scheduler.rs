@@ -60,6 +60,10 @@ pub struct TaskScheduler {
     _config: ParallelConfig,
     /// Optional load balancer for dynamic worker adjustment
     load_balancer: Option<crate::core::parallel::load_balancer::LoadBalancer>,
+    /// 任務執行逾時設定
+    task_timeout: std::time::Duration,
+    /// 工作執行緒閒置逾時設定
+    worker_idle_timeout: std::time::Duration,
     task_queue: Arc<Mutex<VecDeque<PendingTask>>>,
     semaphore: Arc<Semaphore>,
     active_tasks: Arc<Mutex<std::collections::HashMap<String, TaskInfo>>>,
@@ -76,6 +80,8 @@ impl TaskScheduler {
         let task_queue = Arc::new(Mutex::new(VecDeque::new()));
         let active_tasks = Arc::new(Mutex::new(std::collections::HashMap::new()));
 
+        // 從一般配置中讀取逾時設定
+        let general = &app_config.general;
         let scheduler = Self {
             _config: config.clone(),
             task_queue: task_queue.clone(),
@@ -87,6 +93,10 @@ impl TaskScheduler {
             } else {
                 None
             },
+            task_timeout: std::time::Duration::from_secs(general.task_timeout_seconds),
+            worker_idle_timeout: std::time::Duration::from_secs(
+                general.worker_idle_timeout_seconds,
+            ),
         };
 
         // Start background scheduler loop
@@ -104,6 +114,7 @@ impl TaskScheduler {
         let task_queue = Arc::new(Mutex::new(VecDeque::new()));
         let active_tasks = Arc::new(Mutex::new(std::collections::HashMap::new()));
 
+        let general = &default_app_config.general;
         let scheduler = Self {
             _config: config.clone(),
             task_queue: task_queue.clone(),
@@ -115,6 +126,10 @@ impl TaskScheduler {
             } else {
                 None
             },
+            task_timeout: std::time::Duration::from_secs(general.task_timeout_seconds),
+            worker_idle_timeout: std::time::Duration::from_secs(
+                general.worker_idle_timeout_seconds,
+            ),
         };
 
         // Start background scheduler loop
@@ -128,9 +143,27 @@ impl TaskScheduler {
         let semaphore = Arc::clone(&self.semaphore);
         let active_tasks = Arc::clone(&self.active_tasks);
         let config = self._config.clone();
+        let task_timeout = self.task_timeout;
+        let worker_idle_timeout = self.worker_idle_timeout;
 
         let handle = tokio::spawn(async move {
+            // 閒置檢查計時
+            let mut last_active = std::time::Instant::now();
             loop {
+                // 閒置超時後結束調度器
+                let has_pending = {
+                    let q = task_queue.lock().unwrap();
+                    !q.is_empty()
+                };
+                let has_active = {
+                    let a = active_tasks.lock().unwrap();
+                    !a.is_empty()
+                };
+                if has_pending || has_active {
+                    last_active = std::time::Instant::now();
+                } else if last_active.elapsed() > worker_idle_timeout {
+                    break;
+                }
                 // Try to get a semaphore permit and a task from the queue
                 if let Ok(permit) = semaphore.clone().try_acquire_owned() {
                     let pending = {
@@ -163,7 +196,12 @@ impl TaskScheduler {
 
                         // Spawn the actual task execution
                         tokio::spawn(async move {
-                            let result = p.task.execute().await;
+                            // 任務執行逾時處理
+                            let result =
+                                match tokio::time::timeout(task_timeout, p.task.execute()).await {
+                                    Ok(res) => res,
+                                    Err(_) => TaskResult::Failed("任務執行逾時".to_string()),
+                                };
 
                             // Update task status
                             {
@@ -406,6 +444,8 @@ impl Clone for TaskScheduler {
             active_tasks: Arc::clone(&self.active_tasks),
             scheduler_handle: Arc::clone(&self.scheduler_handle),
             load_balancer: self.load_balancer.clone(),
+            task_timeout: self.task_timeout,
+            worker_idle_timeout: self.worker_idle_timeout,
         }
     }
 }
