@@ -7,10 +7,6 @@ use crate::error::SubXError;
 pub struct ParallelConfig {
     /// Maximum number of concurrent jobs (global limit)
     pub max_concurrent_jobs: usize,
-    /// Limit for CPU-intensive tasks.
-    pub cpu_intensive_limit: usize,
-    /// Limit for IO-intensive tasks.
-    pub io_intensive_limit: usize,
     /// Maximum task queue size.
     pub task_queue_size: usize,
     /// Whether task priorities are enabled.
@@ -28,21 +24,27 @@ mod tests {
 
     #[test]
     fn test_parallel_config_validation() {
-        let invalid = ParallelConfig {
-            max_concurrent_jobs: 1,
-            cpu_intensive_limit: 0,
-            io_intensive_limit: 1,
+        // Test invalid max_concurrent_jobs and task_queue_size settings
+        let invalid_jobs = ParallelConfig {
+            max_concurrent_jobs: 0,
             task_queue_size: 1,
             enable_task_priorities: true,
             auto_balance_workers: false,
             queue_overflow_strategy: OverflowStrategy::Block,
         };
-        assert!(invalid.validate().is_err());
+        assert!(invalid_jobs.validate().is_err());
+
+        let invalid_queue = ParallelConfig {
+            max_concurrent_jobs: 1,
+            task_queue_size: 0,
+            enable_task_priorities: true,
+            auto_balance_workers: false,
+            queue_overflow_strategy: OverflowStrategy::Block,
+        };
+        assert!(invalid_queue.validate().is_err());
 
         let valid = ParallelConfig {
             max_concurrent_jobs: 1,
-            cpu_intensive_limit: 1,
-            io_intensive_limit: 1,
             task_queue_size: 1,
             enable_task_priorities: true,
             auto_balance_workers: false,
@@ -56,8 +58,6 @@ mod tests {
         let app_cfg = Config::default();
         let pc = ParallelConfig::from_app_config(&app_cfg);
         assert_eq!(pc.max_concurrent_jobs, app_cfg.general.max_concurrent_jobs);
-        assert_eq!(pc.cpu_intensive_limit, app_cfg.parallel.cpu_intensive_limit);
-        assert_eq!(pc.io_intensive_limit, app_cfg.parallel.io_intensive_limit);
         assert_eq!(pc.task_queue_size, app_cfg.parallel.task_queue_size);
         assert_eq!(
             pc.enable_task_priorities,
@@ -80,8 +80,6 @@ impl ParallelConfig {
         let p = &config.parallel;
         Self {
             max_concurrent_jobs: config.general.max_concurrent_jobs,
-            cpu_intensive_limit: p.cpu_intensive_limit,
-            io_intensive_limit: p.io_intensive_limit,
             task_queue_size: p.task_queue_size,
             enable_task_priorities: p.enable_task_priorities,
             auto_balance_workers: p.auto_balance_workers,
@@ -94,16 +92,6 @@ impl ParallelConfig {
         if self.max_concurrent_jobs == 0 {
             return Err(SubXError::config(
                 "最大併發任務數 (max_concurrent_jobs) 需大於 0",
-            ));
-        }
-        if self.cpu_intensive_limit == 0 {
-            return Err(SubXError::config(
-                "CPU 密集型任務限制 (cpu_intensive_limit) 需大於 0",
-            ));
-        }
-        if self.io_intensive_limit == 0 {
-            return Err(SubXError::config(
-                "I/O 密集型任務限制 (io_intensive_limit) 需大於 0",
             ));
         }
         if self.task_queue_size == 0 {

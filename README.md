@@ -183,8 +183,6 @@ enable_progress_bar = true
 worker_idle_timeout_seconds = 300
 
 [parallel]
-cpu_intensive_limit = 2
-io_intensive_limit = 8
 task_queue_size = 100
 enable_task_priorities = true
 auto_balance_workers = true

@@ -55,8 +55,6 @@
 
 | 配置項目 | 類型 | 預設值 | 實際使用位置 | 使用方式 | 使用的子命令 | 狀態 |
 |---------|------|---------|-------------|---------|-------------|------|
-| `cpu_intensive_limit` | usize | 2 | **呼叫樹:**<br>• `ParallelConfig::from_app_config()` (line 70) → `src/core/parallel/config.rs:70`<br>• `ParallelConfig::validate()` (line 88) → `src/core/parallel/config.rs:88`<br>• `TaskScheduler::new()` (line 68) → `src/core/parallel/scheduler.rs:68` | CPU 密集型任務限制配置，用於調度器驗證 | `subx-cli match`（批次處理模式） | 🗑️ **待移除** - 死代碼，調度器完全未使用此限制 (見 Bug #12) |
-| `io_intensive_limit` | usize | 8 | **呼叫樹:**<br>• `ParallelConfig::from_app_config()` (line 71) → `src/core/parallel/config.rs:71`<br>• `ParallelConfig::validate()` (line 95) → `src/core/parallel/config.rs:95`<br>• `TaskScheduler::new()` (line 68) → `src/core/parallel/scheduler.rs:68` | I/O 密集型任務限制配置，用於調度器驗證 | `subx-cli match`（批次處理模式） | 🗑️ **待移除** - 死代碼，調度器完全未使用此限制 (見 Bug #12) |
 | `task_queue_size` | usize | 100 | **呼叫樹:**<br>• `ParallelConfig::from_app_config()` (line 72) → `src/core/parallel/config.rs:72`<br>• `TaskScheduler::new()` (line 68) → `src/core/parallel/scheduler.rs:68`<br>• `TaskScheduler::submit_task()` (line 276) → `src/core/parallel/scheduler.rs:276`<br>• 用於控制任務佇列最大長度 | 任務佇列大小限制，控制記憶體使用 | `subx-cli match`（批次處理模式） | ✅ 使用中 |
 | `enable_task_priorities` | bool | true | **呼叫樹:**<br>• `ParallelConfig::from_app_config()` (line 73) → `src/core/parallel/config.rs:73`<br>• `TaskScheduler::new()` (line 68) → `src/core/parallel/scheduler.rs:68`<br>• `TaskScheduler::submit_task()` (line 292) → `src/core/parallel/scheduler.rs:292`<br>• 控制任務佇列中的優先級排序邏輯 | 啟用任務優先級排程，影響任務執行順序 | `subx-cli match`（批次處理模式） | ✅ 使用中 |
 | `auto_balance_workers` | bool | true | **呼叫樹:**<br>• `ParallelConfig::from_app_config()` (line 74) → `src/core/parallel/config.rs:74`<br>• `TaskScheduler::new()` (line 87) → `src/core/parallel/scheduler.rs:87`<br>• 決定是否啟用 LoadBalancer | 自動平衡工作負載，啟用負載平衡器 | `subx-cli match`（批次處理模式） | ✅ 使用中 |
@@ -84,6 +82,5 @@
 
 ### 待移除的死代碼配置 (2 項)
 主要集中在：
-1. **並行處理功能**: `cpu_intensive_limit`, `io_intensive_limit` （已載入但調度器完全未使用，見 Bug #12）
 
 這些配置項目都在配置系統中正確定義並可設定，但對應的功能實作尚未完成或未完全使用配置。

@@ -96,8 +96,6 @@ pub struct PartialGeneralConfig {
 /// Partial parallel processing configuration
 #[derive(Debug, Default, Serialize, Deserialize)]
 pub struct PartialParallelConfig {
-    pub cpu_intensive_limit: Option<usize>,
-    pub io_intensive_limit: Option<usize>,
     pub task_queue_size: Option<usize>,
     pub enable_task_priorities: Option<bool>,
     pub auto_balance_workers: Option<bool>,
@@ -182,12 +180,6 @@ impl PartialConfig {
         }
         if let Some(v) = other.general.worker_idle_timeout_seconds {
             self.general.worker_idle_timeout_seconds = Some(v);
-        }
-        if let Some(v) = other.parallel.cpu_intensive_limit {
-            self.parallel.cpu_intensive_limit = Some(v);
-        }
-        if let Some(v) = other.parallel.io_intensive_limit {
-            self.parallel.io_intensive_limit = Some(v);
         }
         if let Some(v) = other.parallel.task_queue_size {
             self.parallel.task_queue_size = Some(v);
@@ -318,14 +310,6 @@ impl PartialConfig {
         };
 
         let parallel = ParallelConfig {
-            cpu_intensive_limit: self
-                .parallel
-                .cpu_intensive_limit
-                .unwrap_or(default.parallel.cpu_intensive_limit),
-            io_intensive_limit: self
-                .parallel
-                .io_intensive_limit
-                .unwrap_or(default.parallel.io_intensive_limit),
             task_queue_size: self
                 .parallel
                 .task_queue_size

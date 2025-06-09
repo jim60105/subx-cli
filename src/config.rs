@@ -305,8 +305,6 @@ pub struct GeneralConfig {
 /// 並行處理相關配置
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct ParallelConfig {
-    pub cpu_intensive_limit: usize,
-    pub io_intensive_limit: usize,
     pub task_queue_size: usize,
     pub enable_task_priorities: bool,
     pub auto_balance_workers: bool,
@@ -317,8 +315,6 @@ pub struct ParallelConfig {
 impl Default for ParallelConfig {
     fn default() -> Self {
         ParallelConfig {
-            cpu_intensive_limit: 2,
-            io_intensive_limit: 8,
             task_queue_size: 100,
             enable_task_priorities: true,
             auto_balance_workers: true,
