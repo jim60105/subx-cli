@@ -14,6 +14,7 @@ use tokio::time;
 
 /// OpenAI 客戶端實作
 /// OpenAI 客戶端實作
+#[derive(Debug)]
 pub struct OpenAIClient {
     client: Client,
     api_key: String,
@@ -124,6 +125,45 @@ mod tests {
         let json_resp = r#"{ "matches": [], "confidence":0.9, "reasoning":"r" }"#;
         let mr = client.parse_match_result(json_resp).unwrap();
         assert_eq!(mr.confidence, 0.9);
+    }
+
+    #[test]
+    fn test_openai_client_from_config() {
+        let config = crate::config::AIConfig {
+            provider: "openai".to_string(),
+            api_key: Some("test-key".to_string()),
+            model: "gpt-test".to_string(),
+            base_url: "https://custom.openai.com/v1".to_string(),
+            temperature: 0.7,
+            retry_attempts: 2,
+            retry_delay_ms: 150,
+            max_sample_length: 500,
+        };
+        let client = OpenAIClient::from_config(&config).unwrap();
+        assert_eq!(client.api_key, "test-key");
+        assert_eq!(client.model, "gpt-test");
+        assert_eq!(client.temperature, 0.7);
+        assert_eq!(client.base_url, "https://custom.openai.com/v1");
+    }
+
+    #[test]
+    fn test_openai_client_from_config_invalid_base_url() {
+        let config = crate::config::AIConfig {
+            provider: "openai".to_string(),
+            api_key: Some("test-key".to_string()),
+            model: "gpt-test".to_string(),
+            base_url: "ftp://invalid.url".to_string(),
+            temperature: 0.7,
+            retry_attempts: 2,
+            retry_delay_ms: 150,
+            max_sample_length: 500,
+        };
+        let err = OpenAIClient::from_config(&config).unwrap_err();
+        // 非 http/https 協定應返回協定錯誤訊息
+        assert!(
+            err.to_string()
+                .contains("base URL 必須使用 http 或 https 協定")
+        );
     }
 }
 

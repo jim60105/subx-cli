@@ -123,24 +123,30 @@ mod tests {
     #[serial]
     fn test_env_var_override() {
         // 清除環境變數以避免測試間干擾
-        env::remove_var("OPENAI_API_KEY");
-        env::remove_var("SUBX_AI_MODEL");
-        env::set_var("OPENAI_API_KEY", "test-key-123");
-        env::set_var("SUBX_AI_MODEL", "gpt-3.5-turbo");
+        unsafe {
+            env::remove_var("OPENAI_API_KEY");
+            env::remove_var("SUBX_AI_MODEL");
+            env::set_var("OPENAI_API_KEY", "test-key-123");
+            env::set_var("SUBX_AI_MODEL", "gpt-3.5-turbo");
+        }
 
         let mut config = Config::default();
         config.apply_env_vars();
         assert!(config.ai.api_key.is_some());
         assert_eq!(config.ai.model, "gpt-3.5-turbo");
 
-        env::remove_var("OPENAI_API_KEY");
-        env::remove_var("SUBX_AI_MODEL");
+        unsafe {
+            env::remove_var("OPENAI_API_KEY");
+            env::remove_var("SUBX_AI_MODEL");
+        }
     }
 
     #[test]
     #[serial]
     fn test_config_validation_missing_api_key() {
-        env::remove_var("OPENAI_API_KEY");
+        unsafe {
+            env::remove_var("OPENAI_API_KEY");
+        }
         let config = Config::default();
         // API Key 驗證於執行時進行，不影響載入
         assert!(config.validate().is_ok());
@@ -194,20 +200,26 @@ mod tests {
         let toml_content = toml::to_string_pretty(&test_config).unwrap();
         std::fs::write(&config_path, toml_content).unwrap();
 
-        std::env::set_var("SUBX_CONFIG_PATH", config_path.to_str().unwrap());
+        unsafe {
+            std::env::set_var("SUBX_CONFIG_PATH", config_path.to_str().unwrap());
+        }
 
         assert!(init_config_manager().is_ok());
 
         let loaded_config = load_config().unwrap();
         assert_eq!(loaded_config.ai.model, test_config.ai.model);
 
-        std::env::remove_var("SUBX_CONFIG_PATH");
+        unsafe {
+            std::env::remove_var("SUBX_CONFIG_PATH");
+        }
     }
 
     #[test]
     fn test_env_var_override_with_new_system() {
-        std::env::set_var("OPENAI_API_KEY", "test-key-from-env");
-        std::env::set_var("SUBX_AI_MODEL", "gpt-4-from-env");
+        unsafe {
+            std::env::set_var("OPENAI_API_KEY", "test-key-from-env");
+            std::env::set_var("SUBX_AI_MODEL", "gpt-4-from-env");
+        }
 
         let _ = init_config_manager();
         let config = load_config().unwrap();
@@ -215,8 +227,10 @@ mod tests {
         assert_eq!(config.ai.api_key, Some("test-key-from-env".to_string()));
         assert_eq!(config.ai.model, "gpt-4-from-env");
 
-        std::env::remove_var("OPENAI_API_KEY");
-        std::env::remove_var("SUBX_AI_MODEL");
+        unsafe {
+            std::env::remove_var("OPENAI_API_KEY");
+            std::env::remove_var("SUBX_AI_MODEL");
+        }
     }
 }
 

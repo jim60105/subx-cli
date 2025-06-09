@@ -109,6 +109,18 @@ default_output = "vtt"
         let v = AIConfigValidator;
         assert!(v.validate(&full).is_err());
     }
+    
+    #[test]
+    fn ai_config_validator_rejects_unsupported_provider() {
+        let mut full = crate::config::Config::default();
+        full.ai.provider = "unknown".into();
+        let v = AIConfigValidator;
+        let res = v.validate(&full);
+        assert!(res.is_err());
+        if let Err(e) = res {
+            assert!(e.to_string().contains("不支援的 AI 提供商"));
+        }
+    }
 
     #[test]
     fn sync_config_validator_rejects_invalid() {

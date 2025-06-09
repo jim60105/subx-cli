@@ -7,25 +7,14 @@ use crate::core::matcher::{FileDiscovery, MatchConfig, MatchEngine, MediaFileTyp
 use crate::core::parallel::{
     FileProcessingTask, ProcessingOperation, Task, TaskResult, TaskScheduler,
 };
-use crate::error::SubXError;
-use crate::services::ai::{AIProvider, OpenAIClient};
+use crate::services::ai::{AIClientFactory, AIProvider};
 
 /// 執行 Match 命令，支援 Dry-run 與實際操作，並允許注入 AI 服務以便測試
 pub async fn execute(args: MatchArgs) -> Result<()> {
     // 載入配置與建立 AI 客戶端
     let config = load_config()?;
-    let api_key = config
-        .ai
-        .api_key
-        .clone()
-        .ok_or_else(|| SubXError::config("需要設定 OPENAI API 金鑰"))?;
-    let ai_client: Box<dyn AIProvider> = Box::new(OpenAIClient::new(
-        api_key,
-        config.ai.model.clone(),
-        config.ai.temperature,
-        config.ai.retry_attempts,
-        config.ai.retry_delay_ms,
-    ));
+    // 建立 AI 客戶端，根據配置自動選擇提供商與端點
+    let ai_client = AIClientFactory::create_client(&config.ai)?;
     execute_with_client(args, ai_client).await
 }
 
@@ -208,7 +197,9 @@ mod tests {
         fs::write(&subtitle, b"dummy")?;
 
         // 指定快取路徑到臨時資料夾
-        std::env::set_var("XDG_CONFIG_HOME", media_dir.path());
+        unsafe {
+            std::env::set_var("XDG_CONFIG_HOME", media_dir.path());
+        }
         // 初始化配置管理器，以便使用新系統載入默認配置
         init_config_manager()?;
 

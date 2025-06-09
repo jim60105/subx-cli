@@ -86,10 +86,12 @@ pub struct AiResponse {
 }
 
 pub mod cache;
+pub mod factory;
 pub mod openai;
 pub mod prompts;
 pub mod retry;
 
 pub use cache::AICache;
+pub use factory::AIClientFactory;
 pub use openai::OpenAIClient;
 pub use retry::{RetryConfig, retry_with_backoff};

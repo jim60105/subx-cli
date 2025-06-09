@@ -8,10 +8,12 @@ use tempfile::TempDir;
 /// 重置全域配置管理器（測試專用）
 fn reset_config_manager() {
     // 清除環境變數
-    env::remove_var("SUBX_CONFIG_PATH");
-    env::remove_var("OPENAI_API_KEY");
-    env::remove_var("OPENAI_BASE_URL");
-    env::remove_var("SUBX_AI_MODEL");
+    unsafe {
+        env::remove_var("SUBX_CONFIG_PATH");
+        env::remove_var("OPENAI_API_KEY");
+        env::remove_var("OPENAI_BASE_URL");
+        env::remove_var("SUBX_AI_MODEL");
+    }
 }
 
 #[test]
@@ -70,8 +72,10 @@ max_concurrent_jobs = 8
 
     debug!("Final config path string: {}", config_path_str);
     debug!("Setting SUBX_CONFIG_PATH environment variable");
-    env::set_var("SUBX_CONFIG_PATH", &config_path_str);
-    env::set_var("OPENAI_API_KEY", "env-api-key");
+    unsafe {
+        env::set_var("SUBX_CONFIG_PATH", &config_path_str);
+        env::set_var("OPENAI_API_KEY", "env-api-key");
+    }
 
     // 驗證環境變數設定
     match env::var("SUBX_CONFIG_PATH") {
@@ -108,8 +112,10 @@ max_concurrent_jobs = 8
     // 驗證環境變數覆蓋
     assert_eq!(config.ai.api_key, Some("env-api-key".to_string()));
 
-    env::remove_var("SUBX_CONFIG_PATH");
-    env::remove_var("OPENAI_API_KEY");
+    unsafe {
+        env::remove_var("SUBX_CONFIG_PATH");
+        env::remove_var("OPENAI_API_KEY");
+    }
 }
 
 #[test]
@@ -145,8 +151,10 @@ base_url = "https://api.custom.com/v1"
         .to_str()
         .unwrap()
         .to_string();
-    env::set_var("SUBX_CONFIG_PATH", &config_path_str);
-    env::set_var("OPENAI_BASE_URL", "https://env-override.com/v1");
+    unsafe {
+        env::set_var("SUBX_CONFIG_PATH", &config_path_str);
+        env::set_var("OPENAI_BASE_URL", "https://env-override.com/v1");
+    }
 
     // 測試統一配置系統
     assert!(init_config_manager().is_ok());
@@ -155,6 +163,8 @@ base_url = "https://api.custom.com/v1"
     // 驗證環境變數覆蓋檔案設定
     assert_eq!(config.ai.base_url, "https://env-override.com/v1");
 
-    env::remove_var("SUBX_CONFIG_PATH");
-    env::remove_var("OPENAI_BASE_URL");
+    unsafe {
+        env::remove_var("SUBX_CONFIG_PATH");
+        env::remove_var("OPENAI_BASE_URL");
+    }
 }
