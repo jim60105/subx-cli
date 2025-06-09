@@ -18,5 +18,23 @@
 	"containerEnv": {
 		"GIT_AUTHOR_NAME": "🤖 Codex-CLI",
 		"GIT_AUTHOR_EMAIL": "codex-cli[bot]@users.noreply.github.com"
+	},
+
+	// VS Code extensions to install
+	"customizations": {
+		"vscode": {
+			"extensions": [
+				"rust-lang.rust-analyzer",
+				"vadimcn.vscode-lldb",
+				"fill-labs.dependi",
+				"tamasfe.even-better-toml",
+				"ms-vscode.test-adapter-converter",
+				"hbenl.vscode-test-explorer",
+				"GitHub.copilot",
+				"GitHub.copilot-chat",
+				"ms-vscode-remote.remote-containers",
+				"dustypomerleau.rust-syntax"
+			]
+		}
 	}
 }
