@@ -1,3 +1,71 @@
+//! AI analysis result caching system for performance optimization.
+//!
+//! This module provides a high-performance caching layer for AI analysis results,
+//! reducing the cost and latency of repeated content analysis operations. The cache
+//! uses intelligent key generation and TTL-based expiration to balance performance
+//! with data freshness.
+//!
+//! # Cache Architecture
+//!
+//! ## Key Generation
+//! - **Content-Based Keys**: Hash-based keys derived from request content
+//! - **Deterministic Hashing**: Consistent keys for identical requests
+//! - **Collision Resistance**: Low probability of hash collisions
+//! - **Efficient Lookup**: O(1) average case lookup performance
+//!
+//! ## Storage Strategy
+//! - **In-Memory Storage**: Fast access using HashMap data structure
+//! - **TTL Expiration**: Time-based cache invalidation for freshness
+//! - **LRU Eviction**: Least Recently Used eviction for memory management
+//! - **Concurrent Access**: Thread-safe operations using RwLock
+//!
+//! ## Performance Benefits
+//! - **Cost Reduction**: Avoid expensive AI API calls for repeated requests
+//! - **Latency Improvement**: Sub-millisecond response time for cached results
+//! - **Rate Limit Compliance**: Reduce API usage to stay within provider limits
+//! - **Offline Operation**: Serve cached results when API is unavailable
+//!
+//! # Usage Examples
+//!
+//! ## Basic Caching Operation
+//! ```rust,ignore
+//! use subx_cli::services::ai::{AICache, AnalysisRequest};
+//! use std::time::Duration;
+//!
+//! // Create cache with 1-hour TTL
+//! let cache = AICache::new(Duration::from_secs(3600));
+//!
+//! // Check for cached result
+//! let request = AnalysisRequest { /* ... */ };
+//! if let Some(cached_result) = cache.get(&request).await {
+//!     println!("Using cached result: {:?}", cached_result);
+//!     return Ok(cached_result);
+//! }
+//!
+//! // Perform AI analysis and cache result
+//! let fresh_result = ai_client.analyze_content(request.clone()).await?;
+//! cache.put(request, fresh_result.clone()).await;
+//! ```
+//!
+//! ## Cache Management
+//! ```rust,ignore
+//! use subx_cli::services::ai::AICache;
+//!
+//! let cache = AICache::new(Duration::from_secs(1800)); // 30 minutes
+//!
+//! // Get cache statistics
+//! let stats = cache.stats().await;
+//! println!("Cache hits: {}, misses: {}, size: {}",
+//!     stats.hits, stats.misses, stats.size);
+//!
+//! // Clear expired entries
+//! let expired_count = cache.cleanup_expired().await;
+//! println!("Removed {} expired entries", expired_count);
+//!
+//! // Clear all cache entries
+//! cache.clear().await;
+//! ```
+
 use crate::services::ai::{AnalysisRequest, MatchResult};
 use std::collections::HashMap;
 use std::collections::hash_map::DefaultHasher;
