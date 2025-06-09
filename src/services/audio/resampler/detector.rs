@@ -15,6 +15,37 @@ pub enum AudioUseCase {
     SyncMatching,
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::config::load_config;
+    use std::path::Path;
+
+    #[tokio::test]
+    async fn test_auto_detect_disabled_uses_config_rate() {
+        let detector = AusSampleRateDetector::new();
+        let mut cfg = load_config().unwrap().sync;
+        cfg.auto_detect_sample_rate = false;
+        let rate = detector
+            .auto_detect_if_enabled(Path::new("nonexistent.wav"), &cfg)
+            .await
+            .unwrap();
+        assert_eq!(rate, cfg.audio_sample_rate);
+    }
+
+    #[tokio::test]
+    async fn test_auto_detect_failure_fallback() {
+        let detector = AusSampleRateDetector::new();
+        let cfg = load_config().unwrap().sync;
+        // cfg.auto_detect_sample_rate 默認為 true
+        let rate = detector
+            .auto_detect_if_enabled(Path::new("nonexistent.wav"), &cfg)
+            .await
+            .unwrap();
+        assert_eq!(rate, cfg.audio_sample_rate);
+    }
+}
+
 /// 基於 aus 的採樣率檢測器
 pub struct AusSampleRateDetector;
 
@@ -51,6 +82,36 @@ impl AusSampleRateDetector {
             AudioUseCase::SpeechRecognition => 16000,
             AudioUseCase::MusicAnalysis => 44100,
             AudioUseCase::SyncMatching => 22050,
+        }
+    }
+
+    /// 若啟用 auto_detect_sample_rate，嘗試自動檢測，否則使用配置預設
+    pub async fn auto_detect_if_enabled<P: AsRef<Path>>(
+        &self,
+        audio_path: P,
+        config: &crate::config::SyncConfig,
+    ) -> crate::Result<u32> {
+        if config.auto_detect_sample_rate {
+            match self.detect_sample_rate(audio_path).await {
+                Ok(rate) => {
+                    log::info!("自動檢測到採樣率: {}Hz", rate);
+                    Ok(rate)
+                }
+                Err(err) => {
+                    log::warn!(
+                        "採樣率自動檢測失敗 ({}), 使用預設 {}Hz",
+                        err,
+                        config.audio_sample_rate
+                    );
+                    Ok(config.audio_sample_rate)
+                }
+            }
+        } else {
+            log::debug!(
+                "auto_detect_sample_rate=false, 使用配置採樣率 {}Hz",
+                config.audio_sample_rate
+            );
+            Ok(config.audio_sample_rate)
         }
     }
 }
