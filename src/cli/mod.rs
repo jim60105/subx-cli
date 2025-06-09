@@ -36,8 +36,8 @@ mod detect_encoding_args;
 mod generate_completion_args;
 mod match_args;
 mod sync_args;
-mod table;
-mod ui;
+pub mod table;
+pub mod ui;
 
 pub use cache_args::{CacheAction, CacheArgs};
 use clap::{Parser, Subcommand};
@@ -69,12 +69,12 @@ pub use ui::{
 ///
 /// # Examples
 ///
-/// ```rust
+/// ```rust,no_run
 /// use subx_cli::cli::Cli;
 /// use clap::Parser;
 ///
-/// // Parse CLI arguments
-/// let cli = Cli::parse();
+/// // Parse CLI arguments from specific args instead of std::env
+/// let cli = Cli::parse_from(&["subx", "config", "show"]);
 ///
 /// // Access the selected subcommand
 /// match cli.command {

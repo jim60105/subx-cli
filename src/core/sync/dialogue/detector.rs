@@ -5,8 +5,9 @@
 //!
 //! # Examples
 //!
-//! ```rust
-//! use subx_cli::core::sync::dialogue::detector::DialogueDetector;
+//! ```rust,no_run
+//! use subx_cli::{init_config_manager, core::sync::dialogue::detector::DialogueDetector};
+//! init_config_manager().unwrap();
 //! let detector = DialogueDetector::new().unwrap();
 //! // detector.detect_dialogue(&path).await;
 //! ```

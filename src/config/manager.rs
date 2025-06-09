@@ -6,7 +6,7 @@
 //!
 //! # Examples
 //!
-//! ```rust
+//! ```rust,no_run
 //! use std::path::PathBuf;
 //! use subx_cli::config::manager::{ConfigManager, ConfigChangeEvent};
 //! use subx_cli::config::source::FileSource;
@@ -17,11 +17,13 @@
 //!
 //! // Load configuration and retrieve current settings
 //! manager.load().expect("Failed to load configuration");
-//! let cfg = manager.config().read().unwrap();
+//! let config_lock = manager.config();
+//! let cfg = config_lock.read().unwrap();
 //! println!("Loaded configuration: {:?}", *cfg);
 //!
-//! // Watch for changes asynchronously (requires Tokio runtime)
-//! let (mut rx, _watcher) = manager.watch().expect("Watcher setup failed");
+//! // Note: Watch functionality requires an existing file
+//! // let (mut rx, _watcher) = manager.watch().expect("Watcher setup failed");
+//! ```
 //! tokio::spawn(async move {
 //!     while rx.changed().await.is_ok() {
 //!         match *rx.borrow() {

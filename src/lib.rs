@@ -54,13 +54,13 @@
 //!
 //! ```rust,no_run
 //! use subx_cli::config::source::FileSource;
+//! use subx_cli::config::manager::ConfigManager;
 //! use std::path::PathBuf;
 //!
-//! // Create a file source
+//! // Create configuration manager and file source
 //! let file_source = FileSource::new(PathBuf::from("config.toml"));
-//!
-//! // Use with configuration manager
-//! manager.add_source(Box::new(file_source));
+//! let manager = ConfigManager::new()
+//!     .add_source(Box::new(file_source));
 //! manager.load().expect("Failed to load config");
 //! let config = manager.config();
 //! ```
@@ -111,7 +111,7 @@ pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 pub mod cli;
 pub mod commands;
 pub mod config;
-pub use config::{init_config_manager, load_config};
+pub use config::{Config, init_config_manager, load_config};
 pub mod core;
 pub mod error;
 /// Convenient type alias for `Result<T, SubXError>`.

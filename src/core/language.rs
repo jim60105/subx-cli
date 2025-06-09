@@ -10,8 +10,8 @@
 //! use std::path::Path;
 //!
 //! let detector = LanguageDetector::new();
-//! let info = detector.get_primary_language(Path::new("subtitle.sc.srt")).unwrap();
-//! assert_eq!(info.code, "sc");
+//! let code = detector.get_primary_language(Path::new("subtitle.sc.srt")).unwrap();
+//! assert_eq!(code, "sc");
 //! ```
 use regex::Regex;
 use std::collections::HashMap;

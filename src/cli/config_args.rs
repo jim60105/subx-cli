@@ -391,7 +391,7 @@ pub enum ConfigAction {
     /// # Backup Location
     ///
     /// Backups are stored in the configuration directory:
-    /// ```
+    /// ```text
     /// ~/.config/subx/backups/config_backup_YYYYMMDD_HHMMSS.toml
     /// ```
     ///
