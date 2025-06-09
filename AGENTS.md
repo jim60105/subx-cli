@@ -17,7 +17,7 @@
   * Always `cargo fmt` and `cargo clippy -- -D warnings` and fix any warnings before submitting any code.
   * Git commit after completing your work, using the conventional commit format for the title and a brief description in the body. Always commit with `--signoff` and `--no-gpg-sign`. Write the commit in English.
   * Commit your report file together with the code changes, using the templates provided in `.github/codex/`.
-  * Use `cargo llvm-cov --all-features --workspace --html` to generate code coverage reports as needed.
+  * Use `cargo llvm-cov --all-features --workspace --json --summary-only -q` to generate code coverage reports as needed.
 
 ---
 
