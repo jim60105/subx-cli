@@ -1,49 +1,95 @@
+//! Comprehensive error types for the SubX CLI application operations.
+//!
+//! This module defines the `SubXError` enum covering all error conditions
+//! that can occur during subtitle processing, AI service integration,
+//! audio analysis, file matching, and general command execution.
+//!
+//! It also provides helper methods to construct errors and generate
+//! user-friendly messages.
 use thiserror::Error;
 
-/// SubX 應用程式的主要錯誤類型
+/// Represents all possible errors in the SubX application.
+///
+/// Each variant provides specific context to facilitate debugging and
+/// user-friendly reporting.
+///
+/// # Examples
+///
+/// ```rust
+/// use subx_cli::error::{SubXError, SubXResult};
+///
+/// fn example() -> SubXResult<()> {
+///     Err(SubXError::SubtitleFormat {
+///         format: "SRT".to_string(),
+///         message: "Invalid timestamp format".to_string(),
+///     })
+/// }
+/// ```
+///
+/// # Exit Codes
+///
+/// Each error variant maps to an exit code via `SubXError::exit_code`.
 #[derive(Error, Debug)]
 pub enum SubXError {
-    /// IO 相關錯誤
-    #[error("IO 錯誤: {0}")]
+    /// I/O operation failed during file system access.
+    ///
+    /// This variant wraps `std::io::Error` and provides context about
+    /// file operations that failed.
+    ///
+    /// # Common Causes
+    /// - Permission issues
+    /// - Insufficient disk space
+    /// - Network filesystem errors
+    #[error("I/O error: {0}")]
     Io(#[from] std::io::Error),
 
-    /// 配置錯誤
-    #[error("配置錯誤: {message}")]
+    /// Configuration error due to invalid or missing settings.
+    ///
+    /// Contains a human-readable message describing the issue.
+    #[error("Configuration error: {message}")]
     Config { message: String },
 
-    /// 字幕格式錯誤
-    #[error("字幕格式錯誤: {format} - {message}")]
+    /// Subtitle format error indicating invalid timestamps or structure.
+    ///
+    /// Provides the subtitle format and detailed message.
+    #[error("Subtitle format error [{format}]: {message}")]
     SubtitleFormat { format: String, message: String },
 
-    /// AI 服務錯誤
-    #[error("AI 服務錯誤: {0}")]
+    /// AI service encountered an error.
+    ///
+    /// Captures the raw error message from the AI provider.
+    #[error("AI service error: {0}")]
     AiService(String),
 
-    /// 音訊處理錯誤
-    #[error("音訊處理錯誤: {message}")]
+    /// Audio processing error during analysis or format conversion.
+    ///
+    /// Provides a message describing the audio processing failure.
+    #[error("Audio processing error: {message}")]
     AudioProcessing { message: String },
 
-    /// 文件匹配錯誤
-    #[error("文件匹配錯誤: {message}")]
+    /// Error during file matching or discovery.
+    ///
+    /// Contains details about path resolution or pattern matching failures.
+    #[error("File matching error: {message}")]
     FileMatching { message: String },
-    /// 檔案已存在錯誤
-    #[error("檔案已存在: {0}")]
+    /// Indicates that a file operation failed because the target exists.
+    #[error("File already exists: {0}")]
     FileAlreadyExists(String),
-    /// 檔案不存在錯誤
-    #[error("檔案不存在: {0}")]
+    /// Indicates that the specified file was not found.
+    #[error("File not found: {0}")]
     FileNotFound(String),
-    /// 無效的檔案名稱錯誤
-    #[error("無效的檔案名稱: {0}")]
+    /// Invalid file name encountered.
+    #[error("Invalid file name: {0}")]
     InvalidFileName(String),
-    /// 檔案操作失敗錯誤
-    #[error("檔案操作失敗: {0}")]
+    /// Generic file operation failure with message.
+    #[error("File operation failed: {0}")]
     FileOperationFailed(String),
-    /// 命令執行錯誤
+    /// Generic command execution error.
     #[error("{0}")]
     CommandExecution(String),
 
-    /// 一般錯誤
-    #[error("未知錯誤: {0}")]
+    /// Catch-all error variant wrapping any other failure.
+    #[error("Unknown error: {0}")]
     Other(#[from] anyhow::Error),
 }
 
@@ -55,32 +101,32 @@ mod tests {
 
     #[test]
     fn test_config_error_creation() {
-        let error = SubXError::config("測試配置錯誤");
+        let error = SubXError::config("test config error");
         assert!(matches!(error, SubXError::Config { .. }));
-        assert_eq!(error.to_string(), "配置錯誤: 測試配置錯誤");
+        assert_eq!(error.to_string(), "Configuration error: test config error");
     }
 
     #[test]
     fn test_subtitle_format_error_creation() {
-        let error = SubXError::subtitle_format("SRT", "無效格式");
+        let error = SubXError::subtitle_format("SRT", "invalid format");
         assert!(matches!(error, SubXError::SubtitleFormat { .. }));
         let msg = error.to_string();
         assert!(msg.contains("SRT"));
-        assert!(msg.contains("無效格式"));
+        assert!(msg.contains("invalid format"));
     }
 
     #[test]
     fn test_audio_processing_error_creation() {
-        let error = SubXError::audio_processing("音訊解碼失敗");
+        let error = SubXError::audio_processing("decode failed");
         assert!(matches!(error, SubXError::AudioProcessing { .. }));
-        assert_eq!(error.to_string(), "音訊處理錯誤: 音訊解碼失敗");
+        assert_eq!(error.to_string(), "Audio processing error: decode failed");
     }
 
     #[test]
     fn test_file_matching_error_creation() {
-        let error = SubXError::file_matching("匹配失敗");
+        let error = SubXError::file_matching("match failed");
         assert!(matches!(error, SubXError::FileMatching { .. }));
-        assert_eq!(error.to_string(), "文件匹配錯誤: 匹配失敗");
+        assert_eq!(error.to_string(), "File matching error: match failed");
     }
 
     #[test]
@@ -100,15 +146,15 @@ mod tests {
 
     #[test]
     fn test_user_friendly_messages() {
-        let config_error = SubXError::config("API 金鑰未設定");
+        let config_error = SubXError::config("missing key");
         let message = config_error.user_friendly_message();
-        assert!(message.contains("配置錯誤"));
+        assert!(message.contains("Configuration error:"));
         assert!(message.contains("subx config --help"));
 
-        let ai_error = SubXError::ai_service("網路連接失敗".to_string());
+        let ai_error = SubXError::ai_service("network failure".to_string());
         let message = ai_error.user_friendly_message();
-        assert!(message.contains("AI 服務錯誤"));
-        assert!(message.contains("檢查網路連接"));
+        assert!(message.contains("AI service error:"));
+        assert!(message.contains("check network connection"));
     }
 }
 
@@ -133,18 +179,34 @@ impl From<symphonia::core::errors::Error> for SubXError {
         SubXError::audio_processing(err.to_string())
     }
 }
-/// SubX 應用程式的 Result 類型
+/// Specialized `Result` type for SubX operations.
 pub type SubXResult<T> = Result<T, SubXError>;
 
 impl SubXError {
-    /// 建立配置錯誤
+    /// Create a configuration error with the given message.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// # use subx_cli::error::SubXError;
+    /// let err = SubXError::config("invalid setting");
+    /// assert_eq!(err.to_string(), "Configuration error: invalid setting");
+    /// ```
     pub fn config<S: Into<String>>(message: S) -> Self {
         SubXError::Config {
             message: message.into(),
         }
     }
 
-    /// 建立字幕格式錯誤
+    /// Create a subtitle format error for the given format and message.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// # use subx_cli::error::SubXError;
+    /// let err = SubXError::subtitle_format("SRT", "invalid timestamp");
+    /// assert!(err.to_string().contains("SRT"));
+    /// ```
     pub fn subtitle_format<S1, S2>(format: S1, message: S2) -> Self
     where
         S1: Into<String>,
@@ -156,62 +218,93 @@ impl SubXError {
         }
     }
 
-    /// 建立音訊處理錯誤
+    /// Create an audio processing error with the given message.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// # use subx_cli::error::SubXError;
+    /// let err = SubXError::audio_processing("decode failed");
+    /// assert_eq!(err.to_string(), "Audio processing error: decode failed");
+    /// ```
     pub fn audio_processing<S: Into<String>>(message: S) -> Self {
         SubXError::AudioProcessing {
             message: message.into(),
         }
     }
 
-    /// 建立 AI 服務錯誤
+    /// Create an AI service error with the given message.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// # use subx_cli::error::SubXError;
+    /// let err = SubXError::ai_service("network failure");
+    /// assert_eq!(err.to_string(), "AI service error: network failure");
+    /// ```
     pub fn ai_service<S: Into<String>>(message: S) -> Self {
         SubXError::AiService(message.into())
     }
 
-    /// 建立文件匹配錯誤
+    /// Create a file matching error with the given message.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// # use subx_cli::error::SubXError;
+    /// let err = SubXError::file_matching("not found");
+    /// assert_eq!(err.to_string(), "File matching error: not found");
+    /// ```
     pub fn file_matching<S: Into<String>>(message: S) -> Self {
         SubXError::FileMatching {
             message: message.into(),
         }
     }
-    /// 建立平行處理錯誤
+    /// Create a parallel processing error with the given message.
     pub fn parallel_processing(msg: String) -> Self {
-        SubXError::CommandExecution(format!("並行處理錯誤: {}", msg))
+        SubXError::CommandExecution(format!("Parallel processing error: {}", msg))
     }
-    /// 建立任務執行失敗錯誤
+    /// Create a task execution failure error with task ID and reason.
     pub fn task_execution_failed(task_id: String, reason: String) -> Self {
-        SubXError::CommandExecution(format!("任務 {} 執行失敗: {}", task_id, reason))
+        SubXError::CommandExecution(format!("Task {} execution failed: {}", task_id, reason))
     }
-    /// 建立工作者池耗盡錯誤
+    /// Create a worker pool exhausted error.
     pub fn worker_pool_exhausted() -> Self {
-        SubXError::CommandExecution("工作者池資源已耗盡".to_string())
+        SubXError::CommandExecution("Worker pool exhausted".to_string())
     }
-    /// 建立任務超時錯誤
+    /// Create a task timeout error with task ID and duration.
     pub fn task_timeout(task_id: String, duration: std::time::Duration) -> Self {
         SubXError::CommandExecution(format!(
-            "任務 {} 執行超時，限制時間: {:?}",
+            "Task {} timed out (limit: {:?})",
             task_id, duration
         ))
     }
-    /// 建立對話檢測失敗錯誤
+    /// Create a dialogue detection failure error with the given message.
     pub fn dialogue_detection_failed<S: Into<String>>(msg: S) -> Self {
         SubXError::AudioProcessing {
-            message: format!("對話檢測失敗: {}", msg.into()),
+            message: format!("Dialogue detection failed: {}", msg.into()),
         }
     }
-    /// 建立無效音訊格式錯誤
+    /// Create an invalid audio format error for the given format.
     pub fn invalid_audio_format<S: Into<String>>(format: S) -> Self {
         SubXError::AudioProcessing {
-            message: format!("不支援的音訊格式: {}", format.into()),
+            message: format!("Unsupported audio format: {}", format.into()),
         }
     }
-    /// 建立無效對話片段錯誤
+    /// Create an invalid dialogue segment error with the given reason.
     pub fn dialogue_segment_invalid<S: Into<String>>(reason: S) -> Self {
         SubXError::AudioProcessing {
-            message: format!("無效的對話片段: {}", reason.into()),
+            message: format!("Invalid dialogue segment: {}", reason.into()),
         }
     }
-    /// 取得對應退出狀態碼
+    /// Return the corresponding exit code for this error variant.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// # use subx_cli::error::SubXError;
+    /// assert_eq!(SubXError::config("x").exit_code(), 2);
+    /// ```
     pub fn exit_code(&self) -> i32 {
         match self {
             SubXError::Io(_) => 1,
@@ -224,38 +317,45 @@ impl SubXError {
         }
     }
 
-    /// 取得用戶友善的錯誤訊息
+    /// Return a user-friendly error message with suggested remedies.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// # use subx_cli::error::SubXError;
+    /// let msg = SubXError::config("missing key").user_friendly_message();
+    /// assert!(msg.contains("Configuration error:"));
+    /// ```
     pub fn user_friendly_message(&self) -> String {
         match self {
-            SubXError::Io(e) => format!("檔案操作錯誤: {}", e),
-            SubXError::Config { message } => {
-                format!(
-                    "配置錯誤: {}\n提示: 使用 'subx config --help' 查看配置說明",
-                    message
-                )
-            }
-            SubXError::AiService(msg) => {
-                format!("AI 服務錯誤: {}\n提示: 檢查網路連接和 API 金鑰設定", msg)
-            }
-            SubXError::SubtitleFormat { message, .. } => {
-                format!("字幕處理錯誤: {}\n提示: 檢查檔案格式和編碼", message)
-            }
-            SubXError::AudioProcessing { message } => {
-                format!(
-                    "音訊處理錯誤: {}\n提示: 確認影片檔案完整且格式支援",
-                    message
-                )
-            }
-            SubXError::FileMatching { message } => {
-                format!("檔案匹配錯誤: {}\n提示: 檢查檔案路徑和格式", message)
-            }
-            SubXError::FileAlreadyExists(path) => format!("檔案已存在: {}", path),
-            SubXError::FileNotFound(path) => format!("檔案不存在: {}", path),
-            SubXError::InvalidFileName(name) => format!("無效的檔案名稱: {}", name),
-            SubXError::FileOperationFailed(msg) => format!("檔案操作失敗: {}", msg),
+            SubXError::Io(e) => format!("File operation error: {}", e),
+            SubXError::Config { message } => format!(
+                "Configuration error: {}\nHint: run 'subx config --help' for details",
+                message
+            ),
+            SubXError::AiService(msg) => format!(
+                "AI service error: {}\nHint: check network connection and API key settings",
+                msg
+            ),
+            SubXError::SubtitleFormat { message, .. } => format!(
+                "Subtitle processing error: {}\nHint: check file format and encoding",
+                message
+            ),
+            SubXError::AudioProcessing { message } => format!(
+                "Audio processing error: {}\nHint: ensure media file integrity and support",
+                message
+            ),
+            SubXError::FileMatching { message } => format!(
+                "File matching error: {}\nHint: verify file paths and patterns",
+                message
+            ),
+            SubXError::FileAlreadyExists(path) => format!("File already exists: {}", path),
+            SubXError::FileNotFound(path) => format!("File not found: {}", path),
+            SubXError::InvalidFileName(name) => format!("Invalid file name: {}", name),
+            SubXError::FileOperationFailed(msg) => format!("File operation failed: {}", msg),
             SubXError::CommandExecution(msg) => msg.clone(),
             SubXError::Other(err) => {
-                format!("未知錯誤: {}\n提示: 請回報此問題", err)
+                format!("Unknown error: {}\nHint: please report this issue", err)
             }
         }
     }

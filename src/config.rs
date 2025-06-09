@@ -1,5 +1,23 @@
-//! SubX 配置管理模組
-//! Backlog #03: 配置管理系統實作
+//! Configuration management module for the SubX CLI application.
+//!
+//! This module provides functionality to initialize and load the application
+//! configuration from multiple sources, including files, environment variables,
+//! and command-line arguments.
+//!
+//! # Examples
+//!
+//! ```rust
+//! use subx_cli::{init_config_manager, load_config, Config, Result};
+//!
+//! fn main() -> Result<()> {
+//!     // Initialize global configuration manager and load settings
+//!     init_config_manager()?;
+//!     let config: Config = load_config()?;
+//!     // Use the loaded configuration as needed
+//!     println!("Loaded AI provider: {}", config.ai.provider);
+//!     Ok(())
+//! }
+//! ```
 
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
@@ -20,10 +38,10 @@ use std::sync::{Mutex, OnceLock};
 
 static GLOBAL_CONFIG_MANAGER: OnceLock<Mutex<ConfigManager>> = OnceLock::new();
 
-/// 重置全域配置管理器（僅供測試使用）
+/// Reset the global configuration manager (for testing only).
 ///
-/// 此函式會重置底層的 OnceLock，讓後續的 init_config_manager
-/// 可以重新建立新的 ConfigManager 實例。
+/// This function clears the internal OnceLock, allowing a fresh
+/// ConfigManager to be created on the next call to `init_config_manager()`.
 #[allow(invalid_reference_casting)]
 pub fn reset_global_config_manager() {
     // 使用 ptr::write 重建 OnceLock，覆蓋先前的鎖定狀態
@@ -34,7 +52,16 @@ pub fn reset_global_config_manager() {
     }
 }
 
-/// 初始化全域配置管理器
+/// Initialize the global configuration manager.
+///
+/// This function builds a new ConfigManager with file, environment,
+/// and CLI sources, loads the merged settings, and stores it in a
+/// global lock for subsequent retrieval.
+///
+/// # Errors
+///
+/// Returns a `SubXError::Config` variant if loading or parsing the
+/// configuration fails.
 pub fn init_config_manager() -> Result<()> {
     let lock = GLOBAL_CONFIG_MANAGER.get_or_init(|| Mutex::new(ConfigManager::new()));
 
@@ -64,12 +91,20 @@ pub fn init_config_manager() -> Result<()> {
     Ok(())
 }
 
-/// 載入應用程式配置（替代 Config::load()）
+/// Load the complete application configuration.
+///
+/// Retrieves the global ConfigManager initialized by `init_config_manager()`,
+/// reads the merged partial configuration, and converts it into a full `Config`.
+///
+/// # Errors
+///
+/// Returns a `SubXError::Config` if the global manager is not initialized
+/// or if validation or conversion to the complete `Config` fails.
 pub fn load_config() -> Result<Config> {
     debug!("load_config: Getting global config manager");
     let lock = GLOBAL_CONFIG_MANAGER.get().ok_or_else(|| {
         debug!("load_config: Global config manager not initialized");
-        SubXError::config("配置管理器尚未初始化，請先呼叫 init_config_manager()".to_string())
+        SubXError::config("global config manager not initialized; call init_config_manager() first")
     })?;
     debug!("load_config: Locking manager");
     let manager = lock.lock().unwrap();
@@ -92,14 +127,32 @@ pub fn load_config() -> Result<Config> {
     Ok(config)
 }
 
-/// 應用程式配置
+/// Full application configuration.
+///
+/// This struct aggregates all settings for AI integration, subtitle format
+/// conversion, synchronization, general options, and parallel execution.
+///
+/// # Fields
+///
+/// - `ai`: AI service configuration parameters.
+/// - `formats`: Subtitle format conversion settings.
+/// - `sync`: Audio-subtitle synchronization options.
+/// - `general`: General runtime options (e.g., backup and concurrency).
+/// - `parallel`: Parallel processing parameters.
+/// - `loaded_from`: Optional file path from which the configuration was loaded.
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct Config {
+    /// AI service configuration parameters.
     pub ai: AIConfig,
+    /// Subtitle format conversion settings.
     pub formats: FormatsConfig,
+    /// Audio-subtitle synchronization options.
     pub sync: SyncConfig,
+    /// General runtime options (e.g., backup enabled, job limits).
     pub general: GeneralConfig,
+    /// Parallel processing parameters.
     pub parallel: ParallelConfig,
+    /// Source path of the loaded configuration file, if any.
     #[serde(skip)]
     pub loaded_from: Option<PathBuf>,
 }

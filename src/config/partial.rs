@@ -59,7 +59,7 @@ pub struct PartialFormatsConfig {
     pub default_output: Option<String>,
     pub preserve_styling: Option<bool>,
     pub default_encoding: Option<String>,
-    /// 編碼檢測信心度閾值（0.0-1.0）
+    /// Confidence threshold for encoding detection (0.0-1.0).
     pub encoding_detection_confidence: Option<f32>,
 }
 
@@ -71,11 +71,11 @@ pub struct PartialSyncConfig {
     pub correlation_threshold: Option<f32>,
     pub dialogue_detection_threshold: Option<f32>,
     pub min_dialogue_duration_ms: Option<u64>,
-    /// 對話片段合併間隔（毫秒）
+    /// Interval in milliseconds to merge dialogue segments.
     pub dialogue_merge_gap_ms: Option<u64>,
-    /// 是否啟用對話檢測
+    /// Enable dialogue detection.
     pub enable_dialogue_detection: Option<bool>,
-    /// 是否自動檢測原始採樣率
+    /// Enable automatic audio sample rate detection.
     pub auto_detect_sample_rate: Option<bool>,
 }
 
