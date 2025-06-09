@@ -11,6 +11,60 @@ pub struct AICache {
     ttl: Duration,
 }
 
+#[cfg(test)]
+mod tests {
+    use super::{AICache, AnalysisRequest, MatchResult};
+    use crate::services::ai::ContentSample;
+    use std::time::Duration;
+    use tokio::time::sleep;
+
+    fn make_request() -> AnalysisRequest {
+        AnalysisRequest {
+            video_files: vec!["video1.mp4".to_string()],
+            subtitle_files: vec!["sub1.srt".to_string()],
+            content_samples: vec![ContentSample {
+                filename: "sub1.srt".to_string(),
+                content_preview: "test".to_string(),
+                file_size: 123,
+            }],
+        }
+    }
+
+    #[tokio::test]
+    async fn test_cache_get_set_and_generate_key() {
+        let cache = AICache::new(Duration::from_secs(60));
+        let key = AICache::generate_key(&make_request());
+        // cache miss
+        assert!(cache.get(&key).await.is_none());
+
+        let result = MatchResult {
+            matches: vec![],
+            confidence: 0.5,
+            reasoning: "ok".to_string(),
+        };
+        cache.set(key.clone(), result.clone()).await;
+        // cache hit
+        assert_eq!(cache.get(&key).await, Some(result));
+    }
+
+    #[tokio::test]
+    async fn test_cache_expiration() {
+        let cache = AICache::new(Duration::from_millis(50));
+        let key = "expire".to_string();
+        let result = MatchResult {
+            matches: vec![],
+            confidence: 1.0,
+            reasoning: "expire".to_string(),
+        };
+        cache.set(key.clone(), result).await;
+        // immediate hit
+        assert!(cache.get(&key).await.is_some());
+        sleep(Duration::from_millis(100)).await;
+        // after ttl
+        assert!(cache.get(&key).await.is_none());
+    }
+}
+
 struct CacheEntry {
     data: MatchResult,
     created_at: SystemTime,

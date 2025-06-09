@@ -116,6 +116,52 @@ mod tests {
         // Valid scheme but missing authority/host
         assert!(validate_base_url("http://").is_err());
     }
+
+    #[test]
+    fn test_ai_config_validator_default_and_invalid() {
+        use super::{AIConfigValidator, ConfigValidator};
+        use crate::config::Config;
+
+        let mut c = Config::default();
+        // default config should pass
+        assert!(AIConfigValidator.validate(&c).is_ok());
+        // invalid provider should fail
+        c.ai.provider = "invalid".to_string();
+        assert!(AIConfigValidator.validate(&c).is_err());
+    }
+
+    #[test]
+    fn test_sync_config_validator_valid_and_invalid() {
+        use super::{ConfigValidator, SyncConfigValidator};
+        use crate::config::Config;
+
+        let mut c = Config::default();
+        assert!(SyncConfigValidator.validate(&c).is_ok());
+        c.sync.max_offset_seconds = 0.0;
+        assert!(SyncConfigValidator.validate(&c).is_err());
+    }
+
+    #[test]
+    fn test_formats_config_validator_valid_and_invalid() {
+        use super::{ConfigValidator, FormatsConfigValidator};
+        use crate::config::Config;
+
+        let mut c = Config::default();
+        assert!(FormatsConfigValidator.validate(&c).is_ok());
+        c.formats.default_output.clear();
+        assert!(FormatsConfigValidator.validate(&c).is_err());
+    }
+
+    #[test]
+    fn test_general_config_validator_valid_and_invalid() {
+        use super::{ConfigValidator, GeneralConfigValidator};
+        use crate::config::Config;
+
+        let mut c = Config::default();
+        assert!(GeneralConfigValidator.validate(&c).is_ok());
+        c.general.max_concurrent_jobs = 0;
+        assert!(GeneralConfigValidator.validate(&c).is_err());
+    }
 }
 
 /// Validator for synchronization-related configuration.

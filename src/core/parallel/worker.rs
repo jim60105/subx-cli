@@ -19,7 +19,7 @@ struct WorkerInfo {
     worker_type: WorkerType,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum WorkerType {
     CpuIntensive,
     IoIntensive,
@@ -205,5 +205,99 @@ mod tests {
         let stats = pool.get_worker_stats();
         assert_eq!(stats.max_capacity, 2);
         assert_eq!(stats.total_active, 0);
+    }
+
+    #[tokio::test]
+    async fn test_execute_and_active_count() {
+        use crate::core::parallel::task::{Task, TaskResult};
+        use async_trait::async_trait;
+
+        #[derive(Clone)]
+        struct DummyTask {
+            id: String,
+            tp: &'static str,
+        }
+
+        #[async_trait]
+        impl Task for DummyTask {
+            async fn execute(&self) -> TaskResult {
+                TaskResult::Success(self.id.clone())
+            }
+            fn task_type(&self) -> &'static str {
+                self.tp
+            }
+            fn task_id(&self) -> String {
+                self.id.clone()
+            }
+        }
+
+        let pool = WorkerPool::new(1);
+        let task = DummyTask {
+            id: "t1".into(),
+            tp: "convert",
+        };
+        let res = pool.execute(Box::new(task.clone())).await;
+        assert!(matches!(res, Ok(TaskResult::Success(_))));
+        assert_eq!(pool.get_active_count(), 1);
+    }
+
+    #[tokio::test]
+    async fn test_reject_when_full() {
+        use crate::core::parallel::task::{Task, TaskResult};
+        use async_trait::async_trait;
+
+        #[derive(Clone)]
+        struct DummyTask;
+
+        #[async_trait]
+        impl Task for DummyTask {
+            async fn execute(&self) -> TaskResult {
+                TaskResult::Success("".into())
+            }
+            fn task_type(&self) -> &'static str {
+                "match"
+            }
+            fn task_id(&self) -> String {
+                "".into()
+            }
+        }
+
+        let pool = WorkerPool::new(1);
+        let _ = pool.execute(Box::new(DummyTask)).await;
+        let err = pool.execute(Box::new(DummyTask)).await;
+        assert!(err.is_err());
+    }
+
+    #[tokio::test]
+    async fn test_list_active_workers_and_stats() {
+        use super::WorkerType;
+        use crate::core::parallel::task::{Task, TaskResult};
+        use async_trait::async_trait;
+
+        #[derive(Clone)]
+        struct DummyTask2;
+
+        #[async_trait]
+        impl Task for DummyTask2 {
+            async fn execute(&self) -> TaskResult {
+                TaskResult::Success("".into())
+            }
+            fn task_type(&self) -> &'static str {
+                "sync"
+            }
+            fn task_id(&self) -> String {
+                "tok2".into()
+            }
+        }
+
+        let pool = WorkerPool::new(2);
+        let _ = pool.execute(Box::new(DummyTask2)).await;
+        let workers = pool.list_active_workers();
+        assert_eq!(workers.len(), 1);
+        let info = &workers[0];
+        assert_eq!(info.task_id, "tok2");
+        assert_eq!(info.worker_type, WorkerType::Mixed);
+        let stats = pool.get_worker_stats();
+        assert_eq!(stats.total_active, 1);
     }
 }
