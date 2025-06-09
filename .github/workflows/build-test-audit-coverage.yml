@@ -55,13 +55,13 @@ jobs:
     - name: Check clippy
       run: cargo clippy -- -D warnings
 
-    - name: Check documentation
+    - name: Comprehensive Documentation Quality Check
       run: |
-        cargo clippy -- -W missing_docs -D warnings
-        cargo doc --all-features --no-deps --document-private-items 2>&1 | tee doc_output.log && ! grep -i "warning\|error" doc_output.log
-
-    - name: Test documentation examples
-      run: cargo test --doc --verbose
+        # Make the documentation check script executable (if not already)
+        chmod +x scripts/check_docs.sh
+        
+        # Run the comprehensive documentation quality check script
+        ./scripts/check_docs.sh
 
     - name: Run tests
       run: cargo test --verbose

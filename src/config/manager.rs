@@ -23,17 +23,21 @@
 //!
 //! // Note: Watch functionality requires an existing file
 //! // let (mut rx, _watcher) = manager.watch().expect("Watcher setup failed");
+//! // tokio::spawn(async move {
+//! //     while rx.changed().await.is_ok() {
+//! //         match *rx.borrow() {
+//! //             ConfigChangeEvent::Updated => println!("Configuration updated"),
+//! //             ConfigChangeEvent::Error(ref e) => eprintln!("Error: {}", e),
+//! //             ConfigChangeEvent::Initial => (),
+//! //         }
+//! //     }
+//! // });
 //! ```
-//! tokio::spawn(async move {
-//!     while rx.changed().await.is_ok() {
-//!         match *rx.borrow() {
-//!             ConfigChangeEvent::Updated => println!("Configuration updated"),
-//!             ConfigChangeEvent::Error(ref e) => eprintln!("Error: {}", e),
-//!             ConfigChangeEvent::Initial => (),
-//!         }
-//!     }
-//! });
-//! ```
+//!
+//! ## Event-Driven Configuration
+//!
+//! The ConfigManager provides event-driven configuration updates through
+//! the watch system, allowing real-time configuration changes.
 
 use std::io;
 use std::sync::{Arc, RwLock};

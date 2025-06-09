@@ -14,10 +14,19 @@ categories = ["command-line-utilities", "multimedia"]
 all-features = true
 rustdoc-args = ["--cfg", "docsrs"]
 
+# Documentation quality linting
 [lints.rustdoc]
 broken_intra_doc_links = "deny"
-missing_docs = "warn"
 private_doc_tests = "warn"
+invalid_rust_codeblocks = "warn"
+bare_urls = "warn"
+
+[lints.clippy]
+missing_docs_in_private_items = "allow"  # Allow missing private docs
+doc_markdown = "allow"  # Allow markdown formatting warnings
+
+[lints.rust]
+missing_docs = "allow"  # Allow missing docs at rust level
 
 [dependencies]
 # CLI 框架

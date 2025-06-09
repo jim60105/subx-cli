@@ -301,36 +301,119 @@ mod tests {
     }
 }
 
-/// AI 相關配置
+/// AI 服務提供者配置
+///
+/// 此結構包含所有 AI 服務提供者的配置選項，包括 API 金鑰、模型設定和重試策略。
+/// 支援多種 AI 提供者，包括 OpenAI、Claude 等。
+///
+/// # Fields
+///
+/// * `provider` - AI 提供者名稱 (如 "openai", "claude")
+/// * `api_key` - API 金鑰，用於身份驗證
+/// * `model` - 使用的 AI 模型名稱  
+/// * `base_url` - API 基礎 URL
+/// * `max_sample_length` - 單次請求的最大樣本長度
+/// * `temperature` - AI 生成的創造性參數 (0.0-1.0)
+/// * `retry_attempts` - 請求失敗時的重試次數
+/// * `retry_delay_ms` - 重試間隔時間 (毫秒)
+///
+/// # Examples
+///
+/// ```rust
+/// use subx_cli::config::AIConfig;
+///
+/// let ai_config = AIConfig {
+///     provider: "openai".to_string(),
+///     api_key: Some("your-api-key".to_string()),
+///     model: "gpt-4".to_string(),
+///     base_url: "https://api.openai.com/v1".to_string(),
+///     max_sample_length: 4000,
+///     temperature: 0.3,
+///     retry_attempts: 3,
+///     retry_delay_ms: 1000,
+/// };
+/// ```
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct AIConfig {
+    /// AI 服務提供者名稱 (如 "openai", "claude")
     pub provider: String,
+    /// API 金鑰，用於身份驗證
     pub api_key: Option<String>,
+    /// 使用的 AI 模型名稱
     pub model: String,
+    /// API 基礎 URL
     pub base_url: String,
+    /// 單次請求的最大樣本長度
     pub max_sample_length: usize,
+    /// AI 生成的創造性參數 (0.0-1.0)
     pub temperature: f32,
+    /// 請求失敗時的重試次數
     pub retry_attempts: u32,
+    /// 重試間隔時間 (毫秒)
     pub retry_delay_ms: u64,
 }
 
 /// 字幕格式相關配置
+///
+/// 控制字幕格式轉換和處理的各種選項，包括預設輸出格式、
+/// 樣式保留和編碼處理設定。
+///
+/// # Examples
+///
+/// ```rust
+/// use subx_cli::config::FormatsConfig;
+///
+/// let config = FormatsConfig {
+///     default_output: "srt".to_string(),
+///     preserve_styling: true,
+///     default_encoding: "utf-8".to_string(),
+///     encoding_detection_confidence: 0.8,
+/// };
+/// ```
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct FormatsConfig {
+    /// 預設輸出格式 (如 "srt", "ass", "vtt")
     pub default_output: String,
+    /// 是否在格式轉換時保留樣式資訊
     pub preserve_styling: bool,
+    /// 預設字符編碼 (如 "utf-8", "gbk")
     pub default_encoding: String,
     /// 編碼檢測信心度閾值（0.0-1.0）
     pub encoding_detection_confidence: f32,
 }
 
 /// 音訊同步相關配置
+///
+/// 控制音訊-字幕同步演算法的各種參數，包括最大偏移量、
+/// 相關性閾值和對話檢測設定。
+///
+/// # Examples
+///
+/// ```rust
+/// use subx_cli::config::SyncConfig;
+///
+/// let config = SyncConfig {
+///     max_offset_seconds: 30.0,
+///     audio_sample_rate: 44100,
+///     correlation_threshold: 0.8,
+///     dialogue_detection_threshold: 0.6,
+///     min_dialogue_duration_ms: 500,
+///     dialogue_merge_gap_ms: 200,
+///     enable_dialogue_detection: true,
+///     auto_detect_sample_rate: true,
+/// };
+/// ```
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct SyncConfig {
+    /// 允許的最大時間偏移量（秒）
     pub max_offset_seconds: f32,
+    /// 音訊處理採樣率（Hz）
     pub audio_sample_rate: u32,
+    /// 相關性分析閾值（0.0-1.0）
     pub correlation_threshold: f32,
+    /// 對話檢測閾值（0.0-1.0）
     pub dialogue_detection_threshold: f32,
+    /// 最小對話持續時間（毫秒）
     pub min_dialogue_duration_ms: u64,
     /// 對話片段合併間隔（毫秒）
     pub dialogue_merge_gap_ms: u64,
@@ -348,20 +431,59 @@ impl SyncConfig {
 }
 
 /// 一般配置
+///
+/// 控制應用程式的一般行為選項，包括備份、並行處理和使用者介面設定。
+///
+/// # Examples
+///
+/// ```rust
+/// use subx_cli::config::GeneralConfig;
+///
+/// let config = GeneralConfig {
+///     backup_enabled: true,
+///     max_concurrent_jobs: 4,
+///     task_timeout_seconds: 300,
+///     enable_progress_bar: true,
+///     worker_idle_timeout_seconds: 60,
+/// };
+/// ```
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct GeneralConfig {
+    /// 是否啟用自動備份功能
     pub backup_enabled: bool,
+    /// 最大並行任務數量
     pub max_concurrent_jobs: usize,
+    /// 單個任務的超時時間（秒）
     pub task_timeout_seconds: u64,
+    /// 是否顯示進度條
     pub enable_progress_bar: bool,
+    /// 工作者閒置超時時間（秒）
     pub worker_idle_timeout_seconds: u64,
 }
 
 /// 並行處理相關配置
+///
+/// 控制並行任務處理的各種參數，包括佇列大小、優先順序管理和負載平衡策略。
+///
+/// # Examples
+///
+/// ```rust
+/// use subx_cli::config::{ParallelConfig, OverflowStrategy};
+///
+/// let config = ParallelConfig {
+///     task_queue_size: 100,
+///     enable_task_priorities: true,
+///     auto_balance_workers: true,
+///     queue_overflow_strategy: OverflowStrategy::Block,
+/// };
+/// ```
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct ParallelConfig {
+    /// 任務佇列的最大大小
     pub task_queue_size: usize,
+    /// 是否啟用任務優先順序管理
     pub enable_task_priorities: bool,
+    /// 是否自動平衡工作者負載
     pub auto_balance_workers: bool,
     /// Strategy to apply when the task queue reaches its maximum size.
     pub queue_overflow_strategy: OverflowStrategy,

@@ -128,8 +128,8 @@ mod tests {
 /// Represents a file operation that can be rolled back.
 ///
 /// Each operation is tracked to enable proper rollback functionality:
-/// - [`Created`] operations are reversed by deleting the file
-/// - [`Removed`] operations are reversed by restoring from backup
+/// - [`FileOperation::Created`] operations are reversed by deleting the file
+/// - [`FileOperation::Removed`] operations are reversed by restoring from backup
 #[derive(Debug)]
 enum FileOperation {
     /// A file was created and should be removed on rollback.

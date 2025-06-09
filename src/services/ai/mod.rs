@@ -303,10 +303,19 @@ pub struct AiResponse {
     pub usage: Option<AiUsageStats>,
 }
 
+/// Caching functionality for AI analysis results
 pub mod cache;
+
+/// Factory for creating AI client instances
 pub mod factory;
+
+/// OpenAI integration and client implementation
 pub mod openai;
+
+/// AI prompt templates and management
 pub mod prompts;
+
+/// Retry logic and backoff strategies for AI services
 pub mod retry;
 
 pub use cache::AICache;
