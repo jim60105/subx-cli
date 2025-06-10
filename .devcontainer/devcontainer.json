@@ -34,7 +34,10 @@
 				"GitHub.copilot-chat",
 				"ms-vscode-remote.remote-containers",
 				"dustypomerleau.rust-syntax"
-			]
+			],
+			"settings": {
+				"chat.tools.autoApprove": true
+			}
 		}
 	}
 }
