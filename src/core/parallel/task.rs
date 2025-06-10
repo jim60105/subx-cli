@@ -283,6 +283,7 @@ impl std::hash::Hash for ProcessingOperation {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::time::Duration;
     use tempfile::TempDir;
 
     #[tokio::test]
@@ -299,5 +300,314 @@ mod tests {
         };
         let result = task.execute().await;
         assert!(matches!(result, TaskResult::Success(_)));
+    }
+
+    /// Test task lifecycle and status transitions
+    #[tokio::test]
+    async fn test_task_lifecycle() {
+        let tmp = TempDir::new().unwrap();
+        let test_file = tmp.path().join("lifecycle.srt");
+        tokio::fs::write(
+            &test_file,
+            "1\n00:00:01,000 --> 00:00:02,000\nLifecycle test\n",
+        )
+        .await
+        .unwrap();
+
+        let task = FileProcessingTask {
+            input_path: test_file.clone(),
+            output_path: None,
+            operation: ProcessingOperation::ValidateFormat,
+        };
+
+        // Test initial task properties
+        assert_eq!(task.task_type(), "validate");
+        assert!(!task.task_id().is_empty());
+        assert!(task.description().contains("Validate format"));
+        assert!(task.description().contains("lifecycle.srt"));
+        assert!(
+            task.estimated_duration().is_some(),
+            "Should estimate duration for existing file"
+        );
+
+        // Test execution
+        let result = task.execute().await;
+        assert!(matches!(result, TaskResult::Success(_)));
+    }
+
+    /// Test task result serialization and display
+    #[test]
+    fn test_task_result_display() {
+        let success = TaskResult::Success("Operation completed".to_string());
+        let failed = TaskResult::Failed("Operation failed".to_string());
+        let cancelled = TaskResult::Cancelled;
+        let partial =
+            TaskResult::PartialSuccess("Mostly worked".to_string(), "Minor issue".to_string());
+
+        assert_eq!(format!("{}", success), "✓ Operation completed");
+        assert_eq!(format!("{}", failed), "✗ Operation failed");
+        assert_eq!(format!("{}", cancelled), "⚠ Task cancelled");
+        assert_eq!(
+            format!("{}", partial),
+            "⚠ Mostly worked (warning: Minor issue)"
+        );
+    }
+
+    /// Test task status display
+    #[test]
+    fn test_task_status_display() {
+        let pending = TaskStatus::Pending;
+        let running = TaskStatus::Running;
+        let completed = TaskStatus::Completed(TaskResult::Success("Done".to_string()));
+        let failed = TaskStatus::Failed("Error occurred".to_string());
+        let cancelled = TaskStatus::Cancelled;
+
+        assert_eq!(format!("{}", pending), "Pending");
+        assert_eq!(format!("{}", running), "Running");
+        assert_eq!(format!("{}", completed), "Completed: ✓ Done");
+        assert_eq!(format!("{}", failed), "Failed: Error occurred");
+        assert_eq!(format!("{}", cancelled), "Cancelled");
+    }
+
+    /// Test format conversion task
+    #[tokio::test]
+    async fn test_format_conversion_task() {
+        let tmp = TempDir::new().unwrap();
+        let input_file = tmp.path().join("input.srt");
+        let output_file = tmp.path().join("output.ass");
+
+        // Create valid SRT content
+        let srt_content = r#"1
+00:00:01,000 --> 00:00:03,000
+First subtitle
+
+2
+00:00:04,000 --> 00:00:06,000
+Second subtitle
+"#;
+
+        tokio::fs::write(&input_file, srt_content).await.unwrap();
+
+        let task = FileProcessingTask {
+            input_path: input_file.clone(),
+            output_path: Some(output_file.clone()),
+            operation: ProcessingOperation::ConvertFormat {
+                from: "srt".to_string(),
+                to: "ass".to_string(),
+            },
+        };
+
+        let result = task.execute().await;
+        assert!(matches!(result, TaskResult::Success(_)));
+
+        // Note: The convert_format method is a stub that returns the input path
+        // In a real implementation, this would create an actual output file
+        assert!(tokio::fs::metadata(&input_file).await.is_ok());
+    }
+
+    /// Test file matching task
+    #[tokio::test]
+    async fn test_file_matching_task() {
+        let tmp = TempDir::new().unwrap();
+        let video_file = tmp.path().join("movie.mkv");
+        let subtitle_file = tmp.path().join("movie.srt");
+
+        // Create test files
+        tokio::fs::write(&video_file, b"fake video content")
+            .await
+            .unwrap();
+        tokio::fs::write(&subtitle_file, "1\n00:00:01,000 --> 00:00:02,000\nTest\n")
+            .await
+            .unwrap();
+
+        let task = FileProcessingTask {
+            input_path: tmp.path().to_path_buf(),
+            output_path: None,
+            operation: ProcessingOperation::MatchFiles { recursive: false },
+        };
+
+        let result = task.execute().await;
+        assert!(matches!(result, TaskResult::Success(_)));
+    }
+
+    /// Test sync subtitle task (expected to fail)
+    #[tokio::test]
+    async fn test_sync_subtitle_task() {
+        let tmp = TempDir::new().unwrap();
+        let audio_file = tmp.path().join("audio.wav");
+        let subtitle_file = tmp.path().join("subtitle.srt");
+
+        tokio::fs::write(&audio_file, b"fake audio content")
+            .await
+            .unwrap();
+        tokio::fs::write(&subtitle_file, "1\n00:00:01,000 --> 00:00:02,000\nTest\n")
+            .await
+            .unwrap();
+
+        let task = FileProcessingTask {
+            input_path: subtitle_file.clone(),
+            output_path: None,
+            operation: ProcessingOperation::SyncSubtitle {
+                audio_path: audio_file,
+            },
+        };
+
+        let result = task.execute().await;
+        // Sync is not implemented, so should fail
+        assert!(matches!(result, TaskResult::Failed(_)));
+    }
+
+    /// Test task error handling
+    #[tokio::test]
+    async fn test_task_error_handling() {
+        // Test with sync operation which always fails in stub implementation
+        let tmp = TempDir::new().unwrap();
+        let test_file = tmp.path().join("test.srt");
+
+        let task = FileProcessingTask {
+            input_path: test_file,
+            output_path: None,
+            operation: ProcessingOperation::SyncSubtitle {
+                audio_path: tmp.path().join("audio.wav"),
+            },
+        };
+
+        let result = task.execute().await;
+        assert!(matches!(result, TaskResult::Failed(_)));
+    }
+
+    /// Test task timeout handling
+    #[tokio::test]
+    async fn test_task_timeout() {
+        use async_trait::async_trait;
+
+        struct SlowTask {
+            duration: Duration,
+        }
+
+        #[async_trait]
+        impl Task for SlowTask {
+            async fn execute(&self) -> TaskResult {
+                tokio::time::sleep(self.duration).await;
+                TaskResult::Success("Slow task completed".to_string())
+            }
+            fn task_type(&self) -> &'static str {
+                "slow"
+            }
+            fn task_id(&self) -> String {
+                "slow_task_1".to_string()
+            }
+            fn estimated_duration(&self) -> Option<Duration> {
+                Some(self.duration)
+            }
+        }
+
+        let slow_task = SlowTask {
+            duration: Duration::from_millis(100),
+        };
+
+        // Test estimated duration
+        assert_eq!(
+            slow_task.estimated_duration(),
+            Some(Duration::from_millis(100))
+        );
+
+        // Test execution
+        let start = std::time::Instant::now();
+        let result = slow_task.execute().await;
+        let elapsed = start.elapsed();
+
+        assert!(matches!(result, TaskResult::Success(_)));
+        assert!(elapsed >= Duration::from_millis(90)); // Allow some variance
+    }
+
+    /// Test processing operation variants
+    #[test]
+    fn test_processing_operation_variants() {
+        let convert_op = ProcessingOperation::ConvertFormat {
+            from: "srt".to_string(),
+            to: "ass".to_string(),
+        };
+
+        let sync_op = ProcessingOperation::SyncSubtitle {
+            audio_path: std::path::PathBuf::from("audio.wav"),
+        };
+
+        let match_op = ProcessingOperation::MatchFiles { recursive: true };
+        let validate_op = ProcessingOperation::ValidateFormat;
+
+        // Test debug formatting
+        assert!(format!("{:?}", convert_op).contains("ConvertFormat"));
+        assert!(format!("{:?}", sync_op).contains("SyncSubtitle"));
+        assert!(format!("{:?}", match_op).contains("MatchFiles"));
+        assert!(format!("{:?}", validate_op).contains("ValidateFormat"));
+
+        // Test cloning
+        let convert_clone = convert_op.clone();
+        assert!(format!("{:?}", convert_clone).contains("ConvertFormat"));
+    }
+
+    /// Test custom task implementation
+    #[tokio::test]
+    async fn test_custom_task_implementation() {
+        use async_trait::async_trait;
+
+        struct CustomTask {
+            id: String,
+            should_succeed: bool,
+        }
+
+        #[async_trait]
+        impl Task for CustomTask {
+            async fn execute(&self) -> TaskResult {
+                if self.should_succeed {
+                    TaskResult::Success(format!("Custom task {} succeeded", self.id))
+                } else {
+                    TaskResult::Failed(format!("Custom task {} failed", self.id))
+                }
+            }
+
+            fn task_type(&self) -> &'static str {
+                "custom"
+            }
+
+            fn task_id(&self) -> String {
+                self.id.clone()
+            }
+
+            fn description(&self) -> String {
+                format!("Custom task with ID: {}", self.id)
+            }
+
+            fn estimated_duration(&self) -> Option<Duration> {
+                Some(Duration::from_millis(1))
+            }
+        }
+
+        // Test successful custom task
+        let success_task = CustomTask {
+            id: "success_1".to_string(),
+            should_succeed: true,
+        };
+
+        assert_eq!(success_task.task_type(), "custom");
+        assert_eq!(success_task.task_id(), "success_1");
+        assert_eq!(success_task.description(), "Custom task with ID: success_1");
+        assert_eq!(
+            success_task.estimated_duration(),
+            Some(Duration::from_millis(1))
+        );
+
+        let result = success_task.execute().await;
+        assert!(matches!(result, TaskResult::Success(_)));
+
+        // Test failing custom task
+        let fail_task = CustomTask {
+            id: "fail_1".to_string(),
+            should_succeed: false,
+        };
+
+        let result = fail_task.execute().await;
+        assert!(matches!(result, TaskResult::Failed(_)));
     }
 }
