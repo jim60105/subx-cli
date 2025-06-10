@@ -4,25 +4,25 @@ use std::path::{Path, PathBuf};
 use serde_json;
 use toml;
 
-/// 測試用的媒體檔案生成器
+/// Test media file generator
 pub struct TestMediaGenerator {
     pub temp_dir: TempDir,
 }
 
 impl TestMediaGenerator {
-    /// 建立新的臨時目錄作為測試工作區
+    /// Create a new temporary directory as test workspace
     pub fn new() -> Self {
         Self {
             temp_dir: TempDir::new().unwrap(),
         }
     }
 
-    /// 取得臨時目錄路徑
+    /// Get the temporary directory path
     pub fn path(&self) -> &Path {
         self.temp_dir.path()
     }
 
-    /// 建立測試用的 SRT 字幕檔案
+    /// Create test SRT subtitle file
     pub fn create_srt_file(&self, name: &str, entries: &[(&str, &str, &str)]) -> PathBuf {
         let mut content = String::new();
         for (i, (start, end, text)) in entries.iter().enumerate() {
@@ -33,14 +33,14 @@ impl TestMediaGenerator {
         path
     }
 
-    /// 建立測試用的影片檔案（空檔案）
+    /// Create test video file (empty file)
     pub fn create_video_file(&self, name: &str, extension: &str) -> PathBuf {
         let path = self.path().join(format!("{}.{}", name, extension));
         fs::write(&path, b"").unwrap();
         path
     }
 
-    /// 建立測試用的配置檔案
+    /// Create test configuration file
     pub fn create_config_file(&self, config: &subx_cli::config::Config) -> PathBuf {
         let content = toml::to_string_pretty(config).unwrap();
         let path = self.path().join("config.toml");
@@ -49,7 +49,7 @@ impl TestMediaGenerator {
     }
 }
 
-/// 測試用的 AI 回應模擬器
+/// Test AI response simulator
 pub struct MockAIResponses;
 
 impl MockAIResponses {
@@ -60,11 +60,11 @@ impl MockAIResponses {
                     "video_file": "video.mp4",
                     "subtitle_file": "subtitle.srt",
                     "confidence": 0.95,
-                    "match_factors": ["檔名相似", "內容匹配"]
+                    "match_factors": ["filename similarity", "content match"]
                 }
             ],
             "confidence": 0.95,
-            "reasoning": "檔名模式高度相似"
+            "reasoning": "filename pattern highly similar"
         })
     }
 
@@ -75,11 +75,11 @@ impl MockAIResponses {
                     "video_file": "video.mp4",
                     "subtitle_file": "subtitle.srt",
                     "confidence": 0.3,
-                    "match_factors": ["部分檔名相似"]
+                    "match_factors": ["partial filename similarity"]
                 }
             ],
             "confidence": 0.3,
-            "reasoning": "匹配度較低"
+            "reasoning": "low match confidence"
         })
     }
 
@@ -87,12 +87,12 @@ impl MockAIResponses {
         serde_json::json!({
             "matches": [],
             "confidence": 0.0,
-            "reasoning": "找不到合適的匹配"
+            "reasoning": "no suitable match found"
         })
     }
 }
 
-/// 斷言輔助巨集
+/// Assertion helper macros
 #[macro_export]
 macro_rules! assert_subtitle_entry {
     ($entry:expr, $index:expr, $start:expr, $end:expr, $text:expr) => {

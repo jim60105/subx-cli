@@ -107,10 +107,10 @@ impl DialogueDetector {
 mod tests {
     use super::*;
 
-    /// 測試語音活動比例計算
+    /// Test speech activity ratio calculation
     #[test]
     fn test_get_speech_ratio() {
-        // 初始化全域設定以便建立 DialogueDetector
+        // Initialize global configuration to allow DialogueDetector creation
         crate::config::reset_global_config_manager();
         crate::config::init_config_manager().unwrap();
         let segments = vec![
@@ -120,7 +120,7 @@ mod tests {
         ];
         let detector = DialogueDetector::new().unwrap();
         let ratio = detector.get_speech_ratio(&segments);
-        // 語音比例為(1+2)/(1+1+2)=3/4
-        assert!((ratio - 0.75).abs() < 1e-6, "語音比例應為0.75");
+        // Speech ratio is (1+2)/(1+1+2) = 3/4
+        assert!((ratio - 0.75).abs() < 1e-6, "Speech ratio should be 0.75");
     }
 }

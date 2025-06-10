@@ -43,7 +43,7 @@ mod tests {
     use crate::core::formats::{Subtitle, SubtitleEntry, SubtitleFormatType, SubtitleMetadata};
     use std::time::Duration;
 
-    /// 測試手動偏移應用於字幕時間
+    /// Test manual offset application to subtitle timings
     #[test]
     fn test_apply_sync_offset_positive() {
         let mut subtitle = Subtitle {
@@ -67,7 +67,7 @@ mod tests {
         assert_eq!(subtitle.entries[0].end_time, Duration::from_secs(4));
     }
 
-    /// 測試負方向偏移應用於字幕時間
+    /// Test negative offset application to subtitle timings
     #[test]
     fn test_apply_sync_offset_negative() {
         let mut subtitle = Subtitle {

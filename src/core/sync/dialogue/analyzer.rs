@@ -25,12 +25,12 @@ pub struct EnergyAnalyzer {
 mod tests {
     use super::*;
 
-    /// 測試能量分析器能偵測能量變化區段
+    /// Test that energy analyzer can detect energy variation segments
     #[test]
     fn test_energy_analyzer() {
-        // 使用較低門檻以確保能量變化可被偵測
+        // Use lower threshold to ensure energy changes can be detected
         let analyzer = EnergyAnalyzer::new(0.0, 0);
-        // 建立交替靜音與高能量的樣本序列
+        // Create alternating silence and high-energy sample sequence
         let mut samples = Vec::new();
         for block in 0..10 {
             let value = if block % 2 == 0 { 0.0 } else { 1.0 };
@@ -39,9 +39,15 @@ mod tests {
             }
         }
         let segments = analyzer.analyze(&samples, 44100);
-        assert!(!segments.is_empty(), "應能偵測到至少一個語音區段");
-        // 至少有一筆區段資料，後續可依需求判斷變化情況
-        assert!(!segments.is_empty(), "應偵測到至少一筆能量區段");
+        assert!(
+            !segments.is_empty(),
+            "Should detect at least one speech segment"
+        );
+        // At least one segment data exists, subsequent judgments can be made as needed
+        assert!(
+            !segments.is_empty(),
+            "Should detect at least one energy segment"
+        );
     }
 }
 
