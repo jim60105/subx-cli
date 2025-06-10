@@ -282,11 +282,20 @@ pub async fn execute(args: ConvertArgs) -> crate::Result<()> {
 mod tests {
     use super::*;
     use crate::config::init_config_manager;
+    use serial_test::serial;
     use std::fs;
     use tempfile::TempDir;
 
+    /// 重設測試環境以避免測試間的狀態干擾
+    fn reset_test_environment() {
+        // 重設全域配置管理器
+        crate::config::reset_global_config_manager();
+    }
+
     #[tokio::test]
+    #[serial]
     async fn test_convert_srt_to_vtt() -> crate::Result<()> {
+        reset_test_environment();
         init_config_manager()?;
         let temp_dir = TempDir::new().unwrap();
         let input_file = temp_dir.path().join("test.srt");
@@ -307,11 +316,14 @@ mod tests {
         let content = fs::read_to_string(&output_file).unwrap();
         assert!(content.contains("WEBVTT"));
         assert!(content.contains("00:00:01.000 --> 00:00:02.000"));
+        reset_test_environment();
         Ok(())
     }
 
     #[tokio::test]
+    #[serial]
     async fn test_convert_batch_processing() -> crate::Result<()> {
+        reset_test_environment();
         init_config_manager()?;
         let temp_dir = TempDir::new().unwrap();
         for i in 1..=3 {
@@ -336,11 +348,14 @@ mod tests {
         };
         // 僅檢查執行結果，不驗證實際檔案產生，由於轉換器行為外部模組控制
         execute(args).await?;
+        reset_test_environment();
         Ok(())
     }
 
     #[tokio::test]
+    #[serial]
     async fn test_convert_unsupported_format() {
+        reset_test_environment();
         init_config_manager().unwrap();
         let temp_dir = TempDir::new().unwrap();
         let input_file = temp_dir.path().join("test.txt");
@@ -354,5 +369,6 @@ mod tests {
         };
         let result = execute(args).await;
         assert!(result.is_err());
+        reset_test_environment();
     }
 }

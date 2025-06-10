@@ -1,12 +1,16 @@
+use serial_test::serial;
 use std::fs;
 use subx_cli::{
+    config::reset_global_config_manager,
     core::formats::encoding::{Charset, EncodingConverter, EncodingDetector},
     init_config_manager,
 };
 use tempfile::tempdir;
 
 #[test]
+#[serial]
 fn test_subtitle_file_encoding_detection() {
+    reset_global_config_manager();
     let dir = tempdir().unwrap();
     let srt = r#"1
 00:00:01,000 --> 00:00:03,000
@@ -25,10 +29,13 @@ Hello, World!
         .unwrap();
     assert_eq!(info.charset, Charset::Utf8);
     assert!(info.confidence > 0.7);
+    reset_global_config_manager();
 }
 
 #[test]
+#[serial]
 fn test_end_to_end_encoding_conversion() {
+    reset_global_config_manager();
     let dir = tempdir().unwrap();
     let path = dir.path().join("input.srt");
     let content = "Hello, 世界! Bonjour, monde!";
@@ -44,4 +51,5 @@ fn test_end_to_end_encoding_conversion() {
         .unwrap();
     assert_eq!(result.converted_text, content);
     assert!(!result.had_errors);
+    reset_global_config_manager();
 }

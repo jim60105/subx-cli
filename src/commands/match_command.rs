@@ -524,11 +524,24 @@ mod tests {
         AIProvider, AnalysisRequest, ConfidenceScore, MatchResult, VerificationRequest,
     };
     use async_trait::async_trait;
+    use serial_test::serial;
     use std::fs;
     use std::path::PathBuf;
     use tempfile::tempdir;
 
     struct DummyAI;
+
+    /// 重設測試環境以避免測試間的狀態干擾
+    fn reset_test_environment() {
+        // 重設全域配置管理器
+        crate::config::reset_global_config_manager();
+
+        // 清理可能影響測試的環境變數
+        unsafe {
+            std::env::remove_var("XDG_CONFIG_HOME");
+            std::env::remove_var("SUBX_CONFIG_PATH");
+        }
+    }
     #[async_trait]
     impl AIProvider for DummyAI {
         async fn analyze_content(&self, _req: AnalysisRequest) -> crate::Result<MatchResult> {
@@ -545,7 +558,11 @@ mod tests {
 
     /// Dry-run 模式下應建立快取檔案，且不實際執行任何檔案操作
     #[tokio::test]
+    #[serial]
     async fn dry_run_creates_cache_and_skips_execute_operations() -> crate::Result<()> {
+        // 重設測試環境以避免測試間的狀態干擾
+        reset_test_environment();
+
         // 建立臨時媒體資料夾並放入示意影片與字幕檔
         let media_dir = tempdir()?;
         let media_path = media_dir.path().join("media");
@@ -561,6 +578,16 @@ mod tests {
         }
         // 初始化配置管理器，以便使用新系統載入默認配置
         init_config_manager()?;
+
+        // 獲取快取檔案路徑並清理可能存在的舊快取檔案
+        let cache_path = dirs::config_dir()
+            .unwrap()
+            .join("subx")
+            .join("match_cache.json");
+        // 如果快取檔案存在則刪除，確保測試環境乾淨
+        if cache_path.exists() {
+            fs::remove_file(&cache_path)?;
+        }
 
         // 確認尚未產生快取檔案
         let cache_path = dirs::config_dir()
@@ -589,16 +616,26 @@ mod tests {
             subtitle.exists(),
             "dry_run 不應執行 execute_operations，字幕檔仍須存在"
         );
+
+        // 清理測試環境
+        if cache_path.exists() {
+            let _ = fs::remove_file(&cache_path);
+        }
+        reset_test_environment();
+
         Ok(())
     }
 
     #[tokio::test]
+    #[serial]
     async fn test_execute_parallel_match_no_files() -> crate::Result<()> {
+        reset_test_environment();
         let temp_dir = tempdir()?;
         init_config_manager()?;
         // 無任何影片檔案時應正常返回
         let result = execute_parallel_match(&temp_dir.path(), false, None).await;
         assert!(result.is_ok());
+        reset_test_environment();
         Ok(())
     }
 }
