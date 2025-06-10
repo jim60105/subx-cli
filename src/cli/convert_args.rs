@@ -25,6 +25,7 @@
 //! subx convert input.srt --format ass --encoding utf-8 --keep-original
 //! ```
 
+#![allow(clippy::needless_borrows_for_generic_args)]
 // src/cli/convert_args.rs
 use clap::{Args, ValueEnum};
 use std::path::PathBuf;

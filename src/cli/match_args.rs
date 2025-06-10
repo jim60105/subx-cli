@@ -1,3 +1,4 @@
+#![allow(clippy::needless_borrows_for_generic_args)]
 //! Command-line arguments for the AI-powered subtitle matching command.
 
 use clap::Args;
