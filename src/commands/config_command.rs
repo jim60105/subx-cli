@@ -108,7 +108,7 @@
 
 use crate::Result;
 use crate::cli::{ConfigAction, ConfigArgs};
-use crate::config::{Config, load_config};
+use crate::config::{Config, ConfigService, load_config};
 use crate::error::SubXError;
 
 /// Execute configuration management operations with validation and type safety.
@@ -313,6 +313,58 @@ pub async fn execute(args: ConfigArgs) -> Result<()> {
             if let Ok(path) = Config::config_file_path() {
                 println!("Default configuration saved to: {}", path.display());
             }
+        }
+    }
+    Ok(())
+}
+
+/// Execute configuration management command with injected configuration service.
+///
+/// This function provides the new dependency injection interface for the config command,
+/// accepting a configuration service instead of loading configuration globally.
+///
+/// # Arguments
+///
+/// * `args` - Configuration command arguments
+/// * `config_service` - Configuration service providing access to settings
+///
+/// # Returns
+///
+/// Returns `Ok(())` on successful completion, or an error if the operation fails.
+pub async fn execute_with_config(
+    args: ConfigArgs,
+    config_service: std::sync::Arc<dyn ConfigService>,
+) -> Result<()> {
+    match args.action {
+        ConfigAction::Get { key } => {
+            let _config = config_service.get_config()?;
+            // For now, delegate to the original implementation
+            execute(ConfigArgs {
+                action: ConfigAction::Get { key },
+            })
+            .await?;
+        }
+        ConfigAction::List => {
+            let config = config_service.get_config()?;
+            println!(
+                "{}",
+                toml::to_string_pretty(&config).map_err(|e| {
+                    SubXError::config(format!("Failed to serialize configuration: {}", e))
+                })?
+            );
+        }
+        ConfigAction::Reset => {
+            // For config service, reset means reload
+            config_service.reload()?;
+            println!("✓ Configuration reloaded");
+        }
+        ConfigAction::Set { key, value } => {
+            // Note: This requires extending the ConfigService trait to support setting values
+            // For now, delegate to the original implementation
+            execute(ConfigArgs {
+                action: ConfigAction::Set { key, value },
+            })
+            .await?;
         }
     }
     Ok(())

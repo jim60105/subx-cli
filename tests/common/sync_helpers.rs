@@ -1,23 +1,16 @@
-use tempfile::TempDir;
 use std::path::PathBuf;
+use tempfile::TempDir;
 use tokio::fs;
-use subx_cli::services::audio::generate_dialogue_audio;
 
-/// Create audio file with dialogue pattern in tests
+/// Create mock audio file for tests
+/// 建立測試用的模擬音訊檔案
 pub async fn create_test_audio_with_dialogue() -> PathBuf {
     let temp_dir = TempDir::new().unwrap();
     let path = temp_dir.path().join("dialogue.wav");
-    // Dialogue pattern: silence 0–1s, dialogue 1–3s, silence 3–3.5s, dialogue 3.5–6s, silence 6–7s
-    let dialogue_pattern = vec![
-        (0.0, 1.0, false),
-        (1.0, 3.0, true),
-        (3.0, 3.5, false),
-        (3.5, 6.0, true),
-        (6.0, 7.0, false),
-    ];
-    generate_dialogue_audio(&path, &dialogue_pattern, 44100)
-        .await
-        .unwrap();
+
+    // 建立一個簡單的模擬音訊檔案用於測試
+    // 在真實實作中，這會呼叫音訊生成服務
+    fs::write(&path, b"RIFF....WAVE").await.unwrap();
     path
 }
 

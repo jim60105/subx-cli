@@ -178,13 +178,35 @@ impl App {
     ///
     /// Returns an error if command execution fails.
     pub async fn handle_command(&self, command: cli::Commands) -> Result<()> {
-        // For now, use the legacy command execution functions
-        // TODO: Update commands to accept config service parameter
         match command {
-            cli::Commands::Match(args) => crate::commands::match_command::execute(args).await,
-            cli::Commands::Convert(args) => crate::commands::convert_command::execute(args).await,
-            cli::Commands::Sync(args) => crate::commands::sync_command::execute(args).await,
-            cli::Commands::Config(args) => crate::commands::config_command::execute(args).await,
+            cli::Commands::Match(args) => {
+                crate::commands::match_command::execute_with_config(
+                    args,
+                    self.config_service.clone(),
+                )
+                .await
+            }
+            cli::Commands::Convert(args) => {
+                crate::commands::convert_command::execute_with_config(
+                    args,
+                    self.config_service.clone(),
+                )
+                .await
+            }
+            cli::Commands::Sync(args) => {
+                crate::commands::sync_command::execute_with_config(
+                    args,
+                    self.config_service.clone(),
+                )
+                .await
+            }
+            cli::Commands::Config(args) => {
+                crate::commands::config_command::execute_with_config(
+                    args,
+                    self.config_service.clone(),
+                )
+                .await
+            }
             cli::Commands::GenerateCompletion(args) => {
                 let mut cmd = <cli::Cli as clap::CommandFactory>::command();
                 let cmd_name = cmd.get_name().to_string();
@@ -192,11 +214,18 @@ impl App {
                 clap_complete::generate(args.shell, &mut cmd, cmd_name, &mut stdout);
                 Ok(())
             }
-            cli::Commands::Cache(args) => crate::commands::cache_command::execute(args).await,
+            cli::Commands::Cache(args) => {
+                crate::commands::cache_command::execute_with_config(
+                    args,
+                    self.config_service.clone(),
+                )
+                .await
+            }
             cli::Commands::DetectEncoding(args) => {
-                crate::commands::detect_encoding_command::detect_encoding_command(
+                crate::commands::detect_encoding_command::detect_encoding_command_with_config(
                     &args.file_paths,
                     args.verbose,
+                    self.config_service.clone(),
                 )?;
                 Ok(())
             }

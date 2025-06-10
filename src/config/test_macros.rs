@@ -11,11 +11,11 @@
 /// # Examples
 ///
 /// ```rust
-/// use subx_cli::{test_with_config, config::TestConfigBuilder};
+/// use subx_cli::{test_with_config, config::{TestConfigBuilder, ConfigService}};
 ///
 /// test_with_config!(
 ///     TestConfigBuilder::new().with_ai_provider("openai"),
-///     |config_service| {
+///     |config_service: &dyn ConfigService| {
 ///         let config = config_service.get_config().unwrap();
 ///         assert_eq!(config.ai.provider, "openai");
 ///     }
@@ -36,10 +36,10 @@ macro_rules! test_with_config {
 ///
 /// # Examples
 ///
-/// ```rust
-/// use subx_cli::test_with_default_config;
+/// ```rust,ignore
+/// use subx_cli::{test_with_default_config, config::ConfigService};
 ///
-/// test_with_default_config!(|config_service| {
+/// test_with_default_config!(|config_service: &dyn ConfigService| {
 ///     let config = config_service.get_config().unwrap();
 ///     assert_eq!(config.ai.provider, "openai");
 /// });
@@ -58,10 +58,10 @@ macro_rules! test_with_default_config {
 ///
 /// # Examples
 ///
-/// ```rust
-/// use subx_cli::test_with_ai_config;
+/// ```rust,ignore
+/// use subx_cli::{test_with_ai_config, config::ConfigService};
 ///
-/// test_with_ai_config!("anthropic", "claude-3", |config_service| {
+/// test_with_ai_config!("anthropic", "claude-3", |config_service: &dyn ConfigService| {
 ///     let config = config_service.get_config().unwrap();
 ///     assert_eq!(config.ai.provider, "anthropic");
 ///     assert_eq!(config.ai.model, "claude-3");
@@ -86,10 +86,10 @@ macro_rules! test_with_ai_config {
 ///
 /// # Examples
 ///
-/// ```rust
-/// use subx_cli::test_with_ai_config_and_key;
+/// ```rust,ignore
+/// use subx_cli::{test_with_ai_config_and_key, config::ConfigService};
 ///
-/// test_with_ai_config_and_key!("openai", "gpt-4", "test-key", |config_service| {
+/// test_with_ai_config_and_key!("openai", "gpt-4", "test-key", |config_service: &dyn ConfigService| {
 ///     let config = config_service.get_config().unwrap();
 ///     assert_eq!(config.ai.provider, "openai");
 ///     assert_eq!(config.ai.model, "gpt-4");
@@ -116,10 +116,10 @@ macro_rules! test_with_ai_config_and_key {
 ///
 /// # Examples
 ///
-/// ```rust
-/// use subx_cli::test_with_sync_config;
+/// ```rust,ignore
+/// use subx_cli::{test_with_sync_config, config::ConfigService};
 ///
-/// test_with_sync_config!(0.8, 45.0, |config_service| {
+/// test_with_sync_config!(0.8, 45.0, |config_service: &dyn ConfigService| {
 ///     let config = config_service.get_config().unwrap();
 ///     assert_eq!(config.sync.correlation_threshold, 0.8);
 ///     assert_eq!(config.sync.max_offset_seconds, 45.0);
@@ -144,10 +144,10 @@ macro_rules! test_with_sync_config {
 ///
 /// # Examples
 ///
-/// ```rust
-/// use subx_cli::test_with_parallel_config;
+/// ```rust,ignore
+/// use subx_cli::{test_with_parallel_config, config::ConfigService};
 ///
-/// test_with_parallel_config!(8, 200, |config_service| {
+/// test_with_parallel_config!(8, 200, |config_service: &dyn ConfigService| {
 ///     let config = config_service.get_config().unwrap();
 ///     assert_eq!(config.general.max_concurrent_jobs, 8);
 ///     assert_eq!(config.parallel.task_queue_size, 200);

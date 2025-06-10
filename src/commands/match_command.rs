@@ -64,6 +64,7 @@
 use crate::Result;
 use crate::cli::MatchArgs;
 use crate::cli::display_match_results;
+use crate::config::ConfigService;
 use crate::config::init_config_manager;
 use crate::config::load_config;
 use crate::core::matcher::{FileDiscovery, MatchConfig, MatchEngine, MediaFileType};
@@ -170,6 +171,41 @@ use indicatif::ProgressDrawTarget;
 pub async fn execute(args: MatchArgs) -> Result<()> {
     // Load configuration from all available sources
     let config = load_config()?;
+
+    // Create AI client based on configured provider and settings
+    let ai_client = AIClientFactory::create_client(&config.ai)?;
+
+    // Execute the matching workflow with dependency injection
+    execute_with_client(args, ai_client).await
+}
+
+/// Execute the AI-powered subtitle matching operation with injected configuration service.
+///
+/// This function provides the new dependency injection interface for the match command,
+/// accepting a configuration service instead of loading configuration globally.
+/// This enables better testability and eliminates the need for unsafe global resets.
+///
+/// # Arguments
+///
+/// * `args` - Parsed command-line arguments for the match operation
+/// * `config_service` - Configuration service providing access to settings
+///
+/// # Returns
+///
+/// Returns `Ok(())` on successful completion, or an error if the operation fails.
+///
+/// # Errors
+///
+/// - Configuration loading failures from the service
+/// - AI client initialization failures
+/// - File processing errors
+/// - Network connectivity issues with AI providers
+pub async fn execute_with_config(
+    args: MatchArgs,
+    config_service: std::sync::Arc<dyn ConfigService>,
+) -> Result<()> {
+    // Load configuration from the injected service
+    let config = config_service.get_config()?;
 
     // Create AI client based on configured provider and settings
     let ai_client = AIClientFactory::create_client(&config.ai)?;

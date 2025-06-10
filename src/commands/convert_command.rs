@@ -72,6 +72,7 @@
 //! ```
 
 use crate::cli::{ConvertArgs, OutputSubtitleFormat};
+use crate::config::ConfigService;
 use crate::config::load_config;
 use crate::core::file_manager::FileManager;
 use crate::core::formats::converter::{ConversionConfig, FormatConverter};
@@ -228,6 +229,68 @@ pub async fn execute(args: ConvertArgs) -> crate::Result<()> {
     };
     let output_format = args.format.clone().unwrap_or(default_output);
 
+    // Delegate to the shared conversion logic
+    execute_conversion_logic(args, app_config, converter, output_format).await
+}
+
+/// Execute subtitle format conversion with injected configuration service.
+///
+/// This function provides the new dependency injection interface for the convert command,
+/// accepting a configuration service instead of loading configuration globally.
+///
+/// # Arguments
+///
+/// * `args` - Conversion arguments including input/output paths and format options
+/// * `config_service` - Configuration service providing access to conversion settings
+///
+/// # Returns
+///
+/// Returns `Ok(())` on successful completion, or an error if conversion fails.
+pub async fn execute_with_config(
+    args: ConvertArgs,
+    config_service: std::sync::Arc<dyn ConfigService>,
+) -> crate::Result<()> {
+    // Load application configuration for conversion settings from injected service
+    let app_config = config_service.get_config()?;
+
+    // Configure conversion engine with user preferences and application defaults
+    let config = ConversionConfig {
+        preserve_styling: app_config.formats.preserve_styling,
+        target_encoding: args.encoding.clone(),
+        keep_original: args.keep_original,
+        validate_output: true,
+    };
+    let converter = FormatConverter::new(config);
+
+    // Determine output format from arguments or configuration defaults
+    let default_output = match app_config.formats.default_output.as_str() {
+        "srt" => OutputSubtitleFormat::Srt,
+        "ass" => OutputSubtitleFormat::Ass,
+        "vtt" => OutputSubtitleFormat::Vtt,
+        "sub" => OutputSubtitleFormat::Sub,
+        other => {
+            return Err(SubXError::config(format!(
+                "Unknown default output format: {}",
+                other
+            )));
+        }
+    };
+    let output_format = args.format.clone().unwrap_or(default_output);
+
+    // Delegate to the existing conversion logic
+    execute_conversion_logic(args, app_config, converter, output_format).await
+}
+
+/// Internal function containing the core conversion logic.
+///
+/// This function contains the shared conversion logic that can be used by both
+/// the legacy execute() function and the new execute_with_config() function.
+async fn execute_conversion_logic(
+    args: ConvertArgs,
+    _app_config: crate::config::Config,
+    converter: FormatConverter,
+    output_format: OutputSubtitleFormat,
+) -> crate::Result<()> {
     if args.input.is_file() {
         // Single file conversion with automatic output path generation
         let format_str = output_format.to_string();

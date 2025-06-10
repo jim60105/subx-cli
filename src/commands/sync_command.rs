@@ -97,6 +97,7 @@
 
 use crate::Result;
 use crate::cli::SyncArgs;
+use crate::config::ConfigService;
 use crate::config::load_config;
 use crate::core::formats::Subtitle;
 use crate::core::formats::manager::FormatManager;
@@ -244,6 +245,54 @@ pub async fn execute(args: SyncArgs) -> Result<()> {
     };
     let sync_engine = SyncEngine::new(config);
 
+    // Delegate to the shared synchronization logic
+    execute_sync_logic(args, app_config, sync_engine).await
+}
+
+/// Execute audio-subtitle synchronization with injected configuration service.
+///
+/// This function provides the new dependency injection interface for the sync command,
+/// accepting a configuration service instead of loading configuration globally.
+///
+/// # Arguments
+///
+/// * `args` - Synchronization arguments including video/subtitle paths and thresholds
+/// * `config_service` - Configuration service providing access to sync settings
+///
+/// # Returns
+///
+/// Returns `Ok(())` on successful completion, or an error if synchronization fails.
+pub async fn execute_with_config(
+    args: SyncArgs,
+    config_service: std::sync::Arc<dyn ConfigService>,
+) -> Result<()> {
+    // Load application configuration for synchronization parameters from injected service
+    let app_config = config_service.get_config()?;
+
+    // Configure synchronization engine with user overrides and defaults
+    let config = SyncConfig {
+        max_offset_seconds: args.range.unwrap_or(app_config.sync.max_offset_seconds),
+        correlation_threshold: args
+            .threshold
+            .unwrap_or(app_config.sync.correlation_threshold),
+        dialogue_threshold: app_config.sync.dialogue_detection_threshold,
+        min_dialogue_length: app_config.sync.min_dialogue_duration_ms as f32 / 1000.0,
+    };
+    let sync_engine = SyncEngine::new(config);
+
+    // Delegate to the shared synchronization logic
+    execute_sync_logic(args, app_config, sync_engine).await
+}
+
+/// Internal function containing the core synchronization logic.
+///
+/// This function contains the shared sync logic that can be used by both
+/// the legacy execute() function and the new execute_with_config() function.
+async fn execute_sync_logic(
+    args: SyncArgs,
+    app_config: crate::config::Config,
+    sync_engine: SyncEngine,
+) -> Result<()> {
     // Perform advanced dialogue detection if enabled in configuration
     if app_config.sync.enable_dialogue_detection {
         let detector = DialogueDetector::new()?;

@@ -76,6 +76,7 @@
 //! ```
 
 use crate::Result;
+use crate::config::ConfigService;
 use crate::core::formats::encoding::EncodingDetector;
 use log::error;
 use std::path::Path;
@@ -226,4 +227,27 @@ pub fn detect_encoding_command(file_paths: &[String], verbose: bool) -> Result<(
         }
     }
     Ok(())
+}
+
+/// Execute encoding detection command with injected configuration service.
+///
+/// This function provides the new dependency injection interface for the detect_encoding command,
+/// accepting a configuration service instead of loading configuration globally.
+///
+/// # Arguments
+///
+/// * `file_paths` - File paths to analyze for encoding detection
+/// * `verbose` - Whether to show verbose output
+/// * `config_service` - Configuration service providing access to settings
+///
+/// # Returns
+///
+/// Returns `Ok(())` on successful completion, or an error if detection fails.
+pub fn detect_encoding_command_with_config(
+    file_paths: &[String],
+    verbose: bool,
+    _config_service: std::sync::Arc<dyn ConfigService>,
+) -> Result<()> {
+    // Encoding detection doesn't need complex configuration, delegate to original implementation
+    detect_encoding_command(file_paths, verbose)
 }

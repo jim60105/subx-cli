@@ -86,6 +86,7 @@
 
 use crate::Result;
 use crate::cli::CacheArgs;
+use crate::config::ConfigService;
 use crate::error::SubXError;
 use dirs;
 
@@ -216,4 +217,25 @@ pub async fn execute(args: CacheArgs) -> Result<()> {
         }
     }
     Ok(())
+}
+
+/// Execute cache management command with injected configuration service.
+///
+/// This function provides the new dependency injection interface for the cache command,
+/// accepting a configuration service instead of loading configuration globally.
+///
+/// # Arguments
+///
+/// * `args` - Cache command arguments
+/// * `config_service` - Configuration service providing access to cache settings
+///
+/// # Returns
+///
+/// Returns `Ok(())` on successful completion, or an error if the operation fails.
+pub async fn execute_with_config(
+    args: CacheArgs,
+    _config_service: std::sync::Arc<dyn ConfigService>,
+) -> Result<()> {
+    // Cache command doesn't need complex configuration, delegate to original implementation
+    execute(args).await
 }

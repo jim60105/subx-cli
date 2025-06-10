@@ -1,7 +1,7 @@
-use tempfile::TempDir;
+use serde_json;
 use std::fs;
 use std::path::{Path, PathBuf};
-use serde_json;
+use tempfile::TempDir;
 use toml;
 
 /// Test media file generator
@@ -103,5 +103,8 @@ macro_rules! assert_subtitle_entry {
     };
 }
 
-pub mod sync_helpers;
 pub mod parallel_helpers;
+pub mod sync_helpers;
+
+// CLI testing helpers with dependency injection support
+pub mod cli_helpers;

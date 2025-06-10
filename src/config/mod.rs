@@ -33,6 +33,5 @@ pub use builder::TestConfigBuilder;
 pub use service::{ConfigService, ProductionConfigService};
 pub use test_service::TestConfigService;
 
-// Test-only exports
-#[cfg(test)]
-pub use test_macros::*;
+// Test-only macros are available internally for testing
+// but not re-exported to avoid unused import warnings
