@@ -104,6 +104,7 @@ test-case = "3.0"
 
 # coverage and HTTP mocking
 wiremock = "0.6"
+criterion = "0.4"
 
 [[bin]]
 name = "subx-cli"

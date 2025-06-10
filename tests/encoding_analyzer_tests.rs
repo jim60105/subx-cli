@@ -1,0 +1,198 @@
+use std::collections::HashMap;
+use subx_cli::core::formats::encoding::{ByteAnalyzer, Charset, StatisticalAnalyzer};
+
+#[cfg(test)]
+mod encoding_analyzer_tests {
+    use super::*;
+
+    /// 測試位元組分析器基本功能
+    #[test]
+    fn test_byte_analyzer_basic_analysis() {
+        let mut analyzer = ByteAnalyzer::new();
+        let test_data = b"Hello, World! 123";
+
+        let result = analyzer.analyze(test_data).unwrap();
+
+        // 驗證 ASCII 比例
+        assert!(result.ascii_ratio > 0.9);
+        assert!(result.ascii_ratio <= 1.0);
+
+        // 驗證熵值合理範圍
+        assert!(result.entropy > 0.0);
+        assert!(result.entropy < 8.0);
+
+        // 驗證控制字元比例
+        assert!(result.control_char_ratio < 0.1);
+
+        // 驗證編碼建議
+        assert!(result.likely_encodings.contains(&Charset::Utf8));
+    }
+
+    /// 測試中文文字編碼分析
+    #[test]
+    fn test_chinese_text_analysis() {
+        let mut analyzer = ByteAnalyzer::new();
+        let chinese_text = "你好，世界！測試中文編碼檢測。".as_bytes();
+
+        let result = analyzer.analyze(chinese_text).unwrap();
+
+        // 中文文字應該有較低的 ASCII 比例
+        assert!(result.ascii_ratio < 0.5);
+
+        // 熵值應該大於零
+        assert!(result.entropy > 0.0);
+
+        // 應該建議 UTF-8 或其他中文編碼
+        let has_unicode_encoding = result
+            .likely_encodings
+            .iter()
+            .any(|charset| matches!(charset, Charset::Utf8 | Charset::Gbk | Charset::Big5));
+        assert!(has_unicode_encoding);
+    }
+
+    /// 測試二進位資料分析
+    #[test]
+    fn test_binary_data_analysis() {
+        let mut analyzer = ByteAnalyzer::new();
+        let binary_data: Vec<u8> = (0..=255).cycle().take(1000).collect();
+
+        let result = analyzer.analyze(&binary_data).unwrap();
+
+        // 二進位資料應該有高熵值
+        assert!(result.entropy > 7.0);
+
+        // ASCII 比例應該約為 50%
+        assert!(result.ascii_ratio > 0.4);
+        assert!(result.ascii_ratio < 0.6);
+    }
+
+    /// 測試熵值計算精確度
+    #[test]
+    fn test_entropy_calculation_accuracy() {
+        let mut analyzer = ByteAnalyzer::new();
+
+        // 完全均勻分布應該有最大熵值
+        let uniform_data: Vec<u8> = (0..=255).collect();
+        let uniform_result = analyzer.analyze(&uniform_data).unwrap();
+
+        // 重置分析器
+        analyzer = ByteAnalyzer::new();
+
+        // 單一字元應該有最小熵值
+        let single_char_data = vec![b'A'; 100];
+        let single_result = analyzer.analyze(&single_char_data).unwrap();
+
+        assert!(uniform_result.entropy > single_result.entropy);
+        assert!(single_result.entropy < 1.0);
+    }
+
+    /// 測試控制字元檢測
+    #[test]
+    fn test_control_character_detection() {
+        let mut analyzer = ByteAnalyzer::new();
+
+        // 建立包含控制字元的資料
+        let mut data_with_control = Vec::new();
+        data_with_control.extend_from_slice(b"Normal text ");
+        data_with_control.push(0x01); // SOH
+        data_with_control.push(0x02); // STX
+        data_with_control.push(0x1F); // US
+        data_with_control.extend_from_slice(b" more text");
+
+        let result = analyzer.analyze(&data_with_control).unwrap();
+
+        // 應該檢測到控制字元
+        assert!(result.control_char_ratio > 0.0);
+        assert!(result.control_char_ratio < 0.5);
+
+        // 可能建議 Windows-1252 編碼
+        assert!(result.likely_encodings.contains(&Charset::Windows1252));
+    }
+
+    /// 測試統計分析器語言模型
+    #[test]
+    fn test_statistical_analyzer_language_models() {
+        let analyzer = StatisticalAnalyzer::new();
+
+        // 測試 UTF-8 中文文字
+        let utf8_chinese = "这是一个测试文本。".as_bytes();
+        let utf8_scores = analyzer.analyze_with_models(utf8_chinese).unwrap();
+
+        // UTF-8 應該被偵測為候選編碼
+        assert!(utf8_scores.contains_key(&Charset::Utf8));
+
+        // 測試 GBK 模式文字
+        let gbk_pattern = vec![0xB0, 0xA1, 0xC4, 0xE3, 0xBA, 0xC3]; // 模擬 GBK 編碼
+        let gbk_scores = analyzer.analyze_with_models(&gbk_pattern).unwrap();
+
+        // GBK 應該有合理分數
+        assert!(gbk_scores.get(&Charset::Gbk).unwrap_or(&0.0) > &0.0);
+    }
+
+    /// 測試位元組頻率分布分析
+    #[test]
+    fn test_byte_frequency_distribution() {
+        let mut analyzer = ByteAnalyzer::new();
+        let repeated_data = b"aaabbbccc";
+
+        let result = analyzer.analyze(repeated_data).unwrap();
+
+        // 驗證位元組分布被正確記錄
+        assert!(result.byte_distribution.len() > 0);
+        assert_eq!(*result.byte_distribution.get(&b'a').unwrap(), 3);
+        assert_eq!(*result.byte_distribution.get(&b'b').unwrap(), 3);
+        assert_eq!(*result.byte_distribution.get(&b'c').unwrap(), 3);
+    }
+
+    /// 測試空資料處理
+    #[test]
+    fn test_empty_data_handling() {
+        let mut analyzer = ByteAnalyzer::new();
+        let empty_data = b"";
+
+        let result = analyzer.analyze(empty_data).unwrap();
+
+        // 空資料應該回傳預設值
+        assert_eq!(result.ascii_ratio, 0.0);
+        assert_eq!(result.entropy, 0.0);
+        assert_eq!(result.control_char_ratio, 0.0);
+        assert!(!result.likely_encodings.is_empty());
+    }
+
+    /// 測試編碼建議邏輯
+    #[test]
+    fn test_encoding_suggestion_logic() {
+        let mut analyzer = ByteAnalyzer::new();
+
+        // 高 ASCII 比例應該建議 UTF-8
+        let ascii_heavy = b"Hello World! 123 ABC";
+        let ascii_result = analyzer.analyze(ascii_heavy).unwrap();
+        assert!(ascii_result.likely_encodings.contains(&Charset::Utf8));
+
+        // 重設分析器
+        analyzer = ByteAnalyzer::new();
+
+        // 高熵值和低 ASCII 比例應該建議多位元組編碼
+        let multibyte_pattern: Vec<u8> = (0x80..=0xFF).cycle().take(100).collect();
+        let multibyte_result = analyzer.analyze(&multibyte_pattern).unwrap();
+
+        let has_multibyte_encoding = multibyte_result
+            .likely_encodings
+            .iter()
+            .any(|charset| matches!(charset, Charset::Gbk | Charset::Big5 | Charset::ShiftJis));
+        assert!(has_multibyte_encoding);
+    }
+
+    /// 測試雙字元組模式分析
+    #[test]
+    fn test_bigram_pattern_analysis() {
+        let mut analyzer = ByteAnalyzer::new();
+
+        // 建立具有明顯雙字元組模式的資料
+        let pattern_data = b"abcabcabcabc";
+        let _result = analyzer.analyze(pattern_data).unwrap();
+
+        // 注意：目前的實作收集雙字元組頻率但未在結果中使用
+        // 這裡可以擴展測試以驗證雙字元組分析邏輯
+    }
+}
