@@ -640,21 +640,22 @@ impl Config {
 }
 
 // ============================================================================
-// 新配置系統 (使用 config crate)
+// New Configuration System (Using config crate)
 // ============================================================================
 
-/// 使用 config crate 建立配置實例
+/// Creates a configuration instance using the config crate.
 ///
-/// 這個函式使用社區標準的 config crate 來載入配置，替代舊的全域配置管理器。
-/// 支援多層次配置來源：預設值 → 配置檔案 → 環境變數。
+/// This function uses the community-standard config crate to load configuration,
+/// replacing the old global configuration manager. Supports multi-layered
+/// configuration sources: defaults → config files → environment variables.
 ///
-/// # 配置來源優先級
-/// 1. 環境變數 (前綴: SUBX_) - 最高優先級
-/// 2. 用戶配置檔案
-/// 3. 預設配置值 - 最低優先級
+/// # Configuration Source Priority
+/// 1. Environment variables (prefix: SUBX_) - Highest priority
+/// 2. User configuration file
+/// 3. Default configuration values - Lowest priority
 ///
-/// # 錯誤
-/// 當配置載入或解析失敗時返回 `SubXError::Config`
+/// # Errors
+/// Returns `SubXError::Config` when configuration loading or parsing fails
 #[allow(dead_code)]
 pub fn create_config_from_sources() -> Result<Config> {
     let config_path = Config::config_file_path()?;
@@ -669,7 +670,7 @@ pub fn create_config_from_sources() -> Result<Config> {
 
     let mut settings = ConfigBuilder::builder();
 
-    // 1. 首先設定預設值
+    // 1. Set default values first
     let default_config = Config::default();
     settings = settings
         .set_default("ai.provider", default_config.ai.provider.clone())?
@@ -764,10 +765,10 @@ pub fn create_config_from_sources() -> Result<Config> {
         )?
         .set_default("parallel.queue_overflow_strategy", "block")?;
 
-    // 2. 用戶配置檔案
+    // 2. User configuration file
     settings = settings.add_source(File::from(config_path).required(false));
 
-    // 3. 環境變數 (前綴: SUBX_)
+    // 3. Environment variables (prefix: SUBX_)
     settings = settings.add_source(Environment::with_prefix("SUBX").separator("_"));
 
     let config = settings.build().map_err(|e| {
@@ -775,42 +776,43 @@ pub fn create_config_from_sources() -> Result<Config> {
         SubXError::config(format!("Configuration build error: {}", e))
     })?;
 
-    // 先獲取 queue_overflow_strategy 的字串值
+    // Get the queue_overflow_strategy string value first
     let queue_overflow_strategy = config
         .get_string("parallel.queue_overflow_strategy")
         .unwrap_or_else(|_| "block".to_string());
 
-    // 嘗試反序列化
+    // Try deserializing
     let mut final_config: Config = config.try_deserialize().map_err(|e| {
         debug!("create_config_from_sources: Deserialization failed: {}", e);
         SubXError::config(format!("Configuration deserialization error: {}", e))
     })?;
 
-    // 處理 queue_overflow_strategy enum（如果 serde 反序列化失敗，手動設定）
+    // Handle queue_overflow_strategy enum (manually set if serde deserialization fails)
     final_config.parallel.queue_overflow_strategy = match queue_overflow_strategy.as_str() {
         "block" => OverflowStrategy::Block,
         "dropoldest" => OverflowStrategy::DropOldest,
         "reject" => OverflowStrategy::Reject,
-        _ => OverflowStrategy::Block, // 預設值
+        _ => OverflowStrategy::Block, // Default value
     };
 
-    // loaded_from 設為 None（因為可能來自多個來源）
+    // Set loaded_from to None (since it may come from multiple sources)
     final_config.loaded_from = None;
 
     debug!("create_config_from_sources: Configuration loaded successfully");
     Ok(final_config)
 }
 
-/// 建立帶有動態覆蓋的配置實例
+/// Creates a configuration instance with dynamic overrides.
 ///
-/// 這個函式允許在運行時動態添加配置覆蓋，主要用於 CLI 參數整合。
-/// 覆蓋值具有最高優先級，會覆蓋所有其他配置來源。
+/// This function allows dynamically adding configuration overrides at runtime,
+/// primarily used for CLI parameter integration. Override values have the highest
+/// priority and will override all other configuration sources.
 ///
-/// # 參數
-/// * `overrides` - 鍵值對列表，用於覆蓋配置值
+/// # Arguments
+/// * `overrides` - List of key-value pairs for overriding configuration values
 ///
-/// # 錯誤
-/// 當配置載入或解析失敗時返回 `SubXError::Config`
+/// # Errors
+/// Returns `SubXError::Config` when configuration loading or parsing fails
 #[allow(dead_code)]
 pub fn create_config_with_overrides(overrides: Vec<(String, String)>) -> Result<Config> {
     let config_path = Config::config_file_path()?;
@@ -821,7 +823,7 @@ pub fn create_config_with_overrides(overrides: Vec<(String, String)>) -> Result<
 
     let mut settings = ConfigBuilder::builder();
 
-    // 1. 首先設定預設值（與 create_config_from_sources 相同）
+    // 1. Set default values first (same as create_config_from_sources)
     let default_config = Config::default();
     settings = settings
         .set_default("ai.provider", default_config.ai.provider.clone())?
@@ -916,13 +918,13 @@ pub fn create_config_with_overrides(overrides: Vec<(String, String)>) -> Result<
         )?
         .set_default("parallel.queue_overflow_strategy", "block")?;
 
-    // 2. 用戶配置檔案
+    // 2. User configuration file
     settings = settings.add_source(File::from(config_path).required(false));
 
-    // 3. 環境變數 (前綴: SUBX_)
+    // 3. Environment variables (prefix: SUBX_)
     settings = settings.add_source(Environment::with_prefix("SUBX").separator("_"));
 
-    // 4. 動態添加覆蓋 (CLI 參數等，最高優先級)
+    // 4. Dynamically add overrides (CLI parameters etc., highest priority)
     for (key, value) in overrides {
         debug!(
             "create_config_with_overrides: Setting override {}={}",
@@ -938,12 +940,12 @@ pub fn create_config_with_overrides(overrides: Vec<(String, String)>) -> Result<
         SubXError::config(format!("Configuration build error: {}", e))
     })?;
 
-    // 先獲取 queue_overflow_strategy 的字串值
+    // Get the queue_overflow_strategy string value first
     let queue_overflow_strategy = config
         .get_string("parallel.queue_overflow_strategy")
         .unwrap_or_else(|_| "block".to_string());
 
-    // 嘗試反序列化
+    // Try deserializing
     let mut final_config: Config = config.try_deserialize().map_err(|e| {
         debug!(
             "create_config_with_overrides: Deserialization failed: {}",
@@ -952,33 +954,34 @@ pub fn create_config_with_overrides(overrides: Vec<(String, String)>) -> Result<
         SubXError::config(format!("Configuration deserialization error: {}", e))
     })?;
 
-    // 處理 queue_overflow_strategy enum（如果 serde 反序列化失敗，手動設定）
+    // Handle queue_overflow_strategy enum (manually set if serde deserialization fails)
     final_config.parallel.queue_overflow_strategy = match queue_overflow_strategy.as_str() {
         "block" => OverflowStrategy::Block,
         "dropoldest" => OverflowStrategy::DropOldest,
         "reject" => OverflowStrategy::Reject,
-        _ => OverflowStrategy::Block, // 預設值
+        _ => OverflowStrategy::Block, // Default value
     };
 
-    // loaded_from 設為 None（因為可能來自多個來源）
+    // Set loaded_from to None (since it may come from multiple sources)
     final_config.loaded_from = None;
 
     debug!("create_config_with_overrides: Configuration with overrides loaded successfully");
     Ok(final_config)
 }
 
-/// 建立測試專用配置實例
+/// Creates a test-specific configuration instance.
 ///
-/// 為測試環境提供快速的配置建立，無需檔案系統或環境變數。
-/// 從預設配置開始，然後應用指定的覆蓋值。
+/// Provides quick configuration creation for testing environments without
+/// requiring file system or environment variables. Starts from default
+/// configuration and then applies specified override values.
 ///
-/// # 參數
-/// * `overrides` - 鍵值對列表，用於覆蓋預設配置值
+/// # Arguments
+/// * `overrides` - List of key-value pairs for overriding default configuration values
 #[allow(dead_code)]
 pub fn create_test_config(overrides: Vec<(&str, &str)>) -> Config {
     let mut config = Config::default();
 
-    // 應用測試特定的覆蓋值
+    // Apply test-specific override values
     for (key, value) in overrides {
         match key {
             "ai.provider" => config.ai.provider = value.to_string(),
@@ -1010,33 +1013,33 @@ pub fn create_test_config(overrides: Vec<(&str, &str)>) -> Config {
 }
 
 // =============================
-// 向後相容性函式 (Backward Compatibility)
+// Backward Compatibility Functions
 // =============================
 
-/// 初始化配置管理器的新版本（向後相容性）
+/// Initializes the configuration manager (backward compatibility).
 ///
-/// 這個函式提供與舊版 `init_config_manager()` 相同的介面，
-/// 但內部使用新的 config crate 機制。
+/// This function provides the same interface as the old `init_config_manager()`,
+/// but internally uses the new config crate mechanism.
 ///
-/// # 棄用通知
+/// # Deprecation Notice
 ///
-/// 此函式已被棄用，請使用 `create_config_from_sources()` 代替。
+/// This function is deprecated, please use `create_config_from_sources()` instead.
 #[deprecated(note = "Use create_config_from_sources() instead")]
 #[allow(dead_code)]
 pub fn init_config_manager_new() -> Result<()> {
     log::warn!("init_config_manager_new is deprecated, use create_config_from_sources instead");
-    // 新版本不需要全域初始化，僅驗證配置可以載入
+    // New version doesn't need global initialization, just verify configuration can be loaded
     create_config_from_sources().map(|_| ())
 }
 
-/// 載入配置的新版本（向後相容性）
+/// Loads configuration (backward compatibility).
 ///
-/// 這個函式提供與舊版 `load_config()` 相同的介面，
-/// 但內部使用新的 config crate 機制。
+/// This function provides the same interface as the old `load_config()`,
+/// but internally uses the new config crate mechanism.
 ///
-/// # 棄用通知
+/// # Deprecation Notice
 ///
-/// 此函式已被棄用，請使用 `create_config_from_sources()` 代替。
+/// This function is deprecated, please use `create_config_from_sources()` instead.
 #[deprecated(note = "Use create_config_from_sources() instead")]
 #[allow(dead_code)]
 pub fn load_config_new() -> Result<Config> {

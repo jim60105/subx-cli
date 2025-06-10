@@ -277,11 +277,11 @@ mod tests {
 
         let result = analyzer.analyze(test_data).unwrap();
 
-        // 驗證 ASCII 比例
+        // Verify ASCII ratio
         assert!(result.ascii_ratio > 0.9);
         assert!(result.ascii_ratio <= 1.0);
 
-        // 驗證熵值合理範圍
+        // Verify entropy within reasonable range
         assert!(result.entropy > 0.0);
         assert!(result.entropy < 8.0);
 
@@ -339,10 +339,10 @@ mod tests {
         let uniform_data: Vec<u8> = (0..=255).collect();
         let uniform_result = analyzer.analyze(&uniform_data).unwrap();
 
-        // 重置分析器
+        // Reset analyzer
         analyzer = ByteAnalyzer::new();
 
-        // 單一字元應該有最小熵值
+        // Single character should have minimal entropy value
         let single_char_data = vec![b'A'; 100];
         let single_result = analyzer.analyze(&single_char_data).unwrap();
 
@@ -355,7 +355,7 @@ mod tests {
     fn test_control_character_detection() {
         let mut analyzer = ByteAnalyzer::new();
 
-        // 建立包含控制字元的資料
+        // Create data containing control characters
         let mut data_with_control = Vec::new();
         data_with_control.extend_from_slice(b"Normal text ");
         data_with_control.push(0x01); // SOH
@@ -365,11 +365,11 @@ mod tests {
 
         let result = analyzer.analyze(&data_with_control).unwrap();
 
-        // 應該檢測到控制字元
+        // Should detect control characters
         assert!(result.control_char_ratio > 0.0);
         assert!(result.control_char_ratio < 0.5);
 
-        // 可能建議 Windows-1252 編碼
+        // May suggest Windows-1252 encoding
         assert!(result.likely_encodings.contains(&Charset::Windows1252));
     }
 
@@ -378,18 +378,18 @@ mod tests {
     fn test_statistical_analyzer_language_models() {
         let analyzer = StatisticalAnalyzer::new();
 
-        // 測試 UTF-8 中文文字
+        // Test UTF-8 Chinese text
         let utf8_chinese = "这是一个测试文本。".as_bytes();
         let utf8_scores = analyzer.analyze_with_models(utf8_chinese).unwrap();
 
-        // UTF-8 應該被偵測為候選編碼
+        // UTF-8 should be detected as candidate encoding
         assert!(utf8_scores.contains_key(&Charset::Utf8));
 
-        // 測試 GBK 模式文字
-        let gbk_pattern = vec![0xB0, 0xA1, 0xC4, 0xE3, 0xBA, 0xC3]; // 模擬 GBK 編碼
+        // Test GBK pattern text
+        let gbk_pattern = vec![0xB0, 0xA1, 0xC4, 0xE3, 0xBA, 0xC3]; // Simulate GBK encoding
         let gbk_scores = analyzer.analyze_with_models(&gbk_pattern).unwrap();
 
-        // GBK 應該有合理分數
+        // GBK should have reasonable score
         assert!(gbk_scores.get(&Charset::Gbk).unwrap_or(&0.0) > &0.0);
     }
 
@@ -401,7 +401,7 @@ mod tests {
 
         let result = analyzer.analyze(repeated_data).unwrap();
 
-        // 驗證位元組分布被正確記錄
+        // Verify byte distribution is correctly recorded
         assert!(result.byte_distribution.len() > 0);
         assert_eq!(*result.byte_distribution.get(&b'a').unwrap(), 3);
         assert_eq!(*result.byte_distribution.get(&b'b').unwrap(), 3);
@@ -416,7 +416,7 @@ mod tests {
 
         let result = analyzer.analyze(empty_data).unwrap();
 
-        // 空資料應該回傳預設值
+        // Empty data should return default values
         assert_eq!(result.ascii_ratio, 0.0);
         assert_eq!(result.entropy, 0.0);
         assert_eq!(result.control_char_ratio, 0.0);
@@ -428,15 +428,15 @@ mod tests {
     fn test_encoding_suggestion_logic() {
         let mut analyzer = ByteAnalyzer::new();
 
-        // 高 ASCII 比例應該建議 UTF-8
+        // High ASCII ratio should suggest UTF-8
         let ascii_heavy = b"Hello World! 123 ABC";
         let ascii_result = analyzer.analyze(ascii_heavy).unwrap();
         assert!(ascii_result.likely_encodings.contains(&Charset::Utf8));
 
-        // 重設分析器
+        // Reset analyzer
         analyzer = ByteAnalyzer::new();
 
-        // 高熵值和低 ASCII 比例應該建議多位元組編碼
+        // High entropy and low ASCII ratio should suggest multibyte encodings
         let multibyte_pattern: Vec<u8> = (0x80..=0xFF).cycle().take(100).collect();
         let multibyte_result = analyzer.analyze(&multibyte_pattern).unwrap();
 
@@ -456,7 +456,7 @@ mod tests {
         let pattern_data = b"abcabcabcabc";
         let _result = analyzer.analyze(pattern_data).unwrap();
 
-        // 注意：目前的實作收集雙字元組頻率但未在結果中使用
-        // 這裡可以擴展測試以驗證雙字元組分析邏輯
+        // Note: Current implementation collects bigram frequencies but doesn't use them in results
+        // This can be extended to verify bigram analysis logic
     }
 }
