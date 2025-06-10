@@ -364,7 +364,7 @@ mod tests {
         }
     }
 
-    /// 測試 UTF-8 編碼檢測
+    /// Test UTF-8 encoding detection
     #[test]
     fn test_utf8_detection_accuracy() {
         let detector = create_test_detector();
@@ -378,7 +378,7 @@ mod tests {
         assert!(result.sample_text.contains("Hello"));
     }
 
-    /// 測試 UTF-8 BOM 檢測
+    /// Test UTF-8 BOM detection
     #[test]
     fn test_utf8_bom_detection() {
         let detector = create_test_detector();
@@ -393,7 +393,7 @@ mod tests {
         assert_eq!(result.sample_text, "UTF-8 with BOM");
     }
 
-    /// 測試 UTF-16 BOM 檢測
+    /// Test UTF-16 BOM detection
     #[test]
     fn test_utf16_bom_detection() {
         let detector = create_test_detector();
@@ -411,13 +411,13 @@ mod tests {
         assert!(result.bom_detected);
     }
 
-    /// 測試檔案編碼檢測
+    /// Test file encoding detection
     #[test]
     fn test_file_encoding_detection() {
         let detector = create_test_detector();
         let temp_dir = TempDir::new().unwrap();
 
-        // 建立 UTF-8 檔案
+        // Create UTF-8 file
         let utf8_path = temp_dir.path().join("utf8.txt");
         fs::write(&utf8_path, "測試檔案編碼檢測功能。").unwrap();
 
@@ -429,7 +429,7 @@ mod tests {
         assert!(result.confidence > 0.7);
     }
 
-    /// 測試不存在檔案錯誤處理
+    /// Test error handling for non-existent files
     #[test]
     fn test_nonexistent_file_error() {
         let detector = create_test_detector();
@@ -438,12 +438,12 @@ mod tests {
         assert!(result.is_err());
     }
 
-    /// 測試 GBK 編碼模式檢測
+    /// Test GBK encoding pattern detection
     #[test]
     fn test_gbk_pattern_detection() {
         let detector = create_test_detector();
 
-        // 模擬 GBK 編碼模式 (高位元組範圍)
+        // Simulate GBK encoding pattern (high byte range)
         let gbk_pattern = vec![
             0xC4, 0xE3, 0xBA, 0xC3, // 你好 (GBK)
             0xCA, 0xC0, 0xBD, 0xE7, // 世界 (GBK)
@@ -451,19 +451,19 @@ mod tests {
 
         let result = detector.detect_encoding(&gbk_pattern).unwrap();
 
-        // 應該檢測為 GBK 或至少不是 UTF-8
+        // Should detect as GBK or at least not UTF-8
         assert!(result.confidence > 0.3);
         if result.charset == Charset::Gbk {
             assert!(result.confidence > 0.5);
         }
     }
 
-    /// 測試 Shift-JIS 編碼檢測
+    /// Test Shift-JIS encoding detection
     #[test]
     fn test_shift_jis_detection() {
         let detector = create_test_detector();
 
-        // 模擬 Shift-JIS 編碼模式
+        // Simulate Shift-JIS encoding pattern
         let shift_jis_pattern = vec![
             0x82, 0xB1, 0x82, 0xF1, // こん (Shift-JIS)
             0x82, 0xB1, 0x82, 0xF1, // こん (Shift-JIS)
@@ -472,84 +472,84 @@ mod tests {
 
         let result = detector.detect_encoding(&shift_jis_pattern).unwrap();
 
-        // 應該檢測為 Shift-JIS 或相關編碼
+        // Should detect as Shift-JIS or related encoding
         assert!(result.confidence > 0.2);
     }
 
-    /// 測試編碼信心值排序
+    /// Test encoding confidence ranking
     #[test]
     fn test_encoding_confidence_ranking() {
         let detector = create_test_detector();
 
-        // 明確的 UTF-8 文字應該有最高信心值
+        // Clear UTF-8 text should have highest confidence
         let clear_utf8 = "Clear English text with numbers 123.";
         let utf8_result = detector.detect_encoding(clear_utf8.as_bytes()).unwrap();
 
-        // 模糊的資料應該有較低信心值
+        // Ambiguous data should have lower confidence
         let ambiguous_data: Vec<u8> = (0x80..=0xFF).cycle().take(50).collect();
         let ambiguous_result = detector.detect_encoding(&ambiguous_data).unwrap();
 
         assert!(utf8_result.confidence > ambiguous_result.confidence);
     }
 
-    /// 測試最大取樣大小限制
+    /// Test maximum sample size limit
     #[test]
     fn test_max_sample_size_limit() {
         let detector = create_test_detector();
 
-        // 建立超過取樣大小限制的資料
-        let large_data = vec![b'A'; 10000]; // 假設限制是 8192
+        // Create data exceeding sample size limit
+        let large_data = vec![b'A'; 10000]; // Assuming limit is 8192
         let result = detector.detect_encoding(&large_data).unwrap();
 
-        // 應該成功檢測且不會因資料太大而失敗
+        // Should successfully detect without failing due to data size
         assert_eq!(result.charset, Charset::Utf8);
         assert!(result.confidence > 0.9);
     }
 
-    /// 測試編碼候選者選擇邏輯
+    /// Test encoding candidate selection logic
     #[test]
     fn test_encoding_candidate_selection() {
         let detector = create_test_detector();
 
-        // 建立混合編碼特徵的資料
+        // Create data with mixed encoding features
         let mut mixed_data = b"English text ".to_vec();
         mixed_data.extend_from_slice(&[0xC3, 0xA9]); // é in UTF-8
         mixed_data.extend_from_slice(b" and more text");
 
         let result = detector.detect_encoding(&mixed_data).unwrap();
 
-        // 應該正確選擇 UTF-8
+        // Should correctly choose UTF-8
         assert_eq!(result.charset, Charset::Utf8);
         assert!(result.confidence > 0.7);
     }
 
-    /// 測試未知編碼的後備機制
+    /// Test fallback mechanism for unknown encodings
     #[test]
     fn test_unknown_encoding_fallback() {
         let detector = create_test_detector();
 
-        // 建立完全隨機的資料
+        // Create completely random data
         let random_data: Vec<u8> = (0..100).map(|i| (i * 7 + 13) as u8).collect();
         let result = detector.detect_encoding(&random_data).unwrap();
 
-        // 應該有一個後備編碼選擇
+        // Should have a fallback encoding choice
         assert!(result.confidence >= 0.0);
         assert!(result.confidence <= 1.0);
     }
 
-    /// 測試編碼檢測效能
+    /// Test encoding detection performance
     #[test]
     fn test_detection_performance() {
         let detector = create_test_detector();
 
-        // 建立中等大小的文字檔案
+        // Create medium-sized text file
         let large_text = "Hello, World! ".repeat(500);
 
         let start = std::time::Instant::now();
         let _result = detector.detect_encoding(large_text.as_bytes()).unwrap();
         let duration = start.elapsed();
 
-        // 檢測應該在合理時間內完成 (< 100ms)
+        // Detection should complete within reasonable time (< 100ms)
         assert!(duration.as_millis() < 100);
     }
 }

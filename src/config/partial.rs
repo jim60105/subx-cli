@@ -236,8 +236,11 @@ pub struct PartialGeneralConfig {
 /// Partial parallel processing configuration
 #[derive(Debug, Default, Serialize, Deserialize)]
 pub struct PartialParallelConfig {
+    /// Maximum number of tasks that can be queued for processing
     pub task_queue_size: Option<usize>,
+    /// Whether to enable task priority handling in the processing queue
     pub enable_task_priorities: Option<bool>,
+    /// Whether to automatically balance workload across available workers
     pub auto_balance_workers: Option<bool>,
     /// Strategy to apply when the task queue reaches its maximum size.
     pub queue_overflow_strategy: Option<OverflowStrategy>,

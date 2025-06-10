@@ -135,6 +135,7 @@ pub mod ass;
 pub mod converter;
 pub mod encoding;
 pub mod manager;
+/// SubRip Text (.srt) subtitle format support
 pub mod srt;
 pub mod styling;
 pub mod sub;

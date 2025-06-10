@@ -269,7 +269,7 @@ impl Default for StatisticalAnalyzer {
 mod tests {
     use super::*;
 
-    /// 測試位元組分析器基本功能
+    /// Test byte analyzer basic functionality
     #[test]
     fn test_byte_analyzer_basic_analysis() {
         let mut analyzer = ByteAnalyzer::new();
@@ -285,14 +285,14 @@ mod tests {
         assert!(result.entropy > 0.0);
         assert!(result.entropy < 8.0);
 
-        // 驗證控制字元比例
+        // Verify control character ratio
         assert!(result.control_char_ratio < 0.1);
 
-        // 驗證編碼建議
+        // Verify encoding suggestions
         assert!(result.likely_encodings.contains(&Charset::Utf8));
     }
 
-    /// 測試中文文字編碼分析
+    /// Test Chinese text encoding analysis
     #[test]
     fn test_chinese_text_analysis() {
         let mut analyzer = ByteAnalyzer::new();
@@ -300,13 +300,13 @@ mod tests {
 
         let result = analyzer.analyze(chinese_text).unwrap();
 
-        // 中文文字應該有較低的 ASCII 比例
+        // Chinese text should have lower ASCII ratio
         assert!(result.ascii_ratio < 0.5);
 
-        // 熵值應該大於零
+        // Entropy should be greater than zero
         assert!(result.entropy > 0.0);
 
-        // 應該建議 UTF-8 或其他中文編碼
+        // Should suggest UTF-8 or other Chinese encodings
         let has_unicode_encoding = result
             .likely_encodings
             .iter()
@@ -314,7 +314,7 @@ mod tests {
         assert!(has_unicode_encoding);
     }
 
-    /// 測試二進位資料分析
+    /// Test binary data analysis
     #[test]
     fn test_binary_data_analysis() {
         let mut analyzer = ByteAnalyzer::new();
@@ -322,20 +322,20 @@ mod tests {
 
         let result = analyzer.analyze(&binary_data).unwrap();
 
-        // 二進位資料應該有高熵值
+        // Binary data should have high entropy
         assert!(result.entropy > 7.0);
 
-        // ASCII 比例應該約為 50%
+        // ASCII ratio should be approximately 50%
         assert!(result.ascii_ratio > 0.4);
         assert!(result.ascii_ratio < 0.6);
     }
 
-    /// 測試熵值計算精確度
+    /// Test entropy calculation accuracy
     #[test]
     fn test_entropy_calculation_accuracy() {
         let mut analyzer = ByteAnalyzer::new();
 
-        // 完全均勻分布應該有最大熵值
+        // Completely uniform distribution should have maximum entropy
         let uniform_data: Vec<u8> = (0..=255).collect();
         let uniform_result = analyzer.analyze(&uniform_data).unwrap();
 
@@ -350,7 +350,7 @@ mod tests {
         assert!(single_result.entropy < 1.0);
     }
 
-    /// 測試控制字元檢測
+    /// Test control character detection
     #[test]
     fn test_control_character_detection() {
         let mut analyzer = ByteAnalyzer::new();
@@ -373,7 +373,7 @@ mod tests {
         assert!(result.likely_encodings.contains(&Charset::Windows1252));
     }
 
-    /// 測試統計分析器語言模型
+    /// Test statistical analyzer language models
     #[test]
     fn test_statistical_analyzer_language_models() {
         let analyzer = StatisticalAnalyzer::new();
@@ -393,7 +393,7 @@ mod tests {
         assert!(gbk_scores.get(&Charset::Gbk).unwrap_or(&0.0) > &0.0);
     }
 
-    /// 測試位元組頻率分布分析
+    /// Test byte frequency distribution analysis
     #[test]
     fn test_byte_frequency_distribution() {
         let mut analyzer = ByteAnalyzer::new();
@@ -408,7 +408,7 @@ mod tests {
         assert_eq!(*result.byte_distribution.get(&b'c').unwrap(), 3);
     }
 
-    /// 測試空資料處理
+    /// Test empty data handling
     #[test]
     fn test_empty_data_handling() {
         let mut analyzer = ByteAnalyzer::new();
@@ -423,7 +423,7 @@ mod tests {
         assert!(!result.likely_encodings.is_empty());
     }
 
-    /// 測試編碼建議邏輯
+    /// Test encoding suggestion logic
     #[test]
     fn test_encoding_suggestion_logic() {
         let mut analyzer = ByteAnalyzer::new();
@@ -447,12 +447,12 @@ mod tests {
         assert!(has_multibyte_encoding);
     }
 
-    /// 測試雙字元組模式分析
+    /// Test bigram pattern analysis
     #[test]
     fn test_bigram_pattern_analysis() {
         let mut analyzer = ByteAnalyzer::new();
 
-        // 建立具有明顯雙字元組模式的資料
+        // Create data with obvious bigram patterns
         let pattern_data = b"abcabcabcabc";
         let _result = analyzer.analyze(pattern_data).unwrap();
 

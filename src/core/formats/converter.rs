@@ -39,9 +39,13 @@ impl Clone for FormatConverter {
 /// Conversion configuration
 #[derive(Debug, Clone)]
 pub struct ConversionConfig {
+    /// Whether to preserve styling information during conversion
     pub preserve_styling: bool,
+    /// Target character encoding for the output file
     pub target_encoding: String,
+    /// Whether to keep the original file after conversion
     pub keep_original: bool,
+    /// Whether to validate the output after conversion
     pub validate_output: bool,
 }
 

@@ -288,6 +288,7 @@ pub struct VerificationRequest {
     pub video_file: String,
     /// Path to the subtitle file
     pub subtitle_file: String,
+    /// Factors to consider when matching subtitles to video content
     pub match_factors: Vec<String>,
 }
 

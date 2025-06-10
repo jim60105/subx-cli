@@ -22,28 +22,43 @@ use std::time::Duration;
 /// ASS style definition for subtitle entries.
 #[derive(Debug, Clone)]
 pub struct AssStyle {
+    /// Name identifier for this style
     pub name: String,
+    /// Font family name to use for rendering
     pub font_name: String,
+    /// Font size in points
     pub font_size: u32,
+    /// Primary text color
     pub primary_color: Color,
+    /// Secondary text color for styling effects
     pub secondary_color: Color,
+    /// Outline border color
     pub outline_color: Color,
+    /// Shadow color for text depth effect
     pub shadow_color: Color,
+    /// Whether text should be rendered in bold
     pub bold: bool,
+    /// Whether text should be rendered in italic
     pub italic: bool,
+    /// Whether text should be underlined
     pub underline: bool,
+    /// Text alignment value (1-9 for numpad positions)
     pub alignment: i32,
 }
 
 /// ASS color structure for style entries.
 #[derive(Debug, Clone)]
 pub struct Color {
+    /// Red component (0-255)
     pub r: u8,
+    /// Green component (0-255)
     pub g: u8,
+    /// Blue component (0-255)
     pub b: u8,
 }
 
 impl Color {
+    /// Creates a white color (RGB: 255, 255, 255).
     pub fn white() -> Self {
         Color {
             r: 255,
@@ -51,9 +66,13 @@ impl Color {
             b: 255,
         }
     }
+
+    /// Creates a black color (RGB: 0, 0, 0).
     pub fn black() -> Self {
         Color { r: 0, g: 0, b: 0 }
     }
+
+    /// Creates a red color (RGB: 255, 0, 0).
     pub fn red() -> Self {
         Color { r: 255, g: 0, b: 0 }
     }

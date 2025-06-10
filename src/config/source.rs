@@ -105,6 +105,7 @@ impl ConfigSource for FileSource {
 pub struct EnvSource;
 
 impl EnvSource {
+    /// Creates a new environment variable configuration source.
     pub fn new() -> Self {
         Self
     }
@@ -144,6 +145,7 @@ impl ConfigSource for EnvSource {
 pub struct CliSource;
 
 impl CliSource {
+    /// Creates a new command line arguments configuration source.
     pub fn new() -> Self {
         Self {}
     }
