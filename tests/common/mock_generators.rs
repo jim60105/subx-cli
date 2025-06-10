@@ -160,12 +160,21 @@ impl AudioMockGenerator {
 
     /// 寫入 WAV 檔案
     async fn write_wav_file(&self, path: &Path, samples: &[f32]) -> Result<()> {
-        // 簡化的 WAV 檔頭
+        // 計算正確的樣本數
+        let total_samples = (self.sample_rate as f64 * self.duration) as usize;
+        let actual_samples = if samples.len() > total_samples {
+            &samples[..total_samples]
+        } else {
+            samples
+        };
+
+        // WAV 檔頭
         let mut wav_data = Vec::new();
+        let data_size = actual_samples.len() * 2 * self.channels as usize; // 16-bit samples
+        let file_size = 36 + data_size;
 
         // RIFF 檔頭
         wav_data.extend_from_slice(b"RIFF");
-        let file_size = 36 + samples.len() * 2; // 16-bit samples
         wav_data.extend_from_slice(&(file_size as u32).to_le_bytes());
         wav_data.extend_from_slice(b"WAVE");
 
@@ -181,11 +190,11 @@ impl AudioMockGenerator {
 
         // data chunk
         wav_data.extend_from_slice(b"data");
-        wav_data.extend_from_slice(&(samples.len() * 2).to_le_bytes());
+        wav_data.extend_from_slice(&(data_size as u32).to_le_bytes());
 
         // 音訊資料（轉換為 16-bit PCM）
-        for sample in samples {
-            let sample_16 = (*sample * 32767.0) as i16;
+        for sample in actual_samples {
+            let sample_16 = (*sample * 32767.0).clamp(-32767.0, 32767.0) as i16;
             wav_data.extend_from_slice(&sample_16.to_le_bytes());
         }
 

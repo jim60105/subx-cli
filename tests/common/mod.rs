@@ -115,7 +115,7 @@ pub mod mock_generators;
 pub mod validators;
 
 // Re-export commonly used types for convenience
-pub use cli_helpers::CLITestHelper;
+pub use cli_helpers::{CLITestHelper, CommandResult};
 pub use file_managers::TestFileManager;
 pub use mock_generators::{AudioMetadata, AudioMockGenerator, SubtitleFormat, SubtitleGenerator};
 pub use validators::{OutputValidator, ValidationResult};

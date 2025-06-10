@@ -22,6 +22,24 @@ impl EncodingDetector {
         })
     }
 
+    /// Create encoding detector with custom configuration
+    pub fn with_config(config: &crate::config::Config) -> Self {
+        Self {
+            confidence_threshold: config.formats.encoding_detection_confidence,
+            max_sample_size: 8192,
+            supported_charsets: Self::default_charsets(),
+        }
+    }
+
+    /// Create encoding detector with default settings (for testing)
+    pub fn with_defaults() -> Self {
+        Self {
+            confidence_threshold: 0.7,
+            max_sample_size: 8192,
+            supported_charsets: Self::default_charsets(),
+        }
+    }
+
     /// Detect file encoding
     pub fn detect_file_encoding(&self, file_path: &str) -> Result<EncodingInfo> {
         let mut file = File::open(file_path)?;

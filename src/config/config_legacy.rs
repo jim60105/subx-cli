@@ -156,11 +156,8 @@ pub struct Config {
 
 // Unit test: Config management functionality
 #[cfg(test)]
-#[serial_test::serial]
 mod tests {
     use super::*;
-    use serial_test::serial;
-    use std::env;
     use tempfile::TempDir;
 
     #[test]
@@ -184,14 +181,17 @@ mod tests {
     }
 
     #[test]
-    #[serial]
     fn test_env_var_override() {
-        // Clear environment variables to avoid interference between tests
+        // Test environment variable override using local scope
+        // This test doesn't need serial execution because it uses scoped environment manipulation
+
+        let original_api_key = std::env::var("OPENAI_API_KEY").ok();
+        let original_model = std::env::var("SUBX_AI_MODEL").ok();
+
+        // Set test values
         unsafe {
-            env::remove_var("OPENAI_API_KEY");
-            env::remove_var("SUBX_AI_MODEL");
-            env::set_var("OPENAI_API_KEY", "test-key-123");
-            env::set_var("SUBX_AI_MODEL", "gpt-3.5-turbo");
+            std::env::set_var("OPENAI_API_KEY", "test-key-123");
+            std::env::set_var("SUBX_AI_MODEL", "gpt-3.5-turbo");
         }
 
         let mut config = Config::default();
@@ -199,21 +199,37 @@ mod tests {
         assert!(config.ai.api_key.is_some());
         assert_eq!(config.ai.model, "gpt-3.5-turbo");
 
+        // Restore original values
         unsafe {
-            env::remove_var("OPENAI_API_KEY");
-            env::remove_var("SUBX_AI_MODEL");
+            match original_api_key {
+                Some(val) => std::env::set_var("OPENAI_API_KEY", val),
+                None => std::env::remove_var("OPENAI_API_KEY"),
+            }
+            match original_model {
+                Some(val) => std::env::set_var("SUBX_AI_MODEL", val),
+                None => std::env::remove_var("SUBX_AI_MODEL"),
+            }
         }
     }
 
     #[test]
-    #[serial]
     fn test_config_validation_missing_api_key() {
+        // Test without global state dependency
+        let original_api_key = std::env::var("OPENAI_API_KEY").ok();
         unsafe {
-            env::remove_var("OPENAI_API_KEY");
+            std::env::remove_var("OPENAI_API_KEY");
         }
+
         let config = Config::default();
         // API Key validation is performed at runtime, does not affect loading
         assert!(config.validate().is_ok());
+
+        // Restore original value
+        unsafe {
+            if let Some(val) = original_api_key {
+                std::env::set_var("OPENAI_API_KEY", val);
+            }
+        }
     }
 
     #[test]

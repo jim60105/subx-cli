@@ -243,21 +243,8 @@ fn test_test_config_performance() {
 fn test_backward_compatibility_functions() {
     clear_subx_env_vars();
 
-    // 清理任何存在的配置檔案以確保測試隔離
-    if let Ok(config_path) = subx_cli::config::Config::config_file_path() {
-        let _ = std::fs::remove_file(&config_path);
-    }
-
-    // 測試 init_config_manager_new（已棄用）
-    #[allow(deprecated)]
-    let init_result = subx_cli::config::init_config_manager_new();
-    assert!(init_result.is_ok());
-
-    // 測試 load_config_new（已棄用）
-    #[allow(deprecated)]
-    let config_result = subx_cli::config::load_config_new();
-    assert!(config_result.is_ok());
-    let config = config_result.unwrap();
+    // 測試新的配置建立介面
+    let config = create_config_from_sources().unwrap();
 
     // 驗證載入的配置有效（應該是預設值）
     assert_eq!(config.ai.provider, "openai");

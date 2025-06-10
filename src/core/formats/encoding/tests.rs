@@ -3,12 +3,10 @@ mod tests {
     use super::*;
     use tempfile::tempdir;
     use std::fs;
-    use crate::init_config_manager;
 
     #[test]
     fn test_utf8_detection() {
-        init_config_manager().unwrap();
-        let detector = EncodingDetector::new().unwrap();
+        let detector = EncodingDetector::with_defaults();
         let text = "Hello, 世界! 🌍";
         let info = detector.detect_encoding(text.as_bytes()).unwrap();
         assert_eq!(info.charset, Charset::Utf8);
@@ -17,8 +15,7 @@ mod tests {
 
     #[test]
     fn test_utf8_with_bom_detection() {
-        init_config_manager().unwrap();
-        let detector = EncodingDetector::new().unwrap();
+        let detector = EncodingDetector::with_defaults();
         let mut data = vec![0xEF,0xBB,0xBF];
         data.extend_from_slice(b"Hello, World!");
         let info = detector.detect_encoding(&data).unwrap();
@@ -29,8 +26,7 @@ mod tests {
 
     #[test]
     fn test_gbk_pattern_detection() {
-        init_config_manager().unwrap();
-        let detector = EncodingDetector::new().unwrap();
+        let detector = EncodingDetector::with_defaults();
         let gbk = vec![0xC4,0xE3,0xBA,0xC3];
         let info = detector.detect_encoding(&gbk).unwrap();
         assert_ne!(info.charset, Charset::Utf8);
@@ -48,8 +44,7 @@ mod tests {
 
     #[test]
     fn test_file_encoding_detection() {
-        init_config_manager().unwrap();
-        let detector = EncodingDetector::new().unwrap();
+        let detector = EncodingDetector::with_defaults();
         let dir = tempdir().unwrap();
         let path = dir.path().join("t.txt");
         fs::write(&path, "Hello, 世界!").unwrap();
@@ -69,8 +64,7 @@ mod tests {
 
     #[test]
     fn test_unknown_encoding_fallback() {
-        init_config_manager().unwrap();
-        let detector = EncodingDetector::new().unwrap();
+        let detector = EncodingDetector::with_defaults();
         let random: Vec<u8> = (0..100).map(|i| (i*7) as u8).collect();
         let info = detector.detect_encoding(&random).unwrap();
         assert!(info.confidence < 0.9);

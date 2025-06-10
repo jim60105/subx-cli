@@ -215,6 +215,81 @@ preserve_styling = false
     }
 }
 
+/// Command execution result for testing.
+#[derive(Debug, Clone)]
+pub struct CommandResult {
+    pub success: bool,
+    pub stdout: String,
+    pub stderr: String,
+    pub status_code: i32,
+}
+
+impl CLITestHelper {
+    /// Execute a command with the test configuration.
+    pub async fn run_command_with_config(&self, args: &[&str]) -> CommandResult {
+        use std::process::Command;
+
+        let mut cmd = Command::new("cargo");
+        cmd.arg("run")
+            .arg("--")
+            .args(args)
+            .current_dir(&self.temp_dir)
+            .env(
+                "SUBX_CONFIG_PATH",
+                self.temp_dir.path().join("test_config.toml"),
+            )
+            .env("SUBX_TEST_MODE", "true")
+            .env("RUST_LOG", "debug");
+
+        match cmd.output() {
+            Ok(output) => CommandResult {
+                success: output.status.success(),
+                stdout: String::from_utf8_lossy(&output.stdout).to_string(),
+                stderr: String::from_utf8_lossy(&output.stderr).to_string(),
+                status_code: output.status.code().unwrap_or(-1),
+            },
+            Err(e) => CommandResult {
+                success: false,
+                stdout: String::new(),
+                stderr: format!("Failed to execute command: {}", e),
+                status_code: -1,
+            },
+        }
+    }
+
+    /// Execute a command and assert it succeeds.
+    pub async fn run_command_expect_success(&self, args: &[&str]) -> CommandResult {
+        let result = self.run_command_with_config(args).await;
+        if !result.success {
+            panic!(
+                "Command failed:\nArgs: {:?}\nStdout: {}\nStderr: {}",
+                args, result.stdout, result.stderr
+            );
+        }
+        result
+    }
+
+    /// Assert that a command result was successful.
+    pub fn assert_command_success(&self, result: &CommandResult) {
+        if !result.success {
+            panic!(
+                "Command failed:\nStdout: {}\nStderr: {}",
+                result.stdout, result.stderr
+            );
+        }
+    }
+
+    /// Assert that a command result failed.
+    pub fn assert_command_failure(&self, result: &CommandResult) {
+        if result.success {
+            panic!(
+                "Command unexpectedly succeeded:\nStdout: {}\nStderr: {}",
+                result.stdout, result.stderr
+            );
+        }
+    }
+}
+
 impl Default for CLITestHelper {
     fn default() -> Self {
         Self::new()

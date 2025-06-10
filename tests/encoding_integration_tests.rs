@@ -12,8 +12,6 @@ use common::{SubtitleFormat, SubtitleGenerator, TestFileManager};
 
 #[test]
 fn test_subtitle_file_encoding_detection() {
-    let _config = TestConfigBuilder::new().build_config();
-
     let dir = tempdir().unwrap();
     let srt = r#"1
 00:00:01,000 --> 00:00:03,000
@@ -26,7 +24,7 @@ Hello, World!
     let path = dir.path().join("test_utf8.srt");
     fs::write(&path, srt).unwrap();
 
-    let detector = EncodingDetector::new().unwrap();
+    let detector = EncodingDetector::with_defaults();
     let info = detector
         .detect_file_encoding(path.to_str().unwrap())
         .unwrap();
@@ -36,14 +34,12 @@ Hello, World!
 
 #[test]
 fn test_end_to_end_encoding_conversion() {
-    let _config = TestConfigBuilder::new().build_config();
-
     let dir = tempdir().unwrap();
     let path = dir.path().join("input.srt");
     let content = "Hello, 世界! Bonjour, monde!";
     fs::write(&path, content).unwrap();
 
-    let detector = EncodingDetector::new().unwrap();
+    let detector = EncodingDetector::with_defaults();
     let info = detector
         .detect_file_encoding(path.to_str().unwrap())
         .unwrap();
@@ -74,7 +70,7 @@ async fn test_encoding_detection_with_generated_files() {
     generator.save_to_file(&subtitle_path).await.unwrap();
 
     // 測試編碼檢測
-    let detector = EncodingDetector::new().unwrap();
+    let detector = EncodingDetector::with_defaults();
     let info = detector
         .detect_file_encoding(subtitle_path.to_str().unwrap())
         .unwrap();
@@ -86,7 +82,7 @@ async fn test_encoding_detection_with_generated_files() {
 #[test]
 fn test_encoding_detection_with_custom_config() {
     // 測試自訂配置的編碼檢測
-    let _config = TestConfigBuilder::new()
+    let config = TestConfigBuilder::new()
         .with_ai_provider("openai")
         .build_config();
 
@@ -96,7 +92,7 @@ fn test_encoding_detection_with_custom_config() {
     fs::write(&path, content).unwrap();
 
     // 使用配置進行編碼檢測
-    let detector = EncodingDetector::new().unwrap();
+    let detector = EncodingDetector::with_config(&config);
     let info = detector
         .detect_file_encoding(path.to_str().unwrap())
         .unwrap();
