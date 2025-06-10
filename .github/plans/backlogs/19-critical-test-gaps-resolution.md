@@ -13,6 +13,8 @@
 - **區域覆蓋率**: 59.01% (需提升)
 - **測試數量**: 107 個 (穩定)
 
+> **覆蓋率檢查**: 使用 `scripts/check_coverage.sh` 進行快速覆蓋率檢查，詳細報告可使用 `cargo llvm-cov --all-features --workspace --json --summary-only -q`
+
 ### 主要問題
 1. **指令模組零覆蓋**: cache_command, config_command, detect_encoding_command, sync_command
 2. **音訊服務不足**: audio/analyzer.rs 僅 6.93% 覆蓋率
@@ -76,6 +78,7 @@
 1. **測試執行穩定性 100%**
 2. **程式碼品質維持零警告**
 3. **測試執行時間 <30 秒**
+4. **覆蓋率監控**: 使用 `scripts/check_coverage.sh` 定期檢查進度
 
 詳細的策略和維護計畫請參閱各階段的子 backlog。
 
