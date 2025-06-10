@@ -110,6 +110,10 @@ criterion = "0.4"
 name = "subx-cli"
 path = "src/main.rs"
 
+[[bench]]
+name = "retry_performance"
+harness = false
+
 [profile.release]
 opt-level = 3
 lto = true
