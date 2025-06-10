@@ -343,6 +343,20 @@ A: Clear cache first with `subx-cli cache clear`, then re-run the match command.
 **Q: What to do about task execution timeouts?**
 A: Increase timeout duration: `subx-cli config set general.task_timeout_seconds 7200`  # Set to 2 hours
 
+## LICENSE
+
+### GPLv3
+
+<img src="https://github.com/user-attachments/assets/8712a047-a117-458d-9c56-cbd3d0e622d8" alt="gplv3" width="300" />
+
+[GNU GENERAL PUBLIC LICENSE Version 3](LICENSE)
+
+This program is free software: you can redistribute it and/or modify it under the terms of the GNU General Public License as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later version.
+
+This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License along with this program. If not, see [https://www.gnu.org/licenses/](https://www.gnu.org/licenses/).
+
 ---
 
 > [!NOTE]  
