@@ -1,6 +1,21 @@
 #!/bin/bash
 # scripts/check_coverage.sh
 #
+# Copyright (C) 2025 陳鈞
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <https://www.gnu.org/licenses/>.
+#
 # Test coverage threshold checking script
 # Use cargo llvm-cov to generate coverage report and verify minimum requirements
 
@@ -22,6 +37,8 @@ usage() {
     echo "Usage: $0 [options]"
     echo "Options:"
     echo "  -t, --threshold PERCENT   Set coverage threshold (default: ${DEFAULT_THRESHOLD}%)"
+    echo "  -T, --table              Show coverage table for all files"
+    echo "  -f, --file FILENAME      Show coverage for specific file (supports partial matching)"
     echo "  -v, --verbose            Show verbose output"
     echo "  -h, --help               Show this help"
     echo ""
@@ -31,6 +48,8 @@ usage() {
     echo "Examples:"
     echo "  $0                       Check coverage with default threshold"
     echo "  $0 -t 80                 Set threshold to 80%"
+    echo "  $0 --table               Show coverage table for all files"
+    echo "  $0 -f manager.rs         Show coverage for files matching 'manager.rs'"
     echo "  COVERAGE_THRESHOLD=70 $0  Set threshold to 70% via environment variable"
 }
 
@@ -67,12 +86,31 @@ check_dependencies() {
     fi
 }
 
+# Format percentage to 2 decimal places
+format_percentage() {
+    local field="$1"
+    echo "(($field * 100 | round) / 100)"
+}
+
+# Generate jq filter for percentage formatting
+get_percentage_filter() {
+    echo 'def format_pct(x): ((x * 100 | round) / 100);'
+}
+
 # Parse command line arguments
 parse_args() {
     while [[ $# -gt 0 ]]; do
         case $1 in
         -t | --threshold)
             COVERAGE_THRESHOLD="$2"
+            shift 2
+            ;;
+        -T | --table)
+            SHOW_TABLE=true
+            shift
+            ;;
+        -f | --file)
+            SEARCH_FILE="$2"
             shift 2
             ;;
         -v | --verbose)
@@ -89,6 +127,104 @@ parse_args() {
             exit 1
             ;;
         esac
+    done
+}
+
+# Display coverage table for all files
+show_coverage_table() {
+    local coverage_json="$1"
+
+    echo -e "${BLUE}📊 File Coverage Report${NC}"
+    echo ""
+
+    # Table header
+    printf "%-60s %8s %8s %8s %8s\n" "File" "Lines" "Funcs" "Regions" "Instants"
+    printf "%-60s %8s %8s %8s %8s\n" "$(printf '%*s' 60 '' | tr ' ' '-')" "--------" "--------" "--------" "--------"
+
+    # Extract and display file coverage data
+    echo "$coverage_json" | jq -r "$(get_percentage_filter)"'
+        .data[0].files[] |
+        [
+            .filename,
+            (format_pct(.summary.lines.percent) | tostring + "%"),
+            (format_pct(.summary.functions.percent) | tostring + "%"),
+            (format_pct(.summary.regions.percent) | tostring + "%"),
+            (format_pct(.summary.instantiations.percent) | tostring + "%")
+        ] | @tsv
+    ' | while IFS=$'\t' read -r filename lines_pct funcs_pct regions_pct instants_pct; do
+        # Truncate long filenames for better display
+        local display_name
+        if [[ ${#filename} -gt 57 ]]; then
+            display_name="...${filename: -54}"
+        else
+            display_name="$filename"
+        fi
+
+        # Color coding based on line coverage
+        local line_coverage
+        line_coverage=$(echo "$lines_pct" | sed 's/%//')
+        local color=""
+        if (( $(echo "$line_coverage >= 80" | bc -l) )); then
+            color="$GREEN"
+        elif (( $(echo "$line_coverage >= 60" | bc -l) )); then
+            color="$YELLOW"
+        else
+            color="$RED"
+        fi
+
+        printf "%-60s ${color}%8s${NC} %8s %8s %8s\n" \
+            "$display_name" "$lines_pct" "$funcs_pct" "$regions_pct" "$instants_pct"
+    done
+
+    echo ""
+    echo -e "${BLUE}Legend:${NC} ${GREEN}>=80%${NC} ${YELLOW}60-79%${NC} ${RED}<60%${NC} (based on line coverage)"
+}
+
+# Search and display coverage for specific file
+search_file_coverage() {
+    local coverage_json="$1"
+    local search_pattern="$2"
+
+    echo -e "${BLUE}🔍 Searching for files matching '${search_pattern}'...${NC}"
+    echo ""
+
+    # Search for matching files (case-insensitive)
+    local matching_files
+    matching_files=$(echo "$coverage_json" | jq -r --arg pattern "$search_pattern" "$(get_percentage_filter)"'
+        .data[0].files[] |
+        select(.filename | ascii_downcase | contains($pattern | ascii_downcase)) |
+        [
+            .filename,
+            format_pct(.summary.lines.percent),
+            .summary.lines.covered,
+            .summary.lines.count,
+            format_pct(.summary.functions.percent),
+            .summary.functions.covered,
+            .summary.functions.count,
+            format_pct(.summary.regions.percent),
+            .summary.regions.covered,
+            .summary.regions.count,
+            format_pct(.summary.instantiations.percent),
+            .summary.instantiations.covered,
+            .summary.instantiations.count
+        ] | @tsv
+    ')
+
+    if [[ -z "$matching_files" ]]; then
+        echo -e "${RED}❌ No files found matching '${search_pattern}'${NC}"
+        return 1
+    fi
+    
+    echo "$matching_files" | while IFS=$'\t' read -r filename lines_pct lines_covered lines_total \
+        funcs_pct funcs_covered funcs_total regions_pct regions_covered regions_total \
+        instants_pct instants_covered instants_total; do
+
+        echo -e "${GREEN}📄 File: ${NC}${filename}"
+        echo -e "   ${BLUE}Lines:${NC}         ${lines_pct}% (${lines_covered}/${lines_total})"
+        echo -e "   ${BLUE}Functions:${NC}     ${funcs_pct}% (${funcs_covered}/${funcs_total})"
+        echo -e "   ${BLUE}Regions:${NC}       ${regions_pct}% (${regions_covered}/${regions_total})"
+        echo -e "   ${BLUE}Instantiations:${NC} ${instants_pct}% (${instants_covered}/${instants_total})"
+        echo ""
     done
 }
 
@@ -116,9 +252,21 @@ check_coverage() {
         exit 1
     fi
 
+    # Handle table display option
+    if [[ "${SHOW_TABLE:-false}" == "true" ]]; then
+        show_coverage_table "$coverage_json"
+        return 0
+    fi
+
+    # Handle file search option
+    if [[ -n "${SEARCH_FILE:-}" ]]; then
+        search_file_coverage "$coverage_json" "$SEARCH_FILE"
+        return 0
+    fi
+
     # Parse coverage data
     local current_coverage
-    if ! current_coverage=$(echo "$coverage_json" | jq -r '.data[0].totals.lines.percent' 2>/dev/null); then
+    if ! current_coverage=$(echo "$coverage_json" | jq -r "$(get_percentage_filter)"'format_pct(.data[0].totals.lines.percent)' 2>/dev/null); then
         echo -e "${RED}❌ Unable to parse coverage data${NC}" >&2
         echo -e "${YELLOW}JSON format may have changed, please check cargo llvm-cov output${NC}" >&2
         if [[ "${VERBOSE:-false}" == "true" ]]; then
@@ -141,11 +289,11 @@ check_coverage() {
     # Show detailed information (if verbose mode is enabled)
     if [[ "${VERBOSE:-false}" == "true" ]]; then
         echo -e "\n${YELLOW}Detailed coverage information:${NC}"
-        echo "$coverage_json" | jq -r '
-            .data[0].totals | 
-            "  Function coverage: \(.functions.percent)% (\(.functions.covered)/\(.functions.count))",
-            "  Line coverage:     \(.lines.percent)% (\(.lines.covered)/\(.lines.count))",
-            "  Region coverage:   \(.regions.percent)% (\(.regions.covered)/\(.regions.count))"
+        echo "$coverage_json" | jq -r "$(get_percentage_filter)"'
+            .data[0].totals |
+            "  Function coverage: " + (format_pct(.functions.percent) | tostring) + "% (\(.functions.covered)/\(.functions.count))",
+            "  Line coverage:     " + (format_pct(.lines.percent) | tostring) + "% (\(.lines.covered)/\(.lines.count))",
+            "  Region coverage:   " + (format_pct(.regions.percent) | tostring) + "% (\(.regions.covered)/\(.regions.count))"
         '
     fi
 
