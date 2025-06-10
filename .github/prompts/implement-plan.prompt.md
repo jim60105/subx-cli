@@ -1,23 +1,7 @@
 ---
 mode: agent
 description: "This prompt is designed to guide the agent in implementing a development plan for a project, ensuring that all tasks are completed according to the specified requirements and protocols. The agent will follow a structured approach to code implementation, testing, and reporting."
-tools:
-  - run_in_terminal
-  - insert_edit_into_file
-  - list_dir
-  - create_directory
-  - create_file
-  - file_search
-  - grep_search
-  - get_errors
-  - get_terminal_last_command
-  - get_terminal_output
-  - get_terminal_selection
-  - read_file
-  - replace_string_in_file
-  - semantic_search
-  - think
-  - vscode_searchExtensions_internal
+tools: ['changes', 'codebase', 'editFiles', 'fetch', 'findTestFiles', 'githubRepo', 'problems', 'runCommands', 'search', 'terminalLastCommand', 'terminalSelection', 'testFailure', 'usages']
 ---
 * **Additional Key Directives:**
   * Git commit after completing your work, using the conventional commit format for the title and a brief description in the body. Always commit with `--signoff` and `--no-gpg-sign`. Write the commit in English.

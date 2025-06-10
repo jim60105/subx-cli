@@ -1,11 +1,7 @@
 ---
 mode: 'agent'
 description: "Create a detailed development plan for a new project."
-tools:
-  - file_search
-  - fetch_webpage
-  - github_repo
-  - replace_string_in_file
+tools: ['codebase', 'editFiles', 'fetch', 'githubRepo', 'problems', 'search', 'testFailure']
 ---
 **We are at planning stage so don't start to implement anything!**
 
