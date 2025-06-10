@@ -1,11 +1,11 @@
-//! 基於 aus crate 的對話檢測器
+//! Dialogue detector based on the aus crate.
 
 use crate::Result;
 use crate::services::audio::DialogueSegment;
 use aus::{AudioFile, WindowType, analysis, spectrum};
 use std::collections::VecDeque;
 
-/// 基於 aus 分析的對話檢測器
+/// Dialogue detector based on aus analysis.
 pub struct AusDialogueDetector {
     energy_threshold: f32,
     spectral_threshold: f32,
@@ -15,7 +15,7 @@ pub struct AusDialogueDetector {
 }
 
 impl AusDialogueDetector {
-    /// 建立對話檢測器，設定能量閾值
+    /// Create a dialogue detector and set the energy threshold.
     pub fn new(threshold: f32) -> Self {
         Self {
             energy_threshold: threshold,
@@ -26,7 +26,7 @@ impl AusDialogueDetector {
         }
     }
 
-    /// 多特徵對話檢測
+    /// Multi-feature dialogue detection.
     pub fn detect_dialogue(&self, audio_file: &AudioFile) -> Result<Vec<DialogueSegment>> {
         let samples = &audio_file.samples[0];
         let sample_rate = audio_file.sample_rate;
@@ -95,7 +95,7 @@ impl AusDialogueDetector {
         Ok(segments)
     }
 
-    /// 多特徵語音檢測
+    /// Multi-feature speech detection.
     fn is_speech_frame(&self, energy: f32, spectral_centroid: f32, spectral_entropy: f32) -> bool {
         let energy_check = energy > self.energy_threshold;
         let spectral_check =

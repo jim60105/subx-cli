@@ -248,8 +248,11 @@ pub async fn execute(args: SyncArgs) -> Result<()> {
     if app_config.sync.enable_dialogue_detection {
         let detector = DialogueDetector::new()?;
         let segs = detector.detect_dialogue(&args.video).await?;
-        println!("檢測到 {} 個對話片段", segs.len());
-        println!("語音比例: {:.1}%", detector.get_speech_ratio(&segs) * 100.0);
+        println!("Detected {} dialogue segments", segs.len());
+        println!(
+            "Speech ratio: {:.1}%",
+            detector.get_speech_ratio(&segs) * 100.0
+        );
     }
 
     if let Some(manual_offset) = args.offset {
@@ -257,21 +260,21 @@ pub async fn execute(args: SyncArgs) -> Result<()> {
         let mut subtitle = load_subtitle(&args.subtitle).await?;
         sync_engine.apply_sync_offset(&mut subtitle, manual_offset as f32)?;
         save_subtitle(&subtitle, &args.subtitle).await?;
-        println!("✓ 已應用手動偏移: {}秒", manual_offset);
+        println!("✓ Applied manual offset: {}s", manual_offset);
     } else if args.batch {
         let media_pairs = discover_media_pairs(&args.video).await?;
         for (video_file, subtitle_file) in media_pairs {
             match sync_single_pair(&sync_engine, &video_file, &subtitle_file).await {
                 Ok(result) => {
                     println!(
-                        "✓ {} - 偏移: {:.2}秒 (信心度: {:.2})",
+                        "✓ {} - Offset: {:.2}s (Confidence: {:.2})",
                         subtitle_file.display(),
                         result.offset_seconds,
                         result.confidence
                     );
                 }
                 Err(e) => {
-                    println!("✗ {} - 錯誤: {}", subtitle_file.display(), e);
+                    println!("✗ {} - Error: {}", subtitle_file.display(), e);
                 }
             }
         }
@@ -283,27 +286,30 @@ pub async fn execute(args: SyncArgs) -> Result<()> {
             sync_engine.apply_sync_offset(&mut updated, result.offset_seconds)?;
             save_subtitle(&updated, &args.subtitle).await?;
             println!(
-                "✓ 同步完成 - 偏移: {:.2}秒 (信心度: {:.2})",
+                "✓ Sync completed - Offset: {:.2}s (Confidence: {:.2})",
                 result.offset_seconds, result.confidence
             );
         } else {
-            println!("⚠ 同步信心度較低 ({:.2})，建議手動調整", result.confidence);
+            println!(
+                "⚠ Low sync confidence ({:.2}), manual adjustment recommended",
+                result.confidence
+            );
         }
     }
     Ok(())
 }
 
-/// 載入字幕檔案並解析
+/// Load and parse subtitle file
 async fn load_subtitle(path: &Path) -> Result<Subtitle> {
     let content = tokio::fs::read_to_string(path).await?;
     let mgr = FormatManager::new();
     let mut subtitle = mgr.parse_auto(&content)?;
-    // 設定來源編碼
+    // Set source encoding
     subtitle.metadata.encoding = "utf-8".to_string();
     Ok(subtitle)
 }
 
-/// 序列化並儲存字幕檔案
+/// Serialize and save subtitle file
 async fn save_subtitle(subtitle: &Subtitle, path: &Path) -> Result<()> {
     let mgr = FormatManager::new();
     let text = mgr
@@ -312,13 +318,13 @@ async fn save_subtitle(subtitle: &Subtitle, path: &Path) -> Result<()> {
                 .and_then(|e| e.to_str())
                 .unwrap_or_default(),
         )
-        .ok_or_else(|| SubXError::subtitle_format("Unknown", "未知的字幕格式"))?
+        .ok_or_else(|| SubXError::subtitle_format("Unknown", "Unknown subtitle format"))?
         .serialize(subtitle)?;
     tokio::fs::write(path, text).await?;
     Ok(())
 }
 
-/// 掃描資料夾並配對影片與字幕檔案
+/// Scan directory and pair video with subtitle files
 async fn discover_media_pairs(dir: &Path) -> Result<Vec<(PathBuf, PathBuf)>> {
     let discovery = FileDiscovery::new();
     let files = discovery.scan_directory(dir, true)?;
@@ -341,7 +347,7 @@ async fn discover_media_pairs(dir: &Path) -> Result<Vec<(PathBuf, PathBuf)>> {
     Ok(pairs)
 }
 
-/// 同步單一媒體檔案
+/// Synchronize single media file
 async fn sync_single_pair(
     engine: &SyncEngine,
     video: &Path,

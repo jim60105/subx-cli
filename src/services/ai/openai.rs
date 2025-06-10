@@ -12,8 +12,8 @@ use serde_json::json;
 use std::time::Duration;
 use tokio::time;
 
-/// OpenAI 客戶端實作
-/// OpenAI 客戶端實作
+/// OpenAI client implementation
+/// OpenAI client implementation
 #[derive(Debug)]
 pub struct OpenAIClient {
     client: Client,
@@ -25,7 +25,7 @@ pub struct OpenAIClient {
     base_url: String,
 }
 
-// 模擬測試: OpenAIClient 與 AIProvider 介面
+// Mock testing: OpenAIClient with AIProvider interface
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -61,15 +61,15 @@ mod tests {
             .and(path("/chat/completions"))
             .and(header("authorization", "Bearer test-key"))
             .respond_with(ResponseTemplate::new(200).set_body_json(json!({
-                "choices": [{"message": {"content": "測試回應內容"}}]
+                "choices": [{"message": {"content": "test response content"}}]
             })))
             .mount(&server)
             .await;
         let mut client = OpenAIClient::new("test-key".into(), "gpt-4o-mini".into(), 0.3, 1, 0);
         client.base_url = server.uri();
-        let messages = vec![json!({"role":"user","content":"測試"})];
+        let messages = vec![json!({"role":"user","content":"test"})];
         let resp = client.chat_completion(messages).await.unwrap();
-        assert_eq!(resp, "測試回應內容");
+        assert_eq!(resp, "test response content");
     }
 
     #[tokio::test]
@@ -84,7 +84,7 @@ mod tests {
             .await;
         let mut client = OpenAIClient::new("bad-key".into(), "gpt-4o-mini".into(), 0.3, 1, 0);
         client.base_url = server.uri();
-        let messages = vec![json!({"role":"user","content":"測試"})];
+        let messages = vec![json!({"role":"user","content":"test"})];
         let result = client.chat_completion(messages).await;
         assert!(result.is_err());
     }
@@ -159,16 +159,16 @@ mod tests {
             max_sample_length: 500,
         };
         let err = OpenAIClient::from_config(&config).unwrap_err();
-        // 非 http/https 協定應返回協定錯誤訊息
+        // Non-http/https protocols should return protocol error message
         assert!(
             err.to_string()
-                .contains("base URL 必須使用 http 或 https 協定")
+                .contains("base URL must use http or https protocol")
         );
     }
 }
 
 impl OpenAIClient {
-    /// 建立新的 OpenAIClient (使用預設 base_url)
+    /// Create new OpenAIClient (using default base_url)
     pub fn new(
         api_key: String,
         model: String,

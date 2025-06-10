@@ -219,7 +219,12 @@ pub async fn execute(args: ConvertArgs) -> crate::Result<()> {
         "ass" => OutputSubtitleFormat::Ass,
         "vtt" => OutputSubtitleFormat::Vtt,
         "sub" => OutputSubtitleFormat::Sub,
-        other => return Err(SubXError::config(format!("未知的預設輸出格式: {}", other))),
+        other => {
+            return Err(SubXError::config(format!(
+                "Unknown default output format: {}",
+                other
+            )));
+        }
     };
     let output_format = args.format.clone().unwrap_or(default_output);
 
@@ -238,26 +243,30 @@ pub async fn execute(args: ConvertArgs) -> crate::Result<()> {
                 if result.success {
                     file_manager.record_creation(&output_path);
                     println!(
-                        "✓ 轉換完成: {} -> {}",
+                        "✓ Conversion completed: {} -> {}",
                         args.input.display(),
                         output_path.display()
                     );
                     if !args.keep_original {
                         if let Err(e) = file_manager.remove_file(&args.input) {
-                            eprintln!("⚠️  無法移除原始檔案 {}: {}", args.input.display(), e);
+                            eprintln!(
+                                "⚠️  Cannot remove original file {}: {}",
+                                args.input.display(),
+                                e
+                            );
                         }
                     }
                 } else {
-                    println!("✗ 轉換失敗");
+                    println!("✗ Conversion failed");
                     for error in result.errors {
-                        println!("  錯誤: {}", error);
+                        println!("  Error: {}", error);
                     }
                 }
             }
             Err(e) => {
-                eprintln!("✗ 轉換失敗: {}", e);
+                eprintln!("✗ Conversion failed: {}", e);
                 if let Err(rollback_err) = file_manager.rollback() {
-                    eprintln!("✗ 回滾失敗: {}", rollback_err);
+                    eprintln!("✗ Rollback failed: {}", rollback_err);
                 }
                 return Err(e);
             }
@@ -270,9 +279,12 @@ pub async fn execute(args: ConvertArgs) -> crate::Result<()> {
             .await?;
         let success_count = results.iter().filter(|r| r.success).count();
         let total_count = results.len();
-        println!("批量轉換完成: {}/{} 成功", success_count, total_count);
+        println!(
+            "Batch conversion completed: {}/{} successful",
+            success_count, total_count
+        );
         for result in results.iter().filter(|r| !r.success) {
-            println!("失敗: {}", result.errors.join(", "));
+            println!("Failed: {}", result.errors.join(", "));
         }
     }
     Ok(())
@@ -286,9 +298,9 @@ mod tests {
     use std::fs;
     use tempfile::TempDir;
 
-    /// 重設測試環境以避免測試間的狀態干擾
+    /// Reset test environment to avoid state interference between tests
     fn reset_test_environment() {
-        // 重設全域配置管理器
+        // Reset global configuration manager
         crate::config::reset_global_config_manager();
     }
 
@@ -346,7 +358,7 @@ mod tests {
             keep_original: false,
             encoding: String::from("utf-8"),
         };
-        // 僅檢查執行結果，不驗證實際檔案產生，由於轉換器行為外部模組控制
+        // Only check execution result, do not verify actual file generation, as converter behavior is controlled by external modules
         execute(args).await?;
         reset_test_environment();
         Ok(())

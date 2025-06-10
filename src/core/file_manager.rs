@@ -114,14 +114,17 @@ mod tests {
 
         let mut manager = FileManager::new();
         manager.remove_file(&file_path).unwrap();
-        assert!(!file_path.exists(), "檔案應已移除");
+        assert!(!file_path.exists(), "File should have been removed");
 
-        // 測試回滾建立的檔案
+        // Test rollback of created file
         let new_file = temp_dir.path().join("new.txt");
         fs::write(&new_file, "content").unwrap();
         manager.record_creation(&new_file);
         manager.rollback().unwrap();
-        assert!(!new_file.exists(), "建立的檔案應已回滾移除");
+        assert!(
+            !new_file.exists(),
+            "Created file should have been rolled back and removed"
+        );
     }
 }
 

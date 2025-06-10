@@ -259,30 +259,36 @@ pub async fn execute(args: ConfigArgs) -> Result<()> {
                         "api_key" => config.ai.api_key = Some(value),
                         "model" => config.ai.model = value,
                         _ => {
-                            return Err(SubXError::config(format!("無效的 AI 配置鍵: {}", key)));
+                            return Err(SubXError::config(format!(
+                                "Invalid AI configuration key: {}",
+                                key
+                            )));
                         }
                     },
                     "formats" => match parts[1] {
                         "default_output" => config.formats.default_output = value,
                         _ => {
                             return Err(SubXError::config(format!(
-                                "無效的 Formats 配置鍵: {}",
+                                "Invalid Formats configuration key: {}",
                                 key
                             )));
                         }
                     },
                     _ => {
-                        return Err(SubXError::config(format!("無效的配置區段: {}", parts[0])));
+                        return Err(SubXError::config(format!(
+                            "Invalid configuration section: {}",
+                            parts[0]
+                        )));
                     }
                 }
             } else {
                 return Err(SubXError::config(format!(
-                    "無效的配置鍵格式: {} (應為 section.field)",
+                    "Invalid configuration key format: {} (should be section.field)",
                     key
                 )));
             }
             config.save()?;
-            println!("設定 {} = {}", key, config.get_value(&key)?);
+            println!("Set {} = {}", key, config.get_value(&key)?);
         }
         ConfigAction::Get { key } => {
             let config = load_config()?;
@@ -292,20 +298,20 @@ pub async fn execute(args: ConfigArgs) -> Result<()> {
         ConfigAction::List => {
             let config = load_config()?;
             if let Some(path) = &config.loaded_from {
-                println!("# 配置檔案路徑: {}\n", path.display());
+                println!("# Configuration file path: {}\n", path.display());
             }
             println!(
                 "{}",
                 toml::to_string_pretty(&config)
-                    .map_err(|e| SubXError::config(format!("TOML 序列化錯誤: {}", e)))?
+                    .map_err(|e| SubXError::config(format!("TOML serialization error: {}", e)))?
             );
         }
         ConfigAction::Reset => {
             let default_config = Config::default();
             default_config.save()?;
-            println!("配置已重置為預設值");
+            println!("Configuration reset to default values");
             if let Ok(path) = Config::config_file_path() {
-                println!("預設配置已儲存至: {}", path.display());
+                println!("Default configuration saved to: {}", path.display());
             }
         }
     }

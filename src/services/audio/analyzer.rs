@@ -1,11 +1,11 @@
-//! 基於 aus crate 的音訊分析器
+//! Audio analyzer based on the aus crate.
 
 use crate::services::audio::{AudioData, AudioEnvelope};
 use crate::{Result, error::SubXError};
 use aus::{AudioFile, WindowType, analysis, operations, spectrum};
 use std::path::Path;
 
-/// 基於 aus 的音訊分析器
+/// Audio analyzer based on aus.
 pub struct AusAudioAnalyzer {
     sample_rate: u32,
     window_size: usize,
@@ -13,7 +13,7 @@ pub struct AusAudioAnalyzer {
 }
 
 impl AusAudioAnalyzer {
-    /// 建立新的分析器，設定採樣率
+    /// Create a new analyzer and set the sample rate
     pub fn new(sample_rate: u32) -> Self {
         Self {
             sample_rate,
@@ -22,12 +22,12 @@ impl AusAudioAnalyzer {
         }
     }
 
-    /// 載入音訊檔案使用 aus
+    /// Load audio file using aus
     pub async fn load_audio_file<P: AsRef<Path>>(&self, audio_path: P) -> Result<AudioFile> {
         let path = audio_path.as_ref();
         let path_str = path
             .to_str()
-            .ok_or_else(|| SubXError::audio_processing("無法轉換路徑為 UTF-8 字串"))?;
+            .ok_or_else(|| SubXError::audio_processing("Failed to convert path to UTF-8 string"))?;
         let mut audio_file = aus::read(path_str)?;
         if audio_file.num_channels > 1 {
             aus::mixdown(&mut audio_file);
@@ -35,7 +35,7 @@ impl AusAudioAnalyzer {
         Ok(audio_file)
     }
 
-    /// 載入音訊檔案並轉換為 AudioData 格式
+    /// Load audio file and convert to AudioData format
     pub async fn load_audio_data<P: AsRef<Path>>(&self, audio_path: P) -> Result<AudioData> {
         let audio_file = self.load_audio_file(audio_path).await?;
         let samples: Vec<f32> = audio_file.samples[0].iter().map(|&x| x as f32).collect();
@@ -47,7 +47,7 @@ impl AusAudioAnalyzer {
         })
     }
 
-    /// 提取音訊能量包絡
+    /// Extract audio energy envelope
     pub async fn extract_envelope<P: AsRef<Path>>(&self, audio_path: P) -> Result<AudioEnvelope> {
         let audio_file = self.load_audio_file(audio_path).await?;
         let samples = &audio_file.samples[0];
@@ -64,7 +64,7 @@ impl AusAudioAnalyzer {
         })
     }
 
-    /// 偵測對話段落 (相容舊介面)
+    /// Detect dialogue segments (legacy interface compatible)
     pub fn detect_dialogue(
         &self,
         envelope: &AudioEnvelope,
@@ -95,7 +95,7 @@ impl AusAudioAnalyzer {
         segments
     }
 
-    /// 音訊特徵分析使用 aus
+    /// Audio feature analysis using aus
     pub async fn analyze_audio_features(&self, audio_file: &AudioFile) -> Result<AudioFeatures> {
         let samples = &audio_file.samples[0];
         let stft_result = spectrum::rstft(

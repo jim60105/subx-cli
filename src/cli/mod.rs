@@ -90,7 +90,7 @@ pub use ui::{
 /// or configuration file overrides.
 #[derive(Parser, Debug)]
 #[command(name = "subx-cli")]
-#[command(about = "智慧字幕處理 CLI 工具")]
+#[command(about = "Intelligent subtitle processing CLI tool")]
 #[command(version = env!("CARGO_PKG_VERSION"))]
 pub struct Cli {
     /// The subcommand to execute.

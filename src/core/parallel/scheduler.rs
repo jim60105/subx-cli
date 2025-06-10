@@ -75,9 +75,9 @@ pub struct TaskScheduler {
     _config: ParallelConfig,
     /// Optional load balancer for dynamic worker adjustment
     load_balancer: Option<crate::core::parallel::load_balancer::LoadBalancer>,
-    /// 任務執行逾時設定
+    /// Task execution timeout setting
     task_timeout: std::time::Duration,
-    /// 工作執行緒閒置逾時設定
+    /// Worker thread idle timeout setting
     worker_idle_timeout: std::time::Duration,
     task_queue: Arc<Mutex<VecDeque<PendingTask>>>,
     semaphore: Arc<Semaphore>,
@@ -95,7 +95,7 @@ impl TaskScheduler {
         let task_queue = Arc::new(Mutex::new(VecDeque::new()));
         let active_tasks = Arc::new(Mutex::new(std::collections::HashMap::new()));
 
-        // 從一般配置中讀取逾時設定
+        // Read timeout settings from general configuration
         let general = &app_config.general;
         let scheduler = Self {
             _config: config.clone(),
@@ -162,10 +162,10 @@ impl TaskScheduler {
         let worker_idle_timeout = self.worker_idle_timeout;
 
         let handle = tokio::spawn(async move {
-            // 閒置檢查計時
+            // Idle check timer
             let mut last_active = std::time::Instant::now();
             loop {
-                // 閒置超時後結束調度器
+                // End scheduler after idle timeout
                 let has_pending = {
                     let q = task_queue.lock().unwrap();
                     !q.is_empty()
@@ -211,12 +211,13 @@ impl TaskScheduler {
 
                         // Spawn the actual task execution
                         tokio::spawn(async move {
-                            // 任務執行逾時處理
-                            let result =
-                                match tokio::time::timeout(task_timeout, p.task.execute()).await {
-                                    Ok(res) => res,
-                                    Err(_) => TaskResult::Failed("任務執行逾時".to_string()),
-                                };
+                            // Task execution timeout handling
+                            let result = match tokio::time::timeout(task_timeout, p.task.execute())
+                                .await
+                            {
+                                Ok(res) => res,
+                                Err(_) => TaskResult::Failed("Task execution timeout".to_string()),
+                            };
 
                             // Update task status
                             {
@@ -300,7 +301,9 @@ impl TaskScheduler {
                     q.pop_front();
                 }
                 OverflowStrategy::Reject => {
-                    return Err(SubXError::parallel_processing("任務佇列已滿".to_string()));
+                    return Err(SubXError::parallel_processing(
+                        "Task queue is full".to_string(),
+                    ));
                 }
             }
         }
@@ -320,7 +323,7 @@ impl TaskScheduler {
 
         // Await result
         let result = rx.await.map_err(|_| {
-            crate::error::SubXError::parallel_processing("任務執行被中斷".to_string())
+            crate::error::SubXError::parallel_processing("Task execution interrupted".to_string())
         })?;
 
         // Clean up
@@ -343,13 +346,13 @@ impl TaskScheduler {
     ) -> Vec<TaskResult> {
         let mut receivers = Vec::new();
 
-        // 首先將所有任務加入佇列
+        // First add all tasks to the queue
         for task in tasks {
             let task_id = task.task_id();
             let task_type = task.task_type().to_string();
             let (tx, rx) = oneshot::channel();
 
-            // 註冊任務資訊
+            // Register task information
             {
                 let mut active = self.active_tasks.lock().unwrap();
                 active.insert(
@@ -406,15 +409,17 @@ impl TaskScheduler {
             receivers.push((task_id, rx));
         }
 
-        // 等待所有結果
+        // Wait for all results
         let mut results = Vec::new();
         for (task_id, rx) in receivers {
             match rx.await {
                 Ok(result) => results.push(result),
-                Err(_) => results.push(TaskResult::Failed("任務執行被中斷".to_string())),
+                Err(_) => {
+                    results.push(TaskResult::Failed("Task execution interrupted".to_string()))
+                }
             }
 
-            // 清理任務資訊
+            // Clean up task information
             {
                 let mut active = self.active_tasks.lock().unwrap();
                 active.remove(&task_id);
@@ -482,7 +487,7 @@ mod tests {
     impl Task for MockTask {
         async fn execute(&self) -> TaskResult {
             tokio::time::sleep(self.duration).await;
-            TaskResult::Success(format!("完成任務: {}", self.name))
+            TaskResult::Success(format!("Task completed: {}", self.name))
         }
         fn task_type(&self) -> &'static str {
             "mock"
@@ -504,7 +509,7 @@ mod tests {
     impl Task for CounterTask {
         async fn execute(&self) -> TaskResult {
             self.counter.fetch_add(1, Ordering::SeqCst);
-            TaskResult::Success("計數任務完成".to_string())
+            TaskResult::Success("Counter task completed".to_string())
         }
         fn task_type(&self) -> &'static str {
             "counter"
@@ -531,7 +536,7 @@ mod tests {
         async fn execute(&self) -> TaskResult {
             let mut v = self.order.lock().unwrap();
             v.push(self.name.clone());
-            TaskResult::Success(format!("順序任務完成: {}", self.name))
+            TaskResult::Success(format!("Order task completed: {}", self.name))
         }
         fn task_type(&self) -> &'static str {
             "order"
@@ -557,13 +562,13 @@ mod tests {
         let scheduler = TaskScheduler::new_with_defaults();
         let counter = Arc::new(AtomicUsize::new(0));
 
-        // 測試單個任務
+        // Test single task
         let task = Box::new(CounterTask::new(counter.clone()));
         let result = scheduler.submit_task(task).await.unwrap();
         assert!(matches!(result, TaskResult::Success(_)));
         assert_eq!(counter.load(Ordering::SeqCst), 1);
 
-        // 測試多個任務 - 序列執行
+        // Test multiple tasks - serial execution
         for _ in 0..4 {
             let task = Box::new(CounterTask::new(counter.clone()));
             let _result = scheduler.submit_task(task).await.unwrap();
@@ -576,7 +581,7 @@ mod tests {
         let scheduler = TaskScheduler::new_with_defaults();
         let order = Arc::new(Mutex::new(Vec::new()));
 
-        // 建立不同優先級的任務
+        // Create tasks with different priorities
         let tasks = vec![
             (TaskPriority::Low, "low"),
             (TaskPriority::High, "high"),
@@ -597,14 +602,14 @@ mod tests {
             handles.push(handle);
         }
 
-        // 等待所有任務完成
+        // Wait for all tasks to complete
         for handle in handles {
             let _ = handle.await.unwrap();
         }
 
         let v = order.lock().unwrap();
         assert_eq!(v.len(), 4);
-        // 由於優先級排程，critical 應該先執行
+        // Due to priority scheduling, critical should execute first
         assert!(v.contains(&"critical".to_string()));
         assert!(v.contains(&"high".to_string()));
         assert!(v.contains(&"normal".to_string()));
@@ -615,11 +620,11 @@ mod tests {
     async fn test_queue_and_active_workers_metrics() {
         let scheduler = TaskScheduler::new_with_defaults();
 
-        // 初始狀態檢查
+        // Check initial state
         assert_eq!(scheduler.get_queue_size(), 0);
         assert_eq!(scheduler.get_active_workers(), 0);
 
-        // 提交一個較長的任務
+        // Submit a longer task
         let task = Box::new(MockTask {
             name: "long_task".to_string(),
             duration: Duration::from_millis(100),
@@ -630,13 +635,13 @@ mod tests {
             tokio::spawn(async move { scheduler_clone.submit_task(task).await })
         };
 
-        // 等待一小段時間，檢查指標
+        // Wait a short time and check metrics
         tokio::time::sleep(Duration::from_millis(20)).await;
 
-        // 完成任務
+        // Complete task
         let _result = handle.await.unwrap().unwrap();
 
-        // 檢查最終狀態
+        // Check final state
         assert_eq!(scheduler.get_queue_size(), 0);
     }
 
@@ -645,7 +650,7 @@ mod tests {
         let scheduler = TaskScheduler::new_with_defaults();
         let counter = Arc::new(AtomicUsize::new(0));
 
-        // 提交多個任務到佇列
+        // Submit multiple tasks to queue
         let mut handles = Vec::new();
         for i in 0..10 {
             let task = Box::new(CounterTask::new(counter.clone()));
@@ -654,19 +659,19 @@ mod tests {
                 tokio::spawn(async move { scheduler_clone.submit_task(task).await.unwrap() });
             handles.push(handle);
 
-            // 延遲提交以測試連續排程
+            // Delayed submission to test continuous scheduling
             if i % 3 == 0 {
                 tokio::time::sleep(Duration::from_millis(5)).await;
             }
         }
 
-        // 等待所有任務完成
+        // Wait for all tasks to complete
         for handle in handles {
             let result = handle.await.unwrap();
             assert!(matches!(result, TaskResult::Success(_)));
         }
 
-        // 驗證所有任務都被執行
+        // Verify all tasks were executed
         assert_eq!(counter.load(Ordering::SeqCst), 10);
     }
 
@@ -675,10 +680,10 @@ mod tests {
         let scheduler = TaskScheduler::new_with_defaults();
         let counter = Arc::new(AtomicUsize::new(0));
 
-        // 使用批次提交來測試並發執行
+        // Use batch submission to test concurrent execution
         let mut tasks: Vec<Box<dyn Task + Send + Sync>> = Vec::new();
         for _ in 0..3 {
-            // 減少任務數量以簡化測試
+            // Reduce task count to simplify test
             tasks.push(Box::new(CounterTask::new(counter.clone())));
         }
 
@@ -695,7 +700,7 @@ mod tests {
         let scheduler = TaskScheduler::new_with_defaults();
         let counter = Arc::new(AtomicUsize::new(0));
 
-        // 建立大量任務
+        // Create large number of tasks
         let mut handles = Vec::new();
         for i in 0..50 {
             let task = Box::new(CounterTask::new(counter.clone()));
@@ -716,22 +721,22 @@ mod tests {
             });
             handles.push(handle);
 
-            // 交錯式提交，模擬實際使用情境
+            // Interleaved submission to simulate real usage scenarios
             if i % 5 == 0 {
                 tokio::time::sleep(Duration::from_millis(1)).await;
             }
         }
 
-        // 等待所有任務完成
+        // Wait for all tasks to complete
         for handle in handles {
             let result = handle.await.unwrap();
             assert!(matches!(result, TaskResult::Success(_)));
         }
 
-        // 驗證所有任務都被執行
+        // Verify all tasks were executed
         assert_eq!(counter.load(Ordering::SeqCst), 50);
 
-        // 檢查最終狀態
+        // Check final state
         assert_eq!(scheduler.get_queue_size(), 0);
         assert_eq!(scheduler.get_active_workers(), 0);
     }
@@ -741,7 +746,7 @@ mod tests {
         let scheduler = TaskScheduler::new_with_defaults();
         let counter = Arc::new(AtomicUsize::new(0));
 
-        // 首先提交一些單個任務
+        // First submit some individual tasks
         let mut individual_handles = Vec::new();
         for _ in 0..3 {
             let task = Box::new(CounterTask::new(counter.clone()));
@@ -751,7 +756,7 @@ mod tests {
             individual_handles.push(handle);
         }
 
-        // 然後提交批次任務
+        // Then submit batch tasks
         let mut batch_tasks: Vec<Box<dyn Task + Send + Sync>> = Vec::new();
         for _ in 0..4 {
             batch_tasks.push(Box::new(CounterTask::new(counter.clone())));
@@ -762,7 +767,7 @@ mod tests {
             tokio::spawn(async move { scheduler_clone.submit_batch_tasks(batch_tasks).await })
         };
 
-        // 在批次執行期間再提交更多單個任務
+        // Submit more individual tasks during batch execution
         let mut more_individual_handles = Vec::new();
         for _ in 0..2 {
             let task = Box::new(CounterTask::new(counter.clone()));
@@ -772,7 +777,7 @@ mod tests {
             more_individual_handles.push(handle);
         }
 
-        // 等待所有任務完成
+        // Wait for all tasks to complete
         for handle in individual_handles {
             let result = handle.await.unwrap();
             assert!(matches!(result, TaskResult::Success(_)));
@@ -789,7 +794,7 @@ mod tests {
             assert!(matches!(result, TaskResult::Success(_)));
         }
 
-        // 驗證總計數正確 (3 + 4 + 2 = 9)
+        // Verify total count is correct (3 + 4 + 2 = 9)
         assert_eq!(counter.load(Ordering::SeqCst), 9);
     }
 }

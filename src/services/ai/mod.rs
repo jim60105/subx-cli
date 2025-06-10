@@ -291,25 +291,25 @@ pub struct VerificationRequest {
     pub match_factors: Vec<String>,
 }
 
-/// AI 使用統計資訊
+/// AI usage statistics.
 #[derive(Debug, Clone)]
 pub struct AiUsageStats {
-    /// 使用的模型名稱
+    /// Name of the model used.
     pub model: String,
-    /// Prompt tokens 使用量
+    /// Number of prompt tokens used.
     pub prompt_tokens: u32,
-    /// Completion tokens 使用量
+    /// Number of completion tokens used.
     pub completion_tokens: u32,
-    /// 總 tokens 使用量
+    /// Total number of tokens used.
     pub total_tokens: u32,
 }
 
-/// AI 回應內容及使用統計
+/// AI response content and usage statistics.
 #[derive(Debug, Clone)]
 pub struct AiResponse {
-    /// 回應內容文字
+    /// Response content text.
     pub content: String,
-    /// 使用統計資訊
+    /// Usage statistics.
     pub usage: Option<AiUsageStats>,
 }
 

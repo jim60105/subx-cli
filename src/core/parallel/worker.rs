@@ -55,7 +55,7 @@ impl WorkerPool {
         {
             let workers = self.workers.lock().unwrap();
             if workers.len() >= self.max_workers {
-                return Err("工作者池已滿".to_string());
+                return Err("Worker pool is full".to_string());
             }
         }
 
@@ -75,7 +75,7 @@ impl WorkerPool {
         }
 
         // For simplicity, return immediately indicating submission
-        Ok(TaskResult::Success("任務已提交".to_string()))
+        Ok(TaskResult::Success("Task submitted".to_string()))
     }
 
     fn determine_worker_type(&self, task_type: &str) -> WorkerType {
@@ -124,7 +124,10 @@ impl WorkerPool {
     pub async fn shutdown(&self) {
         let workers = { std::mem::take(&mut *self.workers.lock().unwrap()) };
         for (id, info) in workers {
-            println!("等待工作者 {} 完成任務 {}", id, info.task_id);
+            println!(
+                "Waiting for worker {} to complete task {}",
+                id, info.task_id
+            );
             let _ = info.handle.await;
         }
     }

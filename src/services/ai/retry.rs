@@ -27,7 +27,7 @@ impl Default for RetryConfig {
     }
 }
 
-/// 使用指數退避機制重試操作
+/// Retries an operation with an exponential backoff mechanism.
 pub async fn retry_with_backoff<F, Fut, T>(operation: F, config: &RetryConfig) -> Result<T>
 where
     F: Fn() -> Fut,

@@ -44,9 +44,9 @@ static GLOBAL_CONFIG_MANAGER: OnceLock<Mutex<ConfigManager>> = OnceLock::new();
 /// ConfigManager to be created on the next call to `init_config_manager()`.
 #[allow(invalid_reference_casting)]
 pub fn reset_global_config_manager() {
-    // 使用 ptr::write 重建 OnceLock，覆蓋先前的鎖定狀態
+    // Use ptr::write to reconstruct OnceLock, overwriting previous lock state.
     unsafe {
-        // 取得靜態變數的可變指標，並以新的 OnceLock 覆蓋先前狀態
+        // Get a mutable pointer to the static variable and overwrite previous state with a new OnceLock.
         let dst = &GLOBAL_CONFIG_MANAGER as *const _ as *mut OnceLock<Mutex<ConfigManager>>;
         std::ptr::write(dst, OnceLock::new());
     }
@@ -65,7 +65,7 @@ pub fn reset_global_config_manager() {
 pub fn init_config_manager() -> Result<()> {
     let lock = GLOBAL_CONFIG_MANAGER.get_or_init(|| Mutex::new(ConfigManager::new()));
 
-    // 獲取配置檔案路徑（此時環境變數應該已經設定）
+    // Get config file path (environment variables should be set at this point)
     let config_path = Config::config_file_path()?;
     debug!("init_config_manager: Using config path: {:?}", config_path);
     debug!(
@@ -157,7 +157,7 @@ pub struct Config {
     pub loaded_from: Option<PathBuf>,
 }
 
-// 單元測試: Config 組態管理功能
+// Unit test: Config management functionality
 #[cfg(test)]
 #[serial_test::serial]
 mod tests {
@@ -189,7 +189,7 @@ mod tests {
     #[test]
     #[serial]
     fn test_env_var_override() {
-        // 清除環境變數以避免測試間干擾
+        // Clear environment variables to avoid interference between tests
         unsafe {
             env::remove_var("OPENAI_API_KEY");
             env::remove_var("SUBX_AI_MODEL");
@@ -215,7 +215,7 @@ mod tests {
             env::remove_var("OPENAI_API_KEY");
         }
         let config = Config::default();
-        // API Key 驗證於執行時進行，不影響載入
+        // API Key validation is performed at runtime, does not affect loading
         assert!(config.validate().is_ok());
     }
 
@@ -301,21 +301,21 @@ mod tests {
     }
 }
 
-/// AI 服務提供者配置
+/// AI service provider configuration
 ///
-/// 此結構包含所有 AI 服務提供者的配置選項，包括 API 金鑰、模型設定和重試策略。
-/// 支援多種 AI 提供者，包括 OpenAI、Claude 等。
+/// This struct contains all configuration options for AI service providers, including API key, model settings, and retry strategy.
+/// Supports multiple AI providers, including OpenAI, Claude, etc.
 ///
 /// # Fields
 ///
-/// * `provider` - AI 提供者名稱 (如 "openai", "claude")
-/// * `api_key` - API 金鑰，用於身份驗證
-/// * `model` - 使用的 AI 模型名稱  
-/// * `base_url` - API 基礎 URL
-/// * `max_sample_length` - 單次請求的最大樣本長度
-/// * `temperature` - AI 生成的創造性參數 (0.0-1.0)
-/// * `retry_attempts` - 請求失敗時的重試次數
-/// * `retry_delay_ms` - 重試間隔時間 (毫秒)
+/// * `provider` - AI provider name (e.g. "openai", "claude")
+/// * `api_key` - API key for authentication
+/// * `model` - AI model name to use
+/// * `base_url` - API base URL
+/// * `max_sample_length` - Maximum sample length per request
+/// * `temperature` - AI generation creativity parameter (0.0-1.0)
+/// * `retry_attempts` - Number of retries on request failure
+/// * `retry_delay_ms` - Retry interval in milliseconds
 ///
 /// # Examples
 ///
@@ -335,28 +335,28 @@ mod tests {
 /// ```
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct AIConfig {
-    /// AI 服務提供者名稱 (如 "openai", "claude")
+    /// AI provider name (e.g. "openai", "claude")
     pub provider: String,
-    /// API 金鑰，用於身份驗證
+    /// API key for authentication
     pub api_key: Option<String>,
-    /// 使用的 AI 模型名稱
+    /// AI model name to use
     pub model: String,
-    /// API 基礎 URL
+    /// API base URL
     pub base_url: String,
-    /// 單次請求的最大樣本長度
+    /// Maximum sample length per request
     pub max_sample_length: usize,
-    /// AI 生成的創造性參數 (0.0-1.0)
+    /// AI generation creativity parameter (0.0-1.0)
     pub temperature: f32,
-    /// 請求失敗時的重試次數
+    /// Number of retries on request failure
     pub retry_attempts: u32,
-    /// 重試間隔時間 (毫秒)
+    /// Retry interval in milliseconds
     pub retry_delay_ms: u64,
 }
 
-/// 字幕格式相關配置
+/// Subtitle format related configuration
 ///
-/// 控制字幕格式轉換和處理的各種選項，包括預設輸出格式、
-/// 樣式保留和編碼處理設定。
+/// Controls various options for subtitle format conversion and processing, including default output format,
+/// style preservation, and encoding handling settings.
 ///
 /// # Examples
 ///
@@ -372,20 +372,20 @@ pub struct AIConfig {
 /// ```
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct FormatsConfig {
-    /// 預設輸出格式 (如 "srt", "ass", "vtt")
+    /// Default output format (e.g. "srt", "ass", "vtt")
     pub default_output: String,
-    /// 是否在格式轉換時保留樣式資訊
+    /// Whether to preserve style information during format conversion
     pub preserve_styling: bool,
-    /// 預設字符編碼 (如 "utf-8", "gbk")
+    /// Default character encoding (e.g. "utf-8", "gbk")
     pub default_encoding: String,
-    /// 編碼檢測信心度閾值（0.0-1.0）
+    /// Encoding detection confidence threshold (0.0-1.0)
     pub encoding_detection_confidence: f32,
 }
 
-/// 音訊同步相關配置
+/// Audio synchronization related configuration
 ///
-/// 控制音訊-字幕同步演算法的各種參數，包括最大偏移量、
-/// 相關性閾值和對話檢測設定。
+/// Controls various parameters for audio-subtitle synchronization algorithms, including maximum offset,
+/// correlation threshold, and dialogue detection settings.
 ///
 /// # Examples
 ///
@@ -405,34 +405,34 @@ pub struct FormatsConfig {
 /// ```
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct SyncConfig {
-    /// 允許的最大時間偏移量（秒）
+    /// Maximum allowed time offset (seconds)
     pub max_offset_seconds: f32,
-    /// 音訊處理採樣率（Hz）
+    /// Audio processing sample rate (Hz)
     pub audio_sample_rate: u32,
-    /// 相關性分析閾值（0.0-1.0）
+    /// Correlation analysis threshold (0.0-1.0)
     pub correlation_threshold: f32,
-    /// 對話檢測閾值（0.0-1.0）
+    /// Dialogue detection threshold (0.0-1.0)
     pub dialogue_detection_threshold: f32,
-    /// 最小對話持續時間（毫秒）
+    /// Minimum dialogue duration (milliseconds)
     pub min_dialogue_duration_ms: u64,
-    /// 對話片段合併間隔（毫秒）
+    /// Dialogue segment merge gap (milliseconds)
     pub dialogue_merge_gap_ms: u64,
-    /// 是否啟用對話檢測
+    /// Whether to enable dialogue detection
     pub enable_dialogue_detection: bool,
-    /// 是否自動檢測原始採樣率
+    /// Whether to auto-detect original sample rate
     pub auto_detect_sample_rate: bool,
 }
 
 impl SyncConfig {
-    /// 是否啟用自動檢測原始採樣率
+    /// Whether to auto-detect original sample rate
     pub fn auto_detect_sample_rate(&self) -> bool {
         self.auto_detect_sample_rate
     }
 }
 
-/// 一般配置
+/// General configuration
 ///
-/// 控制應用程式的一般行為選項，包括備份、並行處理和使用者介面設定。
+/// Controls general application behavior options, including backup, parallel processing, and user interface settings.
 ///
 /// # Examples
 ///
@@ -449,21 +449,21 @@ impl SyncConfig {
 /// ```
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct GeneralConfig {
-    /// 是否啟用自動備份功能
+    /// Whether to enable automatic backup
     pub backup_enabled: bool,
-    /// 最大並行任務數量
+    /// Maximum number of concurrent jobs
     pub max_concurrent_jobs: usize,
-    /// 單個任務的超時時間（秒）
+    /// Timeout for a single task (seconds)
     pub task_timeout_seconds: u64,
-    /// 是否顯示進度條
+    /// Whether to show progress bar
     pub enable_progress_bar: bool,
-    /// 工作者閒置超時時間（秒）
+    /// Worker idle timeout (seconds)
     pub worker_idle_timeout_seconds: u64,
 }
 
-/// 並行處理相關配置
+/// Parallel processing related configuration
 ///
-/// 控制並行任務處理的各種參數，包括佇列大小、優先順序管理和負載平衡策略。
+/// Controls various parameters for parallel task processing, including queue size, priority management, and load balancing strategy.
 ///
 /// # Examples
 ///
@@ -479,11 +479,11 @@ pub struct GeneralConfig {
 /// ```
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct ParallelConfig {
-    /// 任務佇列的最大大小
+    /// Maximum size of the task queue
     pub task_queue_size: usize,
-    /// 是否啟用任務優先順序管理
+    /// Whether to enable task priority management
     pub enable_task_priorities: bool,
-    /// 是否自動平衡工作者負載
+    /// Whether to auto-balance worker load
     pub auto_balance_workers: bool,
     /// Strategy to apply when the task queue reaches its maximum size.
     pub queue_overflow_strategy: OverflowStrategy,
@@ -555,19 +555,19 @@ impl Default for Config {
 }
 
 impl Config {
-    /// 儲存配置到檔案
+    /// Save configuration to file
     pub fn save(&self) -> Result<()> {
         let path = Config::config_file_path()?;
         if let Some(parent) = path.parent() {
             std::fs::create_dir_all(parent)?;
         }
         let toml = toml::to_string_pretty(self)
-            .map_err(|e| SubXError::config(format!("TOML 序列化錯誤: {}", e)))?;
+            .map_err(|e| SubXError::config(format!("TOML serialization error: {}", e)))?;
         std::fs::write(path, toml)?;
         Ok(())
     }
 
-    /// 取得配置檔案路徑
+    /// Get configuration file path
     pub fn config_file_path() -> Result<PathBuf> {
         debug!("config_file_path: Checking SUBX_CONFIG_PATH environment variable");
         if let Ok(custom) = std::env::var("SUBX_CONFIG_PATH") {
@@ -577,7 +577,8 @@ impl Config {
             return Ok(path);
         }
         debug!("config_file_path: SUBX_CONFIG_PATH not set, using default");
-        let dir = dirs::config_dir().ok_or_else(|| SubXError::config("無法確定配置目錄"))?;
+        let dir = dirs::config_dir()
+            .ok_or_else(|| SubXError::config("Unable to determine config directory"))?;
         let default_path = dir.join("subx").join("config.toml");
         debug!("config_file_path: Default path: {:?}", default_path);
         Ok(default_path)
@@ -597,18 +598,21 @@ impl Config {
     fn validate(&self) -> Result<()> {
         if self.ai.provider != "openai" {
             return Err(SubXError::config(format!(
-                "不支援的 AI provider: {}",
+                "Unsupported AI provider: {}",
                 self.ai.provider
             )));
         }
         Ok(())
     }
 
-    /// 依鍵名取得值 (簡易版)
+    /// Get value by key (simple version)
     pub fn get_value(&self, key: &str) -> Result<String> {
         let parts: Vec<&str> = key.splitn(2, '.').collect();
         if parts.len() != 2 {
-            return Err(SubXError::config(format!("無效的配置鍵格式: {}", key)));
+            return Err(SubXError::config(format!(
+                "Invalid config key format: {}",
+                key
+            )));
         }
         match parts[0] {
             "ai" => match parts[1] {
@@ -616,13 +620,19 @@ impl Config {
                 "api_key" => Ok(self.ai.api_key.clone().unwrap_or_default()),
                 "model" => Ok(self.ai.model.clone()),
                 "base_url" => Ok(self.ai.base_url.clone()),
-                _ => Err(SubXError::config(format!("無效的 AI 配置鍵: {}", key))),
+                _ => Err(SubXError::config(format!("Invalid AI config key: {}", key))),
             },
             "formats" => match parts[1] {
                 "default_output" => Ok(self.formats.default_output.clone()),
-                _ => Err(SubXError::config(format!("無效的 Formats 配置鍵: {}", key))),
+                _ => Err(SubXError::config(format!(
+                    "Invalid Formats config key: {}",
+                    key
+                ))),
             },
-            _ => Err(SubXError::config(format!("無效的配置區段: {}", parts[0]))),
+            _ => Err(SubXError::config(format!(
+                "Invalid config section: {}",
+                parts[0]
+            ))),
         }
     }
 

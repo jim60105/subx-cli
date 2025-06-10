@@ -189,7 +189,7 @@ impl ConfigValidator for AIConfigValidator {
             return Err(ConfigError::InvalidValue(
                 "ai.model".to_string(),
                 format!(
-                    "不支援的模型: {}，支援的模型: {:?}",
+                    "Unsupported model: {}, supported models: {:?}",
                     config.ai.model, valid_models
                 ),
             ));
@@ -197,13 +197,13 @@ impl ConfigValidator for AIConfigValidator {
         if config.ai.temperature < 0.0 || config.ai.temperature > 2.0 {
             return Err(ConfigError::InvalidValue(
                 "ai.temperature".to_string(),
-                "溫度值必須在 0.0 到 2.0 之間".to_string(),
+                "Temperature value must be between 0.0 and 2.0".to_string(),
             ));
         }
         if config.ai.retry_attempts > 10 {
             return Err(ConfigError::InvalidValue(
                 "ai.retry_attempts".to_string(),
-                "重試次數不能超過 10 次".to_string(),
+                "Retry count cannot exceed 10 times".to_string(),
             ));
         }
         // Validate base_url format
@@ -223,14 +223,14 @@ impl ConfigValidator for AIConfigValidator {
 
 fn validate_base_url(url: &str) -> Result<(), String> {
     use url::Url;
-    let parsed = Url::parse(url).map_err(|e| format!("無效的 URL 格式: {}", e))?;
+    let parsed = Url::parse(url).map_err(|e| format!("Invalid URL format: {}", e))?;
 
     if !matches!(parsed.scheme(), "http" | "https") {
-        return Err("base URL 必須使用 http 或 https 協定".to_string());
+        return Err("Base URL must use http or https protocol".to_string());
     }
 
     if parsed.host().is_none() {
-        return Err("base URL 必須包含有效的主機名稱".to_string());
+        return Err("Base URL must contain a valid hostname".to_string());
     }
 
     Ok(())
@@ -316,13 +316,13 @@ impl ConfigValidator for SyncConfigValidator {
         if config.sync.max_offset_seconds <= 0.0 || config.sync.max_offset_seconds > 300.0 {
             return Err(ConfigError::InvalidValue(
                 "sync.max_offset_seconds".to_string(),
-                "最大偏移秒數必須在 0.0 到 300.0 之間".to_string(),
+                "Maximum offset seconds must be between 0.0 and 300.0".to_string(),
             ));
         }
         if config.sync.correlation_threshold < 0.0 || config.sync.correlation_threshold > 1.0 {
             return Err(ConfigError::InvalidValue(
                 "sync.correlation_threshold".to_string(),
-                "相關性閾值必須在 0.0 到 1.0 之間".to_string(),
+                "Correlation threshold must be between 0.0 and 1.0".to_string(),
             ));
         }
         Ok(())
@@ -341,13 +341,13 @@ impl ConfigValidator for FormatsConfigValidator {
         if config.formats.default_output.trim().is_empty() {
             return Err(ConfigError::InvalidValue(
                 "formats.default_output".to_string(),
-                "預設輸出格式不能為空".to_string(),
+                "Default output format cannot be empty".to_string(),
             ));
         }
         if config.formats.default_encoding.trim().is_empty() {
             return Err(ConfigError::InvalidValue(
                 "formats.default_encoding".to_string(),
-                "預設編碼不能為空".to_string(),
+                "Default encoding cannot be empty".to_string(),
             ));
         }
         if config.formats.encoding_detection_confidence < 0.0
@@ -355,7 +355,7 @@ impl ConfigValidator for FormatsConfigValidator {
         {
             return Err(ConfigError::InvalidValue(
                 "formats.encoding_detection_confidence".to_string(),
-                "編碼檢測信心度必須介於 0.0 和 1.0 之間".to_string(),
+                "Encoding detection confidence must be between 0.0 and 1.0".to_string(),
             ));
         }
         Ok(())
@@ -374,7 +374,7 @@ impl ConfigValidator for GeneralConfigValidator {
         if config.general.max_concurrent_jobs == 0 {
             return Err(ConfigError::InvalidValue(
                 "general.max_concurrent_jobs".to_string(),
-                "最大併發工作數必須大於 0".to_string(),
+                "Maximum concurrent workers must be greater than 0".to_string(),
             ));
         }
         Ok(())

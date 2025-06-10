@@ -91,9 +91,9 @@ mod tests {
 
     #[test]
     fn test_partial_ai_config_merge_and_to_complete_base_url() {
-        // 初始部分配置，含預設 base_url
+        // Initial partial config, with default base_url
         let mut base = PartialConfig::default();
-        // 覆蓋 base_url 欄位
+        // Override base_url field
         let mut override_cfg = PartialConfig::default();
         override_cfg.ai.base_url = Some("https://override.example.com/v1".to_string());
 
@@ -332,7 +332,7 @@ impl PartialConfig {
 }
 
 impl PartialConfig {
-    /// 轉換為完整配置，使用預設值填充缺少的欄位
+    /// Convert to complete config, filling missing fields with default values
     pub fn to_complete_config(
         &self,
     ) -> Result<crate::config::Config, crate::config::manager::ConfigError> {

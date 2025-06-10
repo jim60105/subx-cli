@@ -202,15 +202,16 @@ pub async fn execute(args: CacheArgs) -> Result<()> {
     match args.action {
         crate::cli::CacheAction::Clear => {
             // Determine the appropriate cache directory using standard conventions
-            let dir = dirs::config_dir().ok_or_else(|| SubXError::config("無法確定快取目錄"))?;
+            let dir = dirs::config_dir()
+                .ok_or_else(|| SubXError::config("Unable to determine cache directory"))?;
             let path = dir.join("subx").join("match_cache.json");
 
             if path.exists() {
                 // Remove the cache file with proper error handling
                 std::fs::remove_file(&path)?;
-                println!("已清除快取檔案：{}", path.display());
+                println!("Cache file cleared: {}", path.display());
             } else {
-                println!("未發現快取檔案");
+                println!("No cache file found");
             }
         }
     }

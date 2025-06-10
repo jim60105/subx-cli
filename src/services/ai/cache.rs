@@ -73,7 +73,7 @@ use std::hash::{Hash, Hasher};
 use std::time::{Duration, SystemTime};
 use tokio::sync::RwLock;
 
-/// AI 分析結果快取
+/// AI analysis result cache
 pub struct AICache {
     cache: RwLock<HashMap<String, CacheEntry>>,
     ttl: Duration,
@@ -139,7 +139,7 @@ struct CacheEntry {
 }
 
 impl AICache {
-    /// 建立快取，ttl 為過期時間
+    /// Create a cache with the given TTL (time to live)
     pub fn new(ttl: Duration) -> Self {
         Self {
             cache: RwLock::new(HashMap::new()),
@@ -147,7 +147,7 @@ impl AICache {
         }
     }
 
-    /// 嘗試從快取讀取結果
+    /// Try to read a result from the cache
     pub async fn get(&self, key: &str) -> Option<MatchResult> {
         let cache = self.cache.read().await;
 
@@ -159,7 +159,7 @@ impl AICache {
         None
     }
 
-    /// 將新結果寫入快取
+    /// Write a new result into the cache
     pub async fn set(&self, key: String, data: MatchResult) {
         let mut cache = self.cache.write().await;
         cache.insert(
@@ -171,7 +171,7 @@ impl AICache {
         );
     }
 
-    /// 根據請求產生快取鍵
+    /// Generate a cache key based on the request
     pub fn generate_key(request: &AnalysisRequest) -> String {
         let mut hasher = DefaultHasher::new();
         request.video_files.hash(&mut hasher);

@@ -26,9 +26,9 @@
 //! use subx_cli::cli::ui;
 //!
 //! // Display status messages
-//! ui::print_success("字幕檔案已成功處理");
-//! ui::print_warning("檔案格式可能不相容");
-//! ui::print_error("無法讀取配置檔案");
+//! ui::print_success("Subtitle files processed successfully");
+//! ui::print_warning("File format might be incompatible");
+//! ui::print_error("Unable to read configuration file");
 //!
 //! // Create progress bar for batch operations
 //! let progress = ui::create_progress_bar(100);
@@ -36,7 +36,7 @@
 //!     progress.inc(1);
 //!     // ... processing ...
 //! }
-//! progress.finish_with_message("處理完成");
+//! progress.finish_with_message("Processing completed");
 //! ```
 
 // src/cli/ui.rs
@@ -237,8 +237,8 @@ pub fn create_progress_bar(total: u64) -> ProgressBar {
 ///
 /// # Format Example
 /// ```text
-/// 🤖 AI API 呼叫詳情:
-///    模型: gpt-4-turbo-preview
+/// 🤖 AI API Call Details:
+///    Model: gpt-4-turbo-preview
 ///    Prompt tokens: 1,247
 ///    Completion tokens: 892
 ///    Total tokens: 2,139
@@ -271,24 +271,27 @@ pub fn create_progress_bar(total: u64) -> ProgressBar {
 /// - **Debugging**: Verify expected model usage
 /// - **Optimization**: Identify opportunities to reduce token consumption
 pub fn display_ai_usage(usage: &crate::services::ai::AiUsageStats) {
-    println!("🤖 AI API 呼叫詳情:");
-    println!("   模型: {}", usage.model);
+    println!("🤖 AI API Call Details:");
+    println!("   Model: {}", usage.model);
     println!("   Prompt tokens: {}", usage.prompt_tokens);
     println!("   Completion tokens: {}", usage.completion_tokens);
     println!("   Total tokens: {}", usage.total_tokens);
     println!();
 }
 
-/// 顯示檔案對映結果，支援 dry-run 預覽模式
+/// Display file matching results with support for dry-run preview mode.
 pub fn display_match_results(results: &[MatchOperation], is_dry_run: bool) {
     if results.is_empty() {
-        println!("{}", "沒有找到匹配的檔案對映".yellow());
+        println!("{}", "No matching file pairs found".yellow());
         return;
     }
 
-    println!("\n{}", "📋 檔案對映結果".bold().blue());
+    println!("\n{}", "📋 File Matching Results".bold().blue());
     if is_dry_run {
-        println!("{}", "🔍 預覽模式 (不會實際修改檔案)".yellow());
+        println!(
+            "{}",
+            "🔍 Preview mode (files will not be modified)".yellow()
+        );
     }
     println!();
 
@@ -302,13 +305,13 @@ pub fn display_match_results(results: &[MatchOperation], is_dry_run: bool) {
             let new_name_str = &op.new_subtitle_name;
             MatchDisplayRow {
                 status: if is_dry_run {
-                    "🔍 預覽".yellow().to_string()
+                    "🔍 Preview".yellow().to_string()
                 } else {
-                    "✅ 完成".green().to_string()
+                    "✅ Complete".green().to_string()
                 },
-                video_file: format!("影片檔案 {}\n{}", idx, video),
-                subtitle_file: format!("字幕檔案 {}\n{}", idx, subtitle),
-                new_name: format!("新檔名 {}\n{}", idx, new_name_str),
+                video_file: format!("Video file {}\n{}", idx, video),
+                subtitle_file: format!("Subtitle file {}\n{}", idx, subtitle),
+                new_name: format!("New name {}\n{}", idx, new_name_str),
             }
         })
         .collect();
@@ -317,7 +320,7 @@ pub fn display_match_results(results: &[MatchOperation], is_dry_run: bool) {
 
     println!(
         "\n{}",
-        format!("總共處理了 {} 個檔案對映", results.len()).bold()
+        format!("Total processed {} file mappings", results.len()).bold()
     );
 }
 
@@ -328,7 +331,7 @@ mod tests {
     #[test]
     fn test_match_table_display() {
         let rows = vec![MatchDisplayRow {
-            status: "✅ 完成".to_string(),
+            status: "✅ Complete".to_string(),
             video_file: "movie1.mp4".to_string(),
             subtitle_file: "subtitle1.srt".to_string(),
             new_name: "movie1.srt".to_string(),

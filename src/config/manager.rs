@@ -136,7 +136,7 @@ impl ConfigManager {
         let result: Result<(), ConfigError> = (|| {
             let mut merged = PartialConfig::default();
             let mut sources = self.sources.iter().collect::<Vec<_>>();
-            // 按優先順序由低到高合併：先載入優先權低的來源，再讓優先權高的來源覆蓋
+            // Merge in order of priority: load lower priority sources first, then let higher priority sources override.
             sources.sort_by_key(|s| Reverse(s.priority()));
 
             debug!("ConfigManager: Loading {} sources in order", sources.len());

@@ -132,7 +132,7 @@ impl ConfigSource for EnvSource {
     }
 
     fn priority(&self) -> u8 {
-        5 // 中等優先權，高於檔案但低於 CLI
+        5 // Medium priority, higher than file but lower than CLI
     }
 
     fn source_name(&self) -> &'static str {
@@ -155,7 +155,7 @@ impl ConfigSource for CliSource {
     }
 
     fn priority(&self) -> u8 {
-        1 // 最高優先權
+        1 // Highest priority
     }
 
     fn source_name(&self) -> &'static str {

@@ -197,7 +197,7 @@ pub fn detect_encoding_command(file_paths: &[String], verbose: bool) -> Result<(
     // Process each file individually to provide isolated error handling
     for file in file_paths {
         if !Path::new(file).exists() {
-            error!("檔案不存在: {}", file);
+            error!("File not found: {}", file);
             continue;
         }
         match detector.detect_file_encoding(file) {
@@ -206,12 +206,12 @@ pub fn detect_encoding_command(file_paths: &[String], verbose: bool) -> Result<(
                     .file_name()
                     .and_then(|n| n.to_str())
                     .unwrap_or(file);
-                println!("檔案: {}", name);
+                println!("File: {}", name);
                 println!(
-                    "  編碼: {:?} (信心度: {:.1}%) BOM: {}",
+                    "  Encoding: {:?} (confidence: {:.1}%) BOM: {}",
                     info.charset,
                     info.confidence * 100.0,
-                    if info.bom_detected { "是" } else { "否" }
+                    if info.bom_detected { "yes" } else { "no" }
                 );
                 let sample = if verbose {
                     info.sample_text.clone()
@@ -220,9 +220,9 @@ pub fn detect_encoding_command(file_paths: &[String], verbose: bool) -> Result<(
                 } else {
                     info.sample_text.clone()
                 };
-                println!("  樣本文字: {}\n", sample);
+                println!("  Sample text: {}\n", sample);
             }
-            Err(e) => error!("檢測 {} 編碼失敗: {}", file, e),
+            Err(e) => error!("Failed to detect encoding for {}: {}", file, e),
         }
     }
     Ok(())

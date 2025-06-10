@@ -198,7 +198,7 @@ impl MatchEngine {
     ///
     /// A list of `MatchOperation` entries that meet the confidence threshold.
     pub async fn match_files(&self, path: &Path, recursive: bool) -> Result<Vec<MatchOperation>> {
-        // 1. 探索檔案
+        // 1. Explore files
         let files = self.discovery.scan_directory(path, recursive)?;
 
         let videos: Vec<_> = files
@@ -214,19 +214,19 @@ impl MatchEngine {
             return Ok(Vec::new());
         }
 
-        // 2. 嘗試從 Dry-run 快取重用結果
+        // 2. Try to reuse results from Dry-run cache
         if let Some(ops) = self.check_cache(path, recursive).await? {
             return Ok(ops);
         }
-        // 3. 內容採樣
+        // 3. Content sampling
         let content_samples = if self.config.enable_content_analysis {
             self.extract_content_samples(&subtitles).await?
         } else {
             Vec::new()
         };
 
-        // 4. AI 分析請求
-        // 生成 AI 分析請求：在檔名中包含相對路徑與目錄資訊，提升遞迴匹配的準確度
+        // 4. AI analysis request
+        // Generate AI analysis request: include relative paths and directory info in filenames to improve recursive matching accuracy
         let video_files: Vec<String> = videos
             .iter()
             .map(|v| {
@@ -241,7 +241,7 @@ impl MatchEngine {
                     .and_then(|p| p.file_name())
                     .and_then(|n| n.to_str())
                     .unwrap_or_default();
-                format!("{} (路徑: {}, 目錄: {})", v.name, rel, dir)
+                format!("{} (Path: {}, Dir: {})", v.name, rel, dir)
             })
             .collect();
         let subtitle_files: Vec<String> = subtitles
@@ -258,7 +258,7 @@ impl MatchEngine {
                     .and_then(|p| p.file_name())
                     .and_then(|n| n.to_str())
                     .unwrap_or_default();
-                format!("{} (路徑: {}, 目錄: {})", s.name, rel, dir)
+                format!("{} (Path: {}, Dir: {})", s.name, rel, dir)
             })
             .collect();
         let analysis_request = AnalysisRequest {

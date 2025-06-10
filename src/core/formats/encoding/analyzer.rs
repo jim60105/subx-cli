@@ -2,7 +2,7 @@ use crate::Result;
 use crate::core::formats::encoding::charset::Charset;
 use std::collections::HashMap;
 
-/// 單字節與雙字節統計分析器
+/// Single-byte and double-byte statistical analyzer
 pub struct ByteAnalyzer {
     byte_frequency: HashMap<u8, usize>,
     bigram_frequency: HashMap<(u8, u8), usize>,
@@ -246,7 +246,7 @@ impl StatisticalAnalyzer {
     }
 }
 
-/// 語言模型結構
+/// Language model structure
 #[derive(Debug, Clone)]
 struct LanguageModel {
     charset: Charset,

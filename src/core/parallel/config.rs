@@ -91,11 +91,13 @@ impl ParallelConfig {
     pub fn validate(&self) -> Result<(), SubXError> {
         if self.max_concurrent_jobs == 0 {
             return Err(SubXError::config(
-                "最大併發任務數 (max_concurrent_jobs) 需大於 0",
+                "Max concurrent jobs (max_concurrent_jobs) must be greater than 0",
             ));
         }
         if self.task_queue_size == 0 {
-            return Err(SubXError::config("佇列大小 (task_queue_size) 需大於 0"));
+            return Err(SubXError::config(
+                "Queue size (task_queue_size) must be greater than 0",
+            ));
         }
         // Overflow strategy is always valid.
         Ok(())

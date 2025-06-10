@@ -164,7 +164,7 @@ mod tests {
             retry_attempts: 1,
             retry_delay_ms: 10,
         };
-        // 應成功建立 OpenAIClient 實例
+        // Should successfully create OpenAIClient instance
         let res = AIClientFactory::create_client(&config);
         assert!(res.is_ok());
     }
@@ -181,7 +181,7 @@ mod tests {
             retry_attempts: 1,
             retry_delay_ms: 10,
         };
-        // 不支援的提供商應返回錯誤
+        // Unsupported provider should return error
         let res = AIClientFactory::create_client(&config);
         assert!(res.is_err());
     }

@@ -107,7 +107,7 @@ pub enum SubXError {
     Other(#[from] anyhow::Error),
 }
 
-// 單元測試: SubXError 錯誤類型與輔助方法
+// Unit test: SubXError error types and helper methods
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -145,7 +145,7 @@ mod tests {
 
     #[test]
     fn test_io_error_conversion() {
-        let io_error = io::Error::new(io::ErrorKind::NotFound, "檔案不存在");
+        let io_error = io::Error::new(io::ErrorKind::NotFound, "file not found");
         let subx_error: SubXError = io_error.into();
         assert!(matches!(subx_error, SubXError::Io(_)));
     }
@@ -172,14 +172,14 @@ mod tests {
     }
 }
 
-// 將 reqwest 錯誤轉換為 AI 服務錯誤
+// Convert reqwest error to AI service error
 impl From<reqwest::Error> for SubXError {
     fn from(err: reqwest::Error) -> Self {
         SubXError::AiService(err.to_string())
     }
 }
 
-// 將檔案探索錯誤轉換為文件匹配錯誤
+// Convert file exploration error to file matching error
 impl From<walkdir::Error> for SubXError {
     fn from(err: walkdir::Error) -> Self {
         SubXError::FileMatching {
@@ -187,7 +187,7 @@ impl From<walkdir::Error> for SubXError {
         }
     }
 }
-// 將 symphonia 錯誤轉換為音訊處理錯誤
+// Convert symphonia error to audio processing error
 impl From<symphonia::core::errors::Error> for SubXError {
     fn from(err: symphonia::core::errors::Error) -> Self {
         SubXError::audio_processing(err.to_string())
@@ -375,7 +375,7 @@ impl SubXError {
     }
 }
 
-// aus 錯誤轉換
+// aus error conversion
 impl From<aus::AudioError> for SubXError {
     fn from(error: aus::AudioError) -> Self {
         SubXError::audio_processing(format!("{:?}", error))
@@ -384,6 +384,6 @@ impl From<aus::AudioError> for SubXError {
 
 impl From<aus::spectrum::SpectrumError> for SubXError {
     fn from(error: aus::spectrum::SpectrumError) -> Self {
-        SubXError::audio_processing(format!("頻譜處理錯誤: {:?}", error))
+        SubXError::audio_processing(format!("Spectrum processing error: {:?}", error))
     }
 }

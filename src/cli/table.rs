@@ -87,7 +87,7 @@ use tabled::{Table, Tabled};
 ///     status: "✗".to_string(),
 ///     video_file: "Documentary.mp4".to_string(),
 ///     subtitle_file: "random_subtitle.srt".to_string(),
-///     new_name: "無法匹配".to_string(),
+///     new_name: "Cannot match".to_string(),
 /// };
 /// ```
 #[derive(Tabled)]
@@ -97,7 +97,7 @@ pub struct MatchDisplayRow {
     /// Provides immediate visual feedback about the matching operation result.
     /// Uses Unicode symbols for clear status communication across different
     /// terminal environments and languages.
-    #[tabled(rename = "狀態")]
+    #[tabled(rename = "Status")]
     pub status: String,
 
     /// Original video file name or path.
@@ -105,7 +105,7 @@ pub struct MatchDisplayRow {
     /// Displays the video file that was used as the reference for matching.
     /// May be shortened or formatted for display purposes while maintaining
     /// enough information for user identification.
-    #[tabled(rename = "影片檔案")]
+    #[tabled(rename = "Video File")]
     pub video_file: String,
 
     /// Original subtitle file name or path.
@@ -113,7 +113,7 @@ pub struct MatchDisplayRow {
     /// Shows the subtitle file that was processed for matching. This is
     /// typically the file with a non-descriptive or incorrect name that
     /// needs to be renamed to match the video.
-    #[tabled(rename = "字幕檔案")]
+    #[tabled(rename = "Subtitle File")]
     pub subtitle_file: String,
 
     /// Proposed or applied new subtitle file name.
@@ -121,7 +121,7 @@ pub struct MatchDisplayRow {
     /// Displays the new name that was generated for the subtitle file based
     /// on the AI matching results. In dry-run mode, this shows what the name
     /// would be. In actual operation mode, this shows the applied name.
-    #[tabled(rename = "新檔名")]
+    #[tabled(rename = "New Name")]
     pub new_name: String,
 }
 
@@ -176,7 +176,7 @@ pub struct MatchDisplayRow {
 ///
 /// ```text
 /// ╭──────┬──────────────┬──────────────┬──────────────╮
-/// │ 狀態 │ 影片檔案     │ 字幕檔案     │ 新檔名       │
+/// │ Status │ Video File     │ Subtitle File     │ New Name       │
 /// ├──────┼──────────────┼──────────────┼──────────────┤
 /// │ ✓    │ Movie.mp4    │ sub123.srt   │ Movie.srt    │
 /// │ ⚠    │ Episode.mkv  │ unknown.srt  │ Episode.srt  │

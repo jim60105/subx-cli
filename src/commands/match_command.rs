@@ -419,16 +419,16 @@ pub async fn execute_parallel_match(
 
     // Validate that we have files to process
     if tasks.is_empty() {
-        println!("未找到需要處理的影片檔案");
+        println!("No video files found to process");
         return Ok(());
     }
 
     // Display processing information
-    println!("準備並行處理 {} 個檔案", tasks.len());
-    println!("最大並行數: {}", scheduler.get_active_workers());
+    println!("Preparing to process {} files in parallel", tasks.len());
+    println!("Max concurrency: {}", scheduler.get_active_workers());
     let progress_bar = {
         let pb = create_progress_bar(tasks.len());
-        // 根據配置決定是否顯示進度條
+        // Show or hide progress bar based on configuration
         if let Ok(cfg) = load_config() {
             if !cfg.general.enable_progress_bar {
                 pb.set_draw_target(ProgressDrawTarget::hidden());
@@ -445,16 +445,16 @@ pub async fn execute_parallel_match(
             TaskResult::PartialSuccess(_, _) => partial += 1,
         }
     }
-    println!("\n處理完成統計:");
-    println!("  ✓ 成功: {} 個檔案", ok);
+    println!("\nProcessing results:");
+    println!("  ✓ Success: {} files", ok);
     if partial > 0 {
-        println!("  ⚠ 部分成功: {} 個檔案", partial);
+        println!("  ⚠ Partial success: {} files", partial);
     }
     if failed > 0 {
-        println!("  ✗ 失敗: {} 個檔案", failed);
+        println!("  ✗ Failed: {} files", failed);
         for (i, r) in results.iter().enumerate() {
             if matches!(r, TaskResult::Failed(_)) {
-                println!("  失敗詳情 {}: {}", i + 1, r);
+                println!("  Failure details {}: {}", i + 1, r);
             }
         }
     }
@@ -484,7 +484,7 @@ async fn monitor_batch_execution(
                 res = &mut h => {
                     match res {
                         Ok(Ok(r)) => results.push(r),
-                        Ok(Err(_)) => results.push(TaskResult::Failed("任務執行錯誤".into())),
+                        Ok(Err(_)) => results.push(TaskResult::Failed("Task execution error".into())),
                         Err(_) => results.push(TaskResult::Cancelled),
                     }
                     completed += 1;
@@ -494,12 +494,12 @@ async fn monitor_batch_execution(
                 _ = ticker.tick() => {
                     let active = scheduler.list_active_tasks().len();
                     let queued = scheduler.get_queue_size();
-                    progress_bar.set_message(format!("執行中: {} | 佇列: {} | 已完成: {}/{}", active, queued, completed, total));
+                    progress_bar.set_message(format!("Active: {} | Queued: {} | Completed: {}/{}", active, queued, completed, total));
                 }
             }
         }
     }
-    progress_bar.finish_with_message("所有任務已完成");
+    progress_bar.finish_with_message("All tasks completed");
     Ok(results)
 }
 
@@ -531,12 +531,12 @@ mod tests {
 
     struct DummyAI;
 
-    /// 重設測試環境以避免測試間的狀態干擾
+    /// Reset test environment to avoid state interference between tests
     fn reset_test_environment() {
-        // 重設全域配置管理器
+        // Reset global configuration manager
         crate::config::reset_global_config_manager();
 
-        // 清理可能影響測試的環境變數
+        // Clean up environment variables that might affect tests
         unsafe {
             std::env::remove_var("XDG_CONFIG_HOME");
             std::env::remove_var("SUBX_CONFIG_PATH");
@@ -556,14 +556,14 @@ mod tests {
         }
     }
 
-    /// Dry-run 模式下應建立快取檔案，且不實際執行任何檔案操作
+    /// Dry-run mode should create cache files but not execute any file operations
     #[tokio::test]
     #[serial]
     async fn dry_run_creates_cache_and_skips_execute_operations() -> crate::Result<()> {
-        // 重設測試環境以避免測試間的狀態干擾
+        // Reset test environment to avoid state interference between tests
         reset_test_environment();
 
-        // 建立臨時媒體資料夾並放入示意影片與字幕檔
+        // Create temporary media folder with mock video and subtitle files
         let media_dir = tempdir()?;
         let media_path = media_dir.path().join("media");
         fs::create_dir_all(&media_path)?;
@@ -572,31 +572,34 @@ mod tests {
         fs::write(&video, b"dummy")?;
         fs::write(&subtitle, b"dummy")?;
 
-        // 指定快取路徑到臨時資料夾
+        // Set cache path to temporary folder
         unsafe {
             std::env::set_var("XDG_CONFIG_HOME", media_dir.path());
         }
-        // 初始化配置管理器，以便使用新系統載入默認配置
+        // Initialize configuration manager to load default configuration with new system
         init_config_manager()?;
 
-        // 獲取快取檔案路徑並清理可能存在的舊快取檔案
+        // Get cache file path and clean up any existing old cache files
         let cache_path = dirs::config_dir()
             .unwrap()
             .join("subx")
             .join("match_cache.json");
-        // 如果快取檔案存在則刪除，確保測試環境乾淨
+        // Remove cache file if it exists to ensure clean test environment
         if cache_path.exists() {
             fs::remove_file(&cache_path)?;
         }
 
-        // 確認尚未產生快取檔案
+        // Verify cache file doesn't exist yet
         let cache_path = dirs::config_dir()
             .unwrap()
             .join("subx")
             .join("match_cache.json");
-        assert!(!cache_path.exists(), "測試開始時不應存在快取檔案");
+        assert!(
+            !cache_path.exists(),
+            "Cache file should not exist at test start"
+        );
 
-        // 執行 dry-run
+        // Execute dry-run
         let args = MatchArgs {
             path: PathBuf::from(&media_path),
             dry_run: true,
@@ -606,18 +609,21 @@ mod tests {
         };
         execute_with_client(args, Box::new(DummyAI)).await?;
 
-        // 驗證已建立快取檔案，且原始檔案未被移動或刪除
-        assert!(cache_path.exists(), "dry_run 後應建立快取檔案");
+        // Verify cache file was created and original files were not moved or deleted
+        assert!(
+            cache_path.exists(),
+            "Cache file should be created after dry_run"
+        );
         assert!(
             video.exists(),
-            "dry_run 不應執行 execute_operations，影片檔仍須存在"
+            "dry_run should not execute operations, video file should still exist"
         );
         assert!(
             subtitle.exists(),
-            "dry_run 不應執行 execute_operations，字幕檔仍須存在"
+            "dry_run should not execute operations, subtitle file should still exist"
         );
 
-        // 清理測試環境
+        // Clean up test environment
         if cache_path.exists() {
             let _ = fs::remove_file(&cache_path);
         }
@@ -632,7 +638,7 @@ mod tests {
         reset_test_environment();
         let temp_dir = tempdir()?;
         init_config_manager()?;
-        // 無任何影片檔案時應正常返回
+        // Should return normally when no video files are present
         let result = execute_parallel_match(&temp_dir.path(), false, None).await;
         assert!(result.is_ok());
         reset_test_environment();
