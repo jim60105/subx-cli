@@ -4,7 +4,7 @@ use crate::core::formats::encoding::charset::{Charset, EncodingInfo};
 use std::fs::File;
 use std::io::Read;
 
-/// 編碼檢測引擎
+/// Encoding detection engine
 pub struct EncodingDetector {
     confidence_threshold: f32,
     max_sample_size: usize,
@@ -12,7 +12,7 @@ pub struct EncodingDetector {
 }
 
 impl EncodingDetector {
-    /// 建立編碼檢測器，從配置讀取信心度閾值
+    /// Create encoding detector, read confidence threshold from configuration
     pub fn new() -> Result<Self> {
         let config = load_config()?;
         Ok(Self {
@@ -22,7 +22,7 @@ impl EncodingDetector {
         })
     }
 
-    /// 檢測檔案編碼
+    /// Detect file encoding
     pub fn detect_file_encoding(&self, file_path: &str) -> Result<EncodingInfo> {
         let mut file = File::open(file_path)?;
         let mut buffer = vec![0; self.max_sample_size];
@@ -31,7 +31,7 @@ impl EncodingDetector {
         self.detect_encoding(&buffer)
     }
 
-    /// 檢測資料編碼
+    /// Detect data encoding
     pub fn detect_encoding(&self, data: &[u8]) -> Result<EncodingInfo> {
         if let Some(encoding) = self.detect_bom(data) {
             return Ok(encoding);

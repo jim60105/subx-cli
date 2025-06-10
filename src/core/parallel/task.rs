@@ -130,34 +130,41 @@ impl Task for FileProcessingTask {
             ProcessingOperation::ConvertFormat { from, to } => {
                 match self.convert_format(from, to).await {
                     Ok(path) => TaskResult::Success(format!(
-                        "成功轉換 {} -> {}: {}",
+                        "Successfully converted {} -> {}: {}",
                         from,
                         to,
                         path.display()
                     )),
-                    Err(e) => {
-                        TaskResult::Failed(format!("轉換失敗 {}: {}", self.input_path.display(), e))
-                    }
+                    Err(e) => TaskResult::Failed(format!(
+                        "Conversion failed {}: {}",
+                        self.input_path.display(),
+                        e
+                    )),
                 }
             }
             ProcessingOperation::SyncSubtitle { .. } => {
                 // Sync not supported in parallel tasks
-                TaskResult::Failed("同步功能未實作".to_string())
+                TaskResult::Failed("Sync functionality not implemented".to_string())
             }
             ProcessingOperation::MatchFiles { recursive } => {
                 match self.match_files(*recursive).await {
-                    Ok(m) => TaskResult::Success(format!("檔案匹配完成: 找到 {} 組匹配", m.len())),
-                    Err(e) => TaskResult::Failed(format!("匹配失敗: {}", e)),
+                    Ok(m) => TaskResult::Success(format!(
+                        "File matching completed: found {} matches",
+                        m.len()
+                    )),
+                    Err(e) => TaskResult::Failed(format!("Matching failed: {}", e)),
                 }
             }
             ProcessingOperation::ValidateFormat => match self.validate_format().await {
-                Ok(true) => {
-                    TaskResult::Success(format!("格式驗證通過: {}", self.input_path.display()))
-                }
-                Ok(false) => {
-                    TaskResult::Failed(format!("格式驗證失敗: {}", self.input_path.display()))
-                }
-                Err(e) => TaskResult::Failed(format!("驗證錯誤: {}", e)),
+                Ok(true) => TaskResult::Success(format!(
+                    "Format validation passed: {}",
+                    self.input_path.display()
+                )),
+                Ok(false) => TaskResult::Failed(format!(
+                    "Format validation failed: {}",
+                    self.input_path.display()
+                )),
+                Err(e) => TaskResult::Failed(format!("Validation error: {}", e)),
             },
         }
     }
@@ -198,20 +205,25 @@ impl Task for FileProcessingTask {
     fn description(&self) -> String {
         match &self.operation {
             ProcessingOperation::ConvertFormat { from, to } => {
-                format!("轉換 {} 從 {} 到 {}", self.input_path.display(), from, to)
+                format!(
+                    "Convert {} from {} to {}",
+                    self.input_path.display(),
+                    from,
+                    to
+                )
             }
             ProcessingOperation::SyncSubtitle { audio_path } => format!(
-                "同步字幕 {} 與音訊 {}",
+                "Sync subtitle {} with audio {}",
                 self.input_path.display(),
                 audio_path.display()
             ),
             ProcessingOperation::MatchFiles { recursive } => format!(
-                "匹配 {} 中的檔案{}",
+                "Match files in {}{}",
                 self.input_path.display(),
-                if *recursive { " (遞歸)" } else { "" }
+                if *recursive { " (recursive)" } else { "" }
             ),
             ProcessingOperation::ValidateFormat => {
-                format!("驗證 {} 的格式", self.input_path.display())
+                format!("Validate format of {}", self.input_path.display())
             }
         }
     }

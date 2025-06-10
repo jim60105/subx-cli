@@ -86,7 +86,7 @@ pub struct MatchArgs {
     pub backup: bool,
 }
 
-// 測試參數解析行為
+// Test parameter parsing behavior
 #[cfg(test)]
 mod tests {
     use crate::cli::{Cli, Commands};

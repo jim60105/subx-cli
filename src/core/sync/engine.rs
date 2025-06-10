@@ -192,7 +192,7 @@ impl SyncEngine {
         sum_product / (sum_audio_sq.sqrt() * sum_sub_sq.sqrt())
     }
 
-    /// 套用同步偏移到字幕
+    /// Apply sync offset to subtitle
     pub fn apply_sync_offset(&self, subtitle: &mut Subtitle, offset_seconds: f32) -> Result<()> {
         let offset_dur = std::time::Duration::from_secs_f32(offset_seconds.abs());
         for entry in &mut subtitle.entries {

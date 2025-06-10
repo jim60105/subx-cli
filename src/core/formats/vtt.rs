@@ -149,9 +149,9 @@ mod tests {
     #[test]
     fn test_detect_and_skip_headers() {
         let fmt = VttFormat;
-        // 有 WEBVTT 標頭
+        // Has WEBVTT header
         assert!(fmt.detect("WEBVTT\nContent"));
-        // 無標頭
+        // No header
         assert!(!fmt.detect("00:00:00.000 --> 00:00:01.000"));
     }
 

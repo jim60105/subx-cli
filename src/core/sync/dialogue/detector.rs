@@ -39,7 +39,7 @@ impl DialogueDetector {
 
     /// Performs dialogue detection and returns a list of speech activity segments.
     pub async fn detect_dialogue(&self, audio_path: &Path) -> Result<Vec<DialogueSegment>> {
-        // 若未啟用，直接回傳空列表
+        // If not enabled, return empty list directly
         if !self.config.enable_dialogue_detection {
             return Ok(Vec::new());
         }
@@ -53,7 +53,7 @@ impl DialogueDetector {
     async fn load_audio(&self, audio_path: &Path) -> Result<AudioData> {
         use crate::services::audio::{AudioAnalyzer, AusAdapter};
 
-        // 根據配置決定是否自動檢測採樣率
+        // Decide whether to auto-detect sample rate based on configuration
         let sample_rate = if self.config.auto_detect_sample_rate {
             let adapter = AusAdapter::new(self.config.audio_sample_rate);
             adapter.read_audio_file(audio_path)?.sample_rate

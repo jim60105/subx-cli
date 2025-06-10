@@ -41,12 +41,15 @@ impl FormatConverter {
             (source, target) if source == target => Ok(subtitle),
             _ => Err(crate::error::SubXError::subtitle_format(
                 subtitle.format.to_string(),
-                format!("不支援的轉換: {} -> {}", subtitle.format, target_format),
+                format!(
+                    "Unsupported conversion: {} -> {}",
+                    subtitle.format, target_format
+                ),
             )),
         }
     }
 
-    /// SRT 轉 ASS
+    /// SRT to ASS conversion
     pub(crate) fn srt_to_ass(&self, mut subtitle: Subtitle) -> crate::Result<Subtitle> {
         let _default_style = crate::core::formats::ass::AssStyle {
             name: "Default".to_string(),
@@ -72,7 +75,7 @@ impl FormatConverter {
         Ok(subtitle)
     }
 
-    /// ASS 轉 SRT
+    /// ASS to SRT conversion
     pub(crate) fn ass_to_srt(&self, mut subtitle: Subtitle) -> crate::Result<Subtitle> {
         for entry in &mut subtitle.entries {
             entry.text = self.strip_ass_tags(&entry.text);
@@ -85,7 +88,7 @@ impl FormatConverter {
         Ok(subtitle)
     }
 
-    /// SRT 轉 VTT
+    /// SRT to VTT conversion
     pub(crate) fn srt_to_vtt(&self, mut subtitle: Subtitle) -> crate::Result<Subtitle> {
         subtitle.metadata.title = Some("WEBVTT".to_string());
         for entry in &mut subtitle.entries {
@@ -95,16 +98,16 @@ impl FormatConverter {
         Ok(subtitle)
     }
 
-    /// ASS 轉 VTT
+    /// ASS to VTT conversion
     pub(crate) fn ass_to_vtt(&self, subtitle: Subtitle) -> crate::Result<Subtitle> {
-        // 先將 ASS 轉為 SRT，再轉為 VTT
+        // First convert ASS to SRT, then to VTT
         let subtitle = self.ass_to_srt(subtitle)?;
         self.srt_to_vtt(subtitle)
     }
 
-    /// VTT 轉 SRT
+    /// VTT to SRT conversion
     pub(crate) fn vtt_to_srt(&self, mut subtitle: Subtitle) -> crate::Result<Subtitle> {
-        // VTT 可保留或移除 HTML 樣式標籤
+        // VTT can preserve or remove HTML style tags
         for entry in &mut subtitle.entries {
             if self.config.preserve_styling {
                 entry.text = self.convert_vtt_tags_to_srt(&entry.text);
@@ -117,9 +120,9 @@ impl FormatConverter {
         Ok(subtitle)
     }
 
-    /// VTT 轉 ASS
+    /// VTT to ASS conversion
     pub(crate) fn vtt_to_ass(&self, subtitle: Subtitle) -> crate::Result<Subtitle> {
-        // 先將 VTT 轉為 SRT，再轉為 ASS
+        // First convert VTT to SRT, then to ASS
         let subtitle = self.vtt_to_srt(subtitle)?;
         self.srt_to_ass(subtitle)
     }

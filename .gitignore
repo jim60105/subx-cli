@@ -13,3 +13,4 @@ Thumbs.db
 
 # Environment variables
 .env
+doc_output.log

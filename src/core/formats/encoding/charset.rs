@@ -30,15 +30,15 @@ pub enum Charset {
     Unknown,
 }
 
-/// 編碼檢測結果資訊
+/// Encoding detection result information
 #[derive(Debug, Clone)]
 pub struct EncodingInfo {
-    /// 偵測到的字符集
+    /// Detected character set
     pub charset: Charset,
-    /// 檢測信心度 (0.0-1.0)
+    /// Detection confidence (0.0-1.0)
     pub confidence: f32,
-    /// 是否檢測到 BOM
+    /// Whether BOM was detected
     pub bom_detected: bool,
-    /// 解碼後的樣本文字
+    /// Decoded sample text
     pub sample_text: String,
 }

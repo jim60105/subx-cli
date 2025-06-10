@@ -57,7 +57,7 @@ impl DialogueSegment {
         self.start_time < other.end_time && self.end_time > other.start_time
     }
 
-    /// 與其他同類型片段合併，更新邊界與信心度
+    /// Merge with other segments of the same type, updating boundaries and confidence
     pub fn merge_with(&mut self, other: &DialogueSegment) {
         if self.is_speech == other.is_speech && self.overlaps_with(other) {
             self.start_time = self.start_time.min(other.start_time);
@@ -91,7 +91,7 @@ impl SilenceSegment {
         }
     }
 
-    /// 檢查此靜默片段是否超過最小長度
+    /// Check if this silence segment exceeds minimum length
     pub fn is_significant(&self, min_duration: f64) -> bool {
         self.duration >= min_duration
     }

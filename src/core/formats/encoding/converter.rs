@@ -24,13 +24,13 @@ pub struct ConversionResult {
     pub error_count: usize,
 }
 
-/// 編碼轉換器
+/// Encoding converter
 pub struct EncodingConverter {
     encoding_map: HashMap<Charset, &'static Encoding>,
 }
 
 impl EncodingConverter {
-    /// 建立轉換器並初始化編碼映射
+    /// Create converter and initialize encoding mapping
     pub fn new() -> Self {
         let mut encoding_map = HashMap::new();
         encoding_map.insert(Charset::Utf8, UTF_8);
@@ -42,7 +42,7 @@ impl EncodingConverter {
         Self { encoding_map }
     }
 
-    /// 將資料轉換為 UTF-8
+    /// Convert data to UTF-8
     pub fn convert_to_utf8(
         &self,
         data: &[u8],
@@ -78,7 +78,7 @@ impl EncodingConverter {
         })
     }
 
-    /// 將檔案內容轉換為 UTF-8
+    /// Convert file content to UTF-8
     pub fn convert_file_to_utf8(
         &self,
         file_path: &str,
@@ -108,7 +108,7 @@ impl EncodingConverter {
         text.chars().filter(|&c| c == '\u{FFFD}').count()
     }
 
-    /// 驗證轉換結果
+    /// Validate conversion result
     pub fn validate_conversion(&self, result: &ConversionResult) -> ValidationResult {
         ValidationResult {
             is_valid: !result.had_errors || result.error_count == 0,

@@ -162,7 +162,7 @@ mod tests {
         // Non-http/https protocols should return protocol error message
         assert!(
             err.to_string()
-                .contains("base URL must use http or https protocol")
+                .contains("Base URL must use http or https protocol")
         );
     }
 }
@@ -186,7 +186,7 @@ impl OpenAIClient {
         )
     }
 
-    /// 建立新的 OpenAIClient，支援自訂 base_url
+    /// Create a new OpenAIClient with custom base_url support
     pub fn new_with_base_url(
         api_key: String,
         model: String,
@@ -198,7 +198,7 @@ impl OpenAIClient {
         let client = Client::builder()
             .timeout(Duration::from_secs(30))
             .build()
-            .expect("建立 HTTP 客戶端失敗");
+            .expect("Failed to create HTTP client");
         Self {
             client,
             api_key,
@@ -210,14 +210,14 @@ impl OpenAIClient {
         }
     }
 
-    /// 從統一配置建立客戶端
+    /// Create client from unified configuration
     pub fn from_config(config: &crate::config::AIConfig) -> crate::Result<Self> {
         let api_key = config
             .api_key
             .as_ref()
-            .ok_or_else(|| crate::error::SubXError::config("缺少 OpenAI API Key"))?;
+            .ok_or_else(|| crate::error::SubXError::config("Missing OpenAI API Key"))?;
 
-        // 驗證 base URL 格式
+        // Validate base URL format
         Self::validate_base_url(&config.base_url)?;
 
         Ok(Self::new_with_base_url(
@@ -230,21 +230,21 @@ impl OpenAIClient {
         ))
     }
 
-    /// 驗證 base URL 格式
+    /// Validate base URL format
     fn validate_base_url(url: &str) -> crate::Result<()> {
         use url::Url;
         let parsed = Url::parse(url)
-            .map_err(|e| crate::error::SubXError::config(format!("無效的 base URL: {}", e)))?;
+            .map_err(|e| crate::error::SubXError::config(format!("Invalid base URL: {}", e)))?;
 
         if !matches!(parsed.scheme(), "http" | "https") {
             return Err(crate::error::SubXError::config(
-                "base URL 必須使用 http 或 https 協定".to_string(),
+                "Base URL must use http or https protocol".to_string(),
             ));
         }
 
         if parsed.host().is_none() {
             return Err(crate::error::SubXError::config(
-                "base URL 必須包含有效的主機名稱".to_string(),
+                "Base URL must contain a valid hostname".to_string(),
             ));
         }
 
@@ -271,7 +271,7 @@ impl OpenAIClient {
             let status = response.status();
             let error_text = response.text().await?;
             return Err(SubXError::AiService(format!(
-                "OpenAI API 錯誤 {}: {}",
+                "OpenAI API error {}: {}",
                 status, error_text
             )));
         }
@@ -279,9 +279,9 @@ impl OpenAIClient {
         let response_json: Value = response.json().await?;
         let content = response_json["choices"][0]["message"]["content"]
             .as_str()
-            .ok_or_else(|| SubXError::AiService("無效的 API 回應格式".to_string()))?;
+            .ok_or_else(|| SubXError::AiService("Invalid API response format".to_string()))?;
 
-        // 解析使用統計並顯示
+        // Parse usage statistics and display
         if let Some(usage_obj) = response_json.get("usage") {
             if let (Some(p), Some(c), Some(t)) = (
                 usage_obj.get("prompt_tokens").and_then(Value::as_u64),
@@ -307,7 +307,7 @@ impl AIProvider for OpenAIClient {
     async fn analyze_content(&self, request: AnalysisRequest) -> Result<MatchResult> {
         let prompt = self.build_analysis_prompt(&request);
         let messages = vec![
-            json!({"role": "system", "content": "你是一個專業的字幕匹配助手，能夠分析影片和字幕檔案的對應關係。"}),
+            json!({"role": "system", "content": "You are a professional subtitle matching assistant that can analyze the correspondence between video and subtitle files."}),
             json!({"role": "user", "content": prompt}),
         ];
         let response = self.chat_completion(messages).await?;
@@ -317,7 +317,7 @@ impl AIProvider for OpenAIClient {
     async fn verify_match(&self, verification: VerificationRequest) -> Result<ConfidenceScore> {
         let prompt = self.build_verification_prompt(&verification);
         let messages = vec![
-            json!({"role": "system", "content": "請評估字幕匹配的信心度，提供 0-1 之間的分數。"}),
+            json!({"role": "system", "content": "Please evaluate the confidence level of subtitle matching and provide a score between 0-1."}),
             json!({"role": "user", "content": prompt}),
         ];
         let response = self.chat_completion(messages).await?;

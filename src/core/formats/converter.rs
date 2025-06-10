@@ -36,7 +36,7 @@ impl Clone for FormatConverter {
     }
 }
 
-/// 轉換配置
+/// Conversion configuration
 #[derive(Debug, Clone)]
 pub struct ConversionConfig {
     pub preserve_styling: bool,
@@ -68,7 +68,7 @@ pub struct ConversionResult {
 }
 
 impl FormatConverter {
-    /// 建立新的轉換器
+    /// Create new converter
     pub fn new(config: ConversionConfig) -> Self {
         Self {
             format_manager: FormatManager::new(),
@@ -76,38 +76,38 @@ impl FormatConverter {
         }
     }
 
-    /// 轉換單一檔案
+    /// Convert single file
     pub async fn convert_file(
         &self,
         input_path: &Path,
         output_path: &Path,
         target_format: &str,
     ) -> crate::Result<ConversionResult> {
-        // 1. 讀取和解析輸入檔案
+        // 1. Read and parse input file
         let input_content = self.read_file_with_encoding(input_path).await?;
         let input_subtitle = self.format_manager.parse_auto(&input_content)?;
 
-        // 2. 執行格式轉換
+        // 2. Execute format conversion
         let converted_subtitle = self.transform_subtitle(input_subtitle.clone(), target_format)?;
 
-        // 3. 序列化為目標格式
+        // 3. Serialize to target format
         let target_formatter = self
             .format_manager
             .get_format(target_format)
             .ok_or_else(|| {
                 crate::error::SubXError::subtitle_format(
-                    format!("不支援的目標格式: {}", target_format),
+                    format!("Unsupported target format: {}", target_format),
                     "",
                 )
             })?;
 
         let output_content = target_formatter.serialize(&converted_subtitle)?;
 
-        // 4. 寫入檔案
+        // 4. Write file
         self.write_file_with_encoding(output_path, &output_content)
             .await?;
 
-        // 5. 驗證轉換結果
+        // 5. Validate conversion result
         let result = if self.config.validate_output {
             self.validate_conversion(&input_subtitle, &converted_subtitle)
                 .await?
@@ -125,7 +125,7 @@ impl FormatConverter {
         Ok(result)
     }
 
-    /// 批量轉換檔案
+    /// Batch convert files
     pub async fn convert_batch(
         &self,
         input_dir: &Path,
@@ -151,7 +151,7 @@ impl FormatConverter {
         let results = join_all(tasks).await;
         results.into_iter().collect::<Result<Vec<_>>>()
     }
-    /// 探索目錄中的字幕檔案
+    /// Discover subtitle files in directory
     async fn discover_subtitle_files(
         &self,
         input_dir: &Path,
@@ -172,10 +172,10 @@ impl FormatConverter {
         Ok(paths)
     }
 
-    /// 讀取檔案並轉為 UTF-8 字串
+    /// Read file and convert to UTF-8 string
     async fn read_file_with_encoding(&self, path: &Path) -> crate::Result<String> {
         let bytes = tokio::fs::read(path).await?;
-        // 自動檢測編碼並轉換為 UTF-8
+        // Auto-detect encoding and convert to UTF-8
         let detector = crate::core::formats::encoding::EncodingDetector::new()?;
         let info = detector.detect_encoding(&bytes)?;
         let converter = crate::core::formats::encoding::EncodingConverter::new();
@@ -183,13 +183,13 @@ impl FormatConverter {
         Ok(conversion.converted_text)
     }
 
-    /// 寫入檔案（暫以 UTF-8 編碼）
+    /// Write file (temporarily using UTF-8 encoding)
     async fn write_file_with_encoding(&self, path: &Path, content: &str) -> crate::Result<()> {
         tokio::fs::write(path, content).await?;
         Ok(())
     }
 
-    /// 簡易轉換品質驗證
+    /// Simple conversion quality validation
     async fn validate_conversion(
         &self,
         original: &Subtitle,
@@ -200,7 +200,7 @@ impl FormatConverter {
             Vec::new()
         } else {
             vec![format!(
-                "條目數量不符: {} -> {}",
+                "Entry count mismatch: {} -> {}",
                 original.entries.len(),
                 converted.entries.len()
             )]

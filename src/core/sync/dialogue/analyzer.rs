@@ -22,7 +22,7 @@ pub struct EnergyAnalyzer {
 }
 
 impl EnergyAnalyzer {
-    /// 建立分析器，設定能量閾值與最短語音持續時間
+    /// Create analyzer with energy threshold and minimum speech duration settings
     pub fn new(threshold: f32, min_duration_ms: u64) -> Self {
         Self {
             window_size: 1024,
@@ -32,7 +32,7 @@ impl EnergyAnalyzer {
         }
     }
 
-    /// 分析音訊樣本，回傳對話片段列表
+    /// Analyze audio samples and return dialogue segment list
     pub fn analyze(&self, audio_data: &[f32], sample_rate: u32) -> Vec<DialogueSegment> {
         let mut segments: Vec<DialogueSegment> = Vec::new();
         let mut energy_buffer = VecDeque::new();

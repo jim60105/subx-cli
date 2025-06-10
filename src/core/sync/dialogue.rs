@@ -49,7 +49,7 @@ mod tests {
     async fn test_dialogue_detector_integration() {
         let temp = TempDir::new().unwrap();
         let audio_path = temp.path().join("test.wav");
-        // TODO: 實際測試需提供真實音訊檔案
+        // TODO: Actual testing needs real audio files
         let detector = DialogueDetector::new().unwrap();
         let segs = detector.detect_dialogue(&audio_path).await.unwrap();
         assert!(segs.is_empty());

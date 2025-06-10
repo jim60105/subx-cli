@@ -6,7 +6,7 @@ use crate::error::SubXError;
 use regex::Regex;
 use std::time::Duration;
 
-/// SubRip (.srt) 格式解析與序列化
+/// SubRip (.srt) format parsing and serialization
 pub struct SrtFormat;
 
 impl SubtitleFormat for SrtFormat {
@@ -16,7 +16,7 @@ impl SubtitleFormat for SrtFormat {
                 .map_err(|e| {
                     SubXError::subtitle_format(
                         self.format_name(),
-                        format!("時間格式編譯錯誤: {}", e),
+                        format!("Time format compilation error: {}", e),
                     )
                 })?;
 
@@ -33,7 +33,10 @@ impl SubtitleFormat for SrtFormat {
             }
 
             let index: usize = lines[0].trim().parse().map_err(|e| {
-                SubXError::subtitle_format(self.format_name(), format!("無效的序列號: {}", e))
+                SubXError::subtitle_format(
+                    self.format_name(),
+                    format!("Invalid sequence number: {}", e),
+                )
             })?;
 
             if let Some(caps) = time_regex.captures(lines[1]) {
@@ -92,18 +95,18 @@ impl SubtitleFormat for SrtFormat {
 }
 
 fn parse_time(caps: &regex::Captures, start_group: usize) -> Result<Duration> {
-    let hours: u64 = caps[start_group]
-        .parse()
-        .map_err(|e| SubXError::subtitle_format("SRT", format!("時間值解析失敗: {}", e)))?;
-    let minutes: u64 = caps[start_group + 1]
-        .parse()
-        .map_err(|e| SubXError::subtitle_format("SRT", format!("時間值解析失敗: {}", e)))?;
-    let seconds: u64 = caps[start_group + 2]
-        .parse()
-        .map_err(|e| SubXError::subtitle_format("SRT", format!("時間值解析失敗: {}", e)))?;
-    let milliseconds: u64 = caps[start_group + 3]
-        .parse()
-        .map_err(|e| SubXError::subtitle_format("SRT", format!("時間值解析失敗: {}", e)))?;
+    let hours: u64 = caps[start_group].parse().map_err(|e| {
+        SubXError::subtitle_format("SRT", format!("Time value parsing failed: {}", e))
+    })?;
+    let minutes: u64 = caps[start_group + 1].parse().map_err(|e| {
+        SubXError::subtitle_format("SRT", format!("Time value parsing failed: {}", e))
+    })?;
+    let seconds: u64 = caps[start_group + 2].parse().map_err(|e| {
+        SubXError::subtitle_format("SRT", format!("Time value parsing failed: {}", e))
+    })?;
+    let milliseconds: u64 = caps[start_group + 3].parse().map_err(|e| {
+        SubXError::subtitle_format("SRT", format!("Time value parsing failed: {}", e))
+    })?;
 
     Ok(Duration::from_millis(
         hours * 3600000 + minutes * 60000 + seconds * 1000 + milliseconds,

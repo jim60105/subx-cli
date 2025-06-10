@@ -269,7 +269,7 @@ impl MatchEngine {
 
         let match_result = self.ai_client.analyze_content(analysis_request).await?;
 
-        // 4. 組裝匹配操作列表
+        // 4. Assemble match operation list
         let mut operations = Vec::new();
 
         for ai_match in match_result.matches {
@@ -334,7 +334,7 @@ impl MatchEngine {
         }
     }
 
-    /// 執行匹配操作，支援 Dry-run 模式
+    /// Execute match operations with dry-run mode support
     pub async fn execute_operations(
         &self,
         operations: &[MatchOperation],
@@ -343,7 +343,7 @@ impl MatchEngine {
         for op in operations {
             if dry_run {
                 println!(
-                    "預覽: {} -> {}",
+                    "Preview: {} -> {}",
                     op.subtitle_file.name, op.new_subtitle_name
                 );
             } else {
@@ -357,7 +357,7 @@ impl MatchEngine {
         let old_path = &op.subtitle_file.path;
         let new_path = old_path.with_file_name(&op.new_subtitle_name);
 
-        // 備份檔案
+        // Backup file
         if self.config.backup_enabled {
             let backup_path =
                 old_path.with_extension(format!("{}.backup", op.subtitle_file.extension));
@@ -367,7 +367,7 @@ impl MatchEngine {
         std::fs::rename(old_path, new_path)?;
         Ok(())
     }
-    /// 計算指定目錄的檔案快照，用於快取比對
+    /// Calculate file snapshot for specified directory for cache comparison
     fn calculate_file_snapshot(
         &self,
         directory: &Path,
@@ -396,7 +396,7 @@ impl MatchEngine {
         Ok(snapshot)
     }
 
-    /// 檢查 Dry-run 快取，命中則回傳先前計算的匹配操作
+    /// Check dry-run cache, return previous calculated match operations if hit
     pub async fn check_cache(
         &self,
         directory: &Path,
@@ -410,7 +410,7 @@ impl MatchEngine {
                 && cache_data.ai_model_used == self.calculate_config_hash()?
                 && cache_data.config_hash == self.calculate_config_hash()?
             {
-                // 重建匹配操作列表
+                // Rebuild match operation list
                 let files = self.discovery.scan_directory(directory, recursive)?;
                 let mut ops = Vec::new();
                 for item in cache_data.match_operations {
@@ -438,7 +438,7 @@ impl MatchEngine {
         Ok(None)
     }
 
-    /// 儲存 Dry-run 快取結果
+    /// Save dry-run cache results
     pub async fn save_cache(
         &self,
         directory: &Path,
@@ -476,17 +476,18 @@ impl MatchEngine {
         Ok(())
     }
 
-    /// 取得快取檔案路徑
+    /// Get cache file path
     fn get_cache_file_path(&self) -> Result<std::path::PathBuf> {
-        let dir = dirs::config_dir().ok_or_else(|| SubXError::config("無法確定快取目錄"))?;
+        let dir = dirs::config_dir()
+            .ok_or_else(|| SubXError::config("Unable to determine cache directory"))?;
         Ok(dir.join("subx").join("match_cache.json"))
     }
 
-    /// 計算目前配置雜湊，用於快取驗證
+    /// Calculate current configuration hash for cache validation
     fn calculate_config_hash(&self) -> Result<String> {
         let config = load_config()?;
         let toml = toml::to_string(&config)
-            .map_err(|e| SubXError::config(format!("TOML 序列化錯誤: {}", e)))?;
+            .map_err(|e| SubXError::config(format!("TOML serialization error: {}", e)))?;
         Ok(format!("{:x}", md5::compute(toml)))
     }
 }

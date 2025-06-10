@@ -16,7 +16,7 @@ use crate::core::formats::StylingInfo;
 use crate::core::formats::converter::FormatConverter;
 
 impl FormatConverter {
-    /// 從 SRT 標籤擷取樣式資訊
+    /// Extract styling information from SRT tags
     pub(crate) fn extract_srt_styling(&self, text: &str) -> crate::Result<StylingInfo> {
         let mut styling = StylingInfo::default();
         if text.contains("<b>") || text.contains("<B>") {
@@ -34,7 +34,7 @@ impl FormatConverter {
         Ok(styling)
     }
 
-    /// 將 SRT 標籤轉換為 ASS 標籤
+    /// Convert SRT tags to ASS tags
     pub(crate) fn convert_srt_tags_to_ass(&self, text: &str) -> String {
         let mut result = text.to_string();
         result = result.replace("<b>", "{\\b1}").replace("</b>", "{\\b0}");
@@ -51,13 +51,13 @@ impl FormatConverter {
         result
     }
 
-    /// 移除 ASS 標籤
+    /// Remove ASS tags
     pub(crate) fn strip_ass_tags(&self, text: &str) -> String {
         let tag_regex = Regex::new(r"\{[^}]*\}").unwrap();
         tag_regex.replace_all(text, "").to_string()
     }
 
-    /// 將 ASS 標籤轉換為 SRT 標籤
+    /// Convert ASS tags to SRT tags
     pub(crate) fn convert_ass_tags_to_srt(&self, text: &str) -> String {
         let mut result = text.to_string();
         let bold_regex = Regex::new(r"\{\\b1\}([^\{]*)\{\\b0\}").unwrap();
@@ -71,26 +71,26 @@ impl FormatConverter {
         result
     }
 
-    /// 從標籤中擷取顏色（簡易實作）
+    /// Extract color from tags (simple implementation)
     pub(crate) fn extract_color_from_tags(&self, _text: &str) -> Option<String> {
         None
     }
 
-    /// 將顏色字串轉換為 ASS 顏色碼
+    /// Convert color string to ASS color code
     pub(crate) fn convert_color_to_ass(&self, color: &str) -> String {
         color.trim_start_matches('#').to_string()
     }
 
-    /// 將 SRT 標籤轉換為 VTT 標籤（簡易實作）
+    /// Convert SRT tags to VTT tags (simple implementation)
     pub(crate) fn convert_srt_tags_to_vtt(&self, text: &str) -> String {
         text.to_string()
     }
-    /// 將 VTT 標籤轉換為 SRT 標籤（簡易實作）
+    /// Convert VTT tags to SRT tags (simple implementation)
     pub(crate) fn convert_vtt_tags_to_srt(&self, text: &str) -> String {
-        // VTT 使用類似 HTML 標籤，SRT 亦支援基本標籤，預設保留
+        // VTT uses HTML-like tags, SRT also supports basic tags, default preserve
         text.to_string()
     }
-    /// 移除 VTT 標籤（簡易實作）
+    /// Remove VTT tags (simple implementation)
     pub(crate) fn strip_vtt_tags(&self, text: &str) -> String {
         let tag_regex = Regex::new(r"</?[^>]+>").unwrap();
         tag_regex.replace_all(text, "").to_string()

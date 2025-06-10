@@ -240,7 +240,7 @@ impl std::fmt::Display for OutputSubtitleFormat {
     }
 }
 
-// 測試參數解析行為
+// Test parameter parsing behavior
 #[cfg(test)]
 mod tests {
     use super::*;

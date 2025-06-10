@@ -30,7 +30,7 @@ impl Default for FormatManager {
 }
 
 impl FormatManager {
-    /// 建立管理器並註冊所有格式
+    /// Create manager and register all formats
     pub fn new() -> Self {
         Self {
             formats: vec![
@@ -42,7 +42,7 @@ impl FormatManager {
         }
     }
 
-    /// 自動檢測格式並解析
+    /// Auto-detect format and parse
     pub fn parse_auto(&self, content: &str) -> crate::Result<Subtitle> {
         for fmt in &self.formats {
             if fmt.detect(content) {
@@ -51,11 +51,11 @@ impl FormatManager {
         }
         Err(crate::error::SubXError::subtitle_format(
             "Unknown",
-            "未知的字幕格式",
+            "Unknown subtitle format",
         ))
     }
 
-    /// 根據格式名稱取得解析器
+    /// Get parser by format name
     pub fn get_format(&self, name: &str) -> Option<&dyn SubtitleFormat> {
         let lname = name.to_lowercase();
         self.formats
@@ -64,7 +64,7 @@ impl FormatManager {
             .map(|f| f.as_ref())
     }
 
-    /// 根據副檔名取得解析器
+    /// Get parser by file extension
     pub fn get_format_by_extension(&self, ext: &str) -> Option<&dyn SubtitleFormat> {
         let ext_lc = ext.to_lowercase();
         self.formats
@@ -73,7 +73,7 @@ impl FormatManager {
             .map(|f| f.as_ref())
     }
 
-    /// 讀取字幕並自動檢測並轉換編碼為 UTF-8
+    /// Read subtitle and auto-detect encoding, convert to UTF-8
     pub fn read_subtitle_with_encoding_detection(&self, file_path: &str) -> crate::Result<String> {
         let detector = crate::core::formats::encoding::EncodingDetector::new()?;
         let info = detector.detect_file_encoding(file_path)?;
@@ -90,7 +90,7 @@ impl FormatManager {
         Ok(result.converted_text)
     }
 
-    /// 取得檔案的編碼信息
+    /// Get file encoding information
     pub fn get_encoding_info(
         &self,
         file_path: &str,
@@ -142,21 +142,21 @@ mod tests {
             .parse_auto(SAMPLE_WEBVTT_THREE_LINES)
             .expect("Failed to parse WEBVTT format using parse_auto");
 
-        // 驗證自動檢測為 WEBVTT 格式
+        // Verify auto-detection as WEBVTT format
         assert_eq!(
             subtitle.format,
             SubtitleFormatType::Vtt,
             "Auto detection should identify as WEBVTT format"
         );
 
-        // 驗證共解析到 3 條字幕
+        // Verify 3 subtitles were parsed
         assert_eq!(
             subtitle.entries.len(),
             3,
             "Should parse exactly 3 subtitle entries"
         );
 
-        // 驗證第一條字幕的內容、索引與時間軸
+        // Verify first subtitle content, index and timeline
         let first = &subtitle.entries[0];
         assert_eq!(
             first.text, "第一句字幕內容",
@@ -174,7 +174,7 @@ mod tests {
             "First subtitle end time should be 3 seconds"
         );
 
-        // 驗證其他字幕內容
+        // Verify other subtitle content
         assert_eq!(subtitle.entries[1].text, "第二句字幕內容");
         assert_eq!(subtitle.entries[2].text, "第三句字幕內容");
     }
@@ -186,11 +186,11 @@ mod tests {
             .parse_auto(COMPLEX_WEBVTT)
             .expect("Failed to parse complex WEBVTT");
 
-        // 驗證自動檢測為 WEBVTT 格式並解析三條字幕（忽略 NOTE 和 STYLE）
+        // Verify auto-detection as WEBVTT format and parse three subtitles (ignore NOTE and STYLE)
         assert_eq!(subtitle.format, SubtitleFormatType::Vtt);
         assert_eq!(subtitle.entries.len(), 3);
 
-        // 驗證第一條字幕包含多行文字及正確的時間解析
+        // Verify first subtitle contains multi-line text and correct time parsing
         let first = &subtitle.entries[0];
         assert_eq!(first.text, "第一句字幕內容\n包含多行文字");
         assert_eq!(first.start_time, Duration::from_millis(1000));

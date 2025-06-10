@@ -499,7 +499,7 @@ mod tests {
         let temp = TempDir::new().unwrap();
         let root = temp.path();
 
-        // 測試多層目錄
+        // Test multi-level directory
         let file_path = root
             .join("series")
             .join("season1")
