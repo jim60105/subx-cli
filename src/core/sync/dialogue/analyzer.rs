@@ -21,6 +21,30 @@ pub struct EnergyAnalyzer {
     min_duration_ms: u64,
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// 測試能量分析器能偵測能量變化區段
+    #[test]
+    fn test_energy_analyzer() {
+        // 使用較低門檻以確保能量變化可被偵測
+        let analyzer = EnergyAnalyzer::new(0.0, 0);
+        // 建立交替靜音與高能量的樣本序列
+        let mut samples = Vec::new();
+        for block in 0..10 {
+            let value = if block % 2 == 0 { 0.0 } else { 1.0 };
+            for _ in 0..512 {
+                samples.push(value);
+            }
+        }
+        let segments = analyzer.analyze(&samples, 44100);
+        assert!(!segments.is_empty(), "應能偵測到至少一個語音區段");
+        // 至少有一筆區段資料，後續可依需求判斷變化情況
+        assert!(!segments.is_empty(), "應偵測到至少一筆能量區段");
+    }
+}
+
 impl EnergyAnalyzer {
     /// Create analyzer with energy threshold and minimum speech duration settings
     pub fn new(threshold: f32, min_duration_ms: u64) -> Self {

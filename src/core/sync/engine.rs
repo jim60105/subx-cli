@@ -37,6 +37,61 @@ pub struct SyncConfig {
     pub min_dialogue_length: f32,
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::core::formats::{Subtitle, SubtitleEntry, SubtitleFormatType, SubtitleMetadata};
+    use std::time::Duration;
+
+    /// 測試手動偏移應用於字幕時間
+    #[test]
+    fn test_apply_sync_offset_positive() {
+        let mut subtitle = Subtitle {
+            entries: vec![SubtitleEntry::new(
+                1,
+                Duration::from_secs(1),
+                Duration::from_secs(2),
+                String::from("test"),
+            )],
+            metadata: SubtitleMetadata::default(),
+            format: SubtitleFormatType::Srt,
+        };
+        let engine = SyncEngine::new(SyncConfig {
+            max_offset_seconds: 0.0,
+            correlation_threshold: 0.0,
+            dialogue_threshold: 0.0,
+            min_dialogue_length: 0.0,
+        });
+        engine.apply_sync_offset(&mut subtitle, 2.0).unwrap();
+        assert_eq!(subtitle.entries[0].start_time, Duration::from_secs(3));
+        assert_eq!(subtitle.entries[0].end_time, Duration::from_secs(4));
+    }
+
+    /// 測試負方向偏移應用於字幕時間
+    #[test]
+    fn test_apply_sync_offset_negative() {
+        let mut subtitle = Subtitle {
+            entries: vec![SubtitleEntry::new(
+                1,
+                Duration::from_secs(5),
+                Duration::from_secs(7),
+                String::from("test"),
+            )],
+            metadata: SubtitleMetadata::default(),
+            format: SubtitleFormatType::Srt,
+        };
+        let engine = SyncEngine::new(SyncConfig {
+            max_offset_seconds: 0.0,
+            correlation_threshold: 0.0,
+            dialogue_threshold: 0.0,
+            min_dialogue_length: 0.0,
+        });
+        engine.apply_sync_offset(&mut subtitle, -2.0).unwrap();
+        assert_eq!(subtitle.entries[0].start_time, Duration::from_secs(3));
+        assert_eq!(subtitle.entries[0].end_time, Duration::from_secs(5));
+    }
+}
+
 /// Result of the subtitle synchronization process.
 ///
 /// Contains detailed information about the synchronization outcome,
