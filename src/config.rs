@@ -25,6 +25,9 @@ use std::path::PathBuf;
 use crate::{Result, error::SubXError};
 use log::debug;
 
+// config crate imports for new configuration system
+use config::{Config as ConfigBuilder, Environment, File};
+
 // Submodules for unified configuration management core
 pub mod cache;
 pub mod manager;
@@ -640,4 +643,404 @@ impl Config {
     fn merge(&mut self, other: Config) {
         *self = other;
     }
+}
+
+// ============================================================================
+// 新配置系統 (使用 config crate)
+// ============================================================================
+
+/// 使用 config crate 建立配置實例
+///
+/// 這個函式使用社區標準的 config crate 來載入配置，替代舊的全域配置管理器。
+/// 支援多層次配置來源：預設值 → 配置檔案 → 環境變數。
+///
+/// # 配置來源優先級
+/// 1. 環境變數 (前綴: SUBX_) - 最高優先級
+/// 2. 用戶配置檔案
+/// 3. 預設配置值 - 最低優先級
+///
+/// # 錯誤
+/// 當配置載入或解析失敗時返回 `SubXError::Config`
+pub fn create_config_from_sources() -> Result<Config> {
+    let config_path = Config::config_file_path()?;
+    debug!(
+        "create_config_from_sources: Using config path: {:?}",
+        config_path
+    );
+    debug!(
+        "create_config_from_sources: Config path exists: {}",
+        config_path.exists()
+    );
+
+    let mut settings = ConfigBuilder::builder();
+
+    // 1. 首先設定預設值
+    let default_config = Config::default();
+    settings = settings
+        .set_default("ai.provider", default_config.ai.provider.clone())?
+        .set_default("ai.model", default_config.ai.model.clone())?
+        .set_default("ai.base_url", default_config.ai.base_url.clone())?
+        .set_default(
+            "ai.max_sample_length",
+            default_config.ai.max_sample_length as i64,
+        )?
+        .set_default("ai.temperature", default_config.ai.temperature as f64)?
+        .set_default("ai.retry_attempts", default_config.ai.retry_attempts as i64)?
+        .set_default("ai.retry_delay_ms", default_config.ai.retry_delay_ms as i64)?
+        .set_default(
+            "formats.default_output",
+            default_config.formats.default_output.clone(),
+        )?
+        .set_default(
+            "formats.preserve_styling",
+            default_config.formats.preserve_styling,
+        )?
+        .set_default(
+            "formats.default_encoding",
+            default_config.formats.default_encoding.clone(),
+        )?
+        .set_default(
+            "formats.encoding_detection_confidence",
+            default_config.formats.encoding_detection_confidence as f64,
+        )?
+        .set_default(
+            "sync.max_offset_seconds",
+            default_config.sync.max_offset_seconds as f64,
+        )?
+        .set_default(
+            "sync.audio_sample_rate",
+            default_config.sync.audio_sample_rate as i64,
+        )?
+        .set_default(
+            "sync.correlation_threshold",
+            default_config.sync.correlation_threshold as f64,
+        )?
+        .set_default(
+            "sync.dialogue_detection_threshold",
+            default_config.sync.dialogue_detection_threshold as f64,
+        )?
+        .set_default(
+            "sync.min_dialogue_duration_ms",
+            default_config.sync.min_dialogue_duration_ms as i64,
+        )?
+        .set_default(
+            "sync.dialogue_merge_gap_ms",
+            default_config.sync.dialogue_merge_gap_ms as i64,
+        )?
+        .set_default(
+            "sync.enable_dialogue_detection",
+            default_config.sync.enable_dialogue_detection,
+        )?
+        .set_default(
+            "sync.auto_detect_sample_rate",
+            default_config.sync.auto_detect_sample_rate,
+        )?
+        .set_default(
+            "general.backup_enabled",
+            default_config.general.backup_enabled,
+        )?
+        .set_default(
+            "general.max_concurrent_jobs",
+            default_config.general.max_concurrent_jobs as i64,
+        )?
+        .set_default(
+            "general.task_timeout_seconds",
+            default_config.general.task_timeout_seconds as i64,
+        )?
+        .set_default(
+            "general.enable_progress_bar",
+            default_config.general.enable_progress_bar,
+        )?
+        .set_default(
+            "general.worker_idle_timeout_seconds",
+            default_config.general.worker_idle_timeout_seconds as i64,
+        )?
+        .set_default(
+            "parallel.task_queue_size",
+            default_config.parallel.task_queue_size as i64,
+        )?
+        .set_default(
+            "parallel.enable_task_priorities",
+            default_config.parallel.enable_task_priorities,
+        )?
+        .set_default(
+            "parallel.auto_balance_workers",
+            default_config.parallel.auto_balance_workers,
+        )?
+        .set_default("parallel.queue_overflow_strategy", "block")?;
+
+    // 2. 用戶配置檔案
+    settings = settings.add_source(File::from(config_path).required(false));
+
+    // 3. 環境變數 (前綴: SUBX_)
+    settings = settings.add_source(Environment::with_prefix("SUBX").separator("_"));
+
+    let config = settings.build().map_err(|e| {
+        debug!("create_config_from_sources: Config build failed: {}", e);
+        SubXError::config(format!("Configuration build error: {}", e))
+    })?;
+
+    // 先獲取 queue_overflow_strategy 的字串值
+    let queue_overflow_strategy = config
+        .get_string("parallel.queue_overflow_strategy")
+        .unwrap_or_else(|_| "block".to_string());
+
+    // 嘗試反序列化
+    let mut final_config: Config = config.try_deserialize().map_err(|e| {
+        debug!("create_config_from_sources: Deserialization failed: {}", e);
+        SubXError::config(format!("Configuration deserialization error: {}", e))
+    })?;
+
+    // 處理 queue_overflow_strategy enum（如果 serde 反序列化失敗，手動設定）
+    final_config.parallel.queue_overflow_strategy = match queue_overflow_strategy.as_str() {
+        "block" => OverflowStrategy::Block,
+        "dropoldest" => OverflowStrategy::DropOldest,
+        "reject" => OverflowStrategy::Reject,
+        _ => OverflowStrategy::Block, // 預設值
+    };
+
+    // loaded_from 設為 None（因為可能來自多個來源）
+    final_config.loaded_from = None;
+
+    debug!("create_config_from_sources: Configuration loaded successfully");
+    Ok(final_config)
+}
+
+/// 建立帶有動態覆蓋的配置實例
+///
+/// 這個函式允許在運行時動態添加配置覆蓋，主要用於 CLI 參數整合。
+/// 覆蓋值具有最高優先級，會覆蓋所有其他配置來源。
+///
+/// # 參數
+/// * `overrides` - 鍵值對列表，用於覆蓋配置值
+///
+/// # 錯誤
+/// 當配置載入或解析失敗時返回 `SubXError::Config`
+pub fn create_config_with_overrides(overrides: Vec<(String, String)>) -> Result<Config> {
+    let config_path = Config::config_file_path()?;
+    debug!(
+        "create_config_with_overrides: Using config path: {:?}",
+        config_path
+    );
+
+    let mut settings = ConfigBuilder::builder();
+
+    // 1. 首先設定預設值（與 create_config_from_sources 相同）
+    let default_config = Config::default();
+    settings = settings
+        .set_default("ai.provider", default_config.ai.provider.clone())?
+        .set_default("ai.model", default_config.ai.model.clone())?
+        .set_default("ai.base_url", default_config.ai.base_url.clone())?
+        .set_default(
+            "ai.max_sample_length",
+            default_config.ai.max_sample_length as i64,
+        )?
+        .set_default("ai.temperature", default_config.ai.temperature as f64)?
+        .set_default("ai.retry_attempts", default_config.ai.retry_attempts as i64)?
+        .set_default("ai.retry_delay_ms", default_config.ai.retry_delay_ms as i64)?
+        .set_default(
+            "formats.default_output",
+            default_config.formats.default_output.clone(),
+        )?
+        .set_default(
+            "formats.preserve_styling",
+            default_config.formats.preserve_styling,
+        )?
+        .set_default(
+            "formats.default_encoding",
+            default_config.formats.default_encoding.clone(),
+        )?
+        .set_default(
+            "formats.encoding_detection_confidence",
+            default_config.formats.encoding_detection_confidence as f64,
+        )?
+        .set_default(
+            "sync.max_offset_seconds",
+            default_config.sync.max_offset_seconds as f64,
+        )?
+        .set_default(
+            "sync.audio_sample_rate",
+            default_config.sync.audio_sample_rate as i64,
+        )?
+        .set_default(
+            "sync.correlation_threshold",
+            default_config.sync.correlation_threshold as f64,
+        )?
+        .set_default(
+            "sync.dialogue_detection_threshold",
+            default_config.sync.dialogue_detection_threshold as f64,
+        )?
+        .set_default(
+            "sync.min_dialogue_duration_ms",
+            default_config.sync.min_dialogue_duration_ms as i64,
+        )?
+        .set_default(
+            "sync.dialogue_merge_gap_ms",
+            default_config.sync.dialogue_merge_gap_ms as i64,
+        )?
+        .set_default(
+            "sync.enable_dialogue_detection",
+            default_config.sync.enable_dialogue_detection,
+        )?
+        .set_default(
+            "sync.auto_detect_sample_rate",
+            default_config.sync.auto_detect_sample_rate,
+        )?
+        .set_default(
+            "general.backup_enabled",
+            default_config.general.backup_enabled,
+        )?
+        .set_default(
+            "general.max_concurrent_jobs",
+            default_config.general.max_concurrent_jobs as i64,
+        )?
+        .set_default(
+            "general.task_timeout_seconds",
+            default_config.general.task_timeout_seconds as i64,
+        )?
+        .set_default(
+            "general.enable_progress_bar",
+            default_config.general.enable_progress_bar,
+        )?
+        .set_default(
+            "general.worker_idle_timeout_seconds",
+            default_config.general.worker_idle_timeout_seconds as i64,
+        )?
+        .set_default(
+            "parallel.task_queue_size",
+            default_config.parallel.task_queue_size as i64,
+        )?
+        .set_default(
+            "parallel.enable_task_priorities",
+            default_config.parallel.enable_task_priorities,
+        )?
+        .set_default(
+            "parallel.auto_balance_workers",
+            default_config.parallel.auto_balance_workers,
+        )?
+        .set_default("parallel.queue_overflow_strategy", "block")?;
+
+    // 2. 用戶配置檔案
+    settings = settings.add_source(File::from(config_path).required(false));
+
+    // 3. 環境變數 (前綴: SUBX_)
+    settings = settings.add_source(Environment::with_prefix("SUBX").separator("_"));
+
+    // 4. 動態添加覆蓋 (CLI 參數等，最高優先級)
+    for (key, value) in overrides {
+        debug!(
+            "create_config_with_overrides: Setting override {}={}",
+            key, value
+        );
+        settings = settings
+            .set_override(key, value)
+            .map_err(|e| SubXError::config(format!("Override setting error: {}", e)))?;
+    }
+
+    let config = settings.build().map_err(|e| {
+        debug!("create_config_with_overrides: Config build failed: {}", e);
+        SubXError::config(format!("Configuration build error: {}", e))
+    })?;
+
+    // 先獲取 queue_overflow_strategy 的字串值
+    let queue_overflow_strategy = config
+        .get_string("parallel.queue_overflow_strategy")
+        .unwrap_or_else(|_| "block".to_string());
+
+    // 嘗試反序列化
+    let mut final_config: Config = config.try_deserialize().map_err(|e| {
+        debug!(
+            "create_config_with_overrides: Deserialization failed: {}",
+            e
+        );
+        SubXError::config(format!("Configuration deserialization error: {}", e))
+    })?;
+
+    // 處理 queue_overflow_strategy enum（如果 serde 反序列化失敗，手動設定）
+    final_config.parallel.queue_overflow_strategy = match queue_overflow_strategy.as_str() {
+        "block" => OverflowStrategy::Block,
+        "dropoldest" => OverflowStrategy::DropOldest,
+        "reject" => OverflowStrategy::Reject,
+        _ => OverflowStrategy::Block, // 預設值
+    };
+
+    // loaded_from 設為 None（因為可能來自多個來源）
+    final_config.loaded_from = None;
+
+    debug!("create_config_with_overrides: Configuration with overrides loaded successfully");
+    Ok(final_config)
+}
+
+/// 建立測試專用配置實例
+///
+/// 為測試環境提供快速的配置建立，無需檔案系統或環境變數。
+/// 從預設配置開始，然後應用指定的覆蓋值。
+///
+/// # 參數
+/// * `overrides` - 鍵值對列表，用於覆蓋預設配置值
+pub fn create_test_config(overrides: Vec<(&str, &str)>) -> Config {
+    let mut config = Config::default();
+
+    // 應用測試特定的覆蓋值
+    for (key, value) in overrides {
+        match key {
+            "ai.provider" => config.ai.provider = value.to_string(),
+            "ai.model" => config.ai.model = value.to_string(),
+            "ai.api_key" => config.ai.api_key = Some(value.to_string()),
+            "sync.correlation_threshold" => {
+                if let Ok(val) = value.parse::<f32>() {
+                    config.sync.correlation_threshold = val;
+                }
+            }
+            "sync.max_offset_seconds" => {
+                if let Ok(val) = value.parse::<f32>() {
+                    config.sync.max_offset_seconds = val;
+                }
+            }
+            "formats.default_output" => config.formats.default_output = value.to_string(),
+            "general.backup_enabled" => {
+                if let Ok(val) = value.parse::<bool>() {
+                    config.general.backup_enabled = val;
+                }
+            }
+            _ => {
+                debug!("create_test_config: Unknown override key: {}", key);
+            }
+        }
+    }
+
+    config
+}
+
+// =============================
+// 向後相容性函式 (Backward Compatibility)
+// =============================
+
+/// 初始化配置管理器的新版本（向後相容性）
+///
+/// 這個函式提供與舊版 `init_config_manager()` 相同的介面，
+/// 但內部使用新的 config crate 機制。
+///
+/// # 棄用通知
+///
+/// 此函式已被棄用，請使用 `create_config_from_sources()` 代替。
+#[deprecated(note = "Use create_config_from_sources() instead")]
+pub fn init_config_manager_new() -> Result<()> {
+    log::warn!("init_config_manager_new is deprecated, use create_config_from_sources instead");
+    // 新版本不需要全域初始化，僅驗證配置可以載入
+    create_config_from_sources().map(|_| ())
+}
+
+/// 載入配置的新版本（向後相容性）
+///
+/// 這個函式提供與舊版 `load_config()` 相同的介面，
+/// 但內部使用新的 config crate 機制。
+///
+/// # 棄用通知
+///
+/// 此函式已被棄用，請使用 `create_config_from_sources()` 代替。
+#[deprecated(note = "Use create_config_from_sources() instead")]
+pub fn load_config_new() -> Result<Config> {
+    log::warn!("load_config_new is deprecated, use create_config_from_sources instead");
+    create_config_from_sources()
 }

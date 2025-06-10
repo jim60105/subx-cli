@@ -193,6 +193,16 @@ impl From<symphonia::core::errors::Error> for SubXError {
         SubXError::audio_processing(err.to_string())
     }
 }
+
+// Convert config crate error to configuration error
+impl From<config::ConfigError> for SubXError {
+    fn from(err: config::ConfigError) -> Self {
+        SubXError::Config {
+            message: format!("Configuration loading error: {}", err),
+        }
+    }
+}
+
 /// Specialized `Result` type for SubX operations.
 pub type SubXResult<T> = Result<T, SubXError>;
 
