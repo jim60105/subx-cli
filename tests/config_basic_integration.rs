@@ -244,18 +244,18 @@ fn test_test_config_performance() {
 #[serial]
 fn test_backward_compatibility_functions() {
     clear_subx_env_vars();
-    
+
     // 測試 init_config_manager_new（已棄用）
     #[allow(deprecated)]
     let init_result = subx_cli::config::init_config_manager_new();
     assert!(init_result.is_ok());
-    
+
     // 測試 load_config_new（已棄用）
     #[allow(deprecated)]
     let config_result = subx_cli::config::load_config_new();
     assert!(config_result.is_ok());
     let config = config_result.unwrap();
-    
+
     // 驗證載入的配置有效
     assert_eq!(config.ai.provider, "openai");
     assert_eq!(config.ai.model, "gpt-4o-mini");

@@ -112,6 +112,8 @@ pub mod cli;
 pub mod commands;
 pub mod config;
 pub use config::{Config, init_config_manager, load_config};
+// Re-export new configuration service system
+pub use config::{ConfigService, ProductionConfigService, TestConfigBuilder, TestConfigService};
 pub mod core;
 pub mod error;
 /// Convenient type alias for `Result<T, SubXError>`.
@@ -121,3 +123,116 @@ pub mod error;
 pub type Result<T> = error::SubXResult<T>;
 
 pub mod services;
+
+/// Main application structure with dependency injection support.
+///
+/// This struct provides the new dependency injection-based architecture
+/// for the SubX application, allowing for better testability and
+/// configuration management.
+pub struct App {
+    config_service: std::sync::Arc<dyn config::ConfigService>,
+}
+
+impl App {
+    /// Create a new application instance with the provided configuration service.
+    ///
+    /// # Arguments
+    ///
+    /// * `config_service` - The configuration service to use
+    pub fn new(config_service: std::sync::Arc<dyn config::ConfigService>) -> Self {
+        Self { config_service }
+    }
+
+    /// Create a new application instance with the production configuration service.
+    ///
+    /// This is the default way to create an application instance for production use.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the production configuration service cannot be created.
+    pub fn new_with_production_config() -> Result<Self> {
+        let config_service = std::sync::Arc::new(config::ProductionConfigService::new()?);
+        Ok(Self::new(config_service))
+    }
+
+    /// Run the application with command-line argument parsing.
+    ///
+    /// This method parses command-line arguments and executes the appropriate command
+    /// with the configured dependencies.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if command execution fails.
+    pub async fn run(&self) -> Result<()> {
+        let cli = <cli::Cli as clap::Parser>::parse();
+        self.handle_command(cli.command).await
+    }
+
+    /// Handle a specific command with the current configuration.
+    ///
+    /// # Arguments
+    ///
+    /// * `command` - The command to execute
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if command execution fails.
+    pub async fn handle_command(&self, command: cli::Commands) -> Result<()> {
+        // For now, use the legacy command execution functions
+        // TODO: Update commands to accept config service parameter
+        match command {
+            cli::Commands::Match(args) => crate::commands::match_command::execute(args).await,
+            cli::Commands::Convert(args) => crate::commands::convert_command::execute(args).await,
+            cli::Commands::Sync(args) => crate::commands::sync_command::execute(args).await,
+            cli::Commands::Config(args) => crate::commands::config_command::execute(args).await,
+            cli::Commands::GenerateCompletion(args) => {
+                let mut cmd = <cli::Cli as clap::CommandFactory>::command();
+                let cmd_name = cmd.get_name().to_string();
+                let mut stdout = std::io::stdout();
+                clap_complete::generate(args.shell, &mut cmd, cmd_name, &mut stdout);
+                Ok(())
+            }
+            cli::Commands::Cache(args) => crate::commands::cache_command::execute(args).await,
+            cli::Commands::DetectEncoding(args) => {
+                crate::commands::detect_encoding_command::detect_encoding_command(
+                    &args.file_paths,
+                    args.verbose,
+                )?;
+                Ok(())
+            }
+        }
+    }
+
+    /// Get a reference to the configuration service.
+    ///
+    /// This allows access to the configuration service for testing or
+    /// advanced use cases.
+    pub fn config_service(&self) -> &std::sync::Arc<dyn config::ConfigService> {
+        &self.config_service
+    }
+
+    /// Get the current configuration.
+    ///
+    /// This is a convenience method that retrieves the configuration
+    /// from the configured service.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if configuration loading fails.
+    pub fn get_config(&self) -> Result<config::Config> {
+        self.config_service.get_config()
+    }
+}
+
+/// Backward compatibility function for the legacy CLI run method.
+///
+/// This function provides a bridge between the new dependency injection
+/// architecture and the existing CLI interface.
+pub async fn run_with_legacy_config() -> Result<()> {
+    // Initialize legacy configuration manager
+    config::init_config_manager()?;
+
+    // Create app with production config service
+    let app = App::new_with_production_config()?;
+    app.run().await
+}

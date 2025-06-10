@@ -29,12 +29,6 @@ use log::debug;
 use config::{Config as ConfigBuilder, Environment, File};
 
 // Submodules for unified configuration management core
-pub mod cache;
-pub mod manager;
-pub mod partial;
-pub mod source;
-pub mod validator;
-
 use crate::config::manager::ConfigManager;
 use crate::config::source::{CliSource, EnvSource, FileSource};
 use std::sync::{Mutex, OnceLock};
@@ -661,6 +655,7 @@ impl Config {
 ///
 /// # 錯誤
 /// 當配置載入或解析失敗時返回 `SubXError::Config`
+#[allow(dead_code)]
 pub fn create_config_from_sources() -> Result<Config> {
     let config_path = Config::config_file_path()?;
     debug!(
@@ -816,6 +811,7 @@ pub fn create_config_from_sources() -> Result<Config> {
 ///
 /// # 錯誤
 /// 當配置載入或解析失敗時返回 `SubXError::Config`
+#[allow(dead_code)]
 pub fn create_config_with_overrides(overrides: Vec<(String, String)>) -> Result<Config> {
     let config_path = Config::config_file_path()?;
     debug!(
@@ -978,6 +974,7 @@ pub fn create_config_with_overrides(overrides: Vec<(String, String)>) -> Result<
 ///
 /// # 參數
 /// * `overrides` - 鍵值對列表，用於覆蓋預設配置值
+#[allow(dead_code)]
 pub fn create_test_config(overrides: Vec<(&str, &str)>) -> Config {
     let mut config = Config::default();
 
@@ -1025,6 +1022,7 @@ pub fn create_test_config(overrides: Vec<(&str, &str)>) -> Config {
 ///
 /// 此函式已被棄用，請使用 `create_config_from_sources()` 代替。
 #[deprecated(note = "Use create_config_from_sources() instead")]
+#[allow(dead_code)]
 pub fn init_config_manager_new() -> Result<()> {
     log::warn!("init_config_manager_new is deprecated, use create_config_from_sources instead");
     // 新版本不需要全域初始化，僅驗證配置可以載入
@@ -1040,6 +1038,7 @@ pub fn init_config_manager_new() -> Result<()> {
 ///
 /// 此函式已被棄用，請使用 `create_config_from_sources()` 代替。
 #[deprecated(note = "Use create_config_from_sources() instead")]
+#[allow(dead_code)]
 pub fn load_config_new() -> Result<Config> {
     log::warn!("load_config_new is deprecated, use create_config_from_sources instead");
     create_config_from_sources()

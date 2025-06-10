@@ -384,3 +384,30 @@ impl ConfigValidator for GeneralConfigValidator {
         "general_config"
     }
 }
+
+/// Validate a complete configuration using all available validators.
+///
+/// This function runs all available configuration validators and returns
+/// the first validation error encountered, if any.
+///
+/// # Arguments
+///
+/// * `config` - The configuration to validate
+///
+/// # Errors
+///
+/// Returns the first validation error encountered by any validator.
+pub fn validate_config(config: &Config) -> Result<(), ConfigError> {
+    let validators: Vec<Box<dyn ConfigValidator>> = vec![
+        Box::new(AIConfigValidator),
+        Box::new(SyncConfigValidator),
+        Box::new(FormatsConfigValidator),
+        Box::new(GeneralConfigValidator),
+    ];
+
+    for validator in validators {
+        validator.validate(config)?;
+    }
+
+    Ok(())
+}

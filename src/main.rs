@@ -9,21 +9,30 @@ async fn main() {
     // Initialize logging subsystem
     env_logger::init();
 
-    // Initialize configuration manager
-    if let Err(e) = subx_cli::config::init_config_manager() {
-        eprintln!(
-            "Configuration initialization failed: {}",
-            e.user_friendly_message()
-        );
-        std::process::exit(1);
-    }
+    // Create and run the application with dependency injection
+    let result = run_application().await;
 
-    let result = subx_cli::cli::run().await;
     match result {
         Ok(_) => std::process::exit(0),
         Err(e) => {
             eprintln!("{}", e.user_friendly_message());
             std::process::exit(e.exit_code());
+        }
+    }
+}
+
+/// Main application runner with proper error handling.
+///
+/// This function demonstrates the new dependency injection approach
+/// while maintaining backward compatibility.
+async fn run_application() -> subx_cli::Result<()> {
+    // Option 1: Use new dependency injection approach
+    match subx_cli::App::new_with_production_config() {
+        Ok(app) => app.run().await,
+        Err(_) => {
+            // Option 2: Fall back to legacy configuration system if needed
+            eprintln!("Warning: Falling back to legacy configuration system");
+            subx_cli::run_with_legacy_config().await
         }
     }
 }
