@@ -3,7 +3,6 @@
 //! 這些測試驗證 config crate 基礎整合的功能，
 //! 包括配置載入、環境變數覆蓋和 CLI 參數覆蓋機制。
 
-use serial_test::serial;
 use std::env;
 use std::fs;
 use tempfile::TempDir;
@@ -11,6 +10,8 @@ use tempfile::TempDir;
 use subx_cli::config::{
     create_config_from_sources, create_config_with_overrides, create_test_config,
 };
+
+mod common;
 
 // 安全的環境變數操作幫助函式
 fn safe_set_var(key: &str, value: &str) {
@@ -36,7 +37,6 @@ fn clear_subx_env_vars() {
 }
 
 #[test]
-#[serial]
 fn test_create_config_from_sources() {
     clear_subx_env_vars();
 
@@ -102,7 +102,6 @@ fn test_create_test_config() {
 }
 
 #[test]
-#[serial]
 fn test_config_priority_order() {
     clear_subx_env_vars();
 
@@ -241,9 +240,13 @@ fn test_test_config_performance() {
 }
 
 #[test]
-#[serial]
 fn test_backward_compatibility_functions() {
     clear_subx_env_vars();
+
+    // 清理任何存在的配置檔案以確保測試隔離
+    if let Ok(config_path) = subx_cli::config::Config::config_file_path() {
+        let _ = std::fs::remove_file(&config_path);
+    }
 
     // 測試 init_config_manager_new（已棄用）
     #[allow(deprecated)]
@@ -256,7 +259,7 @@ fn test_backward_compatibility_functions() {
     assert!(config_result.is_ok());
     let config = config_result.unwrap();
 
-    // 驗證載入的配置有效
+    // 驗證載入的配置有效（應該是預設值）
     assert_eq!(config.ai.provider, "openai");
     assert_eq!(config.ai.model, "gpt-4o-mini");
 }

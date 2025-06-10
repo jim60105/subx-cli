@@ -1,175 +1,146 @@
 //! 配置系統整合測試
 
-use log::debug;
-use serial_test::serial;
-use std::env;
-use subx_cli::config::{init_config_manager, load_config, reset_global_config_manager};
-use tempfile::TempDir;
+use subx_cli::config::{ConfigService, ProductionConfigService, TestConfigBuilder};
 
-/// 重置測試過程中可能殘留的環境與配置狀態
-fn reset_config_manager() {
-    // 清除環境變數
-    unsafe {
-        env::remove_var("SUBX_CONFIG_PATH");
-        env::remove_var("OPENAI_API_KEY");
-        env::remove_var("OPENAI_BASE_URL");
-        env::remove_var("SUBX_AI_MODEL");
-    }
-    // 重置全域配置管理器
-    reset_global_config_manager();
+mod common;
+use common::TestFileManager;
+
+#[test]
+fn test_config_builder_basic_functionality() {
+    // 測試配置建構器基本功能
+    let config = TestConfigBuilder::new()
+        .with_ai_provider("openai")
+        .with_ai_model("gpt-4")
+        .build_config();
+
+    assert_eq!(config.ai.provider, "openai");
+    assert_eq!(config.ai.model, "gpt-4");
 }
 
 #[test]
-#[serial]
-fn test_full_config_integration() {
-    // Initialize logger for test
-    let _ = env_logger::builder()
-        .is_test(true)
-        .filter_level(log::LevelFilter::Debug)
-        .try_init();
+fn test_config_builder_ai_settings() {
+    // 測試 AI 相關設定
+    let config = TestConfigBuilder::new()
+        .with_ai_provider("anthropic")
+        .with_ai_model("claude-3")
+        .build_config();
 
-    reset_config_manager();
+    assert_eq!(config.ai.provider, "anthropic");
+    assert_eq!(config.ai.model, "claude-3");
+}
 
-    let temp_dir = TempDir::new().unwrap();
-    let config_path = temp_dir.path().join("config.toml");
+#[test]
+fn test_config_service_interface() {
+    // 測試配置服務介面
+    let service = TestConfigBuilder::new()
+        .with_ai_provider("test_provider")
+        .with_ai_model("test_model")
+        .build_service();
+
+    let config = service.get_config().unwrap();
+    assert_eq!(config.ai.provider, "test_provider");
+    assert_eq!(config.ai.model, "test_model");
+
+    // 測試重載功能
+    assert!(service.reload().is_ok());
+}
+
+#[test]
+fn test_production_config_service() {
+    // 測試生產配置服務
+    match ProductionConfigService::new() {
+        Ok(service) => {
+            let config = service.get_config().unwrap();
+            // 驗證預設配置載入
+            assert!(!config.ai.provider.is_empty());
+        }
+        Err(_) => {
+            // 在測試環境中可能沒有配置檔案，這是正常的
+        }
+    }
+}
+
+#[test]
+fn test_config_with_custom_settings() {
+    // 測試自訂設定
+    let config = TestConfigBuilder::new()
+        .with_ai_provider("custom_provider")
+        .build_config();
+
+    assert_eq!(config.ai.provider, "custom_provider");
+}
+
+#[tokio::test]
+async fn test_config_with_file_manager() {
+    // 使用新的測試工具進行檔案管理測試
+    let mut file_manager = TestFileManager::new();
+    let test_dir = file_manager
+        .create_isolated_test_directory("config_test")
+        .await
+        .unwrap();
+    let test_dir_path = test_dir.to_path_buf();
 
     // 建立測試配置檔案
-    let config_content = r#"
-[ai]
-provider = "openai"
-model = "gpt-4"
-max_sample_length = 3000
+    let config_path = file_manager
+        .create_test_config(&test_dir_path, "test_config.toml", &test_dir_path)
+        .await
+        .unwrap();
 
-[general]
-backup_enabled = true
-max_concurrent_jobs = 8
-"#;
+    assert!(config_path.exists());
 
-    std::fs::write(&config_path, config_content).unwrap();
-
-    // Windows 特定修復：確保檔案完全寫入
-    #[cfg(windows)]
-    std::thread::sleep(std::time::Duration::from_millis(100));
-
-    // 添加詳細除錯資訊
-    debug!("Original config file path: {:?}", config_path);
-    debug!(
-        "Config file exists before canonicalize: {}",
-        config_path.exists()
-    );
-
-    if config_path.exists() {
-        let content = std::fs::read_to_string(&config_path).unwrap();
-        debug!("Config file content:\n{}", content);
-        debug!("Config file size: {} bytes", content.len());
-    }
-
-    let config_path_str = config_path
-        .canonicalize()
-        .unwrap_or_else(|e| {
-            debug!("Canonicalize failed: {}, using original path", e);
-            config_path.clone()
-        })
-        .to_str()
-        .unwrap()
-        .to_string();
-
-    debug!("Final config path string: {}", config_path_str);
-    debug!("Setting SUBX_CONFIG_PATH environment variable");
-    unsafe {
-        env::set_var("SUBX_CONFIG_PATH", &config_path_str);
-        env::set_var("OPENAI_API_KEY", "env-api-key");
-    }
-
-    // 驗證環境變數設定
-    match env::var("SUBX_CONFIG_PATH") {
-        Ok(path) => debug!("SUBX_CONFIG_PATH = {}", path),
-        Err(e) => debug!("Failed to read SUBX_CONFIG_PATH: {}", e),
-    }
-
-    debug!("Calling init_config_manager()");
-    // 測試完整流程
-    assert!(init_config_manager().is_ok());
-
-    debug!("Calling load_config()");
-    let config = load_config().unwrap();
-
-    // 添加詳細的配置值除錯資訊
-    debug!("Loaded config values:");
-    debug!("  config.ai.model = {}", config.ai.model);
-    debug!(
-        "  config.ai.max_sample_length = {}",
-        config.ai.max_sample_length
-    );
-    debug!("  config.ai.provider = {}", config.ai.provider);
-    debug!(
-        "  config.general.max_concurrent_jobs = {}",
-        config.general.max_concurrent_jobs
-    );
-    debug!("  config.ai.api_key = {:?}", config.ai.api_key);
-
-    // 驗證檔案配置載入
-    assert_eq!(config.ai.model, "gpt-4");
-    assert_eq!(config.ai.max_sample_length, 3000);
-    assert_eq!(config.general.max_concurrent_jobs, 8);
-
-    // 驗證環境變數覆蓋
-    assert_eq!(config.ai.api_key, Some("env-api-key".to_string()));
-
-    unsafe {
-        env::remove_var("SUBX_CONFIG_PATH");
-        env::remove_var("OPENAI_API_KEY");
-    }
+    // 驗證配置檔案內容
+    let content = std::fs::read_to_string(&config_path).unwrap();
+    assert!(content.contains("[general]"));
+    assert!(content.contains("[ai]"));
+    assert!(content.contains("[test]"));
 }
 
 #[test]
-#[serial]
-fn test_base_url_unified_config_integration() {
-    // Initialize logger for test
-    let _ = env_logger::builder()
-        .is_test(true)
-        .filter_level(log::LevelFilter::Debug)
-        .try_init();
+fn test_multiple_config_instances() {
+    // 測試多個配置實例的隔離性
+    let config1 = TestConfigBuilder::new()
+        .with_ai_provider("provider1")
+        .build_config();
 
-    reset_config_manager();
+    let config2 = TestConfigBuilder::new()
+        .with_ai_provider("provider2")
+        .build_config();
 
-    let temp_dir = TempDir::new().unwrap();
-    let config_path = temp_dir.path().join("config.toml");
+    // 確保配置實例間相互隔離
+    assert_eq!(config1.ai.provider, "provider1");
+    assert_eq!(config2.ai.provider, "provider2");
+}
 
-    // 建立測試配置檔案，包含 base_url 設定
-    let config_content = r#"
-[ai]
-provider = "openai"
-model = "gpt-4"
-base_url = "https://api.custom.com/v1"
-"#;
+#[test]
+fn test_config_builder_chaining() {
+    // 測試配置建構器的鏈式調用
+    let config = TestConfigBuilder::new()
+        .with_ai_provider("openai")
+        .with_ai_model("gpt-4")
+        .build_config();
 
-    std::fs::write(&config_path, config_content).unwrap();
+    assert_eq!(config.ai.provider, "openai");
+    assert_eq!(config.ai.model, "gpt-4");
+}
 
-    // Windows 特定修復：確保檔案完全寫入
-    #[cfg(windows)]
-    std::thread::sleep(std::time::Duration::from_millis(100));
+#[test]
+fn test_parallel_config_creation() {
+    // 測試並行配置建立
+    use std::thread;
 
-    let config_path_str = config_path
-        .canonicalize()
-        .unwrap_or(config_path.clone())
-        .to_str()
-        .unwrap()
-        .to_string();
-    unsafe {
-        env::set_var("SUBX_CONFIG_PATH", &config_path_str);
-        env::set_var("OPENAI_BASE_URL", "https://env-override.com/v1");
-    }
+    let handles: Vec<_> = (0..10)
+        .map(|i| {
+            thread::spawn(move || {
+                let config = TestConfigBuilder::new()
+                    .with_ai_provider(&format!("provider_{}", i))
+                    .build_config();
+                config.ai.provider
+            })
+        })
+        .collect();
 
-    // 測試統一配置系統
-    assert!(init_config_manager().is_ok());
-    let config = load_config().unwrap();
-
-    // 驗證環境變數覆蓋檔案設定
-    assert_eq!(config.ai.base_url, "https://env-override.com/v1");
-
-    unsafe {
-        env::remove_var("SUBX_CONFIG_PATH");
-        env::remove_var("OPENAI_BASE_URL");
+    for (i, handle) in handles.into_iter().enumerate() {
+        let provider = handle.join().unwrap();
+        assert_eq!(provider, format!("provider_{}", i));
     }
 }

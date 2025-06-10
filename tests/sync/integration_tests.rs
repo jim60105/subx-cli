@@ -7,16 +7,21 @@ use subx_cli::core::sync::dialogue::DialogueDetector;
 use subx_cli::core::sync::engine::{SyncConfig, SyncMethod};
 use subx_cli::core::formats::{Subtitle, SubtitleEntry, SubtitleFormatType, SubtitleMetadata};
 use subx_cli::services::audio::generate_dialogue_audio;
+use subx_cli::config::TestConfigBuilder;
 use tempfile::TempDir;
 use std::time::Duration;
 use std::path::PathBuf;
 
+mod common;
+use common::{TestFileManager, AudioMockGenerator, SubtitleGenerator, SubtitleFormat};
+
 /// 測試端到端同步工作流程
 #[tokio::test] 
 async fn test_end_to_end_sync_workflow() {
-    // 初始化配置管理器
-    subx_cli::config::reset_global_config_manager();
-    subx_cli::config::init_config_manager().unwrap();
+    // 使用新的配置系統
+    let config = TestConfigBuilder::new()
+        .with_dialogue_detection(true)
+        .build_config();
     
     // 建立完整的測試場景
     let temp_dir = TempDir::new().unwrap();
@@ -82,9 +87,11 @@ async fn test_end_to_end_sync_workflow() {
 /// 測試對話檢測整合工作流程
 #[tokio::test]
 async fn test_dialogue_detection_integration() {
-    // 初始化配置管理器
-    subx_cli::config::reset_global_config_manager();
-    subx_cli::config::init_config_manager().unwrap();
+    // 使用新的配置系統
+    let config = TestConfigBuilder::new()
+        .with_dialogue_detection(true)
+        .with_sync_threshold(0.6)
+        .build_config();
     
     let temp_dir = TempDir::new().unwrap();
     
@@ -129,9 +136,11 @@ async fn test_dialogue_detection_integration() {
 /// 測試同步引擎與對話檢測的整合
 #[tokio::test]
 async fn test_sync_engine_dialogue_integration() {
-    // 初始化配置管理器
-    subx_cli::config::reset_global_config_manager();
-    subx_cli::config::init_config_manager().unwrap();
+    // 使用新的配置系統
+    let config = TestConfigBuilder::new()
+        .with_dialogue_detection(true)
+        .with_sync_threshold(0.8)
+        .build_config();
     
     let temp_dir = TempDir::new().unwrap();
     
@@ -191,9 +200,10 @@ async fn test_sync_engine_dialogue_integration() {
 /// 測試同步品質評估
 #[tokio::test]
 async fn test_sync_quality_assessment() {
-    // 初始化配置管理器
-    subx_cli::config::reset_global_config_manager();
-    subx_cli::config::init_config_manager().unwrap();
+    // 使用新的配置系統
+    let config = TestConfigBuilder::new()
+        .with_sync_threshold(0.8)
+        .build_config();
     
     let temp_dir = TempDir::new().unwrap();
     

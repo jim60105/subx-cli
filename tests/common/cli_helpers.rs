@@ -6,6 +6,7 @@
 
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
+use subx_cli::Result;
 use subx_cli::config::{ConfigService, TestConfigService};
 use tempfile::TempDir;
 use tokio::fs;
@@ -82,7 +83,7 @@ impl CLITestHelper {
     }
 
     /// Create an isolated test workspace with standard test files.
-    pub async fn create_isolated_test_workspace(&mut self) -> crate::Result<PathBuf> {
+    pub async fn create_isolated_test_workspace(&mut self) -> Result<PathBuf> {
         let workspace = self.temp_dir.path().to_path_buf();
 
         // Create standard test file structure
@@ -94,7 +95,7 @@ impl CLITestHelper {
     }
 
     /// Create test media files for testing.
-    async fn create_media_files(&mut self, workspace: &Path) -> crate::Result<()> {
+    async fn create_media_files(&mut self, workspace: &Path) -> Result<()> {
         let media_dir = workspace.join("media");
         fs::create_dir_all(&media_dir).await?;
 
@@ -116,7 +117,7 @@ impl CLITestHelper {
     }
 
     /// Create test subtitle files for testing.
-    async fn create_subtitle_files(&mut self, workspace: &Path) -> crate::Result<()> {
+    async fn create_subtitle_files(&mut self, workspace: &Path) -> Result<()> {
         let subtitle_dir = workspace.join("subtitles");
         fs::create_dir_all(&subtitle_dir).await?;
 
@@ -147,7 +148,7 @@ This is the second subtitle entry.
     }
 
     /// Create a test configuration file.
-    async fn create_config_file(&mut self, workspace: &Path) -> crate::Result<()> {
+    async fn create_config_file(&mut self, workspace: &Path) -> Result<()> {
         let config_content = format!(
             r#"
 [general]
@@ -187,11 +188,7 @@ preserve_styling = false
     }
 
     /// Create a test subtitle file with specific content.
-    pub async fn create_subtitle_file(
-        &mut self,
-        filename: &str,
-        content: &str,
-    ) -> crate::Result<PathBuf> {
+    pub async fn create_subtitle_file(&mut self, filename: &str, content: &str) -> Result<PathBuf> {
         let file_path = self.temp_dir.path().join(filename);
         fs::write(&file_path, content).await?;
         self.test_files.push(file_path.clone());
@@ -199,7 +196,7 @@ preserve_styling = false
     }
 
     /// Create a test video file.
-    pub async fn create_video_file(&mut self, filename: &str) -> crate::Result<PathBuf> {
+    pub async fn create_video_file(&mut self, filename: &str) -> Result<PathBuf> {
         let file_path = self.temp_dir.path().join(filename);
         fs::write(&file_path, b"dummy video content").await?;
         self.test_files.push(file_path.clone());

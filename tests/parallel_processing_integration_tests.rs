@@ -1,21 +1,33 @@
+use subx_cli::config::TestConfigBuilder;
 use subx_cli::core::parallel::{
     FileProcessingTask, ProcessingOperation, TaskResult, TaskScheduler,
 };
 use tempfile::TempDir;
 
+mod common;
+use common::{SubtitleFormat, SubtitleGenerator};
+
 #[tokio::test]
 async fn test_batch_file_processing() {
     // 建立測試環境與多個字幕檔案
     let temp = TempDir::new().unwrap();
+    let _config = TestConfigBuilder::new()
+        .with_task_priorities(true)
+        .with_auto_balance_workers(true)
+        .build_config();
+
+    // 使用 SubtitleGenerator 建立測試檔案
     let test_files = vec!["test1.srt", "test2.srt", "test3.srt"];
+
     for name in &test_files {
-        let path = temp.path().join(name);
-        tokio::fs::write(&path, "1\n00:00:01,000 --> 00:00:02,000\nTest\n")
-            .await
-            .unwrap();
+        let file_path = temp.path().join(name);
+        let subtitle_gen = SubtitleGenerator::new(SubtitleFormat::Srt).generate_short_test();
+        subtitle_gen.save_to_file(&file_path).await.unwrap();
     }
-    let scheduler = TaskScheduler::new_with_defaults(); // 使用預設設定而不是依賴配置
+
+    let scheduler = TaskScheduler::new_with_defaults();
     let mut tasks: Vec<Box<dyn subx_cli::core::parallel::Task + Send + Sync>> = Vec::new();
+
     for name in &test_files {
         let path = temp.path().join(name);
         let task: Box<dyn subx_cli::core::parallel::Task + Send + Sync> =
@@ -26,6 +38,7 @@ async fn test_batch_file_processing() {
             });
         tasks.push(task);
     }
+
     let results = scheduler.submit_batch_tasks(tasks).await;
     assert_eq!(results.len(), test_files.len());
     for r in results {

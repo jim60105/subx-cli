@@ -108,3 +108,14 @@ pub mod sync_helpers;
 
 // CLI testing helpers with dependency injection support
 pub mod cli_helpers;
+
+// New test infrastructure tools from Backlog #19.4
+pub mod file_managers;
+pub mod mock_generators;
+pub mod validators;
+
+// Re-export commonly used types for convenience
+pub use cli_helpers::CLITestHelper;
+pub use file_managers::TestFileManager;
+pub use mock_generators::{AudioMetadata, AudioMockGenerator, SubtitleFormat, SubtitleGenerator};
+pub use validators::{OutputValidator, ValidationResult};
