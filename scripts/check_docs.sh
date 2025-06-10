@@ -121,6 +121,50 @@ run_check() {
     fi
 }
 
+# Function to run tests with conditional output (hide output unless failure or verbose)
+run_test_with_conditional_output() {
+    local test_name=$1
+    local command=$2
+    
+    total_checks=$((total_checks + 1))
+    
+    if [[ "${VERBOSE}" == "true" ]]; then
+        # Verbose mode: show all output
+        print_status "$BLUE" "\n🔍 Running check: $test_name"
+        if eval "$command"; then
+            check_result 0 "$test_name"
+            passed_checks=$((passed_checks + 1))
+            return 0
+        else
+            check_result $? "$test_name"
+            failed_checks=$((failed_checks + 1))
+            return 1
+        fi
+    else
+        # Non-verbose mode: capture output and only show on failure
+        local temp_output
+        temp_output=$(mktemp)
+        
+        if eval "$command" > "$temp_output" 2>&1; then
+            # Test passed - only show success message
+            check_result 0 "$test_name"
+            passed_checks=$((passed_checks + 1))
+            rm -f "$temp_output"
+            return 0
+        else
+            # Test failed - show failure message and output
+            check_result $? "$test_name"
+            echo ""
+            echo "=== Test Output ==="
+            cat "$temp_output"
+            echo "==================="
+            failed_checks=$((failed_checks + 1))
+            rm -f "$temp_output"
+            return 1
+        fi
+    fi
+}
+
 # Main function
 main() {
     parse_args "$@"
@@ -152,19 +196,23 @@ main() {
     fi
     total_checks=$((total_checks + 1))
 
+    # Create temporary file for documentation output
+    local doc_output
+    doc_output=$(mktemp)
+
     if [[ "${VERBOSE}" == "true" ]]; then
-        cargo doc --all-features --no-deps --document-private-items 2>&1 | tee doc_output.log
+        cargo doc --all-features --no-deps --document-private-items 2>&1 | tee "$doc_output"
     else
-        cargo doc --all-features --no-deps --document-private-items > doc_output.log 2>&1
+        cargo doc --all-features --no-deps --document-private-items > "$doc_output" 2>&1
     fi
 
     # Check for critical errors (excluding known lint warnings)
-    if grep -E "(error)" doc_output.log | grep -v "warning\[E0602\]: unknown lint"; then
+    if grep -E "(error)" "$doc_output" | grep -v "warning\[E0602\]: unknown lint"; then
         print_status "$RED" "❌ Documentation Generation Check: Critical errors found"
         failed_checks=$((failed_checks + 1))
     else
         # Count warnings (excluding known lint warnings)
-        warning_lines=$(grep -E "(warning)" doc_output.log | grep -v "warning\[E0602\]: unknown lint" || true)
+        warning_lines=$(grep -E "(warning)" "$doc_output" | grep -v "warning\[E0602\]: unknown lint" || true)
         if [ -n "$warning_lines" ]; then
             warning_count=$(echo "$warning_lines" | wc -l)
         else
@@ -178,12 +226,11 @@ main() {
         passed_checks=$((passed_checks + 1))
     fi
 
+    # Clean up documentation output file
+    rm -f "$doc_output"
+
     # 5. Documentation examples test
-    if [[ "${VERBOSE}" == "true" ]]; then
-        run_check "Documentation Examples Test" "cargo test --doc --verbose --all-features"
-    else
-        run_check "Documentation Examples Test" "cargo test --doc --all-features --quiet"
-    fi
+    run_test_with_conditional_output "Documentation Examples Test" "cargo test --doc --all-features"
 
     # 6. Documentation coverage check  
     if [[ "${VERBOSE}" == "true" ]]; then
@@ -221,21 +268,13 @@ main() {
     passed_checks=$((passed_checks + 1))
 
     # 7. Unit tests
-    if [[ "${VERBOSE}" == "true" ]]; then
-        run_check "Unit Tests" "cargo test --verbose"
-    else
-        run_check "Unit Tests" "cargo test --quiet"
-    fi
+    run_test_with_conditional_output "Unit Tests" "cargo test"
 
     # 8. Integration tests  
-    if [[ "${VERBOSE}" == "true" ]]; then
-        run_check "Integration Tests" "cargo test --test '*' --verbose"
-    else
-        run_check "Integration Tests" "cargo test --test '*' --quiet"
-    fi
+    run_test_with_conditional_output "Integration Tests" "cargo test --test '*'"
 
     # Cleanup
-    rm -f doc_output.log
+    # (Temporary files are cleaned up in their respective sections)
 
     # Summary
     echo ""
