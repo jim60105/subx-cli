@@ -104,3 +104,4 @@ macro_rules! assert_subtitle_entry {
 }
 
 pub mod sync_helpers;
+pub mod parallel_helpers;
