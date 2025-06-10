@@ -5,341 +5,343 @@
 
 [![Build, Test, Audit & Coverage](https://github.com/jim60105/subx-cli/actions/workflows/build-test-audit-coverage.yml/badge.svg)](https://github.com/jim60105/subx-cli/actions/workflows/build-test-audit-coverage.yml) [![Release](https://github.com/jim60105/subx-cli/actions/workflows/release.yml/badge.svg)](https://github.com/jim60105/subx-cli/actions/workflows/release.yml) [![crates.io](https://img.shields.io/crates/v/subx-cli.svg)](https://crates.io/crates/subx-cli) [![docs.rs](https://docs.rs/subx-cli/badge.svg)](https://docs.rs/subx-cli) [![codecov](https://codecov.io/gh/jim60105/subx-cli/graph/badge.svg?token=2C53RSNNAL)](https://codecov.io/gh/jim60105/subx-cli)
 
-一個智慧字幕處理 CLI 工具，使用 AI 技術自動匹配、重命名和處理字幕檔案。
+English | [中文](./README.zh-TW.md)
+
+An subtitle processing CLI tool that powered by AI technology to automatically match, rename, and process subtitle files.
 
 </div>
 
 > [!NOTE]  
-> 這個專案目前處於開發階段，基本功能已經實作完成，但可能仍有改進空間。如果你發現任何問題，歡迎提交 Issue。
+> This project is currently in early development. Basic functionality has been implemented, but there may still be room for improvement. If you find any issues please feel free to submit an Issue.
 
-## 功能特色
+## Features
 
-- 🤖 **AI 智慧匹配** - 使用 AI 技術自動識別影片與字幕的對應關係並重命名
-- 🔄 **格式轉換** - 支援 SRT、ASS、VTT、SUB 等主流字幕格式互轉
-- ⏰ **時間軸校正** - 自動檢測並修正字幕時間偏移問題
-- 🏃 **批量處理** - 一次處理整個資料夾的媒體檔案
-- 🔍 **Dry-run 模式** - 預覽操作結果，安全可靠
-- 📦 **快取管理** - 重複 Dry-run 可直接重用先前的分析結果，提高效率
+- 🤖 **AI Smart Matching** - Uses AI technology to automatically identify video-subtitle correspondence and rename files
+- 🔄 **Format Conversion** - Supports conversion between mainstream subtitle formats like SRT, ASS, VTT, SUB
+- ⏰ **Timeline Correction** - Automatically detects and corrects subtitle timing offset issues
+- 🏃 **Batch Processing** - Process entire folders of media files at once
+- 🔍 **Dry-run Mode** - Preview operation results for safety and reliability
+- 📦 **Cache Management** - Reuse previous analysis results for repeated dry-runs to improve efficiency
 
-## 安裝
+## Installation
 
 ### Linux
 
-#### 方式 1：下載並執行安裝腳本
+#### Method 1: Download and run installation script
 ```bash
 curl -fsSL https://raw.githubusercontent.com/jim60105/subx-cli/master/scripts/install.sh | bash
 ```
 
-#### 方式 2：直接下載預編譯檔案
+#### Method 2: Direct download of pre-compiled binaries
 ```bash
-# 下載最新版本
+# Download latest version
 curl -L "https://github.com/jim60105/subx-cli/releases/latest/download/subx-linux-x86_64" -o subx-cli
 chmod +x subx-cli
 sudo mv subx-cli /usr/local/bin/
 ```
 
-#### 方式 3：使用 Cargo 編譯安裝
+#### Method 3: Install using Cargo compilation
 ```bash
-# 從 crates.io 安裝
+# Install from crates.io
 cargo install subx-cli
 
-# 或從原始碼編譯
+# Or compile from source
 git clone https://github.com/jim60105/subx-cli.git
 cd subx-cli
 cargo build --release
 sudo cp target/release/subx-cli /usr/local/bin/
 ```
 
-## 快速開始
+## Quick Start
 
-### 1. 配置 API 金鑰
+### 1. Configure API Keys
 ```bash
-# 設定 OpenAI API Key (用於 AI 匹配功能)
+# Set OpenAI API Key (for AI matching functionality)
 export OPENAI_API_KEY="your-api-key-here"
 
-# 可選：設定自訂 OpenAI Base URL (用於 OpenAI API 或私有部署)
+# Optional: Set custom OpenAI Base URL (for OpenAI API or private deployment)
 export OPENAI_BASE_URL="https://api.openai.com/v1"
 
-# 或通過配置檔案指令設定
+# Or set through configuration commands
 subx-cli config set ai.api_key "your-api-key-here"
 subx-cli config set ai.base_url "https://api.openai.com/v1"
 subx-cli config set ai.model "gpt-4o-mini"
 subx-cli config set general.backup_enabled true
 ```
 
-### 2. 基本使用
+### 2. Basic Usage
 
-**字幕匹配與重命名**
+**Subtitle Matching and Renaming**
 ```bash
-# 處理單個資料夾
+# Process a single folder
 subx-cli match /path/to/media/folder
 
-# 預覽模式（不實際執行）
+# Preview mode (no actual execution)
 subx-cli match --dry-run /path/to/media/folder
 
-# 遞迴處理子資料夾
+# Recursively process subfolders
 subx-cli match --recursive /path/to/media/folder
 ```
 
-**格式轉換**
+**Format Conversion**
 ```bash
-# 單檔案轉換
+# Convert single file
 subx-cli convert subtitle.ass --format srt
 
-# 批量轉換
+# Batch conversion
 subx-cli convert --format srt /path/to/subtitles/
 
-# 轉換並保留原檔案
+# Convert while keeping original file
 subx-cli convert --keep-original subtitle.vtt --format srt
 ```
 
-**時間軸校正**
+**Timeline Correction**
 ```bash
-# 自動檢測偏移
+# Auto-detect offset
 subx-cli sync video.mp4 subtitle.srt
 
-# 手動指定偏移
+# Manually specify offset
 subx-cli sync --offset -2.5 video.mp4 subtitle.srt
 
-# 批量同步整個資料夾
+# Batch sync entire folder
 subx-cli sync --batch /path/to/media/folder
 ```
 
-**快取管理**
+**Cache Management**
 ```bash
-# 清除 Dry-run 快取
+# Clear dry-run cache
 subx-cli cache clear
 ```
 
-## 使用範例
+## Usage Examples
 
-### 典型工作流程
+### Typical Workflow
 ```bash
-# 1. 處理下載的影片和字幕
+# 1. Process downloaded videos and subtitles
 cd ~/Downloads/TV_Show_S01/
 
-# 2. AI 匹配並重命名字幕
-subx-cli match --dry-run .  # 先預覽
-subx-cli match .            # 確認後執行
+# 2. AI match and rename subtitles
+subx-cli match --dry-run .  # Preview first
+subx-cli match .            # Execute after confirmation
 
-# 3. 統一轉換為 SRT 格式
+# 3. Unify conversion to SRT format
 subx-cli convert --format srt .
 
-# 4. 修正時間同步問題
+# 4. Fix time synchronization issues
 subx-cli sync --batch .
 ```
 
-### 資料夾結構範例
+### Folder Structure Example
 ```
-處理前:
+Before processing:
 TV_Show_S01/
 ├── S01E01.mkv
 ├── S01E02.mkv
 ├── subtitle_from_internet_1.ass
 └── subtitle_from_internet_2.ass
 
-處理後:
+After processing:
 TV_Show_S01/
 ├── S01E01.mkv
-├── S01E01.ass          # 匹配並重命名
+├── S01E01.ass          # Matched and renamed
 ├── S01E02.mkv
-└── S01E02.ass          # 匹配並重命名
+└── S01E02.ass          # Matched and renamed
 ```
 
-## 配置選項
+## Configuration Options
 
-### 配置檔案位置
+### Configuration File Location
 - Linux/macOS: `~/.config/subx/config.toml`
 - Windows: `%APPDATA%\subx\config.toml`
 
-### 配置範例
+### Configuration Example
 ```toml
 [ai]
-# AI 服務提供商，目前支援 "openai"
+# AI service provider, currently supports "openai"
 provider = "openai"
-# 使用的 AI 模型
+# AI model to use
 model = "gpt-4o-mini"
-# API 端點，可由 OPENAI_BASE_URL 環境變數覆蓋
+# API endpoint, can be overridden by OPENAI_BASE_URL environment variable
 base_url = "https://api.openai.com/v1"
-# API 金鑰，可由 OPENAI_API_KEY 環境變數覆蓋
+# API key, can be overridden by OPENAI_API_KEY environment variable
 api_key = "your-api-key-here"
-# AI 回應隨機性控制 (0.0-2.0)
+# AI response randomness control (0.0-2.0)
 temperature = 0.3
-# 傳送給 AI 的內容長度上限
+# Maximum content length sent to AI
 max_sample_length = 2000
-# API 請求失敗重試次數
+# Number of retry attempts for API request failures
 retry_attempts = 3
-# 重試間隔 (毫秒)
+# Retry interval (milliseconds)
 retry_delay_ms = 1000
 
 [formats]
-# 預設輸出格式
+# Default output format
 default_output = "srt"
-# 轉換時是否保留樣式
+# Whether to preserve styling during conversion
 preserve_styling = true
-# 預設文字編碼
+# Default text encoding
 default_encoding = "utf-8"
-# 編碼檢測信心度閾值 (0.0-1.0)
+# Encoding detection confidence threshold (0.0-1.0)
 encoding_detection_confidence = 0.7
 
 [sync]
-# 音訊同步的最大偏移範圍 (秒)
+# Maximum offset range for audio sync (seconds)
 max_offset_seconds = 30.0
-# 音訊相關性分析閾值 (0.0-1.0)
+# Audio correlation analysis threshold (0.0-1.0)
 correlation_threshold = 0.7
-# 對話檢測的音訊能量閾值
+# Audio energy threshold for dialogue detection
 dialogue_detection_threshold = 0.01
-# 最小對話片段持續時間 (毫秒)
+# Minimum dialogue segment duration (milliseconds)
 min_dialogue_duration_ms = 500
-# 對話片段合併間隔 (毫秒)
+# Dialogue segment merge gap (milliseconds)
 dialogue_merge_gap_ms = 500
-# 是否啟用對話檢測功能
+# Whether to enable dialogue detection feature
 enable_dialogue_detection = true
-# 音訊處理採樣率 (Hz)
+# Audio processing sample rate (Hz)
 audio_sample_rate = 16000
-# 是否自動檢測音訊採樣率
+# Whether to auto-detect audio sample rate
 auto_detect_sample_rate = true
 
 [general]
-# 是否啟用檔案備份，可由 SUBX_BACKUP_ENABLED 環境變數覆蓋
+# Whether to enable file backup, can be overridden by SUBX_BACKUP_ENABLED environment variable
 backup_enabled = false
-# 最大並發任務數
+# Maximum number of concurrent jobs
 max_concurrent_jobs = 4
-# 任務執行逾時時間 (秒)
+# Task execution timeout (seconds)
 task_timeout_seconds = 3600
-# 是否顯示進度條
+# Whether to display progress bar
 enable_progress_bar = true
-# 工作執行緒閒置逾時 (秒)
+# Worker thread idle timeout (seconds)
 worker_idle_timeout_seconds = 300
 
 [parallel]
-# 任務佇列大小限制
+# Task queue size limit
 task_queue_size = 100
-# 是否啟用任務優先級排程
+# Whether to enable task priority scheduling
 enable_task_priorities = true
-# 是否啟用自動負載平衡
+# Whether to enable automatic load balancing
 auto_balance_workers = true
-# 佇列溢出策略 ("block" | "drop_oldest" | "reject")
+# Queue overflow strategy ("block" | "drop_oldest" | "reject")
 queue_overflow_strategy = "block"
 ```
 
-## 命令參考
+## Command Reference
 
-### `subx-cli match` - AI 匹配重命名
+### `subx-cli match` - AI Matching and Renaming
 ```
-選項:
-  <PATH>                目標資料夾路徑
-  --dry-run             預覽模式，不實際執行
-  --confidence <NUM>    最低信心度閾值 (0-100, 預設值: 80)
-  --recursive           遞歸處理子資料夾
-  --backup              重命名前備份原檔案
+Options:
+  <PATH>                Target folder path
+  --dry-run             Preview mode, no actual execution
+  --confidence <NUM>    Minimum confidence threshold (0-100, default: 80)
+  --recursive           Recursively process subfolders
+  --backup              Backup original files before renaming
 
-配置支援:
-  - AI 設定: 支援自訂 API 端點、模型、溫度等參數
-  - 並行處理: 支援最大並發數、任務佇列大小、優先級排程等
-  - 一般設定: 支援備份、進度條、逾時控制等
-```
-
-### `subx-cli convert` - 格式轉換
-```
-選項:
-  <INPUT>               輸入檔案或資料夾路徑
-  --format <FORMAT>     目標格式 (srt|ass|vtt|sub)
-  --output, -o <FILE>   輸出檔案名
-  --keep-original       保留原始檔案
-  --encoding <ENC>      指定文字編碼 (預設值: utf-8)
-
-配置支援:
-  - 格式設定: 預設輸出格式、樣式保留、編碼檢測等
+Configuration Support:
+  - AI Settings: Support custom API endpoints, models, temperature, etc.
+  - Parallel Processing: Support max concurrency, task queue size, priority scheduling, etc.
+  - General Settings: Support backup, progress bar, timeout control, etc.
 ```
 
-### `subx-cli detect-encoding` - 檔案編碼檢測
+### `subx-cli convert` - Format Conversion
 ```
-選項:
-  <FILES>...             目標檔案路徑
-  -v, --verbose          顯示詳細樣本文字
+Options:
+  <INPUT>               Input file or folder path
+  --format <FORMAT>     Target format (srt|ass|vtt|sub)
+  --output, -o <FILE>   Output filename
+  --keep-original       Keep original file
+  --encoding <ENC>      Specify text encoding (default: utf-8)
 
-配置支援:
-  - 格式設定: 編碼檢測信心度閾值、預設編碼等
-```
-
-### `subx-cli sync` - 時間軸校正
-```
-選項:
-  <VIDEO>               影片檔案路徑
-  <SUBTITLE>            字幕檔案路徑
-  --offset <SECONDS>    手動指定偏移量
-  --batch               批量處理模式
-  --range <SECONDS>     偏移檢測範圍 (預設值: 配置檔案中的 max_offset_seconds)
-  --threshold <THRESHOLD>  相關性閾值 (0-1，預設值: 配置檔案中的 correlation_threshold)
-
-配置支援:
-  - 同步設定: 最大偏移範圍、相關性閾值、對話檢測等
-  - 音訊處理: 採樣率、對話檢測閾值、片段合併等
+Configuration Support:
+  - Format Settings: Default output format, style preservation, encoding detection, etc.
 ```
 
-### `subx-cli config` - 配置管理
+### `subx-cli detect-encoding` - File Encoding Detection
 ```
-使用:
-  subx-cli config set <KEY> <VALUE>   設定配置值
-  subx-cli config get <KEY>           獲取配置值
-  subx-cli config list                列出所有配置
-  subx-cli config reset               重置配置
-```
+Options:
+  <FILES>...             Target file paths
+  -v, --verbose          Show detailed sample text
 
-### `subx-cli cache` - Dry-run 快取管理
-```
-選項:
-  clear                 清除所有 Dry-run 快取檔案
+Configuration Support:
+  - Format Settings: Encoding detection confidence threshold, default encoding, etc.
 ```
 
-### `subx-cli generate-completion` - 產生 shell 補全腳本
+### `subx-cli sync` - Timeline Correction
 ```
-使用:
-  subx-cli generate-completion <SHELL>  支援的 shell: bash, zsh, fish, powershell, elvish
+Options:
+  <VIDEO>               Video file path
+  <SUBTITLE>            Subtitle file path
+  --offset <SECONDS>    Manually specify offset
+  --batch               Batch processing mode
+  --range <SECONDS>     Offset detection range (default: max_offset_seconds from config)
+  --threshold <THRESHOLD>  Correlation threshold (0-1, default: correlation_threshold from config)
+
+Configuration Support:
+  - Sync Settings: Maximum offset range, correlation threshold, dialogue detection, etc.
+  - Audio Processing: Sample rate, dialogue detection threshold, segment merging, etc.
 ```
 
-## 支援格式
+### `subx-cli config` - Configuration Management
+```
+Usage:
+  subx-cli config set <KEY> <VALUE>   Set configuration value
+  subx-cli config get <KEY>           Get configuration value
+  subx-cli config list                List all configurations
+  subx-cli config reset               Reset configuration
+```
 
-| 格式 | 讀取 | 寫入 | 說明 |
-|------|------|------|------|
-| SRT  | ✅   | ✅   | SubRip 字幕格式 |
-| ASS  | ✅   | ✅   | Advanced SubStation Alpha 格式 |
-| VTT  | ✅   | ✅   | WebVTT 格式 |
-| SUB  | ✅   | ⚠️   | 多種 SUB 變體格式 |
+### `subx-cli cache` - Dry-run Cache Management
+```
+Options:
+  clear                 Clear all dry-run cache files
+```
 
-## 疑難排解
+### `subx-cli generate-completion` - Generate Shell Completion Scripts
+```
+Usage:
+  subx-cli generate-completion <SHELL>  Supported shells: bash, zsh, fish, powershell, elvish
+```
 
-### 常見問題
+## Supported Formats
 
-**Q: AI 匹配準確度不高怎麼辦？**
-A: 確保檔案名包含足夠的識別資訊（如劇名、季數、集數）。同時可以嘗試調整 `--confidence` 參數或配置 AI 模型溫度：`subx-cli config set ai.temperature 0.1`
+| Format | Read | Write | Description |
+|--------|------|-------|-------------|
+| SRT    | ✅   | ✅    | SubRip subtitle format |
+| ASS    | ✅   | ✅    | Advanced SubStation Alpha format |
+| VTT    | ✅   | ✅    | WebVTT format |
+| SUB    | ✅   | ⚠️    | Various SUB variant formats |
 
-**Q: 時間軸同步失敗？**
-A: 確保影片檔案可存取，並檢查檔案格式是否支援。如果自動同步不理想，可以嘗試：
-- 手動指定偏移量：`subx-cli sync --offset <seconds> video.mp4 subtitle.srt`
-- 調整同步配置：`subx-cli config set sync.correlation_threshold 0.6`
-- 啟用對話檢測：`subx-cli config set sync.enable_dialogue_detection true`
+## Troubleshooting
 
-**Q: 處理大量檔案時性能不佳？**
-A: 可以調整並行處理配置：
+### Common Issues
+
+**Q: What to do if AI matching accuracy is low?**
+A: Ensure filenames contain sufficient identifying information (like show name, season, episode numbers). You can also try adjusting the `--confidence` parameter or configure AI model temperature: `subx-cli config set ai.temperature 0.1`
+
+**Q: Timeline sync fails?**
+A: Ensure video files are accessible and check if file formats are supported. If automatic sync isn't ideal, you can try:
+- Manually specify offset: `subx-cli sync --offset <seconds> video.mp4 subtitle.srt`
+- Adjust sync configuration: `subx-cli config set sync.correlation_threshold 0.6`
+- Enable dialogue detection: `subx-cli config set sync.enable_dialogue_detection true`
+
+**Q: Poor performance when processing large numbers of files?**
+A: You can adjust parallel processing configuration:
 ```bash
-subx-cli config set general.max_concurrent_jobs 8     # 增加並發數
-subx-cli config set parallel.task_queue_size 200     # 增加佇列大小
-subx-cli config set parallel.auto_balance_workers true # 啟用負載平衡
+subx-cli config set general.max_concurrent_jobs 8     # Increase concurrency
+subx-cli config set parallel.task_queue_size 200     # Increase queue size
+subx-cli config set parallel.auto_balance_workers true # Enable load balancing
 ```
 
-**Q: 編碼檢測不準確？**
-A: 調整檢測信心度閾值：`subx-cli config set formats.encoding_detection_confidence 0.8`
+**Q: Inaccurate encoding detection?**
+A: Adjust detection confidence threshold: `subx-cli config set formats.encoding_detection_confidence 0.8`
 
-**Q: 快取檔案佔用太多空間？**
-A: 使用 `subx-cli cache clear` 指令可以清除所有快取檔案。
+**Q: Cache files taking up too much space?**
+A: Use the `subx-cli cache clear` command to clear all cache files.
 
-**Q: 如何在新的影片與字幕加入後重新匹配？**
-A: 先清除快取 `subx-cli cache clear`，再重新執行 match 命令。
+**Q: How to re-match when new videos and subtitles are added?**
+A: Clear cache first with `subx-cli cache clear`, then re-run the match command.
 
-**Q: 任務執行逾時怎麼辦？**
-A: 增加逾時時間：`subx-cli config set general.task_timeout_seconds 7200`  # 設定為 2 小時
+**Q: What to do about task execution timeouts?**
+A: Increase timeout duration: `subx-cli config set general.task_timeout_seconds 7200`  # Set to 2 hours
 
 ---
 
