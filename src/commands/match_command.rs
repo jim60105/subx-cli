@@ -71,7 +71,7 @@ use crate::core::matcher::{
     ConflictResolution, FileDiscovery, FileRelocationMode, MatchConfig, MatchEngine, MediaFileType,
 };
 use crate::core::parallel::{
-    FileProcessingTask, ProcessingOperation, Task, TaskResult, TaskScheduler,
+    FileProcessingTask, FileRelocationTask, ProcessingOperation, Task, TaskResult, TaskScheduler,
 };
 use crate::services::ai::{AIClientFactory, AIProvider};
 use indicatif::ProgressDrawTarget;
@@ -175,6 +175,40 @@ use indicatif::ProgressDrawTarget;
 /// - **Rate Limiting**: Automatic throttling to respect AI service limits
 /// - **Memory Management**: Streaming processing for large file sets
 pub async fn execute(args: MatchArgs, config_service: &dyn ConfigService) -> Result<()> {
+    // Handle simple copy/move relocation without AI when requested
+    if args.copy || args.move_files {
+        let config = config_service.get_config()?;
+        let discovery = FileDiscovery::new();
+        let files = discovery.scan_directory(&args.path, args.recursive)?;
+        let videos: Vec<_> = files
+            .iter()
+            .filter(|f| matches!(f.file_type, MediaFileType::Video))
+            .collect();
+        let subtitles: Vec<_> = files
+            .iter()
+            .filter(|f| matches!(f.file_type, MediaFileType::Subtitle))
+            .collect();
+        for v in videos {
+            if let Some(s) = subtitles.iter().find(|s| {
+                s.path.file_stem().and_then(|st| st.to_str())
+                    == v.path.file_stem().and_then(|st| st.to_str())
+            }) {
+                let source = s.path.clone();
+                let target = v.path.with_file_name(s.path.file_name().unwrap());
+                let task = FileRelocationTask {
+                    operation: if args.copy {
+                        ProcessingOperation::CopyToVideoFolder { source, target }
+                    } else {
+                        ProcessingOperation::MoveToVideoFolder { source, target }
+                    },
+                    backup_enabled: config.general.backup_enabled,
+                };
+                println!("{}", task.execute());
+            }
+        }
+        return Ok(());
+    }
+
     // Load configuration from the injected service
     let config = config_service.get_config()?;
 

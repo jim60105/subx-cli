@@ -1,6 +1,8 @@
 //! Task definition and utilities for parallel processing
 use async_trait::async_trait;
 use std::fmt;
+use std::fs;
+use std::path::PathBuf;
 
 /// Trait defining a unit of work that can be executed asynchronously.
 ///
@@ -24,6 +26,42 @@ pub trait Task: Send + Sync {
     }
 }
 
+/// Task for relocating files by copying or moving to a target folder.
+pub struct FileRelocationTask {
+    /// Operation to perform: copy or move.
+    pub operation: ProcessingOperation,
+    /// Whether to create a backup before relocation (not implemented yet).
+    pub backup_enabled: bool,
+}
+
+impl FileRelocationTask {
+    /// Executes the file relocation operation and returns the result.
+    pub fn execute(&self) -> TaskResult {
+        match &self.operation {
+            ProcessingOperation::CopyToVideoFolder { source, target } => {
+                match fs::copy(source, target) {
+                    Ok(_) => TaskResult::Success(format!(
+                        "Copied: {} -> {}",
+                        source.display(),
+                        target.display()
+                    )),
+                    Err(e) => TaskResult::Failed(format!("Copy failed: {}", e)),
+                }
+            }
+            ProcessingOperation::MoveToVideoFolder { source, target } => {
+                match fs::rename(source, target) {
+                    Ok(_) => TaskResult::Success(format!(
+                        "Moved: {} -> {}",
+                        source.display(),
+                        target.display()
+                    )),
+                    Err(e) => TaskResult::Failed(format!("Move failed: {}", e)),
+                }
+            }
+            _ => TaskResult::Failed("Unsupported operation for FileRelocationTask".to_string()),
+        }
+    }
+}
 /// Result of task execution indicating success, failure, or partial completion.
 ///
 /// Provides detailed information about the outcome of a task execution,
@@ -121,6 +159,20 @@ pub enum ProcessingOperation {
     },
     /// Validate subtitle file format and structure
     ValidateFormat,
+    /// Copy subtitle file to video folder
+    CopyToVideoFolder {
+        /// Source file path
+        source: PathBuf,
+        /// Target file path
+        target: PathBuf,
+    },
+    /// Move subtitle file to video folder
+    MoveToVideoFolder {
+        /// Source file path
+        source: PathBuf,
+        /// Target file path
+        target: PathBuf,
+    },
 }
 
 #[async_trait]
@@ -166,6 +218,10 @@ impl Task for FileProcessingTask {
                 )),
                 Err(e) => TaskResult::Failed(format!("Validation error: {}", e)),
             },
+            ProcessingOperation::CopyToVideoFolder { .. }
+            | ProcessingOperation::MoveToVideoFolder { .. } => TaskResult::Failed(
+                "Relocation operation not supported in FileProcessingTask".to_string(),
+            ),
         }
     }
 
@@ -175,6 +231,8 @@ impl Task for FileProcessingTask {
             ProcessingOperation::SyncSubtitle { .. } => "sync",
             ProcessingOperation::MatchFiles { .. } => "match",
             ProcessingOperation::ValidateFormat => "validate",
+            ProcessingOperation::CopyToVideoFolder { .. } => "copy",
+            ProcessingOperation::MoveToVideoFolder { .. } => "move",
         }
     }
 
@@ -195,6 +253,8 @@ impl Task for FileProcessingTask {
                 ProcessingOperation::SyncSubtitle { .. } => size_mb * 0.5,
                 ProcessingOperation::MatchFiles { .. } => 2.0,
                 ProcessingOperation::ValidateFormat => size_mb * 0.05,
+                ProcessingOperation::CopyToVideoFolder { .. }
+                | ProcessingOperation::MoveToVideoFolder { .. } => size_mb * 0.01,
             };
             Some(std::time::Duration::from_secs_f64(secs))
         } else {
@@ -224,6 +284,12 @@ impl Task for FileProcessingTask {
             ),
             ProcessingOperation::ValidateFormat => {
                 format!("Validate format of {}", self.input_path.display())
+            }
+            ProcessingOperation::CopyToVideoFolder { source, target } => {
+                format!("Copy {} to {}", source.display(), target.display())
+            }
+            ProcessingOperation::MoveToVideoFolder { source, target } => {
+                format!("Move {} to {}", source.display(), target.display())
             }
         }
     }
@@ -275,6 +341,16 @@ impl std::hash::Hash for ProcessingOperation {
             }
             ProcessingOperation::ValidateFormat => {
                 "validate".hash(state);
+            }
+            ProcessingOperation::CopyToVideoFolder { source, target } => {
+                "copy".hash(state);
+                source.hash(state);
+                target.hash(state);
+            }
+            ProcessingOperation::MoveToVideoFolder { source, target } => {
+                "move".hash(state);
+                source.hash(state);
+                target.hash(state);
             }
         }
     }

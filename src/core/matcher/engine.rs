@@ -13,7 +13,7 @@
 //! ```
 
 use crate::services::ai::{AIProvider, AnalysisRequest, ContentSample, MatchResult};
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 use crate::Result;
 use crate::core::language::LanguageDetector;
@@ -48,6 +48,34 @@ pub enum ConflictResolution {
     AutoRename,
     /// Prompt user for decision (interactive mode only)
     Prompt,
+}
+
+/// Resolve filename conflicts by appending a numeric suffix before the extension.
+/// E.g., "file.srt" -> "file.1.srt", "file.2.srt", etc.
+pub fn resolve_filename_conflict(path: PathBuf) -> PathBuf {
+    if !path.exists() {
+        return path;
+    }
+    let parent = path.parent().map(|p| p.to_path_buf()).unwrap_or_default();
+    let stem = path
+        .file_stem()
+        .and_then(|s| s.to_str())
+        .unwrap_or("")
+        .to_string();
+    let ext = path.extension().and_then(|s| s.to_str()).unwrap_or("");
+    let mut idx = 1;
+    loop {
+        let name = if ext.is_empty() {
+            format!("{}.{}", stem, idx)
+        } else {
+            format!("{}.{}.{}", stem, idx, ext)
+        };
+        let candidate = parent.join(&name);
+        if !candidate.exists() {
+            return candidate;
+        }
+        idx += 1;
+    }
 }
 
 /// Configuration settings for the file matching engine.
@@ -318,6 +346,12 @@ pub struct MatchOperation {
     pub confidence: f32,
     /// List of reasons supporting this match
     pub reasoning: Vec<String>,
+    /// File relocation mode for subtitle file (copy, move, or none)
+    pub relocation_mode: FileRelocationMode,
+    /// Whether relocation operation is required (subtitle and video in different folders)
+    pub requires_relocation: bool,
+    /// Target path for relocation if required
+    pub relocation_target_path: Option<PathBuf>,
 }
 
 /// Engine for matching video and subtitle files using AI analysis.
@@ -422,12 +456,44 @@ impl MatchEngine {
                 match (video_match, subtitle_match) {
                     (Some(video), Some(subtitle)) => {
                         let new_name = self.generate_subtitle_name(video, subtitle);
+                        // Determine relocation requirement and target
+                        let requires_relocation = match self.config.relocation_mode {
+                            FileRelocationMode::Copy | FileRelocationMode::Move => {
+                                subtitle.path.parent() != video.path.parent()
+                            }
+                            FileRelocationMode::None => false,
+                        };
+                        let relocation_target_path = if requires_relocation {
+                            let base = video.path.parent().unwrap().to_path_buf();
+                            let dest = base.join(&new_name);
+                            Some(match self.config.conflict_resolution {
+                                ConflictResolution::AutoRename => resolve_filename_conflict(dest),
+                                ConflictResolution::Skip => {
+                                    if dest.exists() {
+                                        let ext_str = dest
+                                            .extension()
+                                            .and_then(|e| e.to_str())
+                                            .unwrap_or("")
+                                            .to_string();
+                                        dest.with_extension(ext_str)
+                                    } else {
+                                        dest
+                                    }
+                                }
+                                ConflictResolution::Prompt => dest,
+                            })
+                        } else {
+                            None
+                        };
                         operations.push(MatchOperation {
                             video_file: (*video).clone(),
                             subtitle_file: (*subtitle).clone(),
                             new_subtitle_name: new_name,
                             confidence: ai_match.confidence,
                             reasoning: ai_match.match_factors,
+                            relocation_mode: self.config.relocation_mode.clone(),
+                            requires_relocation,
+                            relocation_target_path,
                         });
                     }
                     (None, Some(_)) => {
@@ -534,12 +600,50 @@ impl MatchEngine {
     ) -> Result<()> {
         for op in operations {
             if dry_run {
+                // Preview rename and relocation operations
                 println!(
                     "Preview: {} -> {}",
                     op.subtitle_file.name, op.new_subtitle_name
                 );
+                if op.requires_relocation {
+                    if let Some(target) = &op.relocation_target_path {
+                        match op.relocation_mode {
+                            FileRelocationMode::Copy => {
+                                println!(" → Copy to: {}", target.display())
+                            }
+                            FileRelocationMode::Move => {
+                                println!(" → Move to: {}", target.display())
+                            }
+                            _ => {}
+                        }
+                    }
+                }
             } else {
+                // Rename subtitle file first (with optional backup)
                 self.rename_file(op).await?;
+                // Perform relocation if required
+                if op.requires_relocation {
+                    let source = op.subtitle_file.path.with_file_name(&op.new_subtitle_name);
+                    if let Some(target) = &op.relocation_target_path {
+                        // Backup existing target if enabled
+                        if self.config.backup_enabled && target.exists() {
+                            let bak = target.with_extension(format!(
+                                "{}.backup",
+                                target.extension().and_then(|e| e.to_str()).unwrap_or("")
+                            ));
+                            std::fs::copy(target, bak)?;
+                        }
+                        match op.relocation_mode {
+                            FileRelocationMode::Copy => {
+                                std::fs::copy(&source, target)?;
+                            }
+                            FileRelocationMode::Move => {
+                                std::fs::rename(&source, target)?;
+                            }
+                            _ => {}
+                        }
+                    }
+                }
             }
         }
         Ok(())
@@ -621,6 +725,9 @@ impl MatchEngine {
                             new_subtitle_name: item.new_subtitle_name.clone(),
                             confidence: item.confidence,
                             reasoning: item.reasoning.clone(),
+                            relocation_mode: self.config.relocation_mode.clone(),
+                            requires_relocation: false,
+                            relocation_target_path: None,
                         });
                     }
                 }

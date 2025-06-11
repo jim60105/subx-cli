@@ -110,7 +110,7 @@ wiremock = "0.6"
 criterion = { version = "0.6.0", features = ["html_reports"] }
 
 [[bin]]
-name = "subx-cli"
+name = "subx"
 path = "src/main.rs"
 
 [[bench]]

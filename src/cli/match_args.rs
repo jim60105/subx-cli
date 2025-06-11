@@ -91,7 +91,7 @@ pub struct MatchArgs {
     pub copy: bool,
 
     /// Move matched subtitle files to the same folder as their corresponding video files.
-    #[arg(long, short = 'm')]
+    #[arg(long, short = 'm', alias = "move")]
     pub move_files: bool,
 }
 
