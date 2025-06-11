@@ -22,7 +22,7 @@
 //! ```rust
 //! use subx_cli::cli::table::{MatchDisplayRow, create_match_table};
 //!
-//! // 每個匹配結果拆分為多行顯示：影片、字幕與新檔名
+//! // Each match result is split into multiple lines for display: video, subtitle and new name
 //! let rows = vec![
 //!     MatchDisplayRow {
 //!         status: "✓".to_string(),
@@ -73,33 +73,33 @@ use tabled::{Table, Tabled};
 /// ```rust
 /// use subx_cli::cli::table::MatchDisplayRow;
 ///
-/// // 成功匹配
+/// // Successfully matched
 /// let success_row = MatchDisplayRow {
 ///     status: "✓".to_string(),
 ///     filename: "Video 1: Movie.2023.1080p.BluRay.mp4".to_string(),
 /// };
 ///
-/// // 低信心匹配
+/// // Low confidence match
 /// let warning_row = MatchDisplayRow {
 ///     status: "⚠".to_string(),
 ///     filename: "Video 2: Episode.S01E01.mkv".to_string(),
 /// };
 ///
-/// // 匹配失敗示例只需展示狀態
+/// // Match failure example shows only status
 /// let error_row = MatchDisplayRow {
 ///     status: "✗".to_string(),
 ///     filename: String::new(),
 /// };
 /// ```
 #[derive(Tabled)]
-/// Match 結果表格列，用於顯示狀態與相關檔案資訊的垂直布局
+/// Match result table row for displaying status and related file information in vertical layout
 pub struct MatchDisplayRow {
-    /// 處理狀態視覺圖示（✓、🔍、⚠、✗）
-    #[tabled(rename = "狀態")]
+    /// Processing status visual indicator (✓, 🔍, ⚠, ✗)
+    #[tabled(rename = "Status")]
     pub status: String,
 
-    /// 影片檔案、字幕檔案與新檔名的垂直堆疊資訊
-    #[tabled(rename = "檔案名稱")]
+    /// Video file, subtitle file and new filename stacked vertically
+    #[tabled(rename = "Filename")]
     pub filename: String,
 }
 
@@ -131,7 +131,7 @@ pub struct MatchDisplayRow {
 /// ```rust
 /// use subx_cli::cli::table::{MatchDisplayRow, create_match_table};
 ///
-/// // 多行顯示多個匹配結果
+/// // Multi-line display of multiple match results
 /// let results = vec![
 ///     MatchDisplayRow { status: "✓".to_string(), filename: "Video 1: Movie.mp4".to_string() },
 ///     MatchDisplayRow { status: "".to_string(), filename: "├ Subtitle 1: sub123.srt".to_string() },

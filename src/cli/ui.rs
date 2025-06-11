@@ -291,7 +291,7 @@ pub fn display_match_results(results: &[MatchOperation], is_dry_run: bool) {
     }
     println!();
 
-    // 將每個匹配結果拆分為三行：影片、字幕與新檔名
+    // Split each match result into three lines: video, subtitle and new name
     let rows: Vec<MatchDisplayRow> = results
         .iter()
         .enumerate()
