@@ -408,6 +408,8 @@ Input: Media Folder
 └─────────────────┘
 ```
 
+> **注意**：字幕檔案重命名時會移除原影片檔案的副檔名，僅保留檔案基礎名稱與字幕副檔名。例如，若影片為 `movie.mkv`，匹配後的字幕檔將命名為 `movie.tc.srt` 而非 `movie.mkv.tc.srt`。
+
 ### 2. Sync 工作流程
 ```
 Input: Video + Subtitle

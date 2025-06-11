@@ -159,6 +159,105 @@ mod language_name_tests {
         let new_name = engine.generate_subtitle_name(&video, &subtitle);
         assert_eq!(new_name, "movie03.ass");
     }
+    #[test]
+    fn test_generate_subtitle_name_removes_video_extension() {
+        let engine = MatchEngine::new(
+            Box::new(DummyAI),
+            MatchConfig {
+                confidence_threshold: 0.0,
+                max_sample_length: 0,
+                enable_content_analysis: false,
+                backup_enabled: false,
+            },
+        );
+        let video = MediaFile {
+            id: "".to_string(),
+            relative_path: "".to_string(),
+            path: PathBuf::from("movie.mkv"),
+            file_type: MediaFileType::Video,
+            size: 0,
+            name: "movie.mkv".to_string(),
+            extension: "mkv".to_string(),
+        };
+        let subtitle = MediaFile {
+            id: "".to_string(),
+            relative_path: "".to_string(),
+            path: PathBuf::from("subtitle.srt"),
+            file_type: MediaFileType::Subtitle,
+            size: 0,
+            name: "subtitle".to_string(),
+            extension: "srt".to_string(),
+        };
+        let new_name = engine.generate_subtitle_name(&video, &subtitle);
+        assert_eq!(new_name, "movie.srt");
+    }
+
+    #[test]
+    fn test_generate_subtitle_name_with_language_removes_video_extension() {
+        let engine = MatchEngine::new(
+            Box::new(DummyAI),
+            MatchConfig {
+                confidence_threshold: 0.0,
+                max_sample_length: 0,
+                enable_content_analysis: false,
+                backup_enabled: false,
+            },
+        );
+        let video = MediaFile {
+            id: "".to_string(),
+            relative_path: "".to_string(),
+            path: PathBuf::from("movie.mkv"),
+            file_type: MediaFileType::Video,
+            size: 0,
+            name: "movie.mkv".to_string(),
+            extension: "mkv".to_string(),
+        };
+        let subtitle = MediaFile {
+            id: "".to_string(),
+            relative_path: "".to_string(),
+            path: PathBuf::from("tc/subtitle.srt"),
+            file_type: MediaFileType::Subtitle,
+            size: 0,
+            name: "subtitle".to_string(),
+            extension: "srt".to_string(),
+        };
+        let new_name = engine.generate_subtitle_name(&video, &subtitle);
+        assert_eq!(new_name, "movie.tc.srt");
+    }
+
+    #[test]
+    fn test_generate_subtitle_name_edge_cases() {
+        let engine = MatchEngine::new(
+            Box::new(DummyAI),
+            MatchConfig {
+                confidence_threshold: 0.0,
+                max_sample_length: 0,
+                enable_content_analysis: false,
+                backup_enabled: false,
+            },
+        );
+        // 檔案名稱包含多個點且無副檔名情況
+        let video = MediaFile {
+            id: "".to_string(),
+            relative_path: "".to_string(),
+            path: PathBuf::from("a.b.c"),
+            file_type: MediaFileType::Video,
+            size: 0,
+            name: "a.b.c".to_string(),
+            extension: "".to_string(),
+        };
+        let subtitle = MediaFile {
+            id: "".to_string(),
+            relative_path: "".to_string(),
+            path: PathBuf::from("sub.srt"),
+            file_type: MediaFileType::Subtitle,
+            size: 0,
+            name: "sub".to_string(),
+            extension: "srt".to_string(),
+        };
+        let new_name = engine.generate_subtitle_name(&video, &subtitle);
+        assert_eq!(new_name, "a.b.c.srt");
+    }
 }
 
 /// Match operation result representing a single video-subtitle match.
@@ -367,10 +466,21 @@ impl MatchEngine {
 
     fn generate_subtitle_name(&self, video: &MediaFile, subtitle: &MediaFile) -> String {
         let detector = LanguageDetector::new();
-        if let Some(code) = detector.get_primary_language(&subtitle.path) {
-            format!("{}.{}.{}", video.name, code, subtitle.extension)
+
+        // 從影片檔案名稱中移除副檔名（如果有）
+        let video_base_name = if !video.extension.is_empty() {
+            video
+                .name
+                .strip_suffix(&format!(".{}", video.extension))
+                .unwrap_or(&video.name)
         } else {
-            format!("{}.{}", video.name, subtitle.extension)
+            &video.name
+        };
+
+        if let Some(code) = detector.get_primary_language(&subtitle.path) {
+            format!("{}.{}.{}", video_base_name, code, subtitle.extension)
+        } else {
+            format!("{}.{}", video_base_name, subtitle.extension)
         }
     }
 
