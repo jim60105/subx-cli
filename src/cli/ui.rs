@@ -291,24 +291,30 @@ pub fn display_match_results(results: &[MatchOperation], is_dry_run: bool) {
     }
     println!();
 
+    // 將每個匹配結果拆分為三行：影片、字幕與新檔名
     let rows: Vec<MatchDisplayRow> = results
         .iter()
         .enumerate()
-        .map(|(i, op)| {
+        .flat_map(|(i, op)| {
             let idx = i + 1;
             let video = op.video_file.path.to_string_lossy();
             let subtitle = op.subtitle_file.path.to_string_lossy();
-            let new_name_str = &op.new_subtitle_name;
-            MatchDisplayRow {
-                status: if is_dry_run {
-                    "🔍 Preview".yellow().to_string()
-                } else {
-                    "✅ Complete".green().to_string()
+            let new_name = &op.new_subtitle_name;
+            let status_symbol = if is_dry_run { "🔍" } else { "✓" };
+            vec![
+                MatchDisplayRow {
+                    status: status_symbol.to_string(),
+                    filename: format!("Video {}: {}", idx, video),
                 },
-                video_file: format!("Video file {}\n{}", idx, video),
-                subtitle_file: format!("Subtitle file {}\n{}", idx, subtitle),
-                new_name: format!("New name {}\n{}", idx, new_name_str),
-            }
+                MatchDisplayRow {
+                    status: String::new(),
+                    filename: format!("├ Subtitle {}: {}", idx, subtitle),
+                },
+                MatchDisplayRow {
+                    status: String::new(),
+                    filename: format!("└ New name {}: {}", idx, new_name),
+                },
+            ]
         })
         .collect();
 
@@ -326,14 +332,23 @@ mod tests {
 
     #[test]
     fn test_match_table_display() {
-        let rows = vec![MatchDisplayRow {
-            status: "✅ Complete".to_string(),
-            video_file: "movie1.mp4".to_string(),
-            subtitle_file: "subtitle1.srt".to_string(),
-            new_name: "movie1.srt".to_string(),
-        }];
-
+        let rows = vec![
+            MatchDisplayRow {
+                status: "✓".to_string(),
+                filename: "Video 1: movie1.mp4".to_string(),
+            },
+            MatchDisplayRow {
+                status: String::new(),
+                filename: "├ Subtitle 1: subtitle1.srt".to_string(),
+            },
+            MatchDisplayRow {
+                status: String::new(),
+                filename: "└ New name 1: movie1.srt".to_string(),
+            },
+        ];
         let table = create_match_table(rows);
-        assert!(table.contains("movie1.mp4"));
+        assert!(table.contains("Video 1: movie1.mp4"));
+        assert!(table.contains("Subtitle 1: subtitle1.srt"));
+        assert!(table.contains("New name 1: movie1.srt"));
     }
 }
