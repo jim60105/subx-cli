@@ -7,6 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.0] - 2025-06-11
+### Added
+- Added: Redesigned match table layout with status symbols and tree structure for improved visual organization.
+- Added: Vertical multiline format display replacing the horizontal 4-column layout.
+- Added: Status symbols (✓ for successful matches, 🔍 for dry-run preview) for better visual feedback.
+- Added: Tree structure with ├ and └ symbols for visual grouping of related files.
+- Added: Complete file path display without truncation for better readability.
+
+### Changed
+- Changed: Translated all Chinese documentation to English for consistency with project standards.
+- Changed: Improved match table layout from 4-column horizontal to 2-column vertical design.
+- Changed: Enhanced readability especially for long file paths through better visual hierarchy.
+
+### Fixed
+- Fixed: Subtitle filename issue where video file extensions were incorrectly retained in renamed files.
+- Fixed: Added comprehensive unit tests for extension removal and edge cases.
+
 ## [0.3.0] - 2025-06-11
 ### Added
 - Added: Comprehensive test infrastructure optimization with CLITestHelper, TestFileManager, OutputValidator, AudioMockGenerator, and SubtitleGenerator utilities.
@@ -85,7 +102,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Initial release of SubX CLI tool
 - Rust-based intelligent subtitle processing
 
-[Unreleased]: https://github.com/SubX-Project/SubX/compare/v0.3.0...HEAD
+[Unreleased]: https://github.com/SubX-Project/SubX/compare/v0.4.0...HEAD
+[0.4.0]: https://github.com/SubX-Project/SubX/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/SubX-Project/SubX/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/SubX-Project/SubX/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/SubX-Project/SubX/releases/tag/v0.1.0
