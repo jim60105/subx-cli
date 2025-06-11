@@ -5,12 +5,14 @@ use tempfile::TempDir;
 use toml;
 
 /// Test media file generator
+#[allow(dead_code)]
 pub struct TestMediaGenerator {
     pub temp_dir: TempDir,
 }
 
 impl TestMediaGenerator {
     /// Create a new temporary directory as test workspace
+    #[allow(dead_code)]
     pub fn new() -> Self {
         Self {
             temp_dir: TempDir::new().unwrap(),
@@ -18,11 +20,13 @@ impl TestMediaGenerator {
     }
 
     /// Get the temporary directory path
+    #[allow(dead_code)]
     pub fn path(&self) -> &Path {
         self.temp_dir.path()
     }
 
     /// Create test SRT subtitle file
+    #[allow(dead_code)]
     pub fn create_srt_file(&self, name: &str, entries: &[(&str, &str, &str)]) -> PathBuf {
         let mut content = String::new();
         for (i, (start, end, text)) in entries.iter().enumerate() {
@@ -34,6 +38,7 @@ impl TestMediaGenerator {
     }
 
     /// Create test video file (empty file)
+    #[allow(dead_code)]
     pub fn create_video_file(&self, name: &str, extension: &str) -> PathBuf {
         let path = self.path().join(format!("{}.{}", name, extension));
         fs::write(&path, b"").unwrap();
@@ -41,6 +46,7 @@ impl TestMediaGenerator {
     }
 
     /// Create test configuration file
+    #[allow(dead_code)]
     pub fn create_config_file(&self, config: &subx_cli::config::Config) -> PathBuf {
         let content = toml::to_string_pretty(config).unwrap();
         let path = self.path().join("config.toml");
@@ -50,9 +56,11 @@ impl TestMediaGenerator {
 }
 
 /// Test AI response simulator
+#[allow(dead_code)]
 pub struct MockAIResponses;
 
 impl MockAIResponses {
+    #[allow(dead_code)]
     pub fn successful_match_response() -> serde_json::Value {
         serde_json::json!({
             "matches": [
@@ -68,6 +76,7 @@ impl MockAIResponses {
         })
     }
 
+    #[allow(dead_code)]
     pub fn low_confidence_response() -> serde_json::Value {
         serde_json::json!({
             "matches": [
@@ -83,6 +92,7 @@ impl MockAIResponses {
         })
     }
 
+    #[allow(dead_code)]
     pub fn no_match_response() -> serde_json::Value {
         serde_json::json!({
             "matches": [],
@@ -115,7 +125,13 @@ pub mod mock_generators;
 pub mod validators;
 
 // Re-export commonly used types for convenience
-pub use cli_helpers::{CLITestHelper, CommandResult};
+#[allow(unused_imports)]
+pub use cli_helpers::CLITestHelper;
+#[allow(unused_imports)]
+pub use cli_helpers::CommandResult;
+#[allow(unused_imports)]
 pub use file_managers::TestFileManager;
+#[allow(unused_imports)]
 pub use mock_generators::{AudioMetadata, AudioMockGenerator, SubtitleFormat, SubtitleGenerator};
+#[allow(unused_imports)]
 pub use validators::{OutputValidator, ValidationResult};

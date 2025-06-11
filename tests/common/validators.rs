@@ -35,11 +35,13 @@ impl ValidationResult {
     }
 
     /// 取得成功項目
+    #[allow(dead_code)]
     pub fn successes(&self) -> &[String] {
         &self.successes
     }
 
     /// 取得失敗項目
+    #[allow(dead_code)]
     pub fn failures(&self) -> &[String] {
         &self.failures
     }
@@ -122,11 +124,13 @@ impl OutputValidator {
     }
 
     /// 拒絕包含特定字串
+    #[allow(dead_code)]
     pub fn reject_contains(self, text: &str) -> Self {
         self.reject_pattern(&regex::escape(text))
     }
 
     /// 期望行數
+    #[allow(dead_code)]
     pub fn expect_line_count(self, count: usize) -> Self {
         self.expect_pattern(&format!(r"^(?:[^\n]*\n){{{count}}}[^\n]*$", count = count))
     }

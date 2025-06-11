@@ -35,6 +35,7 @@ impl CLITestHelper {
     }
 
     /// Create a CLI test helper with custom configuration service.
+    #[allow(dead_code)]
     pub fn with_config_service(config_service: Arc<dyn ConfigService>) -> Self {
         let temp_dir = TempDir::new().expect("Failed to create temporary directory");
 
@@ -58,6 +59,7 @@ impl CLITestHelper {
     }
 
     /// Create a CLI test helper with sync settings.
+    #[allow(dead_code)]
     pub fn with_sync_settings(correlation_threshold: f32, max_offset: f32) -> Self {
         let temp_dir = TempDir::new().expect("Failed to create temporary directory");
         let config_service = Arc::new(TestConfigService::with_sync_settings(
@@ -188,6 +190,7 @@ preserve_styling = false
     }
 
     /// Create a test subtitle file with specific content.
+    #[allow(dead_code)]
     pub async fn create_subtitle_file(&mut self, filename: &str, content: &str) -> Result<PathBuf> {
         let file_path = self.temp_dir.path().join(filename);
         fs::write(&file_path, content).await?;
@@ -196,6 +199,7 @@ preserve_styling = false
     }
 
     /// Create a test video file.
+    #[allow(dead_code)]
     pub async fn create_video_file(&mut self, filename: &str) -> Result<PathBuf> {
         let file_path = self.temp_dir.path().join(filename);
         fs::write(&file_path, b"dummy video content").await?;
@@ -216,6 +220,7 @@ preserve_styling = false
 }
 
 /// Command execution result for testing.
+#[allow(dead_code)]
 #[derive(Debug, Clone)]
 pub struct CommandResult {
     pub success: bool,
@@ -226,6 +231,7 @@ pub struct CommandResult {
 
 impl CLITestHelper {
     /// Execute a command with the test configuration.
+    #[allow(dead_code)]
     pub async fn run_command_with_config(&self, args: &[&str]) -> CommandResult {
         use std::process::Command;
 
@@ -258,6 +264,7 @@ impl CLITestHelper {
     }
 
     /// Execute a command and assert it succeeds.
+    #[allow(dead_code)]
     pub async fn run_command_expect_success(&self, args: &[&str]) -> CommandResult {
         let result = self.run_command_with_config(args).await;
         if !result.success {
@@ -270,6 +277,7 @@ impl CLITestHelper {
     }
 
     /// Assert that a command result was successful.
+    #[allow(dead_code)]
     pub fn assert_command_success(&self, result: &CommandResult) {
         if !result.success {
             panic!(
@@ -280,6 +288,7 @@ impl CLITestHelper {
     }
 
     /// Assert that a command result failed.
+    #[allow(dead_code)]
     pub fn assert_command_failure(&self, result: &CommandResult) {
         if result.success {
             panic!(
@@ -405,6 +414,7 @@ impl ValidationResult {
     }
 
     /// Get a summary of the validation result.
+    #[allow(dead_code)]
     pub fn summary(&self) -> String {
         format!(
             "Validation: {} successes, {} failures",

@@ -24,6 +24,7 @@ pub async fn create_test_processing_tasks(count: usize) -> Vec<Box<dyn Task + Se
 
 /// Create CPU-intensive tasks (simulate workload via sleep)
 /// 建立 CPU 密集型任務（透過睡眠模擬工作負載）
+#[allow(dead_code)]
 pub async fn create_cpu_intensive_tasks(count: usize) -> Vec<Box<dyn Task + Send + Sync>> {
     let mut tasks: Vec<Box<dyn Task + Send + Sync>> = Vec::new();
     for _ in 0..count {
@@ -48,6 +49,7 @@ pub async fn create_cpu_intensive_tasks(count: usize) -> Vec<Box<dyn Task + Send
 
 /// Create a simple successful task for testing error recovery
 /// 建立簡單的成功任務用於測試錯誤恢復
+#[allow(dead_code)]
 pub fn create_success_task() -> Box<dyn Task + Send + Sync> {
     struct SuccessTask;
     #[async_trait]
@@ -67,6 +69,7 @@ pub fn create_success_task() -> Box<dyn Task + Send + Sync> {
 
 /// Create a task that fails for testing error recovery
 /// 建立失敗任務用於測試錯誤恢復
+#[allow(dead_code)]
 pub fn create_failure_task() -> Box<dyn Task + Send + Sync> {
     struct FailTask;
     #[async_trait]
@@ -86,6 +89,7 @@ pub fn create_failure_task() -> Box<dyn Task + Send + Sync> {
 
 /// Create tasks with implicit priority for scheduler testing
 /// 建立具有隱含優先順序的任務用於調度器測試
+#[allow(dead_code)]
 pub async fn create_prioritized_tasks() -> Vec<Box<dyn Task + Send + Sync>> {
     // Use same generic tasks; priority simulation is done in tests
     // 使用相同的通用任務；優先順序模擬在測試中完成
@@ -94,6 +98,7 @@ pub async fn create_prioritized_tasks() -> Vec<Box<dyn Task + Send + Sync>> {
 
 /// Verify basic task execution results
 /// 驗證基本任務執行結果
+#[allow(dead_code)]
 pub fn verify_task_results(results: &[TaskResult]) -> bool {
     results.iter().all(|r| matches!(r, TaskResult::Success(_)))
 }

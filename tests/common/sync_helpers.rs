@@ -4,6 +4,7 @@ use tokio::fs;
 
 /// Create mock audio file for tests
 /// 建立測試用的模擬音訊檔案
+#[allow(dead_code)]
 pub async fn create_test_audio_with_dialogue() -> PathBuf {
     let temp_dir = TempDir::new().unwrap();
     let path = temp_dir.path().join("dialogue.wav");
@@ -15,6 +16,7 @@ pub async fn create_test_audio_with_dialogue() -> PathBuf {
 }
 
 /// Create an SRT file with audio delay alignment (example: 1.5s delay)
+#[allow(dead_code)]
 pub async fn create_misaligned_subtitle_file() -> PathBuf {
     let temp_dir = TempDir::new().unwrap();
     let path = temp_dir.path().join("misaligned.srt");
@@ -31,6 +33,7 @@ Second dialogue (1.5 seconds delay)
 }
 
 /// Create perfectly synced test pair (audio and subtitle)
+#[allow(dead_code)]
 pub async fn create_well_synced_pair() -> (PathBuf, PathBuf) {
     let audio = create_test_audio_with_dialogue().await;
     let temp_dir = TempDir::new().unwrap();
@@ -48,6 +51,7 @@ Dialogue segment 2
 }
 
 /// Create severely misaligned test pair (audio and subtitle)
+#[allow(dead_code)]
 pub async fn create_poorly_synced_pair() -> (PathBuf, PathBuf) {
     let audio = create_test_audio_with_dialogue().await;
     let temp_dir = TempDir::new().unwrap();
@@ -61,6 +65,7 @@ Incorrect delay dialogue
 }
 
 /// Create audio samples with energy pattern for energy analyzer testing
+#[allow(dead_code)]
 pub fn create_test_audio_samples_with_pattern() -> Vec<f32> {
     let mut samples = Vec::new();
     // Alternating silence and high-energy segments

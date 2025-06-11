@@ -18,6 +18,7 @@ pub struct DialogueSegment {
 pub struct AudioMetadata {
     pub duration: f64,
     pub sample_rate: u32,
+    #[allow(dead_code)]
     pub channels: u32,
     pub dialogue_segments: Vec<DialogueSegment>,
 }
@@ -46,6 +47,7 @@ impl AudioMockGenerator {
     }
 
     /// 設定聲道數
+    #[allow(dead_code)]
     pub fn with_channels(mut self, channels: u32) -> Self {
         self.channels = channels;
         self
@@ -89,6 +91,7 @@ impl AudioMockGenerator {
     }
 
     /// 產生純音樂音訊檔案（無對話）
+    #[allow(dead_code)]
     pub async fn generate_music_audio(&self, path: &Path) -> Result<AudioMetadata> {
         // 生成純音樂音訊（無對話）
         let samples = self.generate_sine_wave(440.0); // A4 音符
@@ -103,6 +106,7 @@ impl AudioMockGenerator {
     }
 
     /// 產生靜音音訊檔案
+    #[allow(dead_code)]
     pub async fn generate_silence_audio(&self, path: &Path) -> Result<AudioMetadata> {
         let samples = vec![0.0; (self.sample_rate as f64 * self.duration) as usize];
         self.write_wav_file(path, &samples).await?;
@@ -145,6 +149,7 @@ impl AudioMockGenerator {
     }
 
     /// 產生正弦波
+    #[allow(dead_code)]
     fn generate_sine_wave(&self, frequency: f64) -> Vec<f32> {
         let total_samples = (self.sample_rate as f64 * self.duration) as usize;
         let mut samples = Vec::with_capacity(total_samples);
@@ -207,10 +212,13 @@ impl AudioMockGenerator {
 }
 
 /// 字幕格式
+#[allow(dead_code)]
 #[derive(Debug, Clone, Copy)]
 pub enum SubtitleFormat {
     Srt,
+    #[allow(dead_code)]
     Ass,
+    #[allow(dead_code)]
     Vtt,
 }
 
@@ -226,6 +234,7 @@ pub struct SubtitleEntry {
 pub struct SubtitleGenerator {
     format: SubtitleFormat,
     entries: Vec<SubtitleEntry>,
+    #[allow(dead_code)]
     encoding: String,
 }
 
@@ -240,6 +249,7 @@ impl SubtitleGenerator {
     }
 
     /// 設定編碼
+    #[allow(dead_code)]
     pub fn with_encoding(mut self, encoding: &str) -> Self {
         self.encoding = encoding.to_string();
         self
@@ -256,6 +266,7 @@ impl SubtitleGenerator {
     }
 
     /// 產生典型電影字幕
+    #[allow(dead_code)]
     pub fn generate_typical_movie(mut self) -> Self {
         // 生成典型電影字幕模式
         let dialogues = vec![
@@ -275,6 +286,7 @@ impl SubtitleGenerator {
     }
 
     /// 產生測試用短字幕
+    #[allow(dead_code)]
     pub fn generate_short_test(mut self) -> Self {
         let dialogues = vec![(1.0, 3.0, "測試字幕 1"), (4.0, 6.0, "測試字幕 2")];
 
