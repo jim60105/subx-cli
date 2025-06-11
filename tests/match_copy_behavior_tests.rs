@@ -1,0 +1,79 @@
+//! Integration tests for copy mode behavior ensuring original files are preserved.
+
+use std::fs;
+use subx_cli::cli::MatchArgs;
+use subx_cli::commands::match_command;
+use subx_cli::config::TestConfigBuilder;
+use tempfile::TempDir;
+
+#[tokio::test]
+#[ignore]
+async fn test_copy_mode_preserves_original_file() {
+    let temp_dir = TempDir::new().unwrap();
+    let root = temp_dir.path();
+    let video_dir = root.join("videos");
+    let subtitle_dir = root.join("subtitles");
+    fs::create_dir_all(&video_dir).unwrap();
+    fs::create_dir_all(&subtitle_dir).unwrap();
+
+    fs::write(video_dir.join("movie.mp4"), "video").unwrap();
+    let subtitle_path = subtitle_dir.join("sub.srt");
+    fs::write(&subtitle_path, b"content").unwrap();
+
+    let args = MatchArgs {
+        path: root.to_path_buf(),
+        dry_run: false,
+        recursive: true,
+        confidence: 80,
+        backup: false,
+        copy: true,
+        move_files: false,
+    };
+    let config_service = TestConfigBuilder::new()
+        .with_ai_api_key("test-key")
+        .build_service();
+    match_command::execute(args, &config_service).await.unwrap();
+
+    let target = video_dir.join("movie.srt");
+    assert!(subtitle_path.exists(), "原始檔案應保留");
+    assert!(target.exists(), "目標位置應有副本");
+    assert_eq!(
+        fs::read(&subtitle_path).unwrap(),
+        fs::read(&target).unwrap(),
+        "副本內容應與原始一致"
+    );
+}
+
+#[tokio::test]
+#[ignore]
+async fn test_copy_mode_with_rename() {
+    let temp_dir = TempDir::new().unwrap();
+    let root = temp_dir.path();
+    let video_dir = root.join("videos");
+    let subtitle_dir = root.join("subtitles");
+    fs::create_dir_all(&video_dir).unwrap();
+    fs::create_dir_all(&subtitle_dir).unwrap();
+
+    fs::write(video_dir.join("movie.mp4"), "video").unwrap();
+    let subtitle_path = subtitle_dir.join("sub.srt");
+    fs::write(&subtitle_path, b"content").unwrap();
+
+    let args = MatchArgs {
+        path: root.to_path_buf(),
+        dry_run: false,
+        recursive: true,
+        confidence: 80,
+        backup: false,
+        copy: true,
+        move_files: false,
+    };
+    let config_service = TestConfigBuilder::new()
+        .with_ai_api_key("test-key")
+        .build_service();
+    match_command::execute(args, &config_service).await.unwrap();
+
+    let renamed_original = subtitle_dir.join("movie.srt");
+    let copied = video_dir.join("movie.srt");
+    assert!(renamed_original.exists(), "原始檔案應重新命名");
+    assert!(copied.exists(), "目標位置應有副本");
+}

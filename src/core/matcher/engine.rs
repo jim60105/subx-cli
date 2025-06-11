@@ -807,12 +807,23 @@ impl MatchEngine {
                     }
                 }
             } else {
-                // Execute rename operation
-                self.rename_file(op).await?;
-
-                // Execute relocation operation if needed
-                if op.requires_relocation {
-                    self.execute_relocation_operation(op).await?;
+                match op.relocation_mode {
+                    FileRelocationMode::Copy => {
+                        if op.requires_relocation {
+                            self.execute_copy_then_rename(op).await?;
+                        } else {
+                            self.rename_file(op).await?;
+                        }
+                    }
+                    FileRelocationMode::Move => {
+                        self.rename_file(op).await?;
+                        if op.requires_relocation {
+                            self.execute_relocation_operation(op).await?;
+                        }
+                    }
+                    FileRelocationMode::None => {
+                        self.rename_file(op).await?;
+                    }
                 }
             }
         }
@@ -947,6 +958,50 @@ impl MatchEngine {
             }
         }
 
+        Ok(())
+    }
+
+    /// Execute copy operation followed by rename of the copied file
+    async fn execute_copy_then_rename(&self, op: &MatchOperation) -> Result<()> {
+        if let Some(target_path) = &op.relocation_target_path {
+            // Resolve filename conflicts
+            let final_target = self.resolve_filename_conflict(target_path.clone())?;
+            if let Some(parent) = final_target.parent() {
+                std::fs::create_dir_all(parent)?;
+            }
+            // Backup if enabled
+            if self.config.backup_enabled && final_target.exists() {
+                let backup_path = final_target.with_extension(format!(
+                    "{}.backup",
+                    final_target
+                        .extension()
+                        .and_then(|s| s.to_str())
+                        .unwrap_or("")
+                ));
+                std::fs::copy(&final_target, backup_path)?;
+            }
+            // Copy original subtitle to target
+            std::fs::copy(&op.subtitle_file.path, &final_target)?;
+            // Rename original file if needed
+            if op.new_subtitle_name != op.subtitle_file.name {
+                let renamed_original = op.subtitle_file.path.with_file_name(&op.new_subtitle_name);
+                std::fs::rename(&op.subtitle_file.path, &renamed_original)?;
+                if renamed_original.exists() {
+                    println!(
+                        "  ✓ Renamed: {} -> {}",
+                        op.subtitle_file.name, op.new_subtitle_name
+                    );
+                }
+            }
+            // Display copy operation result
+            if final_target.exists() {
+                println!(
+                    "  ✓ Copied: {} -> {}",
+                    op.subtitle_file.path.file_name().unwrap().to_string_lossy(),
+                    final_target.file_name().unwrap().to_string_lossy()
+                );
+            }
+        }
         Ok(())
     }
 
@@ -1087,6 +1142,17 @@ impl MatchEngine {
                                 && matches!(f.file_type, MediaFileType::Subtitle)
                         }),
                     ) {
+                        // 重新計算重定位需求（基於當前配置）
+                        let requires_relocation = self.config.relocation_mode
+                            != FileRelocationMode::None
+                            && subtitle.path.parent() != video.path.parent();
+                        let relocation_target_path = if requires_relocation {
+                            let video_dir = video.path.parent().unwrap();
+                            Some(video_dir.join(&item.new_subtitle_name))
+                        } else {
+                            None
+                        };
+
                         ops.push(MatchOperation {
                             video_file: (*video).clone(),
                             subtitle_file: (*subtitle).clone(),
@@ -1094,8 +1160,8 @@ impl MatchEngine {
                             confidence: item.confidence,
                             reasoning: item.reasoning.clone(),
                             relocation_mode: self.config.relocation_mode.clone(),
-                            relocation_target_path: None, // Cache doesn't store relocation paths
-                            requires_relocation: false,   // Will be recalculated if needed
+                            relocation_target_path,
+                            requires_relocation,
                         });
                     }
                 }
@@ -1131,6 +1197,9 @@ impl MatchEngine {
                 .map(|d| d.as_secs())
                 .unwrap_or(0),
             ai_model_used: self.calculate_config_hash()?,
+            // 記錄產生 cache 時的重定位模式與備份設定
+            original_relocation_mode: format!("{:?}", self.config.relocation_mode),
+            original_backup_enabled: self.config.backup_enabled,
             config_hash: self.calculate_config_hash()?,
         };
         let path = self.get_cache_file_path()?;
