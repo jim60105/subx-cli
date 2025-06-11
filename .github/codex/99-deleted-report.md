@@ -3,6 +3,8 @@ title: "Job Report: Backlog #25 - Match Command Copy/Move Logic and Tests"
 date: "2025-06-11T17:14:30Z"
 ---
 
+> ! This work has been reverted.
+
 # Backlog #25 - Match Command Copy/Move Logic and Tests 工作報告
 
 **日期**：2025-06-11T17:14:30Z  
