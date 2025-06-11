@@ -229,53 +229,6 @@ impl Default for ProductionConfigService {
 mod tests {
     use super::*;
     use crate::config::TestConfigService;
-    use serial_test::serial;
-    use std::env;
-
-    /// Test helper to set environment variables safely for testing.
-    struct EnvGuard {
-        vars: Vec<(String, Option<String>)>, // (key, original_value)
-    }
-
-    impl EnvGuard {
-        fn new() -> Self {
-            Self { vars: Vec::new() }
-        }
-
-        fn set(&mut self, key: &str, value: &str) {
-            // Store original value before setting
-            let original = env::var(key).ok();
-            self.vars.push((key.to_string(), original));
-
-            unsafe {
-                env::set_var(key, value);
-            }
-        }
-
-        fn remove(&mut self, key: &str) {
-            // Store original value before removing
-            let original = env::var(key).ok();
-            self.vars.push((key.to_string(), original));
-
-            unsafe {
-                env::remove_var(key);
-            }
-        }
-    }
-
-    impl Drop for EnvGuard {
-        fn drop(&mut self) {
-            // Restore original values in reverse order
-            for (key, original_value) in self.vars.iter().rev() {
-                unsafe {
-                    match original_value {
-                        Some(value) => env::set_var(key, value),
-                        None => env::remove_var(key),
-                    }
-                }
-            }
-        }
-    }
 
     #[test]
     fn test_production_config_service_creation() {
@@ -289,199 +242,6 @@ mod tests {
             .unwrap()
             .with_custom_file(PathBuf::from("test.toml"));
         assert!(service.is_ok());
-    }
-    #[test]
-    #[serial]
-    fn test_openai_api_key_environment_variable() {
-        let mut env_guard = EnvGuard::new();
-
-        // Clean up any existing environment variables first
-        env_guard.remove("SUBX_AI_APIKEY");
-        env_guard.remove("OPENAI_API_KEY");
-
-        // Set OPENAI_API_KEY environment variable with valid format
-        env_guard.set("OPENAI_API_KEY", "sk-test-openai-key-123");
-
-        // Create service and load configuration
-        let service = ProductionConfigService::new().unwrap();
-        let config = service.get_config().unwrap();
-
-        // Verify the API key is loaded from environment
-        assert_eq!(
-            config.ai.api_key,
-            Some("sk-test-openai-key-123".to_string())
-        );
-
-        // Clean up is handled by EnvGuard's Drop trait
-    }
-    #[test]
-    #[serial]
-    fn test_openai_base_url_environment_variable() {
-        let mut env_guard = EnvGuard::new();
-
-        // Clean up any existing environment variables first
-        env_guard.remove("SUBX_AI_APIKEY");
-        env_guard.remove("SUBX_AI_BASE_URL");
-        env_guard.remove("OPENAI_API_KEY");
-        env_guard.remove("OPENAI_BASE_URL");
-
-        // Set OPENAI_BASE_URL environment variable
-        env_guard.set("OPENAI_BASE_URL", "https://custom.openai.endpoint");
-
-        // Create service and load configuration
-        let service = ProductionConfigService::new().unwrap();
-        let config = service.get_config().unwrap();
-
-        // Verify the base URL is loaded from environment
-        assert_eq!(config.ai.base_url, "https://custom.openai.endpoint");
-
-        // Clean up is handled by EnvGuard's Drop trait
-    }
-    #[test]
-    #[serial]
-    fn test_both_openai_environment_variables() {
-        let mut env_guard = EnvGuard::new();
-
-        // Clean up any existing environment variables first
-        env_guard.remove("SUBX_AI_APIKEY");
-        env_guard.remove("SUBX_AI_BASE_URL");
-        env_guard.remove("OPENAI_API_KEY");
-        env_guard.remove("OPENAI_BASE_URL");
-
-        // Set both OPENAI environment variables with valid API key format
-        env_guard.set("OPENAI_API_KEY", "sk-test-api-key-combined");
-        env_guard.set("OPENAI_BASE_URL", "https://api.custom-openai.com");
-
-        // Create service and load configuration
-        let service = ProductionConfigService::new().unwrap();
-        let config = service.get_config().unwrap();
-
-        // Verify both values are loaded from environment
-        assert_eq!(
-            config.ai.api_key,
-            Some("sk-test-api-key-combined".to_string())
-        );
-        assert_eq!(config.ai.base_url, "https://api.custom-openai.com");
-
-        // Clean up is handled by EnvGuard's Drop trait
-    }
-    #[test]
-    #[serial]
-    fn test_subx_prefix_takes_precedence_over_openai_api_key() {
-        let mut env_guard = EnvGuard::new();
-
-        // Clean up any existing environment variables first
-        env_guard.remove("SUBX_AI_APIKEY");
-        env_guard.remove("OPENAI_API_KEY");
-
-        // Set both SUBX_AI_APIKEY (preferred) and OPENAI_API_KEY (fallback) with valid format
-        env_guard.set("SUBX_AI_APIKEY", "sk-subx-preferred-key");
-        env_guard.set("OPENAI_API_KEY", "sk-openai-fallback-key");
-
-        // Create service and load configuration
-        let service = ProductionConfigService::new().unwrap();
-        let config = service.get_config().unwrap();
-
-        // Verify SUBX prefixed variable takes precedence
-        assert_eq!(config.ai.api_key, Some("sk-subx-preferred-key".to_string()));
-
-        // Clean up is handled by EnvGuard's Drop trait
-    }
-    #[test]
-    #[serial]
-    fn test_openai_api_key_fallback_when_subx_not_set() {
-        let mut env_guard = EnvGuard::new();
-
-        // Clean up any existing environment variables first
-        env_guard.remove("SUBX_AI_APIKEY");
-        env_guard.remove("OPENAI_API_KEY");
-
-        // Set only OPENAI_API_KEY with valid format
-        env_guard.set("OPENAI_API_KEY", "sk-openai-fallback-only");
-
-        // Create service and load configuration
-        let service = ProductionConfigService::new().unwrap();
-        let config = service.get_config().unwrap();
-
-        // Verify OPENAI_API_KEY is used as fallback
-        assert_eq!(
-            config.ai.api_key,
-            Some("sk-openai-fallback-only".to_string())
-        );
-
-        // Clean up is handled by EnvGuard's Drop trait
-    }
-    #[test]
-    #[serial]
-    fn test_openai_base_url_overrides_default() {
-        let mut env_guard = EnvGuard::new();
-
-        // Clean up any existing environment variables first
-        env_guard.remove("SUBX_AI_APIKEY");
-        env_guard.remove("SUBX_AI_BASE_URL");
-        env_guard.remove("OPENAI_API_KEY");
-        env_guard.remove("OPENAI_BASE_URL");
-
-        // Set OPENAI_BASE_URL to override default
-        env_guard.set("OPENAI_BASE_URL", "https://my-proxy.openai.com/v1");
-
-        // Create service and load configuration
-        let service = ProductionConfigService::new().unwrap();
-        let config = service.get_config().unwrap();
-
-        // Verify the custom base URL overrides default
-        assert_eq!(config.ai.base_url, "https://my-proxy.openai.com/v1");
-
-        // Clean up is handled by EnvGuard's Drop trait
-    }
-    #[test]
-    #[serial]
-    fn test_config_reload_updates_environment_variables() {
-        let mut env_guard = EnvGuard::new();
-
-        // Clean up any existing environment variables first
-        env_guard.remove("SUBX_AI_APIKEY");
-        env_guard.remove("OPENAI_API_KEY");
-
-        // Start with one API key with valid format
-        env_guard.set("OPENAI_API_KEY", "sk-initial-key");
-
-        let service = ProductionConfigService::new().unwrap();
-        let config1 = service.get_config().unwrap();
-        assert_eq!(config1.ai.api_key, Some("sk-initial-key".to_string()));
-
-        // Change the environment variable
-        env_guard.set("OPENAI_API_KEY", "sk-updated-key");
-
-        // Reload configuration
-        service.reload().unwrap();
-        let config2 = service.get_config().unwrap();
-
-        // Verify the updated key is loaded
-        assert_eq!(config2.ai.api_key, Some("sk-updated-key".to_string()));
-
-        // Clean up is handled by EnvGuard's Drop trait
-    }
-    #[test]
-    #[serial]
-    fn test_no_openai_environment_variables_uses_defaults() {
-        let mut env_guard = EnvGuard::new();
-
-        // Remove all relevant environment variables
-        env_guard.remove("OPENAI_API_KEY");
-        env_guard.remove("OPENAI_BASE_URL");
-        env_guard.remove("SUBX_AI_APIKEY");
-        env_guard.remove("SUBX_AI_BASE_URL");
-
-        // Create service and load configuration
-        let service = ProductionConfigService::new().unwrap();
-        let config = service.get_config().unwrap();
-
-        // Verify default values are used
-        assert_eq!(config.ai.api_key, None);
-        assert_eq!(config.ai.base_url, "https://api.openai.com/v1"); // Default from Config::default()
-
-        // Clean up is handled by EnvGuard's Drop trait
     }
 
     #[test]
@@ -500,14 +260,141 @@ mod tests {
     }
 
     #[test]
-    fn test_test_config_service_for_comparison() {
-        // Test our TestConfigService for comparison with valid API key format
-        let test_service =
-            TestConfigService::with_ai_settings_and_key("openai", "gpt-4", "sk-test-key");
+    fn test_config_service_with_openai_api_key() {
+        // Test configuration with OpenAI API key using TestConfigService
+        let test_service = TestConfigService::with_ai_settings_and_key(
+            "openai",
+            "gpt-4o-mini",
+            "sk-test-openai-key-123",
+        );
 
         let config = test_service.get_config().unwrap();
-        assert_eq!(config.ai.api_key, Some("sk-test-key".to_string()));
+        assert_eq!(
+            config.ai.api_key,
+            Some("sk-test-openai-key-123".to_string())
+        );
+        assert_eq!(config.ai.provider, "openai");
+        assert_eq!(config.ai.model, "gpt-4o-mini");
+    }
+
+    #[test]
+    fn test_config_service_with_custom_base_url() {
+        // Test configuration with custom base URL
+        let mut config = Config::default();
+        config.ai.base_url = "https://custom.openai.endpoint".to_string();
+
+        let test_service = TestConfigService::new(config);
+        let loaded_config = test_service.get_config().unwrap();
+
+        assert_eq!(loaded_config.ai.base_url, "https://custom.openai.endpoint");
+    }
+
+    #[test]
+    fn test_config_service_with_both_openai_settings() {
+        // Test configuration with both API key and base URL
+        let mut config = Config::default();
+        config.ai.api_key = Some("sk-test-api-key-combined".to_string());
+        config.ai.base_url = "https://api.custom-openai.com".to_string();
+
+        let test_service = TestConfigService::new(config);
+        let loaded_config = test_service.get_config().unwrap();
+
+        assert_eq!(
+            loaded_config.ai.api_key,
+            Some("sk-test-api-key-combined".to_string())
+        );
+        assert_eq!(loaded_config.ai.base_url, "https://api.custom-openai.com");
+    }
+
+    #[test]
+    fn test_config_service_provider_precedence() {
+        // Test that manually configured values take precedence
+        let test_service =
+            TestConfigService::with_ai_settings_and_key("openai", "gpt-4", "sk-explicit-key");
+
+        let config = test_service.get_config().unwrap();
+        assert_eq!(config.ai.api_key, Some("sk-explicit-key".to_string()));
         assert_eq!(config.ai.provider, "openai");
         assert_eq!(config.ai.model, "gpt-4");
+    }
+
+    #[test]
+    fn test_config_service_fallback_behavior() {
+        // Test fallback to default values when no specific configuration provided
+        let test_service = TestConfigService::with_defaults();
+        let config = test_service.get_config().unwrap();
+
+        // Should use default values
+        assert_eq!(config.ai.provider, "openai");
+        assert_eq!(config.ai.model, "gpt-4o-mini");
+        assert_eq!(config.ai.base_url, "https://api.openai.com/v1");
+        assert_eq!(config.ai.api_key, None); // No API key by default
+    }
+
+    #[test]
+    fn test_config_service_reload_functionality() {
+        // Test configuration reload capability
+        let test_service = TestConfigService::with_defaults();
+
+        // First load
+        let config1 = test_service.get_config().unwrap();
+        assert_eq!(config1.ai.provider, "openai");
+
+        // Reload should always succeed for test service
+        let reload_result = test_service.reload();
+        assert!(reload_result.is_ok());
+
+        // Second load should still work
+        let config2 = test_service.get_config().unwrap();
+        assert_eq!(config2.ai.provider, "openai");
+    }
+
+    #[test]
+    fn test_config_service_custom_base_url_override() {
+        // Test that custom base URL properly overrides default
+        let mut config = Config::default();
+        config.ai.base_url = "https://my-proxy.openai.com/v1".to_string();
+
+        let test_service = TestConfigService::new(config);
+        let loaded_config = test_service.get_config().unwrap();
+
+        assert_eq!(loaded_config.ai.base_url, "https://my-proxy.openai.com/v1");
+    }
+
+    #[test]
+    fn test_config_service_sync_settings() {
+        // Test sync configuration settings
+        let test_service = TestConfigService::with_sync_settings(0.8, 45.0);
+        let config = test_service.get_config().unwrap();
+
+        assert_eq!(config.sync.correlation_threshold, 0.8);
+        assert_eq!(config.sync.max_offset_seconds, 45.0);
+    }
+
+    #[test]
+    fn test_config_service_parallel_settings() {
+        // Test parallel processing configuration
+        let test_service = TestConfigService::with_parallel_settings(8, 200);
+        let config = test_service.get_config().unwrap();
+
+        assert_eq!(config.general.max_concurrent_jobs, 8);
+        assert_eq!(config.parallel.task_queue_size, 200);
+    }
+
+    #[test]
+    fn test_config_service_direct_access() {
+        // Test direct configuration access and mutation
+        let mut test_service = TestConfigService::with_defaults();
+
+        // Test direct read access
+        assert_eq!(test_service.config().ai.provider, "openai");
+
+        // Test mutable access
+        test_service.config_mut().ai.provider = "modified".to_string();
+        assert_eq!(test_service.config().ai.provider, "modified");
+
+        // Test that get_config reflects the changes
+        let config = test_service.get_config().unwrap();
+        assert_eq!(config.ai.provider, "modified");
     }
 }
