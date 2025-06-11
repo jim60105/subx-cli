@@ -101,7 +101,6 @@ tempfile = "3.10"
 
 # mock and test case generation
 mockall = "0.13"
-serial_test = "3.0"
 rstest = "0.25"
 test-case = "3.0"
 regex = "1.10"  # For test output validation
