@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.1] - 2025-06-11
+### Fixed
+- Fixed: Documentation test examples to match current struct field names in cli::table module.
+- Fixed: Compilation errors in doc tests by updating MatchDisplayRow examples from 'status'/'filename' to 'file_type'/'file_path'.
+
 ## [0.4.0] - 2025-06-11
 ### Added
 - Added: Redesigned match table layout with status symbols and tree structure for improved visual organization.
@@ -102,7 +107,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Initial release of SubX CLI tool
 - Rust-based intelligent subtitle processing
 
-[Unreleased]: https://github.com/SubX-Project/SubX/compare/v0.4.0...HEAD
+[Unreleased]: https://github.com/SubX-Project/SubX/compare/v0.4.1...HEAD
+[0.4.1]: https://github.com/SubX-Project/SubX/compare/v0.4.0...v0.4.1
 [0.4.0]: https://github.com/SubX-Project/SubX/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/SubX-Project/SubX/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/SubX-Project/SubX/compare/v0.1.0...v0.2.0

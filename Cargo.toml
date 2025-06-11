@@ -1,6 +1,6 @@
 [package]
 name = "subx-cli"
-version = "0.4.0"
+version = "0.4.1"
 edition = "2024"
 authors = ["CHEN, CHUN <jim60105@gmail.com>"]
 description = "智慧字幕處理 CLI 工具，使用 AI 技術自動匹配、重命名和處理字幕檔案"
