@@ -180,9 +180,19 @@ show_coverage_table() {
     echo -e "${BLUE}Legend:${NC} ${GREEN}>=80%${NC} ${YELLOW}60-79%${NC} ${RED}<60%${NC} (based on line coverage)"
     
     # Display overall coverage summary
-    echo ""
-    echo -e "${BLUE}📈 Overall Coverage Summary${NC}"
-    echo ""
+    show_overall_coverage "$coverage_json"
+}
+
+# Display overall coverage summary and check threshold
+show_overall_coverage() {
+    local coverage_json="$1"
+    local show_header="${2:-true}"
+    
+    if [[ "$show_header" == "true" ]]; then
+        echo ""
+        echo -e "${BLUE}📈 Overall Coverage Summary${NC}"
+        echo ""
+    fi
     
     # Parse overall coverage data
     local current_coverage
@@ -201,22 +211,26 @@ show_coverage_table() {
     echo -e "Current coverage: ${BLUE}${current_coverage}%${NC}"
     echo -e "Required threshold: ${BLUE}${COVERAGE_THRESHOLD}%${NC}"
 
-    # Show detailed information
-    echo -e "\n${YELLOW}Detailed coverage information:${NC}"
-    echo "$coverage_json" | jq -r "$(get_percentage_filter)"'
-        .data[0].totals |
-        "  Function coverage: " + (format_pct(.functions.percent) | tostring) + "% (\(.functions.covered)/\(.functions.count))",
-        "  Line coverage:     " + (format_pct(.lines.percent) | tostring) + "% (\(.lines.covered)/\(.lines.count))",
-        "  Region coverage:   " + (format_pct(.regions.percent) | tostring) + "% (\(.regions.covered)/\(.regions.count))"
-    '
+    # Show detailed information (if verbose mode is enabled or in table mode)
+    if [[ "${VERBOSE:-false}" == "true" ]] || [[ "${SHOW_TABLE:-false}" == "true" ]]; then
+        echo -e "\n${YELLOW}Detailed coverage information:${NC}"
+        echo "$coverage_json" | jq -r "$(get_percentage_filter)"'
+            .data[0].totals |
+            "  Function coverage: " + (format_pct(.functions.percent) | tostring) + "% (\(.functions.covered)/\(.functions.count))",
+            "  Line coverage:     " + (format_pct(.lines.percent) | tostring) + "% (\(.lines.covered)/\(.lines.count))",
+            "  Region coverage:   " + (format_pct(.regions.percent) | tostring) + "% (\(.regions.covered)/\(.regions.count))"
+        '
+    fi
 
     # Compare coverage with threshold
     if (($(echo "${current_coverage} >= ${COVERAGE_THRESHOLD}" | bc -l))); then
         echo -e "\n${GREEN}✅ Coverage meets requirements${NC}"
+        return 0
     else
         local deficit
         deficit=$(echo "${COVERAGE_THRESHOLD} - ${current_coverage}" | bc -l)
         echo -e "\n${RED}❌ Coverage below threshold (deficit: ${deficit}%)${NC}"
+        return 1
     fi
 }
 
@@ -294,21 +308,8 @@ check_coverage() {
 
     # Handle table display option
     if [[ "${SHOW_TABLE:-false}" == "true" ]]; then
-        if show_coverage_table "$coverage_json"; then
-            # Parse coverage data to determine success/failure
-            local current_coverage
-            if current_coverage=$(echo "$coverage_json" | jq -r "$(get_percentage_filter)"'format_pct(.data[0].totals.lines.percent)' 2>/dev/null); then
-                if (($(echo "${current_coverage} >= ${COVERAGE_THRESHOLD}" | bc -l))); then
-                    return 0
-                else
-                    return 1
-                fi
-            else
-                return 1
-            fi
-        else
-            return 1
-        fi
+        show_coverage_table "$coverage_json"
+        return $?
     fi
 
     # Handle file search option
@@ -317,49 +318,8 @@ check_coverage() {
         return 0
     fi
 
-    # Parse coverage data
-    local current_coverage
-    if ! current_coverage=$(echo "$coverage_json" | jq -r "$(get_percentage_filter)"'format_pct(.data[0].totals.lines.percent)' 2>/dev/null); then
-        echo -e "${RED}❌ Unable to parse coverage data${NC}" >&2
-        echo -e "${YELLOW}JSON format may have changed, please check cargo llvm-cov output${NC}" >&2
-        if [[ "${VERBOSE:-false}" == "true" ]]; then
-            echo -e "${YELLOW}JSON content:${NC}" >&2
-            echo "$coverage_json" >&2
-        fi
-        exit 1
-    fi
-
-    # Validate data validity
-    if [[ "$current_coverage" == "null" ]] || [[ -z "$current_coverage" ]]; then
-        echo -e "${RED}❌ Unable to get valid coverage data${NC}" >&2
-        exit 1
-    fi
-
-    # Display results
-    echo -e "Current coverage: ${BLUE}${current_coverage}%${NC}"
-    echo -e "Required threshold: ${BLUE}${COVERAGE_THRESHOLD}%${NC}"
-
-    # Show detailed information (if verbose mode is enabled)
-    if [[ "${VERBOSE:-false}" == "true" ]]; then
-        echo -e "\n${YELLOW}Detailed coverage information:${NC}"
-        echo "$coverage_json" | jq -r "$(get_percentage_filter)"'
-            .data[0].totals |
-            "  Function coverage: " + (format_pct(.functions.percent) | tostring) + "% (\(.functions.covered)/\(.functions.count))",
-            "  Line coverage:     " + (format_pct(.lines.percent) | tostring) + "% (\(.lines.covered)/\(.lines.count))",
-            "  Region coverage:   " + (format_pct(.regions.percent) | tostring) + "% (\(.regions.covered)/\(.regions.count))"
-        '
-    fi
-
-    # Compare coverage with threshold
-    if (($(echo "${current_coverage} >= ${COVERAGE_THRESHOLD}" | bc -l))); then
-        echo -e "\n${GREEN}✅ Coverage meets requirements${NC}"
-        return 0
-    else
-        local deficit
-        deficit=$(echo "${COVERAGE_THRESHOLD} - ${current_coverage}" | bc -l)
-        echo -e "\n${RED}❌ Coverage below threshold (deficit: ${deficit}%)${NC}"
-        return 1
-    fi
+    # Default mode - show overall coverage
+    show_overall_coverage "$coverage_json" "false"
 }
 
 # Main program
