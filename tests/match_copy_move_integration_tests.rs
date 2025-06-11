@@ -24,7 +24,11 @@ async fn test_match_copy_operation() {
 
     // Create test files
     fs::write(video_dir.join("movie1.mp4"), "fake video content").unwrap();
-    fs::write(subtitle_dir.join("subtitle1.srt"), "1\n00:00:01,000 --> 00:00:02,000\nTest subtitle\n").unwrap();
+    fs::write(
+        subtitle_dir.join("subtitle1.srt"),
+        "1\n00:00:01,000 --> 00:00:02,000\nTest subtitle\n",
+    )
+    .unwrap();
 
     // Test match with copy operation
     let args = MatchArgs {
@@ -48,12 +52,18 @@ async fn test_match_copy_operation() {
             if expected_copy.exists() {
                 println!("✅ Copy operation successful: {}", expected_copy.display());
             } else {
-                println!("⚠️  Copy file not found at expected location: {}", expected_copy.display());
+                println!(
+                    "⚠️  Copy file not found at expected location: {}",
+                    expected_copy.display()
+                );
             }
 
             // Verify original file still exists
             let original_file = subtitle_dir.join("subtitle1.srt");
-            assert!(original_file.exists(), "Original subtitle file should still exist after copy");
+            assert!(
+                original_file.exists(),
+                "Original subtitle file should still exist after copy"
+            );
         }
         Err(e) => {
             println!("❌ Match command failed: {}", e);
@@ -87,7 +97,11 @@ async fn test_match_move_operation() {
 
     // Create test files
     fs::write(video_dir.join("movie2.mp4"), "fake video content").unwrap();
-    fs::write(subtitle_dir.join("subtitle2.srt"), "1\n00:00:01,000 --> 00:00:02,000\nTest subtitle\n").unwrap();
+    fs::write(
+        subtitle_dir.join("subtitle2.srt"),
+        "1\n00:00:01,000 --> 00:00:02,000\nTest subtitle\n",
+    )
+    .unwrap();
 
     // Test match with move operation
     let args = MatchArgs {
@@ -111,7 +125,10 @@ async fn test_match_move_operation() {
             if expected_move.exists() {
                 println!("✅ Move operation successful: {}", expected_move.display());
             } else {
-                println!("⚠️  Moved file not found at expected location: {}", expected_move.display());
+                println!(
+                    "⚠️  Moved file not found at expected location: {}",
+                    expected_move.display()
+                );
             }
 
             // Verify original file no longer exists (unless backup was created)
@@ -153,7 +170,11 @@ async fn test_match_copy_dry_run() {
 
     // Create test files
     fs::write(video_dir.join("movie3.mp4"), "fake video content").unwrap();
-    fs::write(subtitle_dir.join("subtitle3.srt"), "1\n00:00:01,000 --> 00:00:02,000\nTest subtitle\n").unwrap();
+    fs::write(
+        subtitle_dir.join("subtitle3.srt"),
+        "1\n00:00:01,000 --> 00:00:02,000\nTest subtitle\n",
+    )
+    .unwrap();
 
     // Test dry run with copy operation
     let args = MatchArgs {
@@ -176,11 +197,17 @@ async fn test_match_copy_dry_run() {
 
     // Verify no files were actually moved/copied
     let expected_copy = video_dir.join("movie3.srt");
-    assert!(!expected_copy.exists(), "Dry run should not create actual files");
+    assert!(
+        !expected_copy.exists(),
+        "Dry run should not create actual files"
+    );
 
     // Verify original file is unchanged
     let original_file = subtitle_dir.join("subtitle3.srt");
-    assert!(original_file.exists(), "Original file should remain in dry run mode");
+    assert!(
+        original_file.exists(),
+        "Original file should remain in dry run mode"
+    );
 }
 
 /// Test argument validation (mutual exclusion)
@@ -197,8 +224,15 @@ fn test_copy_move_mutual_exclusion() {
     };
 
     let validation_result = args.validate();
-    assert!(validation_result.is_err(), "Should reject both copy and move being true");
-    assert!(validation_result.unwrap_err().contains("Cannot use --copy and --move together"));
+    assert!(
+        validation_result.is_err(),
+        "Should reject both copy and move being true"
+    );
+    assert!(
+        validation_result
+            .unwrap_err()
+            .contains("Cannot use --copy and --move together")
+    );
 }
 
 /// Test that no-operation mode works (neither copy nor move)
@@ -215,5 +249,8 @@ fn test_no_operation_mode() {
     };
 
     let validation_result = args.validate();
-    assert!(validation_result.is_ok(), "Should allow neither copy nor move (traditional rename only)");
+    assert!(
+        validation_result.is_ok(),
+        "Should allow neither copy nor move (traditional rename only)"
+    );
 }
