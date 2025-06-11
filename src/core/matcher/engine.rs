@@ -296,6 +296,81 @@ mod language_name_tests {
         let new_name = engine.generate_subtitle_name(&video, &subtitle);
         assert_eq!(new_name, "a.b.c.srt");
     }
+
+    #[tokio::test]
+    async fn test_rename_file_displays_success_check_mark() {
+        use std::fs;
+        use tempfile::TempDir;
+
+        let temp_dir = TempDir::new().unwrap();
+        let temp_path = temp_dir.path();
+
+        // 建立測試檔案
+        let original_file = temp_path.join("original.srt");
+        fs::write(
+            &original_file,
+            "1\n00:00:01,000 --> 00:00:02,000\nTest subtitle",
+        )
+        .unwrap();
+
+        // 建立測試用的 MatchEngine
+        let engine = MatchEngine::new(
+            Box::new(DummyAI),
+            MatchConfig {
+                confidence_threshold: 0.0,
+                max_sample_length: 0,
+                enable_content_analysis: false,
+                backup_enabled: false,
+                relocation_mode: FileRelocationMode::None,
+                conflict_resolution: ConflictResolution::Skip,
+            },
+        );
+
+        // 建立 MatchOperation
+        let subtitle_file = MediaFile {
+            id: "test_id".to_string(),
+            relative_path: "original.srt".to_string(),
+            path: original_file.clone(),
+            file_type: MediaFileType::Subtitle,
+            size: 40,
+            name: "original".to_string(),
+            extension: "srt".to_string(),
+        };
+
+        let match_op = MatchOperation {
+            video_file: MediaFile {
+                id: "video_id".to_string(),
+                relative_path: "test.mp4".to_string(),
+                path: temp_path.join("test.mp4"),
+                file_type: MediaFileType::Video,
+                size: 1000,
+                name: "test".to_string(),
+                extension: "mp4".to_string(),
+            },
+            subtitle_file,
+            new_subtitle_name: "renamed.srt".to_string(),
+            confidence: 95.0,
+            reasoning: vec!["Test match".to_string()],
+            requires_relocation: false,
+            relocation_target_path: None,
+            relocation_mode: FileRelocationMode::None,
+        };
+
+        // 執行重新命名操作
+        let result = engine.rename_file(&match_op).await;
+
+        // 驗證操作成功
+        assert!(result.is_ok());
+
+        // 驗證檔案已重新命名
+        let renamed_file = temp_path.join("renamed.srt");
+        assert!(renamed_file.exists(), "重新命名的檔案應該存在");
+        assert!(!original_file.exists(), "原始檔案應該已被重新命名");
+
+        // 驗證檔案內容正確
+        let content = fs::read_to_string(&renamed_file).unwrap();
+        assert!(content.contains("Test subtitle"));
+    }
 }
 
 /// Match operation result representing a single video-subtitle match.
@@ -623,11 +698,21 @@ impl MatchEngine {
 
                     // Execute copy operation
                     std::fs::copy(&source_path, &final_target)?;
-                    println!(
-                        "Copied: {} -> {}",
-                        source_path.display(),
-                        final_target.display()
-                    );
+
+                    // Verify the file exists after copy and display success indicator
+                    if final_target.exists() {
+                        println!(
+                            "  ✓ Copied: {} -> {}",
+                            source_path
+                                .file_name()
+                                .unwrap_or_default()
+                                .to_string_lossy(),
+                            final_target
+                                .file_name()
+                                .unwrap_or_default()
+                                .to_string_lossy()
+                        );
+                    }
                 }
                 FileRelocationMode::Move => {
                     // Create backup of original if enabled
@@ -656,11 +741,21 @@ impl MatchEngine {
 
                     // Execute move operation
                     std::fs::rename(&source_path, &final_target)?;
-                    println!(
-                        "Moved: {} -> {}",
-                        source_path.display(),
-                        final_target.display()
-                    );
+
+                    // Verify the file exists after move and display success indicator
+                    if final_target.exists() {
+                        println!(
+                            "  ✓ Moved: {} -> {}",
+                            source_path
+                                .file_name()
+                                .unwrap_or_default()
+                                .to_string_lossy(),
+                            final_target
+                                .file_name()
+                                .unwrap_or_default()
+                                .to_string_lossy()
+                        );
+                    }
                 }
                 FileRelocationMode::None => {
                     // No operation needed
@@ -733,7 +828,17 @@ impl MatchEngine {
             std::fs::copy(old_path, backup_path)?;
         }
 
-        std::fs::rename(old_path, new_path)?;
+        std::fs::rename(old_path, &new_path)?;
+
+        // Verify the file exists after rename and display success indicator
+        if new_path.exists() {
+            println!(
+                "  ✓ Renamed: {} -> {}",
+                old_path.file_name().unwrap_or_default().to_string_lossy(),
+                op.new_subtitle_name
+            );
+        }
+
         Ok(())
     }
     /// Calculate file snapshot for specified directory for cache comparison
