@@ -25,16 +25,16 @@
 //! // Each match result is split into multiple lines for display: video, subtitle and new name
 //! let rows = vec![
 //!     MatchDisplayRow {
-//!         status: "✓".to_string(),
-//!         filename: "Video 1: movie.mp4".to_string(),
+//!         file_type: "Video 1".to_string(),
+//!         file_path: "movie.mp4".to_string(),
 //!     },
 //!     MatchDisplayRow {
-//!         status: "".to_string(),
-//!         filename: "├ Subtitle 1: subtitle.srt".to_string(),
+//!         file_type: "Subtitle 1".to_string(),
+//!         file_path: "subtitle.srt".to_string(),
 //!     },
 //!     MatchDisplayRow {
-//!         status: "".to_string(),
-//!         filename: "└ New name 1: movie.srt".to_string(),
+//!         file_type: "New name 1".to_string(),
+//!         file_path: "movie.srt".to_string(),
 //!     },
 //! ];
 //!
@@ -129,12 +129,12 @@ pub struct MatchDisplayRow {
 ///
 /// // Multi-line display of multiple match results
 /// let results = vec![
-///     MatchDisplayRow { status: "✓".to_string(), filename: "Video 1: Movie.mp4".to_string() },
-///     MatchDisplayRow { status: "".to_string(), filename: "├ Subtitle 1: sub123.srt".to_string() },
-///     MatchDisplayRow { status: "".to_string(), filename: "└ New name 1: Movie.srt".to_string() },
-///     MatchDisplayRow { status: "⚠".to_string(), filename: "Video 2: Episode.mkv".to_string() },
-///     MatchDisplayRow { status: "".to_string(), filename: "├ Subtitle 2: unknown.srt".to_string() },
-///     MatchDisplayRow { status: "".to_string(), filename: "└ New name 2: Episode.srt".to_string() },
+///     MatchDisplayRow { file_type: "Video 1".to_string(), file_path: "Movie.mp4".to_string() },
+///     MatchDisplayRow { file_type: "Subtitle 1".to_string(), file_path: "sub123.srt".to_string() },
+///     MatchDisplayRow { file_type: "New name 1".to_string(), file_path: "Movie.srt".to_string() },
+///     MatchDisplayRow { file_type: "Video 2".to_string(), file_path: "Episode.mkv".to_string() },
+///     MatchDisplayRow { file_type: "Subtitle 2".to_string(), file_path: "unknown.srt".to_string() },
+///     MatchDisplayRow { file_type: "New name 2".to_string(), file_path: "Episode.srt".to_string() },
 /// ];
 ///
 /// let table = create_match_table(results);
