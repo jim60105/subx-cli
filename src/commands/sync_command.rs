@@ -428,7 +428,17 @@ async fn discover_media_pairs(dir: &Path) -> Result<Vec<(PathBuf, PathBuf)>> {
         .collect();
     let mut pairs = Vec::new();
     for video in videos {
-        if let Some(s) = subs.iter().find(|s| s.name == video.name) {
+        if let Some(s) = subs.iter().find(|s| {
+            let video_base = video
+                .name
+                .strip_suffix(&format!(".{}", video.extension))
+                .unwrap_or(&video.name);
+            let sub_base = s
+                .name
+                .strip_suffix(&format!(".{}", s.extension))
+                .unwrap_or(&s.name);
+            video_base == sub_base
+        }) {
             pairs.push((video.path.clone(), s.path.clone()));
         }
     }

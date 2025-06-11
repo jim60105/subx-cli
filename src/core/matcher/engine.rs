@@ -12,7 +12,7 @@
 //! let engine = MatchEngine::new(Box::new(DummyAI), config);
 //! ```
 
-use crate::services::ai::{AIProvider, AnalysisRequest, ContentSample};
+use crate::services::ai::{AIProvider, AnalysisRequest, ContentSample, MatchResult};
 use std::path::Path;
 
 use crate::Result;
@@ -73,6 +73,8 @@ mod language_name_tests {
             },
         );
         let video = MediaFile {
+            id: "".to_string(),
+            relative_path: "".to_string(),
             path: PathBuf::from("movie01.mp4"),
             file_type: MediaFileType::Video,
             size: 0,
@@ -80,6 +82,8 @@ mod language_name_tests {
             extension: "mp4".to_string(),
         };
         let subtitle = MediaFile {
+            id: "".to_string(),
+            relative_path: "".to_string(),
             path: PathBuf::from("tc/subtitle01.ass"),
             file_type: MediaFileType::Subtitle,
             size: 0,
@@ -102,6 +106,8 @@ mod language_name_tests {
             },
         );
         let video = MediaFile {
+            id: "".to_string(),
+            relative_path: "".to_string(),
             path: PathBuf::from("movie02.mp4"),
             file_type: MediaFileType::Video,
             size: 0,
@@ -109,6 +115,8 @@ mod language_name_tests {
             extension: "mp4".to_string(),
         };
         let subtitle = MediaFile {
+            id: "".to_string(),
+            relative_path: "".to_string(),
             path: PathBuf::from("subtitle02.sc.ass"),
             file_type: MediaFileType::Subtitle,
             size: 0,
@@ -131,6 +139,8 @@ mod language_name_tests {
             },
         );
         let video = MediaFile {
+            id: "".to_string(),
+            relative_path: "".to_string(),
             path: PathBuf::from("movie03.mp4"),
             file_type: MediaFileType::Video,
             size: 0,
@@ -138,6 +148,8 @@ mod language_name_tests {
             extension: "mp4".to_string(),
         };
         let subtitle = MediaFile {
+            id: "".to_string(),
+            relative_path: "".to_string(),
             path: PathBuf::from("subtitle03.ass"),
             file_type: MediaFileType::Subtitle,
             size: 0,
@@ -271,20 +283,49 @@ impl MatchEngine {
 
         for ai_match in match_result.matches {
             if ai_match.confidence >= self.config.confidence_threshold {
-                if let (Some(video), Some(subtitle)) = (
-                    videos.iter().find(|v| v.name == ai_match.video_file),
-                    subtitles.iter().find(|s| s.name == ai_match.subtitle_file),
-                ) {
-                    let new_name = self.generate_subtitle_name(video, subtitle);
-
-                    operations.push(MatchOperation {
-                        video_file: (*video).clone(),
-                        subtitle_file: (*subtitle).clone(),
-                        new_subtitle_name: new_name,
-                        confidence: ai_match.confidence,
-                        reasoning: ai_match.match_factors,
-                    });
+                let video_match =
+                    Self::find_media_file_by_id_or_path(&videos, &ai_match.video_file_id, None);
+                let subtitle_match = Self::find_media_file_by_id_or_path(
+                    &subtitles,
+                    &ai_match.subtitle_file_id,
+                    None,
+                );
+                match (video_match, subtitle_match) {
+                    (Some(video), Some(subtitle)) => {
+                        let new_name = self.generate_subtitle_name(video, subtitle);
+                        operations.push(MatchOperation {
+                            video_file: (*video).clone(),
+                            subtitle_file: (*subtitle).clone(),
+                            new_subtitle_name: new_name,
+                            confidence: ai_match.confidence,
+                            reasoning: ai_match.match_factors,
+                        });
+                    }
+                    (None, Some(_)) => {
+                        eprintln!(
+                            "⚠️  找不到 AI 建議的影片檔案 ID: '{}'",
+                            ai_match.video_file_id
+                        );
+                        self.log_available_files(&videos, "影片");
+                    }
+                    (Some(_), None) => {
+                        eprintln!(
+                            "⚠️  找不到 AI 建議的字幕檔案 ID: '{}'",
+                            ai_match.subtitle_file_id
+                        );
+                        self.log_available_files(&subtitles, "字幕");
+                    }
+                    (None, None) => {
+                        eprintln!("⚠️  找不到 AI 建議的檔案對:");
+                        eprintln!("     影片 ID: '{}'", ai_match.video_file_id);
+                        eprintln!("     字幕 ID: '{}'", ai_match.subtitle_file_id);
+                    }
                 }
+            } else {
+                eprintln!(
+                    "ℹ️  AI 匹配信心度過低 ({:.2}): {} <-> {}",
+                    ai_match.confidence, ai_match.video_file_id, ai_match.subtitle_file_id
+                );
             }
         }
 
@@ -485,5 +526,65 @@ impl MatchEngine {
         // Use a fixed hash for now since we don't have access to global config
         // This will be improved when cache validation is refactored
         Ok("default_config_hash".to_string())
+    }
+
+    /// Find a media file by ID, with an optional fallback to relative path or name.
+    fn find_media_file_by_id_or_path<'a>(
+        files: &'a [&MediaFile],
+        file_id: &str,
+        fallback_path: Option<&str>,
+    ) -> Option<&'a MediaFile> {
+        if let Some(file) = files.iter().find(|f| f.id == file_id) {
+            return Some(*file);
+        }
+        if let Some(path) = fallback_path {
+            if let Some(file) = files.iter().find(|f| f.relative_path == path) {
+                return Some(*file);
+            }
+            files.iter().find(|f| f.name == path).copied()
+        } else {
+            None
+        }
+    }
+
+    /// Log available files to assist debugging when a match is not found.
+    fn log_available_files(&self, files: &[&MediaFile], file_type: &str) {
+        eprintln!("   可用的{}檔案:", file_type);
+        for f in files {
+            eprintln!(
+                "     - ID: {} | 名稱: {} | 路徑: {}",
+                f.id, f.name, f.relative_path
+            );
+        }
+    }
+
+    /// Provide detailed information when no matches are found.
+    fn log_no_matches_found(
+        &self,
+        match_result: &MatchResult,
+        videos: &[MediaFile],
+        subtitles: &[MediaFile],
+    ) {
+        eprintln!("\n❌ 沒有找到符合條件的檔案匹配");
+        eprintln!("🔍 AI 分析結果:");
+        eprintln!("   - 總匹配數: {}", match_result.matches.len());
+        eprintln!("   - 信心度閾值: {:.2}", self.config.confidence_threshold);
+        eprintln!(
+            "   - 符合閾值的匹配: {}",
+            match_result
+                .matches
+                .iter()
+                .filter(|m| m.confidence >= self.config.confidence_threshold)
+                .count()
+        );
+        eprintln!("\n📂 掃描到的檔案:");
+        eprintln!("   影片檔案 ({} 個):", videos.len());
+        for v in videos {
+            eprintln!("     - ID: {} | {}", v.id, v.relative_path);
+        }
+        eprintln!("   字幕檔案 ({} 個):", subtitles.len());
+        for s in subtitles {
+            eprintln!("     - ID: {} | {}", s.id, s.relative_path);
+        }
     }
 }

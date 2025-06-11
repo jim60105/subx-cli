@@ -107,7 +107,7 @@ regex = "1.10"  # For test output validation
 
 # coverage and HTTP mocking
 wiremock = "0.6"
-criterion = "0.6.0"
+criterion = { version = "0.6.0", features = ["html_reports"] }
 
 [[bin]]
 name = "subx-cli"
@@ -115,6 +115,10 @@ path = "src/main.rs"
 
 [[bench]]
 name = "retry_performance"
+harness = false
+
+[[bench]]
+name = "file_id_generation_bench"
 harness = false
 
 [profile.release]

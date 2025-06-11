@@ -250,16 +250,16 @@ pub struct MatchResult {
     pub reasoning: String,
 }
 
-/// Individual file match information.
+/// Individual file match information using unique file IDs.
 ///
 /// Represents a single video-subtitle file pairing suggested by the AI
-/// with associated confidence metrics and reasoning factors.
+/// identified by unique IDs with associated confidence metrics and reasoning factors.
 #[derive(Debug, Deserialize, Clone, PartialEq)]
 pub struct FileMatch {
-    /// Path to the matched video file
-    pub video_file: String,
-    /// Path to the matched subtitle file
-    pub subtitle_file: String,
+    /// Unique ID of the matched video file
+    pub video_file_id: String,
+    /// Unique ID of the matched subtitle file
+    pub subtitle_file_id: String,
     /// Confidence score for this specific match (0.0 to 1.0)
     pub confidence: f32,
     /// List of factors that contributed to this match

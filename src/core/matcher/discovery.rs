@@ -11,6 +11,8 @@
 //! let files = disco.scan_directory("./path".as_ref(), true).unwrap();
 //! ```
 
+use std::collections::hash_map::DefaultHasher;
+use std::hash::{Hash, Hasher};
 use std::path::{Path, PathBuf};
 use walkdir::WalkDir;
 
@@ -22,16 +24,30 @@ use crate::Result;
 /// including its path, type classification, and basic file properties.
 #[derive(Debug, Clone)]
 pub struct MediaFile {
+    /// Unique identifier for this media file (deterministic hash)
+    pub id: String,
     /// Full path to the media file
     pub path: PathBuf,
     /// Classification of the file (Video or Subtitle)
     pub file_type: MediaFileType,
     /// File size in bytes
     pub size: u64,
-    /// Base filename without extension
+    /// Complete filename with extension (e.g., "movie.mkv")
     pub name: String,
     /// File extension (without the dot)
     pub extension: String,
+    /// Relative path from scan root for recursive matching
+    pub relative_path: String,
+}
+/// Generate a deterministic unique identifier for a media file
+///
+/// Uses a fast hash algorithm combining the relative path and file size to
+/// produce a consistent ID.
+fn generate_file_id(relative_path: &str, file_size: u64) -> String {
+    let mut hasher = DefaultHasher::new();
+    relative_path.hash(&mut hasher);
+    file_size.hash(&mut hasher);
+    format!("file_{:016x}", hasher.finish())
 }
 
 // Unit tests: FileDiscovery file matching logic
@@ -68,7 +84,7 @@ mod tests {
             .count();
         assert_eq!(vids, 2);
         assert_eq!(subs, 1);
-        assert!(!files.iter().any(|f| f.name == "episode1"));
+        assert!(!files.iter().any(|f| f.relative_path.contains("episode1")));
     }
 
     #[test]
@@ -87,7 +103,7 @@ mod tests {
             .count();
         assert_eq!(vids, 3);
         assert_eq!(subs, 2);
-        assert!(files.iter().any(|f| f.name == "episode1"));
+        assert!(files.iter().any(|f| f.relative_path.contains("episode1")));
     }
 
     #[test]
@@ -100,13 +116,13 @@ mod tests {
         let x = temp.path().join("t.txt");
         fs::write(&x, b"").unwrap();
         let disco = FileDiscovery::new();
-        let vf = disco.classify_file(&v).unwrap().unwrap();
+        let vf = disco.classify_file(&v, temp.path()).unwrap().unwrap();
         assert!(matches!(vf.file_type, MediaFileType::Video));
-        assert_eq!(vf.name, "t");
-        let sf = disco.classify_file(&s).unwrap().unwrap();
+        assert_eq!(vf.name, "t.mp4");
+        let sf = disco.classify_file(&s, temp.path()).unwrap().unwrap();
         assert!(matches!(sf.file_type, MediaFileType::Subtitle));
-        assert_eq!(sf.name, "t");
-        let none = disco.classify_file(&x).unwrap();
+        assert_eq!(sf.name, "t.srt");
+        let none = disco.classify_file(&x, temp.path()).unwrap();
         assert!(none.is_none());
         assert!(disco.video_extensions.contains(&"mp4".to_string()));
         assert!(disco.subtitle_extensions.contains(&"srt".to_string()));
@@ -120,6 +136,82 @@ mod tests {
         assert!(files.is_empty());
         let res = disco.scan_directory(&std::path::Path::new("/nonexistent/path"), false);
         assert!(res.is_err());
+    }
+}
+
+// Unit tests for unique ID generation and MediaFile structure
+#[cfg(test)]
+mod id_tests {
+    use super::*;
+    use std::fs;
+    use tempfile::TempDir;
+
+    #[test]
+    fn test_media_file_structure_with_unique_id() {
+        let temp = TempDir::new().unwrap();
+        let video_path = temp.path().join("[Test][01].mkv");
+        fs::write(&video_path, b"dummy content").unwrap();
+
+        let disco = FileDiscovery::new();
+        let files = disco.scan_directory(temp.path(), false).unwrap();
+
+        let video_file = files
+            .iter()
+            .find(|f| matches!(f.file_type, MediaFileType::Video))
+            .unwrap();
+
+        assert!(!video_file.id.is_empty());
+        assert!(video_file.id.starts_with("file_"));
+        assert_eq!(video_file.id.len(), 21);
+
+        assert_eq!(video_file.name, "[Test][01].mkv");
+        assert_eq!(video_file.extension, "mkv");
+        assert_eq!(video_file.relative_path, "[Test][01].mkv");
+    }
+
+    #[test]
+    fn test_deterministic_id_generation() {
+        let id1 = generate_file_id("test/file.mkv", 1000);
+        let id2 = generate_file_id("test/file.mkv", 1000);
+        assert_eq!(id1, id2);
+
+        let id3 = generate_file_id("test/file2.mkv", 1000);
+        assert_ne!(id1, id3);
+
+        let id4 = generate_file_id("test/file.mkv", 2000);
+        assert_ne!(id1, id4);
+
+        assert!(id1.starts_with("file_"));
+        assert_eq!(id1.len(), 21);
+    }
+
+    #[test]
+    fn test_recursive_mode_with_unique_ids() {
+        let temp = TempDir::new().unwrap();
+        let sub_dir = temp.path().join("season1");
+        fs::create_dir_all(&sub_dir).unwrap();
+
+        let video1 = temp.path().join("movie.mkv");
+        let video2 = sub_dir.join("episode1.mkv");
+        fs::write(&video1, b"content1").unwrap();
+        fs::write(&video2, b"content2").unwrap();
+
+        let disco = FileDiscovery::new();
+        let files = disco.scan_directory(temp.path(), true).unwrap();
+
+        let root_video = files.iter().find(|f| f.name == "movie.mkv").unwrap();
+        let sub_video = files.iter().find(|f| f.name == "episode1.mkv").unwrap();
+
+        assert_ne!(root_video.id, sub_video.id);
+        assert_eq!(root_video.relative_path, "movie.mkv");
+        assert_eq!(sub_video.relative_path, "season1/episode1.mkv");
+    }
+
+    #[test]
+    fn test_hash_generation_basic() {
+        let id = generate_file_id("test/file.mkv", 1000);
+        assert!(id.starts_with("file_"));
+        assert_eq!(id.len(), 21);
     }
 }
 
@@ -178,13 +270,13 @@ impl FileDiscovery {
     ///
     /// * `path` - The root directory to scan.
     /// * `recursive` - Whether to scan subdirectories recursively.
-    pub fn scan_directory(&self, path: &Path, recursive: bool) -> Result<Vec<MediaFile>> {
+    pub fn scan_directory(&self, root_path: &Path, recursive: bool) -> Result<Vec<MediaFile>> {
         let mut files = Vec::new();
 
         let walker = if recursive {
-            WalkDir::new(path).into_iter()
+            WalkDir::new(root_path).into_iter()
         } else {
-            WalkDir::new(path).max_depth(1).into_iter()
+            WalkDir::new(root_path).max_depth(1).into_iter()
         };
 
         for entry in walker {
@@ -192,7 +284,7 @@ impl FileDiscovery {
             let path = entry.path();
 
             if path.is_file() {
-                if let Some(media_file) = self.classify_file(path)? {
+                if let Some(media_file) = self.classify_file(path, root_path)? {
                     files.push(media_file);
                 }
             }
@@ -205,7 +297,7 @@ impl FileDiscovery {
     ///
     /// Returns `Some(MediaFile)` if the file is a recognized media type,
     /// or `None` otherwise.
-    fn classify_file(&self, path: &Path) -> Result<Option<MediaFile>> {
+    fn classify_file(&self, path: &Path, scan_root: &Path) -> Result<Option<MediaFile>> {
         let extension = path
             .extension()
             .and_then(|ext| ext.to_str())
@@ -221,18 +313,31 @@ impl FileDiscovery {
         };
 
         let metadata = std::fs::metadata(path)?;
+        // Complete filename with extension
         let name = path
-            .file_stem()
-            .and_then(|stem| stem.to_str())
+            .file_name()
+            .and_then(|n| n.to_str())
             .unwrap_or_default()
             .to_string();
 
+        // Compute relative path
+        let relative_path = path
+            .strip_prefix(scan_root)
+            .unwrap_or(path)
+            .to_string_lossy()
+            .to_string();
+
+        // Generate unique ID based on relative path and file size
+        let id = generate_file_id(&relative_path, metadata.len());
+
         Ok(Some(MediaFile {
+            id,
             path: path.to_path_buf(),
             file_type,
             size: metadata.len(),
             name,
             extension,
+            relative_path,
         }))
     }
 }
