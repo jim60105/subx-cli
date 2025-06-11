@@ -235,40 +235,14 @@ impl MatchEngine {
         };
 
         // 4. AI analysis request
-        // Generate AI analysis request: include relative paths and directory info in filenames to improve recursive matching accuracy
+        // Generate AI analysis request: include file IDs for precise matching
         let video_files: Vec<String> = videos
             .iter()
-            .map(|v| {
-                let rel = v
-                    .path
-                    .strip_prefix(path)
-                    .unwrap_or(&v.path)
-                    .to_string_lossy();
-                let dir = v
-                    .path
-                    .parent()
-                    .and_then(|p| p.file_name())
-                    .and_then(|n| n.to_str())
-                    .unwrap_or_default();
-                format!("{} (Path: {}, Dir: {})", v.name, rel, dir)
-            })
+            .map(|v| format!("ID:{} | Name:{} | Path:{}", v.id, v.name, v.relative_path))
             .collect();
         let subtitle_files: Vec<String> = subtitles
             .iter()
-            .map(|s| {
-                let rel = s
-                    .path
-                    .strip_prefix(path)
-                    .unwrap_or(&s.path)
-                    .to_string_lossy();
-                let dir = s
-                    .path
-                    .parent()
-                    .and_then(|p| p.file_name())
-                    .and_then(|n| n.to_str())
-                    .unwrap_or_default();
-                format!("{} (Path: {}, Dir: {})", s.name, rel, dir)
-            })
+            .map(|s| format!("ID:{} | Name:{} | Path:{}", s.id, s.name, s.relative_path))
             .collect();
         let analysis_request = AnalysisRequest {
             video_files,
@@ -277,6 +251,17 @@ impl MatchEngine {
         };
 
         let match_result = self.ai_client.analyze_content(analysis_request).await?;
+
+        // Debug: Log AI analysis results
+        eprintln!("🔍 AI 分析結果:");
+        eprintln!("   - 總匹配數: {}", match_result.matches.len());
+        eprintln!("   - 信心度閾值: {:.2}", self.config.confidence_threshold);
+        for ai_match in &match_result.matches {
+            eprintln!(
+                "   - {} -> {} (信心度: {:.2})",
+                ai_match.video_file_id, ai_match.subtitle_file_id, ai_match.confidence
+            );
+        }
 
         // 4. Assemble match operation list
         let mut operations = Vec::new();
@@ -326,6 +311,20 @@ impl MatchEngine {
                     "ℹ️  AI 匹配信心度過低 ({:.2}): {} <-> {}",
                     ai_match.confidence, ai_match.video_file_id, ai_match.subtitle_file_id
                 );
+            }
+        }
+
+        // Check if no operations were generated and provide debugging info
+        if operations.is_empty() {
+            eprintln!("\n❌ 沒有找到符合條件的檔案匹配");
+            eprintln!("🔍 可用檔案統計:");
+            eprintln!("   影片檔案 ({} 個):", videos.len());
+            for v in &videos {
+                eprintln!("     - ID: {} | {}", v.id, v.relative_path);
+            }
+            eprintln!("   字幕檔案 ({} 個):", subtitles.len());
+            for s in &subtitles {
+                eprintln!("     - ID: {} | {}", s.id, s.relative_path);
             }
         }
 
