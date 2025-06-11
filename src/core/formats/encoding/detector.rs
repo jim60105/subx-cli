@@ -453,8 +453,8 @@ mod tests {
 
         // Simulate GBK encoding pattern (high byte range)
         let gbk_pattern = vec![
-            0xC4, 0xE3, 0xBA, 0xC3, // 你好 (GBK)
-            0xCA, 0xC0, 0xBD, 0xE7, // 世界 (GBK)
+            0xC4, 0xE3, 0xBA, 0xC3, // "Hello" in GBK encoding
+            0xCA, 0xC0, 0xBD, 0xE7, // "World" in GBK encoding
         ];
 
         let result = detector.detect_encoding(&gbk_pattern).unwrap();

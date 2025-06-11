@@ -33,7 +33,7 @@ impl AusAudioAnalyzer {
             aus::mixdown(&mut audio_file);
         }
 
-        // 修正 duration 計算問題
+        // Fix duration calculation issue
         if audio_file.duration == 0.0 && !audio_file.samples[0].is_empty() {
             audio_file.duration =
                 audio_file.samples[0].len() as f64 / audio_file.sample_rate as f64;
@@ -64,7 +64,7 @@ impl AusAudioAnalyzer {
             energy_samples.push(rms_energy as f32);
         }
 
-        // 確保 duration 正確
+        // Ensure duration is correct
         let duration = if audio_file.duration > 0.0 {
             audio_file.duration as f32
         } else {
