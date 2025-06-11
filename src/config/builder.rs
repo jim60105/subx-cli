@@ -164,8 +164,8 @@ impl TestConfigBuilder {
         merge_gap_ms: u64,
     ) -> Self {
         self.config.sync.dialogue_detection_threshold = threshold;
-        self.config.sync.min_dialogue_duration_ms = min_duration_ms;
-        self.config.sync.dialogue_merge_gap_ms = merge_gap_ms;
+        self.config.sync.min_dialogue_duration_ms = min_duration_ms as u32;
+        self.config.sync.dialogue_merge_gap_ms = merge_gap_ms as u32;
         self
     }
 
@@ -311,7 +311,7 @@ impl TestConfigBuilder {
     ///
     /// * `strategy` - Overflow strategy
     pub fn with_queue_overflow_strategy(mut self, strategy: OverflowStrategy) -> Self {
-        self.config.parallel.queue_overflow_strategy = strategy;
+        self.config.parallel.overflow_strategy = strategy;
         self
     }
 

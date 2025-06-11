@@ -217,20 +217,41 @@ pub enum Commands {
 /// - Large file processing operations
 /// - Network-based configuration loading
 pub async fn run() -> crate::Result<()> {
+    // Create production configuration service
+    let config_service = std::sync::Arc::new(crate::config::ProductionConfigService::new()?);
+    run_with_config(config_service.as_ref()).await
+}
+
+/// Run the CLI with a provided configuration service.
+///
+/// This function enables dependency injection of configuration services,
+/// making it easier to test and providing better control over configuration
+/// management.
+///
+/// # Arguments
+///
+/// * `config_service` - The configuration service to use
+///
+/// # Errors
+///
+/// Returns an error if command execution fails.
+pub async fn run_with_config(
+    config_service: &dyn crate::config::ConfigService,
+) -> crate::Result<()> {
     let cli = Cli::parse();
 
     match cli.command {
         Commands::Match(args) => {
-            crate::commands::match_command::execute(args).await?;
+            crate::commands::match_command::execute(args, config_service).await?;
         }
         Commands::Convert(args) => {
-            crate::commands::convert_command::execute(args).await?;
+            crate::commands::convert_command::execute(args, config_service).await?;
         }
         Commands::Sync(args) => {
-            crate::commands::sync_command::execute(args).await?;
+            crate::commands::sync_command::execute(&args, config_service).await?;
         }
         Commands::Config(args) => {
-            crate::commands::config_command::execute(args).await?;
+            crate::commands::config_command::execute(args, config_service).await?;
         }
         Commands::GenerateCompletion(args) => {
             let mut cmd = <Cli as clap::CommandFactory>::command();

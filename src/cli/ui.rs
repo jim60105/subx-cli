@@ -43,7 +43,7 @@
 use crate::cli::table::{MatchDisplayRow, create_match_table};
 use crate::core::matcher::MatchOperation;
 use colored::*;
-use indicatif::{ProgressBar, ProgressDrawTarget, ProgressStyle};
+use indicatif::{ProgressBar, ProgressStyle};
 
 /// Display a success message with consistent formatting.
 ///
@@ -204,12 +204,8 @@ pub fn print_warning(message: &str) {
 /// is problematic.
 pub fn create_progress_bar(total: u64) -> ProgressBar {
     let pb = ProgressBar::new(total);
-    // Respect user configuration for progress bar display
-    if let Ok(cfg) = crate::config::load_config() {
-        if !cfg.general.enable_progress_bar {
-            pb.set_draw_target(ProgressDrawTarget::hidden());
-        }
-    }
+    // Progress bar is visible by default
+    // Configuration-based control should be handled by the caller
     pb.set_style(
         ProgressStyle::default_bar()
             .template(

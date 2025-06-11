@@ -180,7 +180,7 @@ impl FormatConverter {
     async fn read_file_with_encoding(&self, path: &Path) -> crate::Result<String> {
         let bytes = tokio::fs::read(path).await?;
         // Auto-detect encoding and convert to UTF-8
-        let detector = crate::core::formats::encoding::EncodingDetector::new()?;
+        let detector = crate::core::formats::encoding::EncodingDetector::with_defaults();
         let info = detector.detect_encoding(&bytes)?;
         let converter = crate::core::formats::encoding::EncodingConverter::new();
         let conversion = converter.convert_to_utf8(&bytes, &info.charset)?;

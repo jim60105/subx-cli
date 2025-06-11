@@ -13,13 +13,12 @@ pub use segment::{DialogueSegment, SilenceSegment};
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::config::init_config_manager;
+    use crate::config::TestConfigBuilder;
     use tempfile::TempDir;
 
     #[test]
     fn test_config_loading() {
-        init_config_manager().unwrap();
-        let cfg = crate::config::load_config().unwrap();
+        let cfg = TestConfigBuilder::new().build_config();
         assert!(cfg.sync.dialogue_detection_threshold > 0.0);
         assert!(cfg.sync.min_dialogue_duration_ms > 0);
         assert!(cfg.sync.dialogue_merge_gap_ms > 0);
@@ -50,7 +49,8 @@ mod tests {
         let temp = TempDir::new().unwrap();
         let audio_path = temp.path().join("test.wav");
         // TODO: Actual testing needs real audio files
-        let detector = DialogueDetector::new().unwrap();
+        let cfg = TestConfigBuilder::new().build_config();
+        let detector = DialogueDetector::new(&cfg.sync);
         let segs = detector.detect_dialogue(&audio_path).await.unwrap();
         assert!(segs.is_empty());
     }

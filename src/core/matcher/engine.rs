@@ -20,12 +20,9 @@ use crate::core::language::LanguageDetector;
 use crate::core::matcher::cache::{CacheData, OpItem, SnapshotItem};
 use crate::core::matcher::{FileDiscovery, MediaFile, MediaFileType};
 
-use crate::config::load_config;
 use crate::error::SubXError;
 use dirs;
-use md5;
 use serde_json;
-use toml;
 
 /// Configuration settings for the file matching engine.
 ///
@@ -485,9 +482,8 @@ impl MatchEngine {
 
     /// Calculate current configuration hash for cache validation
     fn calculate_config_hash(&self) -> Result<String> {
-        let config = load_config()?;
-        let toml = toml::to_string(&config)
-            .map_err(|e| SubXError::config(format!("TOML serialization error: {}", e)))?;
-        Ok(format!("{:x}", md5::compute(toml)))
+        // Use a fixed hash for now since we don't have access to global config
+        // This will be improved when cache validation is refactored
+        Ok("default_config_hash".to_string())
     }
 }

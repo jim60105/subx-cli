@@ -1,5 +1,4 @@
 use crate::Result;
-use crate::config::load_config;
 use crate::core::formats::encoding::charset::{Charset, EncodingInfo};
 use std::fs::File;
 use std::io::Read;
@@ -12,18 +11,8 @@ pub struct EncodingDetector {
 }
 
 impl EncodingDetector {
-    /// Create encoding detector, read confidence threshold from configuration
-    pub fn new() -> Result<Self> {
-        let config = load_config()?;
-        Ok(Self {
-            confidence_threshold: config.formats.encoding_detection_confidence,
-            max_sample_size: 8192,
-            supported_charsets: Self::default_charsets(),
-        })
-    }
-
-    /// Create encoding detector with custom configuration
-    pub fn with_config(config: &crate::config::Config) -> Self {
+    /// Create encoding detector with configuration
+    pub fn new(config: &crate::config::Config) -> Self {
         Self {
             confidence_threshold: config.formats.encoding_detection_confidence,
             max_sample_size: 8192,
@@ -31,10 +20,19 @@ impl EncodingDetector {
         }
     }
 
-    /// Create encoding detector with default settings (for testing)
+    /// Create encoding detector with default configuration
     pub fn with_defaults() -> Self {
         Self {
-            confidence_threshold: 0.7,
+            confidence_threshold: 0.8, // Default confidence threshold
+            max_sample_size: 8192,
+            supported_charsets: Self::default_charsets(),
+        }
+    }
+
+    /// Create encoding detector with custom configuration
+    pub fn with_config(config: &crate::config::Config) -> Self {
+        Self {
+            confidence_threshold: config.formats.encoding_detection_confidence,
             max_sample_size: 8192,
             supported_charsets: Self::default_charsets(),
         }
@@ -310,15 +308,11 @@ impl EncodingDetector {
         }
         let best = &candidates[0];
         if best.confidence < self.confidence_threshold {
-            let config = load_config()?;
             return Ok(EncodingInfo {
                 charset: Charset::Utf8,
                 confidence: 0.5,
                 bom_detected: false,
-                sample_text: format!(
-                    "Using default encoding: {}",
-                    config.formats.default_encoding
-                ),
+                sample_text: "Using default encoding: UTF-8".to_string(),
             });
         }
         let sample = self.decode_sample(data, &best.charset)?;
@@ -360,11 +354,7 @@ struct EncodingCandidate {
 
 impl Default for EncodingDetector {
     fn default() -> Self {
-        Self::new().unwrap_or(Self {
-            confidence_threshold: 0.7,
-            max_sample_size: 8192,
-            supported_charsets: Self::default_charsets(),
-        })
+        Self::with_defaults()
     }
 }
 

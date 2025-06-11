@@ -65,8 +65,6 @@ use crate::Result;
 use crate::cli::MatchArgs;
 use crate::cli::display_match_results;
 use crate::config::ConfigService;
-use crate::config::init_config_manager;
-use crate::config::load_config;
 use crate::core::matcher::{FileDiscovery, MatchConfig, MatchEngine, MediaFileType};
 use crate::core::parallel::{
     FileProcessingTask, ProcessingOperation, Task, TaskResult, TaskScheduler,
@@ -168,15 +166,15 @@ use indicatif::ProgressDrawTarget;
 /// - **Batch Processing**: Multiple files processed efficiently in parallel
 /// - **Rate Limiting**: Automatic throttling to respect AI service limits
 /// - **Memory Management**: Streaming processing for large file sets
-pub async fn execute(args: MatchArgs) -> Result<()> {
-    // Load configuration from all available sources
-    let config = load_config()?;
+pub async fn execute(args: MatchArgs, config_service: &dyn ConfigService) -> Result<()> {
+    // Load configuration from the injected service
+    let config = config_service.get_config()?;
 
     // Create AI client based on configured provider and settings
     let ai_client = AIClientFactory::create_client(&config.ai)?;
 
     // Execute the matching workflow with dependency injection
-    execute_with_client(args, ai_client).await
+    execute_with_client(args, ai_client, &config).await
 }
 
 /// Execute the AI-powered subtitle matching operation with injected configuration service.
@@ -211,7 +209,7 @@ pub async fn execute_with_config(
     let ai_client = AIClientFactory::create_client(&config.ai)?;
 
     // Execute the matching workflow with dependency injection
-    execute_with_client(args, ai_client).await
+    execute_with_client(args, ai_client, &config).await
 }
 
 /// Execute the matching workflow with dependency-injected AI client.
@@ -294,11 +292,14 @@ pub async fn execute_with_config(
 ///     backup: false,
 /// };
 ///
-/// match_command::execute_with_client(args, mock_client).await?;
+/// match_command::execute_with_client(args, mock_client, &config).await?;
 /// ```
-pub async fn execute_with_client(args: MatchArgs, ai_client: Box<dyn AIProvider>) -> Result<()> {
-    // Load configuration and create matching engine configuration
-    let config = load_config()?;
+pub async fn execute_with_client(
+    args: MatchArgs,
+    ai_client: Box<dyn AIProvider>,
+    config: &crate::config::Config,
+) -> Result<()> {
+    // Create matching engine configuration from provided config
     let match_config = MatchConfig {
         confidence_threshold: args.confidence as f32 / 100.0,
         max_sample_length: config.ai.max_sample_length,
@@ -426,9 +427,10 @@ pub async fn execute_parallel_match(
     directory: &std::path::Path,
     recursive: bool,
     output: Option<&std::path::Path>,
+    config_service: &dyn ConfigService,
 ) -> Result<()> {
-    // Initialize configuration management system
-    init_config_manager()?;
+    // Load configuration from injected service
+    let _config = config_service.get_config()?;
 
     // Create and configure task scheduler for parallel processing
     let scheduler = TaskScheduler::new()?;
@@ -465,10 +467,9 @@ pub async fn execute_parallel_match(
     let progress_bar = {
         let pb = create_progress_bar(tasks.len());
         // Show or hide progress bar based on configuration
-        if let Ok(cfg) = load_config() {
-            if !cfg.general.enable_progress_bar {
-                pb.set_draw_target(ProgressDrawTarget::hidden());
-            }
+        let config = config_service.get_config()?;
+        if !config.general.enable_progress_bar {
+            pb.set_draw_target(ProgressDrawTarget::hidden());
         }
         pb
     };
@@ -609,7 +610,8 @@ mod tests {
 
         // Note: Since we're testing in isolation, we might need to use execute_with_config
         // but first let's test the basic flow works with the dummy AI
-        let result = execute_with_client(args, Box::new(DummyAI)).await;
+        let config = crate::config::TestConfigBuilder::new().build_config();
+        let result = execute_with_client(args, Box::new(DummyAI), &config).await;
 
         // The test should not fail due to missing cache directory in isolation
         if result.is_err() {
@@ -634,7 +636,8 @@ mod tests {
         let temp_dir = tempdir()?;
 
         // Should return normally when no video files are present
-        let result = execute_parallel_match(&temp_dir.path(), false, None).await;
+        let config_service = crate::config::TestConfigBuilder::new().build_service();
+        let result = execute_parallel_match(&temp_dir.path(), false, None, &config_service).await;
         assert!(result.is_ok());
 
         Ok(())

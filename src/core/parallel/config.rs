@@ -69,7 +69,7 @@ mod tests {
         );
         assert_eq!(
             pc.queue_overflow_strategy,
-            app_cfg.parallel.queue_overflow_strategy
+            app_cfg.parallel.overflow_strategy
         );
     }
 }
@@ -83,7 +83,7 @@ impl ParallelConfig {
             task_queue_size: p.task_queue_size,
             enable_task_priorities: p.enable_task_priorities,
             auto_balance_workers: p.auto_balance_workers,
-            queue_overflow_strategy: p.queue_overflow_strategy,
+            queue_overflow_strategy: p.overflow_strategy.clone(),
         }
     }
 

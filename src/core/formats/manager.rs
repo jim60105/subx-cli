@@ -75,7 +75,7 @@ impl FormatManager {
 
     /// Read subtitle and auto-detect encoding, convert to UTF-8
     pub fn read_subtitle_with_encoding_detection(&self, file_path: &str) -> crate::Result<String> {
-        let detector = crate::core::formats::encoding::EncodingDetector::new()?;
+        let detector = crate::core::formats::encoding::EncodingDetector::with_defaults();
         let info = detector.detect_file_encoding(file_path)?;
         let converter = crate::core::formats::encoding::EncodingConverter::new();
         let result = converter.convert_file_to_utf8(file_path, &info)?;
@@ -95,7 +95,7 @@ impl FormatManager {
         &self,
         file_path: &str,
     ) -> crate::Result<crate::core::formats::encoding::EncodingInfo> {
-        let detector = crate::core::formats::encoding::EncodingDetector::new()?;
+        let detector = crate::core::formats::encoding::EncodingDetector::with_defaults();
         detector.detect_file_encoding(file_path)
     }
 }

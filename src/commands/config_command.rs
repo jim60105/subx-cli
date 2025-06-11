@@ -108,7 +108,7 @@
 
 use crate::Result;
 use crate::cli::{ConfigAction, ConfigArgs};
-use crate::config::{Config, ConfigService, load_config};
+use crate::config::{Config, ConfigService};
 use crate::error::SubXError;
 
 /// Execute configuration management operations with validation and type safety.
@@ -245,11 +245,11 @@ use crate::error::SubXError;
 /// };
 /// config_command::execute(reset_config).await?;
 /// ```
-pub async fn execute(args: ConfigArgs) -> Result<()> {
+pub async fn execute(args: ConfigArgs, config_service: &dyn ConfigService) -> Result<()> {
     match args.action {
         ConfigAction::Set { key, value } => {
             // Load current configuration for modification
-            let mut config = load_config()?;
+            let mut config = config_service.get_config()?;
 
             // Parse hierarchical configuration key (e.g., "ai.provider")
             let parts: Vec<&str> = key.splitn(2, '.').collect();
@@ -291,12 +291,12 @@ pub async fn execute(args: ConfigArgs) -> Result<()> {
             println!("Set {} = {}", key, config.get_value(&key)?);
         }
         ConfigAction::Get { key } => {
-            let config = load_config()?;
+            let config = config_service.get_config()?;
             let value = config.get_value(&key)?;
             println!("{}", value);
         }
         ConfigAction::List => {
-            let config = load_config()?;
+            let config = config_service.get_config()?;
             if let Some(path) = &config.loaded_from {
                 println!("# Configuration file path: {}\n", path.display());
             }
@@ -337,12 +337,9 @@ pub async fn execute_with_config(
 ) -> Result<()> {
     match args.action {
         ConfigAction::Get { key } => {
-            let _config = config_service.get_config()?;
-            // For now, delegate to the original implementation
-            execute(ConfigArgs {
-                action: ConfigAction::Get { key },
-            })
-            .await?;
+            let config = config_service.get_config()?;
+            let value = config.get_value(&key)?;
+            println!("{}", value);
         }
         ConfigAction::List => {
             let config = config_service.get_config()?;
@@ -358,13 +355,12 @@ pub async fn execute_with_config(
             config_service.reload()?;
             println!("✓ Configuration reloaded");
         }
-        ConfigAction::Set { key, value } => {
-            // Note: This requires extending the ConfigService trait to support setting values
-            // For now, delegate to the original implementation
-            execute(ConfigArgs {
-                action: ConfigAction::Set { key, value },
-            })
-            .await?;
+        ConfigAction::Set { key: _, value: _ } => {
+            // Note: Setting values requires mutable config service which we don't have yet
+            // For now, return an error indicating this limitation
+            return Err(SubXError::config(
+                "Setting configuration values not yet supported with ConfigService. Use config files or environment variables instead.",
+            ));
         }
     }
     Ok(())

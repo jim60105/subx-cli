@@ -23,16 +23,8 @@ async fn main() {
 
 /// Main application runner with proper error handling.
 ///
-/// This function demonstrates the new dependency injection approach
-/// while maintaining backward compatibility.
+/// This function uses the new CLI interface with dependency injection.
 async fn run_application() -> subx_cli::Result<()> {
-    // Option 1: Use new dependency injection approach
-    match subx_cli::App::new_with_production_config() {
-        Ok(app) => app.run().await,
-        Err(_) => {
-            // Option 2: Fall back to legacy configuration system if needed
-            eprintln!("Warning: Falling back to legacy configuration system");
-            subx_cli::run_with_legacy_config().await
-        }
-    }
+    // Use the new CLI interface
+    subx_cli::cli::run().await
 }

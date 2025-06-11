@@ -193,7 +193,7 @@ use std::path::Path;
 /// - **Automation**: Integrate encoding detection into batch processing workflows
 pub fn detect_encoding_command(file_paths: &[String], verbose: bool) -> Result<()> {
     // Initialize the encoding detection engine
-    let detector = EncodingDetector::new()?;
+    let detector = EncodingDetector::with_defaults();
 
     // Process each file individually to provide isolated error handling
     for file in file_paths {

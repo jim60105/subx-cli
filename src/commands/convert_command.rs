@@ -73,7 +73,6 @@
 
 use crate::cli::{ConvertArgs, OutputSubtitleFormat};
 use crate::config::ConfigService;
-use crate::config::load_config;
 use crate::core::file_manager::FileManager;
 use crate::core::formats::converter::{ConversionConfig, FormatConverter};
 use crate::error::SubXError;
@@ -201,9 +200,9 @@ use crate::error::SubXError;
 /// - **Disk I/O Optimization**: Efficient file access patterns
 /// - **Batch Processing**: Optimized for multiple file operations
 /// - **Validation Caching**: Avoid redundant quality checks
-pub async fn execute(args: ConvertArgs) -> crate::Result<()> {
+pub async fn execute(args: ConvertArgs, config_service: &dyn ConfigService) -> crate::Result<()> {
     // Load application configuration for conversion settings
-    let app_config = load_config()?;
+    let app_config = config_service.get_config()?;
 
     // Configure conversion engine with user preferences and application defaults
     let config = ConversionConfig {

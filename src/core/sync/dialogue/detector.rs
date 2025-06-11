@@ -6,13 +6,15 @@
 //! # Examples
 //!
 //! ```rust,no_run
-//! use subx_cli::{init_config_manager, core::sync::dialogue::detector::DialogueDetector};
-//! init_config_manager().unwrap();
-//! let detector = DialogueDetector::new().unwrap();
+//! use subx_cli::core::sync::dialogue::detector::DialogueDetector;
+//! use subx_cli::config::SyncConfig;
+//!
+//! let sync_config = SyncConfig::default();
+//! let detector = DialogueDetector::new(&sync_config);
 //! // detector.detect_dialogue(&path).await;
 //! ```
 use crate::Result;
-use crate::config::{SyncConfig, load_config};
+use crate::config::SyncConfig;
 use crate::core::sync::dialogue::{DialogueSegment, EnergyAnalyzer};
 use crate::services::audio::AudioData;
 use std::path::Path;
@@ -24,17 +26,59 @@ pub struct DialogueDetector {
 }
 
 impl DialogueDetector {
-    /// Creates a new `DialogueDetector` by loading sync parameters from configuration.
-    pub fn new() -> Result<Self> {
-        let config = load_config()?.sync;
+    /// Creates a new `DialogueDetector` with the provided sync configuration.
+    ///
+    /// # Arguments
+    ///
+    /// * `sync_config` - Synchronization configuration parameters
+    pub fn new(sync_config: &SyncConfig) -> Self {
+        let config = sync_config.clone();
         let energy_analyzer = EnergyAnalyzer::new(
             config.dialogue_detection_threshold,
-            config.min_dialogue_duration_ms,
+            config.min_dialogue_duration_ms.into(),
         );
-        Ok(Self {
+        Self {
             energy_analyzer,
             config,
-        })
+        }
+    }
+
+    /// Creates a DialogueDetector with custom threshold settings.
+    ///
+    /// This builder method allows overriding the correlation threshold
+    /// from the base configuration.
+    ///
+    /// # Arguments
+    ///
+    /// * `threshold` - Custom correlation threshold value
+    pub fn with_custom_threshold(mut self, threshold: f32) -> Self {
+        self.config.correlation_threshold = threshold;
+        // Update energy analyzer with new threshold
+        self.energy_analyzer = EnergyAnalyzer::new(
+            self.config.dialogue_detection_threshold,
+            self.config.min_dialogue_duration_ms.into(),
+        );
+        self
+    }
+
+    /// Creates a DialogueDetector with custom offset settings.
+    ///
+    /// This builder method allows overriding the maximum offset
+    /// from the base configuration.
+    ///
+    /// # Arguments
+    ///
+    /// * `offset` - Custom maximum offset in seconds
+    pub fn with_custom_offset(mut self, offset: f32) -> Self {
+        self.config.max_offset_seconds = offset;
+        self
+    }
+
+    /// Get a reference to the current configuration.
+    ///
+    /// Returns a reference to the sync configuration used by this detector.
+    pub fn config(&self) -> &SyncConfig {
+        &self.config
     }
 
     /// Performs dialogue detection and returns a list of speech activity segments.
@@ -107,18 +151,29 @@ impl DialogueDetector {
 mod tests {
     use super::*;
 
+    fn create_test_config() -> SyncConfig {
+        SyncConfig {
+            max_offset_seconds: 30.0,
+            audio_sample_rate: 16000,
+            correlation_threshold: 0.7,
+            dialogue_detection_threshold: 0.01,
+            min_dialogue_duration_ms: 500,
+            dialogue_merge_gap_ms: 500,
+            enable_dialogue_detection: true,
+            auto_detect_sample_rate: true,
+        }
+    }
+
     /// Test speech activity ratio calculation
     #[test]
     fn test_get_speech_ratio() {
-        // Initialize global configuration to allow DialogueDetector creation
-        crate::config::reset_global_config_manager();
-        crate::config::init_config_manager().unwrap();
         let segments = vec![
             DialogueSegment::new_speech(0.0, 1.0),
             DialogueSegment::new_silence(1.0, 2.0),
             DialogueSegment::new_speech(2.0, 4.0),
         ];
-        let detector = DialogueDetector::new().unwrap();
+        let config = create_test_config();
+        let detector = DialogueDetector::new(&config);
         let ratio = detector.get_speech_ratio(&segments);
         // Speech ratio is (1+2)/(1+1+2) = 3/4
         assert!((ratio - 0.75).abs() < 1e-6, "Speech ratio should be 0.75");
@@ -127,10 +182,8 @@ mod tests {
     /// Test dialogue detection with mock audio data
     #[tokio::test]
     async fn test_dialogue_detection_algorithm() {
-        crate::config::reset_global_config_manager();
-        crate::config::init_config_manager().unwrap();
-
-        let detector = DialogueDetector::new().unwrap();
+        let config = create_test_config();
+        let detector = DialogueDetector::new(&config);
 
         // Create test audio file path (will use mock data in analyzer)
         let temp_dir = tempfile::TempDir::new().unwrap();
@@ -144,7 +197,7 @@ mod tests {
         config.enable_dialogue_detection = false;
         let energy_analyzer = EnergyAnalyzer::new(
             config.dialogue_detection_threshold,
-            config.min_dialogue_duration_ms,
+            config.min_dialogue_duration_ms.into(),
         );
         let detector_disabled = DialogueDetector {
             energy_analyzer,
@@ -164,10 +217,8 @@ mod tests {
     /// Test voice activity detection with different audio patterns
     #[test]
     fn test_voice_activity_detection_patterns() {
-        crate::config::reset_global_config_manager();
-        crate::config::init_config_manager().unwrap();
-
-        let detector = DialogueDetector::new().unwrap();
+        let config = create_test_config();
+        let detector = DialogueDetector::new(&config);
 
         // Test speech ratio calculation with various patterns
         let speech_segments = vec![
@@ -197,10 +248,8 @@ mod tests {
     /// Test segment optimization and merging
     #[test]
     fn test_segment_optimization() {
-        crate::config::reset_global_config_manager();
-        crate::config::init_config_manager().unwrap();
-
-        let detector = DialogueDetector::new().unwrap();
+        let config = create_test_config();
+        let detector = DialogueDetector::new(&config);
 
         // Create segments that should be merged (gap < merge_gap_ms)
         let segments = vec![
@@ -224,9 +273,6 @@ mod tests {
     /// Test detection with various threshold configurations
     #[test]
     fn test_detection_thresholds() {
-        crate::config::reset_global_config_manager();
-        crate::config::init_config_manager().unwrap();
-
         // Test strict threshold
         let strict_config = SyncConfig {
             max_offset_seconds: 5.0,
@@ -239,15 +285,7 @@ mod tests {
             auto_detect_sample_rate: false,
         };
 
-        let strict_analyzer = EnergyAnalyzer::new(
-            strict_config.dialogue_detection_threshold,
-            strict_config.min_dialogue_duration_ms,
-        );
-
-        let strict_detector = DialogueDetector {
-            energy_analyzer: strict_analyzer,
-            config: strict_config,
-        };
+        let strict_detector = DialogueDetector::new(&strict_config);
 
         // Test lenient threshold
         let lenient_config = SyncConfig {
@@ -261,15 +299,7 @@ mod tests {
             auto_detect_sample_rate: false,
         };
 
-        let lenient_analyzer = EnergyAnalyzer::new(
-            lenient_config.dialogue_detection_threshold,
-            lenient_config.min_dialogue_duration_ms,
-        );
-
-        let lenient_detector = DialogueDetector {
-            energy_analyzer: lenient_analyzer,
-            config: lenient_config,
-        };
+        let lenient_detector = DialogueDetector::new(&lenient_config);
 
         // Verify configuration differences
         assert!(
@@ -285,10 +315,8 @@ mod tests {
     /// Test edge cases in speech ratio calculation
     #[test]
     fn test_speech_ratio_edge_cases() {
-        crate::config::reset_global_config_manager();
-        crate::config::init_config_manager().unwrap();
-
-        let detector = DialogueDetector::new().unwrap();
+        let config = create_test_config();
+        let detector = DialogueDetector::new(&config);
 
         // Empty segments
         let empty_segments = vec![];
@@ -319,10 +347,8 @@ mod tests {
     /// Test configuration loading and validation
     #[test]
     fn test_detector_configuration() {
-        crate::config::reset_global_config_manager();
-        crate::config::init_config_manager().unwrap();
-
-        let detector = DialogueDetector::new().unwrap();
+        let config = create_test_config();
+        let detector = DialogueDetector::new(&config);
 
         // Verify configuration is loaded correctly
         assert!(detector.config.dialogue_detection_threshold >= 0.0);
@@ -330,7 +356,7 @@ mod tests {
         // dialogue_merge_gap_ms is u64, so it's always >= 0
 
         // Test that detector can be created multiple times
-        let detector2 = DialogueDetector::new().unwrap();
+        let detector2 = DialogueDetector::new(&config);
         assert_eq!(
             detector.config.dialogue_detection_threshold,
             detector2.config.dialogue_detection_threshold
@@ -340,10 +366,8 @@ mod tests {
     /// Test dialogue segment merging logic
     #[test]
     fn test_dialogue_segment_merging() {
-        crate::config::reset_global_config_manager();
-        crate::config::init_config_manager().unwrap();
-
-        let detector = DialogueDetector::new().unwrap();
+        let config = create_test_config();
+        let detector = DialogueDetector::new(&config);
 
         // Test segments that should NOT be merged (different types)
         let mixed_segments = vec![

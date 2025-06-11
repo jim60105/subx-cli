@@ -27,10 +27,11 @@
 //! # Quick Start
 //!
 //! ```rust,no_run
-//! use subx_cli::config::load_config;
+//! use subx_cli::config::{TestConfigService, ConfigService};
 //!
-//! // Load configuration
-//! let config = load_config().expect("Failed to load configuration");
+//! // Create a configuration service
+//! let config_service = TestConfigService::with_defaults();
+//! let config = config_service.config();
 //!
 //! // Use the configuration for processing...
 //! ```
@@ -50,19 +51,18 @@
 //!
 //! # Configuration
 //!
-//! SubX supports multi-source configuration loading:
+//! SubX supports dependency injection-based configuration:
 //!
 //! ```rust,no_run
-//! use subx_cli::config::source::FileSource;
-//! use subx_cli::config::manager::ConfigManager;
-//! use std::path::PathBuf;
+//! use subx_cli::config::{TestConfigService, Config};
 //!
-//! // Create configuration manager and file source
-//! let file_source = FileSource::new(PathBuf::from("config.toml"));
-//! let manager = ConfigManager::new()
-//!     .add_source(Box::new(file_source));
-//! manager.load().expect("Failed to load config");
-//! let config = manager.config();
+//! // Create configuration service with AI settings
+//! let config_service = TestConfigService::with_ai_settings("openai", "gpt-4");
+//! let config = config_service.config();
+//!
+//! // Access configuration values
+//! println!("AI Provider: {}", config.ai.provider);
+//! println!("AI Model: {}", config.ai.model);
 //! ```
 //!
 //! # Performance Considerations
@@ -111,7 +111,7 @@ pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 pub mod cli;
 pub mod commands;
 pub mod config;
-pub use config::{Config, init_config_manager, load_config};
+pub use config::Config;
 // Re-export new configuration service system
 pub use config::{ConfigService, ProductionConfigService, TestConfigBuilder, TestConfigService};
 pub mod core;
@@ -253,15 +253,11 @@ impl App {
     }
 }
 
-/// Backward compatibility function for the legacy CLI run method.
+/// Backward compatibility function that has been replaced by the new CLI interface.
 ///
-/// This function provides a bridge between the new dependency injection
-/// architecture and the existing CLI interface.
+/// This function has been deprecated. Use `cli::run()` instead.
+#[deprecated(since = "0.2.0", note = "Use cli::run() instead")]
 pub async fn run_with_legacy_config() -> Result<()> {
-    // Initialize legacy configuration manager
-    config::init_config_manager()?;
-
-    // Create app with production config service
-    let app = App::new_with_production_config()?;
-    app.run().await
+    // Use the new CLI interface instead
+    cli::run().await
 }

@@ -1,7 +1,7 @@
 //! Task scheduler for parallel processing
 use super::{Task, TaskResult, TaskStatus};
 use crate::Result;
-use crate::config::{Config, OverflowStrategy, load_config};
+use crate::config::{Config, OverflowStrategy};
 use crate::core::parallel::config::ParallelConfig;
 use crate::error::SubXError;
 use std::collections::VecDeque;
@@ -87,9 +87,8 @@ pub struct TaskScheduler {
 
 impl TaskScheduler {
     /// Create a new scheduler based on configuration
-    pub fn new() -> Result<Self> {
-        let app_config = load_config()?;
-        let config = ParallelConfig::from_app_config(&app_config);
+    pub fn new_with_config(app_config: &Config) -> Result<Self> {
+        let config = ParallelConfig::from_app_config(app_config);
         config.validate()?;
         let semaphore = Arc::new(Semaphore::new(config.max_concurrent_jobs));
         let task_queue = Arc::new(Mutex::new(VecDeque::new()));
@@ -150,6 +149,12 @@ impl TaskScheduler {
         // Start background scheduler loop
         scheduler.start_scheduler_loop();
         scheduler
+    }
+
+    /// Create a new scheduler with default configuration
+    pub fn new() -> Result<Self> {
+        let default_config = Config::default();
+        Self::new_with_config(&default_config)
     }
 
     /// Start the background scheduler loop
@@ -305,6 +310,16 @@ impl TaskScheduler {
                         "Task queue is full".to_string(),
                     ));
                 }
+                OverflowStrategy::Drop => {
+                    // Drop the new task - return Failed result
+                    return Ok(TaskResult::Failed(
+                        "Task dropped due to queue overflow".to_string(),
+                    ));
+                }
+                OverflowStrategy::Expand => {
+                    // Allow queue to expand beyond limits
+                    // No action needed, task will be added below
+                }
             }
         }
         // Enqueue task according to priority setting
@@ -389,6 +404,14 @@ impl TaskScheduler {
                     OverflowStrategy::Reject => {
                         // Reject entire batch when queue is full
                         return Vec::new();
+                    }
+                    OverflowStrategy::Drop => {
+                        // Drop the current task, continue with others
+                        continue;
+                    }
+                    OverflowStrategy::Expand => {
+                        // Allow queue to expand beyond limits
+                        // No action needed, task will be added below
                     }
                 }
             }

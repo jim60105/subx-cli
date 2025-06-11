@@ -98,7 +98,6 @@
 use crate::Result;
 use crate::cli::SyncArgs;
 use crate::config::ConfigService;
-use crate::config::load_config;
 use crate::core::formats::Subtitle;
 use crate::core::formats::manager::FormatManager;
 use crate::core::matcher::{FileDiscovery, MediaFileType};
@@ -230,9 +229,49 @@ use std::path::{Path, PathBuf};
 /// - **Memory Usage**: Proportional to video length and audio quality
 /// - **Disk I/O**: Temporary files created during audio extraction
 /// - **Optimization**: Results cached for repeated operations on same files
-pub async fn execute(args: SyncArgs) -> Result<()> {
-    // Load application configuration for synchronization parameters
-    let app_config = load_config()?;
+///
+/// Execute advanced subtitle synchronization with dependency injection.
+///
+/// This function orchestrates the complete synchronization workflow using
+/// dependency injection for configuration management, supporting both automatic
+/// audio-based timing correction and manual offset application.
+///
+/// # Arguments
+///
+/// * `args` - Synchronization arguments including video/subtitle paths and settings
+/// * `config_service` - Configuration service providing access to sync settings
+///
+/// # Returns
+///
+/// Returns `Ok(())` on successful completion, or an error if synchronization fails.
+///
+/// # Examples
+///
+/// ```rust,ignore
+/// use subx_cli::commands::sync_command;
+/// use subx_cli::cli::SyncArgs;
+/// use subx_cli::config::ProductionConfigService;
+/// use std::path::PathBuf;
+/// use std::sync::Arc;
+///
+/// # async fn example() -> subx_cli::Result<()> {
+/// let config_service = Arc::new(ProductionConfigService::new()?);
+/// let args = SyncArgs {
+///     video: PathBuf::from("movie.mp4"),
+///     subtitle: PathBuf::from("movie.srt"),
+///     offset: None,
+///     batch: false,
+///     range: Some(15.0),
+///     threshold: Some(0.8),
+/// };
+///
+/// sync_command::execute(&args, config_service.as_ref()).await?;
+/// # Ok(())
+/// # }
+/// ```
+pub async fn execute(args: &SyncArgs, config_service: &dyn ConfigService) -> Result<()> {
+    // Load application configuration for synchronization parameters from injected service
+    let app_config = config_service.get_config()?;
 
     // Configure synchronization engine with user overrides and defaults
     let config = SyncConfig {
@@ -281,21 +320,21 @@ pub async fn execute_with_config(
     let sync_engine = SyncEngine::new(config);
 
     // Delegate to the shared synchronization logic
-    execute_sync_logic(args, app_config, sync_engine).await
+    execute_sync_logic(&args, app_config, sync_engine).await
 }
 
 /// Internal function containing the core synchronization logic.
 ///
 /// This function contains the shared sync logic that can be used by both
-/// the legacy execute() function and the new execute_with_config() function.
+/// the legacy execute() function and the new execute() function.
 async fn execute_sync_logic(
-    args: SyncArgs,
+    args: &SyncArgs,
     app_config: crate::config::Config,
     sync_engine: SyncEngine,
 ) -> Result<()> {
     // Perform advanced dialogue detection if enabled in configuration
     if app_config.sync.enable_dialogue_detection {
-        let detector = DialogueDetector::new()?;
+        let detector = DialogueDetector::new(&app_config.sync);
         let segs = detector.detect_dialogue(&args.video).await?;
         println!("Detected {} dialogue segments", segs.len());
         println!(

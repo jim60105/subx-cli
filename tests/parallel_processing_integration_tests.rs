@@ -60,7 +60,12 @@ async fn test_parallel_command_integration() {
     tokio::fs::write(&video, b"dummy").await.unwrap();
     tokio::fs::write(&subtitle, b"dummy").await.unwrap();
 
-    let result =
-        subx_cli::commands::match_command::execute_parallel_match(temp.path(), true, None).await;
+    let result = subx_cli::commands::match_command::execute_parallel_match(
+        temp.path(),
+        true,
+        None,
+        &subx_cli::config::TestConfigService::with_defaults(),
+    )
+    .await;
     assert!(result.is_ok());
 }
