@@ -487,9 +487,298 @@ fn test_production_config_service_api_key_priority() {
 - [ ] 測試完全隔離，無全域狀態修改
 - [ ] 斷言明確且有意義
 
-### 階段 4：整合與驗證（0.5 天）
+#### 3.3 擴充測試巨集支援環境變數測試
 
-#### 4.1 模組整合
+**目標**：為環境變數測試建立便利的測試巨集，提升開發體驗
+
+**實作內容**：
+
+1. **新增環境變數測試巨集**（在 `src/config/test_macros.rs` 中）：
+
+```rust
+/// 使用指定環境變數映射執行 ProductionConfigService 測試
+/// 
+/// 此巨集建立一個 TestEnvironmentProvider，設定指定的環境變數，
+/// 然後使用該提供者建立 ProductionConfigService 執行測試
+/// 
+/// # 參數
+/// * `$env_vars` - 環境變數映射表達式（HashMap<&str, &str>）
+/// * `$test` - 測試閉包，接收 ProductionConfigService 引用
+/// 
+/// # 範例
+/// 
+/// ```rust,ignore
+/// use subx_cli::{test_production_config_with_env, std::collections::HashMap};
+/// 
+/// let env_vars = [
+///     ("OPENAI_API_KEY", "sk-test-key"),
+///     ("OPENAI_BASE_URL", "https://test.api.com/v1")
+/// ].iter().cloned().collect::<HashMap<_, _>>();
+/// 
+/// test_production_config_with_env!(env_vars, |service| {
+///     let config = service.get_config().unwrap();
+///     assert_eq!(config.ai.api_key, Some("sk-test-key".to_string()));
+///     assert_eq!(config.ai.base_url, "https://test.api.com/v1");
+/// });
+/// ```
+#[macro_export]
+macro_rules! test_production_config_with_env {
+    ($env_vars:expr, $test:expr) => {{
+        use std::sync::Arc;
+        use std::collections::HashMap;
+        
+        let mut env_provider = $crate::config::TestEnvironmentProvider::new();
+        
+        // 將環境變數映射轉換為字串並設定到提供者
+        for (key, value) in $env_vars {
+            env_provider.set_var(key, value);
+        }
+        
+        let service = $crate::config::ProductionConfigService::with_env_provider(
+            Arc::new(env_provider)
+        ).expect("Failed to create ProductionConfigService with environment provider");
+        
+        $test(&service)
+    }};
+}
+
+/// 使用 OPENAI 環境變數執行 ProductionConfigService 測試
+/// 
+/// 此巨集是 test_production_config_with_env! 的便利版本，
+/// 專門用於測試 OPENAI_API_KEY 和 OPENAI_BASE_URL 環境變數
+/// 
+/// # 參數
+/// * `$api_key` - OPENAI_API_KEY 值（Option<&str>）
+/// * `$base_url` - OPENAI_BASE_URL 值（Option<&str>）  
+/// * `$test` - 測試閉包，接收 ProductionConfigService 引用
+/// 
+/// # 範例
+/// 
+/// ```rust,ignore
+/// use subx_cli::test_production_config_with_openai_env;
+/// 
+/// test_production_config_with_openai_env!(
+///     Some("sk-test-key"), 
+///     Some("https://test.api.com/v1"), 
+///     |service| {
+///         let config = service.get_config().unwrap();
+///         assert_eq!(config.ai.api_key, Some("sk-test-key".to_string()));
+///         assert_eq!(config.ai.base_url, "https://test.api.com/v1");
+///     }
+/// );
+/// ```
+#[macro_export]
+macro_rules! test_production_config_with_openai_env {
+    ($api_key:expr, $base_url:expr, $test:expr) => {{
+        use std::sync::Arc;
+        
+        let mut env_provider = $crate::config::TestEnvironmentProvider::new();
+        
+        // 設定 OPENAI_API_KEY（如果提供）
+        if let Some(api_key) = $api_key {
+            env_provider.set_var("OPENAI_API_KEY", api_key);
+        }
+        
+        // 設定 OPENAI_BASE_URL（如果提供）
+        if let Some(base_url) = $base_url {
+            env_provider.set_var("OPENAI_BASE_URL", base_url);
+        }
+        
+        let service = $crate::config::ProductionConfigService::with_env_provider(
+            Arc::new(env_provider)
+        ).expect("Failed to create ProductionConfigService with OPENAI environment variables");
+        
+        $test(&service)
+    }};
+}
+
+/// 建立臨時的 ProductionConfigService 與環境變數提供者供測試函數使用
+/// 
+/// 此巨集建立一個具有指定環境變數的 ProductionConfigService 變數，
+/// 可以在整個測試函數中使用
+/// 
+/// # 參數
+/// * `$service_name` - 服務變數名稱
+/// * `$env_vars` - 環境變數映射表達式（HashMap<&str, &str>）
+/// 
+/// # 範例
+/// 
+/// ```rust,ignore
+/// use subx_cli::create_production_config_service_with_env;
+/// 
+/// fn my_test() {
+///     let env_vars = [("OPENAI_API_KEY", "sk-test")].iter().cloned().collect();
+///     create_production_config_service_with_env!(service, env_vars);
+///     
+///     let config = service.get_config().unwrap();
+///     assert_eq!(config.ai.api_key, Some("sk-test".to_string()));
+/// }
+/// ```
+#[macro_export]
+macro_rules! create_production_config_service_with_env {
+    ($service_name:ident, $env_vars:expr) => {
+        use std::sync::Arc;
+        
+        let mut env_provider = $crate::config::TestEnvironmentProvider::new();
+        
+        for (key, value) in $env_vars {
+            env_provider.set_var(key, value);
+        }
+        
+        let $service_name = $crate::config::ProductionConfigService::with_env_provider(
+            Arc::new(env_provider)
+        ).expect("Failed to create ProductionConfigService with environment provider");
+    };
+}
+
+/// 建立空環境變數的 ProductionConfigService 供測試使用
+/// 
+/// 此巨集建立一個沒有任何環境變數的 ProductionConfigService，
+/// 用於測試預設行為
+/// 
+/// # 參數
+/// * `$service_name` - 服務變數名稱
+/// 
+/// # 範例
+/// 
+/// ```rust,ignore
+/// use subx_cli::create_production_config_service_with_empty_env;
+/// 
+/// fn my_test() {
+///     create_production_config_service_with_empty_env!(service);
+///     
+///     let config = service.get_config().unwrap();
+///     assert_eq!(config.ai.api_key, None); // 預期無 API key
+/// }
+/// ```
+#[macro_export]
+macro_rules! create_production_config_service_with_empty_env {
+    ($service_name:ident) => {
+        create_production_config_service_with_env!($service_name, std::collections::HashMap::new())
+    };
+}
+```
+
+2. **新增巨集的單元測試**：
+
+```rust
+#[cfg(test)]
+mod env_macro_tests {
+    use super::*;
+    use std::collections::HashMap;
+
+    #[test]
+    fn test_production_config_with_env_macro() {
+        let env_vars: HashMap<&str, &str> = [
+            ("OPENAI_API_KEY", "sk-macro-test"),
+            ("OPENAI_BASE_URL", "https://macro.test.com/v1")
+        ].iter().cloned().collect();
+
+        test_production_config_with_env!(env_vars, |service| {
+            let config = service.get_config().unwrap();
+            assert_eq!(config.ai.api_key, Some("sk-macro-test".to_string()));
+            assert_eq!(config.ai.base_url, "https://macro.test.com/v1");
+        });
+    }
+
+    #[test]
+    fn test_production_config_with_openai_env_macro_both() {
+        test_production_config_with_openai_env!(
+            Some("sk-openai-macro"),
+            Some("https://openai.macro.com/v1"),
+            |service| {
+                let config = service.get_config().unwrap();
+                assert_eq!(config.ai.api_key, Some("sk-openai-macro".to_string()));
+                assert_eq!(config.ai.base_url, "https://openai.macro.com/v1");
+            }
+        );
+    }
+
+    #[test]
+    fn test_production_config_with_openai_env_macro_api_key_only() {
+        test_production_config_with_openai_env!(
+            Some("sk-only-key"),
+            None,
+            |service| {
+                let config = service.get_config().unwrap();
+                assert_eq!(config.ai.api_key, Some("sk-only-key".to_string()));
+                // base_url 應該使用預設值
+                assert_eq!(config.ai.base_url, "https://api.openai.com/v1");
+            }
+        );
+    }
+
+    #[test]
+    fn test_production_config_with_openai_env_macro_base_url_only() {
+        test_production_config_with_openai_env!(
+            None,
+            Some("https://only-url.com/v1"),
+            |service| {
+                let config = service.get_config().unwrap();
+                assert_eq!(config.ai.api_key, None);
+                assert_eq!(config.ai.base_url, "https://only-url.com/v1");
+            }
+        );
+    }
+
+    #[test]
+    fn test_production_config_with_openai_env_macro_empty() {
+        test_production_config_with_openai_env!(None, None, |service| {
+            let config = service.get_config().unwrap();
+            assert_eq!(config.ai.api_key, None);
+            assert_eq!(config.ai.base_url, "https://api.openai.com/v1");
+        });
+    }
+
+    #[test]
+    fn test_create_production_config_service_with_env_macro() {
+        let env_vars: HashMap<&str, &str> = [
+            ("OPENAI_API_KEY", "sk-create-macro")
+        ].iter().cloned().collect();
+
+        create_production_config_service_with_env!(service, env_vars);
+
+        let config = service.get_config().unwrap();
+        assert_eq!(config.ai.api_key, Some("sk-create-macro".to_string()));
+    }
+
+    #[test]
+    fn test_create_production_config_service_with_empty_env_macro() {
+        create_production_config_service_with_empty_env!(service);
+
+        let config = service.get_config().unwrap();
+        assert_eq!(config.ai.api_key, None);
+        assert_eq!(config.ai.base_url, "https://api.openai.com/v1");
+    }
+}
+```
+
+**品質檢查清單**：
+- [ ] 巨集命名遵循現有慣例
+- [ ] 提供完整的文件註解和使用範例
+- [ ] 包含全面的單元測試覆蓋
+- [ ] 巨集設計符合人體工學且易於使用
+- [ ] 錯誤處理清晰且有意義
+- [ ] 與現有測試巨集風格一致
+
+### 階段 4：測試巨集擴充（0.5 天）
+
+#### 4.1 新增環境變數測試巨集
+
+**目標**：為環境變數測試提供便利的巨集支援，提升開發體驗
+
+**實作內容**：請參考上述 3.3 節的詳細實作內容
+
+**品質檢查清單**：
+- [ ] 所有巨集提供完整的文件註解
+- [ ] 巨集命名遵循專案慣例
+- [ ] 包含全面的單元測試
+- [ ] 與現有巨集風格一致
+- [ ] 錯誤處理清晰且有意義
+
+### 階段 5：整合與驗證（0.5 天）
+
+#### 5.1 模組整合
 
 **目標**：確保新的環境變數模組正確整合到配置系統
 
@@ -520,7 +809,7 @@ pub use config::{
 - [ ] 模組結構清晰且一致
 - [ ] 不破壞現有的匯入路徑
 
-#### 4.2 向後相容性驗證
+#### 5.2 向後相容性驗證
 
 **目標**：確保重構不破壞現有功能
 
@@ -541,13 +830,19 @@ cargo test --test config_integration_tests
 cargo build --release
 ```
 
+4. **驗證新測試巨集**：
+```bash
+cargo test config::test_macros::env_macro_tests --lib
+```
+
 **品質檢查清單**：
 - [ ] 所有現有測試通過
 - [ ] 現有 API 調用方式仍然有效
 - [ ] 編譯無警告
 - [ ] 功能行為保持一致
+- [ ] 新測試巨集正常運作
 
-#### 4.3 效能影響評估
+#### 5.3 效能影響評估
 
 **目標**：確保重構不引入顯著的效能回退
 
@@ -575,11 +870,20 @@ cargo build --release
    - ✅ 環境變數載入邏輯有專門的單元測試
    - ✅ 所有測試完全隔離，無全域狀態修改
    - ✅ 測試覆蓋率保持或提升
+   - ✅ 提供便利的測試巨集支援環境變數測試
+
+3. **測試巨集擴充**：
+   - ✅ 新增 `test_production_config_with_env!` 通用環境變數測試巨集
+   - ✅ 新增 `test_production_config_with_openai_env!` OPENAI 專用測試巨集
+   - ✅ 新增 `create_production_config_service_with_env!` 服務建立巨集
+   - ✅ 新增 `create_production_config_service_with_empty_env!` 空環境服務巨集
+   - ✅ 所有新巨集包含完整的文件和測試
 
 3. **API 相容性**：
    - ✅ 現有 `ProductionConfigService::new()` 方法繼續運作
    - ✅ 所有現有測試繼續通過
    - ✅ 公開 API 沒有破壞性變更
+   - ✅ 新測試巨集與現有巨集風格一致
 
 ### 非功能性需求
 
@@ -597,6 +901,7 @@ cargo build --release
    - ✅ 遵循 Backlog #21 建立的依賴注入原則
    - ✅ 不使用 `unsafe` 程式碼
    - ✅ 不修改全域狀態
+   - ✅ 測試巨集設計符合專案慣例
 
 ## 風險管理
 
@@ -637,6 +942,12 @@ cargo build --release
    - 更新使用者指南
    - 新增架構設計文件
    - 提供遷移指南
+   - 編寫測試巨集使用指南
+
+3. **巨集生態系統**：
+   - 評估是否需要更多專門的環境變數測試巨集
+   - 收集開發者對新巨集的回饋
+   - 最佳化巨集的錯誤訊息和除錯體驗
 
 ### 中期（1 個月內）
 
@@ -685,20 +996,23 @@ cargo build --release
    - 新環境變數測試易於編寫和理解
    - 錯誤訊息清晰且有幫助
    - API 使用直觀
+   - 測試巨集大幅簡化環境變數測試的編寫
 
 2. **維護性**：
    - 程式碼結構清晰，職責分離明確
    - 新增環境變數支援簡單
    - 除錯和問題定位容易
+   - 測試案例易於擴展和修改
 
 3. **架構一致性**：
    - 與現有依賴注入模式一致
    - 符合 Rust 最佳實務
    - 遵循專案編碼標準
+   - 新巨集與現有測試基礎設施無縫整合
 
 ---
 
-**預估總時間：4 天**
+**預估總時間：4.5 天**
 **優先權：中**
 **複雜度：中等**
 **前置需求：Backlog #21 完成**
