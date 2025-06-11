@@ -165,9 +165,7 @@ pub mod engine;
 // Filename analyzer removed to simplify matching logic.
 
 pub use discovery::{FileDiscovery, MediaFile, MediaFileType};
-pub use engine::{
-    ConflictResolution, FileRelocationMode, MatchConfig, MatchEngine, MatchOperation,
-};
+pub use engine::{MatchConfig, MatchEngine, MatchOperation};
 // pub use filename_analyzer::{FilenameAnalyzer, ParsedFilename};
 pub mod cache;
 use crate::Result;

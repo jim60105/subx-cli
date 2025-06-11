@@ -55,8 +55,6 @@
 //!     dry_run: false,
 //!     confidence: 80,
 //!     backup: true,
-//!     copy: false,
-//!     move_files: false,
 //! };
 //!
 //! // Execute matching
@@ -67,9 +65,7 @@ use crate::Result;
 use crate::cli::MatchArgs;
 use crate::cli::display_match_results;
 use crate::config::ConfigService;
-use crate::core::matcher::{
-    ConflictResolution, FileDiscovery, FileRelocationMode, MatchConfig, MatchEngine, MediaFileType,
-};
+use crate::core::matcher::{FileDiscovery, MatchConfig, MatchEngine, MediaFileType};
 use crate::core::parallel::{
     FileProcessingTask, ProcessingOperation, Task, TaskResult, TaskScheduler,
 };
@@ -148,8 +144,6 @@ use indicatif::ProgressDrawTarget;
 ///     dry_run: false,
 ///     confidence: 85,
 ///     backup: true,
-///     copy: false,
-///     move_files: false,
 /// };
 ///
 /// match_command::execute(args).await?;
@@ -161,8 +155,6 @@ use indicatif::ProgressDrawTarget;
 ///     dry_run: true,
 ///     confidence: 70,
 ///     backup: false,
-///     copy: false,
-///     move_files: false,
 /// };
 ///
 /// match_command::execute(preview_args).await?;
@@ -298,8 +290,6 @@ pub async fn execute_with_config(
 ///     dry_run: true,
 ///     confidence: 90,
 ///     backup: false,
-///     copy: false,
-///     move_files: false,
 /// };
 ///
 /// match_command::execute_with_client(args, mock_client, &config).await?;
@@ -316,14 +306,6 @@ pub async fn execute_with_client(
         // Always enable content analysis to generate and cache results even in dry-run mode
         enable_content_analysis: true,
         backup_enabled: args.backup || config.general.backup_enabled,
-        relocation_mode: if args.copy {
-            FileRelocationMode::Copy
-        } else if args.move_files {
-            FileRelocationMode::Move
-        } else {
-            FileRelocationMode::None
-        },
-        conflict_resolution: ConflictResolution::AutoRename,
     };
 
     // Initialize the matching engine with AI client and configuration
@@ -624,8 +606,6 @@ mod tests {
             recursive: false,
             confidence: 80,
             backup: false,
-            copy: false,
-            move_files: false,
         };
 
         // Note: Since we're testing in isolation, we might need to use execute_with_config

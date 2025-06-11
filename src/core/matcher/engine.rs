@@ -27,33 +27,7 @@ use serde_json;
 /// Configuration settings for the file matching engine.
 ///
 /// Controls various aspects of the subtitle-to-video matching process,
-/// including confidence thresholds, analysis options, and file relocation behavior.
-/// Mode for relocating subtitle files to video folder.
-#[derive(Debug, Clone, PartialEq)]
-pub enum FileRelocationMode {
-    /// No file relocation
-    None,
-    /// Copy subtitle file to video folder
-    Copy,
-    /// Move subtitle file to video folder
-    Move,
-}
-
-/// Strategy for resolving filename conflicts during relocation.
-#[derive(Debug, Clone)]
-pub enum ConflictResolution {
-    /// Skip relocation if conflict exists
-    Skip,
-    /// Automatically rename with numeric suffix
-    AutoRename,
-    /// Prompt user for decision (interactive mode only)
-    Prompt,
-}
-
-/// Configuration settings for the file matching engine.
-///
-/// Controls various aspects of the subtitle-to-video matching process,
-/// including confidence thresholds, analysis options, and file relocation behavior.
+/// including confidence thresholds and analysis options.
 #[derive(Debug, Clone)]
 pub struct MatchConfig {
     /// Minimum confidence score required for a successful match (0.0 to 1.0)
@@ -64,10 +38,6 @@ pub struct MatchConfig {
     pub enable_content_analysis: bool,
     /// Whether to create backup files before operations
     pub backup_enabled: bool,
-    /// Mode for relocating subtitle files to video folder.
-    pub relocation_mode: FileRelocationMode,
-    /// Strategy for handling filename conflicts during relocation.
-    pub conflict_resolution: ConflictResolution,
 }
 
 #[cfg(test)]
@@ -100,8 +70,6 @@ mod language_name_tests {
                 max_sample_length: 0,
                 enable_content_analysis: false,
                 backup_enabled: false,
-                relocation_mode: FileRelocationMode::None,
-                conflict_resolution: ConflictResolution::AutoRename,
             },
         );
         let video = MediaFile {
@@ -135,8 +103,6 @@ mod language_name_tests {
                 max_sample_length: 0,
                 enable_content_analysis: false,
                 backup_enabled: false,
-                relocation_mode: FileRelocationMode::None,
-                conflict_resolution: ConflictResolution::AutoRename,
             },
         );
         let video = MediaFile {
@@ -170,8 +136,6 @@ mod language_name_tests {
                 max_sample_length: 0,
                 enable_content_analysis: false,
                 backup_enabled: false,
-                relocation_mode: FileRelocationMode::None,
-                conflict_resolution: ConflictResolution::AutoRename,
             },
         );
         let video = MediaFile {
@@ -204,8 +168,6 @@ mod language_name_tests {
                 max_sample_length: 0,
                 enable_content_analysis: false,
                 backup_enabled: false,
-                relocation_mode: FileRelocationMode::None,
-                conflict_resolution: ConflictResolution::AutoRename,
             },
         );
         let video = MediaFile {
@@ -239,8 +201,6 @@ mod language_name_tests {
                 max_sample_length: 0,
                 enable_content_analysis: false,
                 backup_enabled: false,
-                relocation_mode: FileRelocationMode::None,
-                conflict_resolution: ConflictResolution::AutoRename,
             },
         );
         let video = MediaFile {
@@ -274,8 +234,6 @@ mod language_name_tests {
                 max_sample_length: 0,
                 enable_content_analysis: false,
                 backup_enabled: false,
-                relocation_mode: FileRelocationMode::None,
-                conflict_resolution: ConflictResolution::AutoRename,
             },
         );
         // 檔案名稱包含多個點且無副檔名情況

@@ -3,6 +3,8 @@ title: "Job Report: Backlog #25 - Match Command Copy/Move to Video Folder Featur
 date: "2025-06-11T16:10:59Z"
 ---
 
+> ! This work has been reverted.
+
 # Backlog #25 - Match Command Copy/Move to Video Folder Feature 工作報告
 
 **日期**：2025-06-11T16:10:59Z  

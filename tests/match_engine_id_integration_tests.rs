@@ -1,8 +1,6 @@
 use async_trait::async_trait;
 use std::fs;
-use subx_cli::core::matcher::{
-    ConflictResolution, FileDiscovery, FileRelocationMode, MatchConfig, MatchEngine,
-};
+use subx_cli::core::matcher::{FileDiscovery, MatchConfig, MatchEngine};
 use subx_cli::services::ai::{
     AIProvider, AnalysisRequest, ConfidenceScore, FileMatch, MatchResult, VerificationRequest,
 };
@@ -102,8 +100,6 @@ async fn test_file_id_based_matching_integration() {
         max_sample_length: 1024,
         enable_content_analysis: true,
         backup_enabled: false,
-        relocation_mode: FileRelocationMode::None,
-        conflict_resolution: ConflictResolution::AutoRename,
     };
 
     let engine = MatchEngine::new(Box::new(MockAIClientWithIds), config);
