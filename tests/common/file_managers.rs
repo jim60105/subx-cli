@@ -56,11 +56,24 @@ impl TestFileManager {
 
         // 為除錯方便，建立符號連結
         if cfg!(debug_assertions) {
-            let debug_path = format!("/tmp/subx_test_{}_{}", name, std::process::id());
-            if let Err(e) = std::os::unix::fs::symlink(path, &debug_path) {
-                eprintln!("Failed to create debug symlink: {}", e);
-            } else {
-                println!("Isolated test directory: {}", debug_path);
+            #[cfg(unix)]
+            {
+                let debug_path = format!("/tmp/subx_test_{}_{}", name, std::process::id());
+                if let Err(e) = std::os::unix::fs::symlink(path, &debug_path) {
+                    eprintln!("Failed to create debug symlink: {}", e);
+                } else {
+                    println!("Isolated test directory: {}", debug_path);
+                }
+            }
+            #[cfg(windows)]
+            {
+                use std::env;
+                if let Ok(temp_dir) = env::var("TEMP") {
+                    let debug_path =
+                        format!("{}\\subx_test_{}_{}", temp_dir, name, std::process::id());
+                    println!("Isolated test directory: {}", path.display());
+                    println!("Windows debug path reference: {}", debug_path);
+                }
             }
         }
 
