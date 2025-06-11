@@ -16,6 +16,8 @@ use std::path::PathBuf;
 /// - **Dry Run Mode**: Simulates operations without making changes (`--dry-run`)
 /// - **Recursive Mode**: Processes subdirectories (`--recursive`)
 /// - **Backup Mode**: Creates backups before renaming (`--backup`)
+/// - **Copy Mode**: Copy matched subtitle files to video folders (`--copy`)
+/// - **Move Mode**: Move matched subtitle files to video folders (`--move`)
 ///
 /// # AI Matching Process
 ///
@@ -24,6 +26,7 @@ use std::path::PathBuf;
 /// 3. Uses AI to analyze content similarity
 /// 4. Matches files based on confidence threshold
 /// 5. Renames subtitle files to match video file names
+/// 6. Optionally relocates subtitle files to video directories
 ///
 /// # Examples
 ///
@@ -34,8 +37,8 @@ use std::path::PathBuf;
 /// # Dry run with high confidence threshold
 /// subx match ./videos --dry-run --confidence 90
 ///
-/// # Recursive matching with backup
-/// subx match ./media --recursive --backup
+/// # Recursive matching with backup and copy to video folders
+/// subx match ./media --recursive --backup --copy
 /// ```
 #[derive(Args, Debug)]
 pub struct MatchArgs {
@@ -85,6 +88,39 @@ pub struct MatchArgs {
     /// matching algorithm makes incorrect decisions.
     #[arg(long)]
     pub backup: bool,
+
+    /// Copy matched subtitle files to the same folder as their corresponding video files.
+    ///
+    /// When enabled along with recursive search, subtitle files that are matched
+    /// with video files in different directories will be copied to the video file's
+    /// directory. This ensures that media players can automatically load subtitles.
+    /// The original subtitle files are preserved in their original locations.
+    /// Cannot be used together with --move.
+    #[arg(long, short = 'c')]
+    pub copy: bool,
+
+    /// Move matched subtitle files to the same folder as their corresponding video files.
+    ///
+    /// When enabled along with recursive search, subtitle files that are matched
+    /// with video files in different directories will be moved to the video file's
+    /// directory. This ensures that media players can automatically load subtitles.
+    /// The original subtitle files are removed from their original locations.
+    /// Cannot be used together with --copy.
+    #[arg(long = "move", short = 'm')]
+    pub move_files: bool,
+}
+
+impl MatchArgs {
+    /// Validate that copy and move arguments are not used together
+    pub fn validate(&self) -> Result<(), String> {
+        if self.copy && self.move_files {
+            return Err(
+                "Cannot use --copy and --move together. Please choose one operation mode."
+                    .to_string(),
+            );
+        }
+        Ok(())
+    }
 }
 
 // Test parameter parsing behavior
@@ -135,5 +171,45 @@ mod tests {
     fn test_match_args_invalid_confidence() {
         let res = Cli::try_parse_from(&["subx-cli", "match", "path", "--confidence", "150"]);
         assert!(res.is_err());
+    }
+
+    #[test]
+    fn test_match_args_copy_and_move_mutually_exclusive() {
+        let cli = Cli::try_parse_from(&["subx-cli", "match", "path", "--copy", "--move"]).unwrap();
+        let args = match cli.command {
+            Commands::Match(m) => m,
+            _ => panic!("Expected Match command"),
+        };
+        let result = args.validate();
+        assert!(result.is_err());
+        assert!(
+            result
+                .unwrap_err()
+                .contains("Cannot use --copy and --move together")
+        );
+    }
+
+    #[test]
+    fn test_match_args_copy_parameter() {
+        let cli = Cli::try_parse_from(&["subx-cli", "match", "path", "--copy"]).unwrap();
+        let args = match cli.command {
+            Commands::Match(m) => m,
+            _ => panic!("Expected Match command"),
+        };
+        assert!(args.copy);
+        assert!(!args.move_files);
+        assert!(args.validate().is_ok());
+    }
+
+    #[test]
+    fn test_match_args_move_parameter() {
+        let cli = Cli::try_parse_from(&["subx-cli", "match", "path", "--move"]).unwrap();
+        let args = match cli.command {
+            Commands::Match(m) => m,
+            _ => panic!("Expected Match command"),
+        };
+        assert!(!args.copy);
+        assert!(args.move_files);
+        assert!(args.validate().is_ok());
     }
 }

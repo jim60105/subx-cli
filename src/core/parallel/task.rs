@@ -1,6 +1,7 @@
 //! Task definition and utilities for parallel processing
 use async_trait::async_trait;
 use std::fmt;
+use std::path::Path;
 
 /// Trait defining a unit of work that can be executed asynchronously.
 ///
@@ -121,6 +122,16 @@ pub enum ProcessingOperation {
     },
     /// Validate subtitle file format and structure
     ValidateFormat,
+    /// Copy subtitle file to video folder
+    CopyToVideoFolder {
+        source: std::path::PathBuf,
+        target: std::path::PathBuf,
+    },
+    /// Move subtitle file to video folder
+    MoveToVideoFolder {
+        source: std::path::PathBuf,
+        target: std::path::PathBuf,
+    },
 }
 
 #[async_trait]
@@ -166,6 +177,26 @@ impl Task for FileProcessingTask {
                 )),
                 Err(e) => TaskResult::Failed(format!("Validation error: {}", e)),
             },
+            ProcessingOperation::CopyToVideoFolder { source, target } => {
+                match self.execute_copy_operation(source, target).await {
+                    Ok(_) => TaskResult::Success(format!(
+                        "Copied: {} -> {}",
+                        source.display(),
+                        target.display()
+                    )),
+                    Err(e) => TaskResult::Failed(format!("Copy failed: {}", e)),
+                }
+            }
+            ProcessingOperation::MoveToVideoFolder { source, target } => {
+                match self.execute_move_operation(source, target).await {
+                    Ok(_) => TaskResult::Success(format!(
+                        "Moved: {} -> {}",
+                        source.display(),
+                        target.display()
+                    )),
+                    Err(e) => TaskResult::Failed(format!("Move failed: {}", e)),
+                }
+            }
         }
     }
 
@@ -175,6 +206,8 @@ impl Task for FileProcessingTask {
             ProcessingOperation::SyncSubtitle { .. } => "sync",
             ProcessingOperation::MatchFiles { .. } => "match",
             ProcessingOperation::ValidateFormat => "validate",
+            ProcessingOperation::CopyToVideoFolder { .. } => "copy_to_video_folder",
+            ProcessingOperation::MoveToVideoFolder { .. } => "move_to_video_folder",
         }
     }
 
@@ -195,6 +228,8 @@ impl Task for FileProcessingTask {
                 ProcessingOperation::SyncSubtitle { .. } => size_mb * 0.5,
                 ProcessingOperation::MatchFiles { .. } => 2.0,
                 ProcessingOperation::ValidateFormat => size_mb * 0.05,
+                ProcessingOperation::CopyToVideoFolder { .. } => size_mb * 0.01, // Fast copy
+                ProcessingOperation::MoveToVideoFolder { .. } => size_mb * 0.005, // Even faster move
             };
             Some(std::time::Duration::from_secs_f64(secs))
         } else {
@@ -225,11 +260,102 @@ impl Task for FileProcessingTask {
             ProcessingOperation::ValidateFormat => {
                 format!("Validate format of {}", self.input_path.display())
             }
+            ProcessingOperation::CopyToVideoFolder { source, target } => {
+                format!("Copy {} to {}", source.display(), target.display())
+            }
+            ProcessingOperation::MoveToVideoFolder { source, target } => {
+                format!("Move {} to {}", source.display(), target.display())
+            }
         }
     }
 }
 
 impl FileProcessingTask {
+    /// Create a new file processing task with operation
+    pub fn new(
+        input_path: std::path::PathBuf,
+        output_path: Option<std::path::PathBuf>,
+        operation: ProcessingOperation,
+    ) -> Self {
+        FileProcessingTask {
+            input_path,
+            output_path,
+            operation,
+        }
+    }
+
+    /// Execute copy operation for file relocation
+    async fn execute_copy_operation(
+        &self,
+        source: &Path,
+        target: &Path,
+    ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+        // Create target directory if it doesn't exist
+        if let Some(parent) = target.parent() {
+            std::fs::create_dir_all(parent)?;
+        }
+
+        // Handle filename conflicts
+        let final_target = self.resolve_filename_conflict(target.to_path_buf()).await?;
+
+        // Execute copy operation
+        std::fs::copy(source, &final_target)?;
+        Ok(())
+    }
+
+    /// Execute move operation for file relocation
+    async fn execute_move_operation(
+        &self,
+        source: &Path,
+        target: &Path,
+    ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+        // Create target directory if it doesn't exist
+        if let Some(parent) = target.parent() {
+            std::fs::create_dir_all(parent)?;
+        }
+
+        // Handle filename conflicts
+        let final_target = self.resolve_filename_conflict(target.to_path_buf()).await?;
+
+        // Execute move operation
+        std::fs::rename(source, &final_target)?;
+        Ok(())
+    }
+
+    /// Resolve filename conflicts by adding numeric suffix
+    async fn resolve_filename_conflict(
+        &self,
+        target: std::path::PathBuf,
+    ) -> Result<std::path::PathBuf, Box<dyn std::error::Error + Send + Sync>> {
+        if !target.exists() {
+            return Ok(target);
+        }
+
+        // Extract filename components
+        let file_stem = target
+            .file_stem()
+            .and_then(|s| s.to_str())
+            .unwrap_or("file");
+        let extension = target.extension().and_then(|s| s.to_str()).unwrap_or("");
+
+        let parent = target.parent().unwrap_or_else(|| std::path::Path::new("."));
+
+        // Try adding numeric suffixes
+        for i in 1..1000 {
+            let new_name = if extension.is_empty() {
+                format!("{}.{}", file_stem, i)
+            } else {
+                format!("{}.{}.{}", file_stem, i, extension)
+            };
+            let new_path = parent.join(new_name);
+            if !new_path.exists() {
+                return Ok(new_path);
+            }
+        }
+
+        Err("Could not resolve filename conflict".into())
+    }
+
     async fn convert_format(&self, _from: &str, _to: &str) -> crate::Result<std::path::PathBuf> {
         // Stub convert: simply return input path
         Ok(self.input_path.clone())
@@ -275,6 +401,16 @@ impl std::hash::Hash for ProcessingOperation {
             }
             ProcessingOperation::ValidateFormat => {
                 "validate".hash(state);
+            }
+            ProcessingOperation::CopyToVideoFolder { source, target } => {
+                "copy_to_video_folder".hash(state);
+                source.hash(state);
+                target.hash(state);
+            }
+            ProcessingOperation::MoveToVideoFolder { source, target } => {
+                "move_to_video_folder".hash(state);
+                source.hash(state);
+                target.hash(state);
             }
         }
     }

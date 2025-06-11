@@ -81,6 +81,8 @@ impl ComponentFactory {
             max_sample_length: self.config.ai.max_sample_length,
             enable_content_analysis: true,
             backup_enabled: self.config.general.backup_enabled,
+            relocation_mode: crate::core::matcher::engine::FileRelocationMode::None,
+            conflict_resolution: crate::core::matcher::engine::ConflictResolution::AutoRename,
         };
         Ok(MatchEngine::new(ai_provider, match_config))
     }

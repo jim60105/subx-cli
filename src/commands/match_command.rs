@@ -299,6 +299,15 @@ pub async fn execute_with_client(
     ai_client: Box<dyn AIProvider>,
     config: &crate::config::Config,
 ) -> Result<()> {
+    // Determine file relocation mode from command line arguments
+    let relocation_mode = if args.copy {
+        crate::core::matcher::engine::FileRelocationMode::Copy
+    } else if args.move_files {
+        crate::core::matcher::engine::FileRelocationMode::Move
+    } else {
+        crate::core::matcher::engine::FileRelocationMode::None
+    };
+
     // Create matching engine configuration from provided config
     let match_config = MatchConfig {
         confidence_threshold: args.confidence as f32 / 100.0,
@@ -306,6 +315,8 @@ pub async fn execute_with_client(
         // Always enable content analysis to generate and cache results even in dry-run mode
         enable_content_analysis: true,
         backup_enabled: args.backup || config.general.backup_enabled,
+        relocation_mode,
+        conflict_resolution: crate::core::matcher::engine::ConflictResolution::AutoRename,
     };
 
     // Initialize the matching engine with AI client and configuration
@@ -606,6 +617,8 @@ mod tests {
             recursive: false,
             confidence: 80,
             backup: false,
+            copy: false,
+            move_files: false,
         };
 
         // Note: Since we're testing in isolation, we might need to use execute_with_config

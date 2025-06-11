@@ -132,6 +132,8 @@ pub struct Cli {
 ///     confidence: 80,
 ///     recursive: false,
 ///     backup: false,
+///     copy: false,
+///     move_files: false,
 /// });
 /// ```
 #[derive(Subcommand, Debug)]
@@ -242,6 +244,8 @@ pub async fn run_with_config(
 
     match cli.command {
         Commands::Match(args) => {
+            args.validate()
+                .map_err(crate::error::SubXError::CommandExecution)?;
             crate::commands::match_command::execute(args, config_service).await?;
         }
         Commands::Convert(args) => {

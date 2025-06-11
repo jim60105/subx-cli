@@ -291,7 +291,7 @@ pub fn display_match_results(results: &[MatchOperation], is_dry_run: bool) {
     }
     println!();
 
-    // Split each match result into three lines: video, subtitle and new name
+    // Split each match result into multiple lines: video, subtitle, new name, and optionally relocation
     let rows: Vec<MatchDisplayRow> = results
         .iter()
         .enumerate()
@@ -304,7 +304,7 @@ pub fn display_match_results(results: &[MatchOperation], is_dry_run: bool) {
             // Add status symbol and tree structure
             let status_symbol = if is_dry_run { "🔍" } else { "✓" };
 
-            vec![
+            let mut rows = vec![
                 MatchDisplayRow {
                     file_type: format!("{} Video {}", status_symbol, idx),
                     file_path: video.to_string(),
@@ -314,10 +314,44 @@ pub fn display_match_results(results: &[MatchOperation], is_dry_run: bool) {
                     file_path: subtitle.to_string(),
                 },
                 MatchDisplayRow {
-                    file_type: format!("└ New name {}", idx),
+                    file_type: format!("├ New name {}", idx),
                     file_path: new_name.clone(),
                 },
-            ]
+            ];
+
+            // Add relocation operation row if needed
+            if op.requires_relocation {
+                let operation_icon = match op.relocation_mode {
+                    crate::core::matcher::engine::FileRelocationMode::Copy => "📄",
+                    crate::core::matcher::engine::FileRelocationMode::Move => "📁",
+                    _ => "",
+                };
+
+                let operation_verb = match op.relocation_mode {
+                    crate::core::matcher::engine::FileRelocationMode::Copy => "Copy to",
+                    crate::core::matcher::engine::FileRelocationMode::Move => "Move to",
+                    _ => "",
+                };
+
+                if let Some(target_path) = &op.relocation_target_path {
+                    rows.push(MatchDisplayRow {
+                        file_type: format!("└ {} {}", operation_icon, operation_verb),
+                        file_path: target_path.to_string_lossy().to_string(),
+                    });
+                } else {
+                    // Update the last row to have the proper tree ending
+                    if let Some(last_row) = rows.last_mut() {
+                        last_row.file_type = last_row.file_type.replace("├", "└");
+                    }
+                }
+            } else {
+                // Update the last row to have the proper tree ending
+                if let Some(last_row) = rows.last_mut() {
+                    last_row.file_type = last_row.file_type.replace("├", "└");
+                }
+            }
+
+            rows
         })
         .collect();
 
