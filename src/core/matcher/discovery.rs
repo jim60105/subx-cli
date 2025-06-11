@@ -320,12 +320,12 @@ impl FileDiscovery {
             .unwrap_or_default()
             .to_string();
 
-        // Compute relative path
+        // Compute relative path with normalized separators
         let relative_path = path
             .strip_prefix(scan_root)
             .unwrap_or(path)
             .to_string_lossy()
-            .to_string();
+            .replace('\\', "/"); // Normalize to Unix-style separators for consistency
 
         // Generate unique ID based on relative path and file size
         let id = generate_file_id(&relative_path, metadata.len());
