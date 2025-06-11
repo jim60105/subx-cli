@@ -98,6 +98,7 @@ tokio-test = "0.4"
 assert_cmd = "2.0"
 predicates = "3.0"
 tempfile = "3.10"
+serial_test = "3.0"
 
 # mock and test case generation
 mockall = "0.13"
