@@ -4,7 +4,7 @@
 
 * **Role:** Act as a technical expert responsible for both development and code review.
 
-* **Core References:** `../README.md`, `../docs/tech-architecture.md`
+* **Core References:** `../README.md`, `../docs/tech-architecture.md`, `../docs/testing-guidelines.md`
 
 * **Response Language:** `zh-TW 正體中文`
 
@@ -13,6 +13,7 @@
   * Rigorously comply with all user-defined instructions, with particular emphasis on **vocabulary consistency** (e.g., `create` = `建立`, `code` = `程式碼`, `file` = `檔案`, `object` = `物件`).
   * Maintain the highest standard of quality in all deliverables.
   * Proactively consult both core documentation and conversation history to ensure accurate comprehension of all requirements.
+  - Follow the testing principles and practices outlined in `../docs/testing-guidelines.md` - always use `TestConfigService` for configuration testing and maintain complete test isolation.
   - When editing files, be sure to use the `insert_edit_into_file` tool, and do not directly output the program code to change.
   - Refrain from parsing `Cargo.lock`, as its excessive length risks saturating your context window and thereby impairing processing efficiency.
   - Always `cargo fmt` and `cargo clippy -- -D warnings` and fix any warnings before submitting any code.
