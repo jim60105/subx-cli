@@ -1,4 +1,4 @@
-use criterion::{Criterion, black_box, criterion_group, criterion_main};
+use criterion::{Criterion, criterion_group, criterion_main};
 use std::time::Duration;
 use subx_cli::{
     error::SubXError,
@@ -21,7 +21,7 @@ fn bench_retry_immediate_success(c: &mut Criterion) {
 
                 let operation = || async { Ok::<String, SubXError>("Success".to_string()) };
                 let result = retry_with_backoff(operation, &config).await;
-                black_box(result)
+                std::hint::black_box(result)
             })
         })
     });
@@ -52,7 +52,7 @@ fn bench_retry_with_failures(c: &mut Criterion) {
                 };
 
                 let result = retry_with_backoff(operation, &config).await;
-                black_box(result)
+                std::hint::black_box(result)
             })
         })
     });
