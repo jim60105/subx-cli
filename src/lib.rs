@@ -113,7 +113,10 @@ pub mod commands;
 pub mod config;
 pub use config::Config;
 // Re-export new configuration service system
-pub use config::{ConfigService, ProductionConfigService, TestConfigBuilder, TestConfigService};
+pub use config::{
+    ConfigService, EnvironmentProvider, ProductionConfigService, SystemEnvironmentProvider,
+    TestConfigBuilder, TestConfigService, TestEnvironmentProvider,
+};
 pub mod core;
 pub mod error;
 /// Convenient type alias for `Result<T, SubXError>`.

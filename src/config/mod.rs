@@ -7,6 +7,7 @@ mod config_legacy;
 
 // New configuration service system
 pub mod builder;
+pub mod environment;
 pub mod service;
 pub mod test_macros;
 pub mod test_service;
@@ -21,5 +22,6 @@ pub use config_legacy::{
 
 // Re-export the configuration service system
 pub use builder::TestConfigBuilder;
+pub use environment::{EnvironmentProvider, SystemEnvironmentProvider, TestEnvironmentProvider};
 pub use service::{ConfigService, ProductionConfigService};
 pub use test_service::TestConfigService;
