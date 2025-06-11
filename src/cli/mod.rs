@@ -132,6 +132,8 @@ pub struct Cli {
 ///     confidence: 80,
 ///     recursive: false,
 ///     backup: false,
+///     copy: false,
+///     move_files: false,
 /// });
 /// ```
 #[derive(Subcommand, Debug)]

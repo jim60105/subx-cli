@@ -37,7 +37,7 @@ use std::path::PathBuf;
 /// # Recursive matching with backup
 /// subx match ./media --recursive --backup
 /// ```
-#[derive(Args, Debug)]
+#[derive(Args, Debug, Default)]
 pub struct MatchArgs {
     /// Target directory path containing video and subtitle files.
     ///
@@ -85,11 +85,34 @@ pub struct MatchArgs {
     /// matching algorithm makes incorrect decisions.
     #[arg(long)]
     pub backup: bool,
+
+    /// Copy matched subtitle files to the same folder as their corresponding video files.
+    #[arg(long, short = 'c')]
+    pub copy: bool,
+
+    /// Move matched subtitle files to the same folder as their corresponding video files.
+    #[arg(long, short = 'm')]
+    pub move_files: bool,
+}
+
+impl MatchArgs {
+    /// Validate that copy and move parameters are not used together.
+    pub fn validate(&self) -> Result<(), String> {
+        if self.copy && self.move_files {
+            Err(
+                "Cannot use --copy and --move together. Please choose one operation mode."
+                    .to_string(),
+            )
+        } else {
+            Ok(())
+        }
+    }
 }
 
 // Test parameter parsing behavior
 #[cfg(test)]
 mod tests {
+    use crate::cli::MatchArgs;
     use crate::cli::{Cli, Commands};
     use clap::Parser;
     use std::path::PathBuf;
@@ -135,5 +158,15 @@ mod tests {
     fn test_match_args_invalid_confidence() {
         let res = Cli::try_parse_from(&["subx-cli", "match", "path", "--confidence", "150"]);
         assert!(res.is_err());
+    }
+
+    #[test]
+    fn test_copy_and_move_mutual_exclusion() {
+        let args = MatchArgs {
+            copy: true,
+            move_files: true,
+            ..Default::default()
+        };
+        assert!(args.validate().is_err());
     }
 }
