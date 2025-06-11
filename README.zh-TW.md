@@ -17,7 +17,8 @@
 ## 功能特色
 
 - 🤖 **AI 智慧匹配** - 使用 AI 技術自動識別影片與字幕的對應關係並重命名
-- 🔄 **格式轉換** - 支援 SRT、ASS、VTT、SUB 等主流字幕格式互轉
+- � **檔案整理** - 自動複製或移動匹配的字幕檔案到影片資料夾，實現無縫播放
+- �🔄 **格式轉換** - 支援 SRT、ASS、VTT、SUB 等主流字幕格式互轉
 - ⏰ **時間軸校正** - 自動檢測並修正字幕時間偏移問題
 - 🏃 **批量處理** - 一次處理整個資料夾的媒體檔案
 - 🔍 **Dry-run 模式** - 預覽操作結果，安全可靠
@@ -81,6 +82,15 @@ subx-cli match --dry-run /path/to/media/folder
 
 # 遞迴處理子資料夾
 subx-cli match --recursive /path/to/media/folder
+
+# 複製匹配的字幕到影片資料夾
+subx-cli match --copy /path/to/media/folder
+
+# 移動匹配的字幕到影片資料夾
+subx-cli match --move /path/to/media/folder
+
+# 結合遞迴和備份選項使用
+subx-cli match --recursive --copy --backup /path/to/media/folder
 ```
 
 **格式轉換**
@@ -120,9 +130,9 @@ subx-cli cache clear
 # 1. 處理下載的影片和字幕
 cd ~/Downloads/TV_Show_S01/
 
-# 2. AI 匹配並重命名字幕
-subx-cli match --dry-run .  # 先預覽
-subx-cli match .            # 確認後執行
+# 2. AI 匹配並重命名字幕，同時整理檔案
+subx-cli match --dry-run --copy .  # 先預覽
+subx-cli match --copy .            # 確認後執行
 
 # 3. 統一轉換為 SRT 格式
 subx-cli convert --format srt .
@@ -131,21 +141,71 @@ subx-cli convert --format srt .
 subx-cli sync --batch .
 ```
 
+### 檔案整理應用場景
+```bash
+# 場景 1：保留原始字幕位置，複製到影片資料夾
+subx-cli match --recursive --copy /media/collection/
+
+# 場景 2：移動字幕到影片資料夾，清理原始位置
+subx-cli match --recursive --move /media/collection/
+
+# 場景 3：預覽檔案整理操作
+subx-cli match --dry-run --copy --recursive /media/collection/
+
+# 場景 4：使用備份保護進行檔案整理
+subx-cli match --move --backup --recursive /media/collection/
+```
+
 ### 資料夾結構範例
 ```
-處理前:
-TV_Show_S01/
-├── S01E01.mkv
-├── S01E02.mkv
-├── subtitle_from_internet_1.ass
-└── subtitle_from_internet_2.ass
+處理前（分散式結構）：
+media/
+├── movies/
+│   ├── Action/
+│   │   └── Movie1.mkv
+│   └── Drama/
+│       └── Movie2.mp4
+└── subtitles/
+    ├── english/
+    │   ├── Movie1.srt
+    │   └── Movie2.srt
+    └── chinese/
+        ├── Movie1.zh.srt
+        └── Movie2.zh.srt
 
-處理後:
-TV_Show_S01/
-├── S01E01.mkv
-├── S01E01.ass          # 匹配並重命名
-├── S01E02.mkv
-└── S01E02.ass          # 匹配並重命名
+使用 --copy 選項處理後：
+media/
+├── movies/
+│   ├── Action/
+│   │   ├── Movie1.mkv
+│   │   ├── Movie1.srt           # 從 subtitles/english/ 複製
+│   │   └── Movie1.zh.srt        # 從 subtitles/chinese/ 複製
+│   └── Drama/
+│       ├── Movie2.mp4
+│       ├── Movie2.srt           # 從 subtitles/english/ 複製
+│       └── Movie2.zh.srt        # 從 subtitles/chinese/ 複製
+└── subtitles/                   # 原始檔案保留
+    ├── english/
+    │   ├── Movie1.srt
+    │   └── Movie2.srt
+    └── chinese/
+        ├── Movie1.zh.srt
+        └── Movie2.zh.srt
+
+使用 --move 選項處理後：
+media/
+├── movies/
+│   ├── Action/
+│   │   ├── Movie1.mkv
+│   │   ├── Movie1.srt           # 從 subtitles/english/ 移動
+│   │   └── Movie1.zh.srt        # 從 subtitles/chinese/ 移動
+│   └── Drama/
+│       ├── Movie2.mp4
+│       ├── Movie2.srt           # 從 subtitles/english/ 移動
+│       └── Movie2.zh.srt        # 從 subtitles/chinese/ 移動
+└── subtitles/                   # 原始檔案已移除
+    ├── english/                 # 空目錄
+    └── chinese/
 ```
 
 ## 配置選項
@@ -235,6 +295,19 @@ queue_overflow_strategy = "block"
   --confidence <NUM>    最低信心度閾值 (0-100, 預設值: 80)
   --recursive           遞歸處理子資料夾
   --backup              重命名前備份原檔案
+  --copy, -c            複製匹配的字幕檔案到影片資料夾
+  --move, -m            移動匹配的字幕檔案到影片資料夾
+
+檔案整理功能:
+  --copy 和 --move 選項啟用自動檔案整理功能，提升媒體播放器相容性。
+  當字幕與影片位於不同目錄時，這些選項會將字幕檔案複製或移動到
+  對應影片檔案所在的資料夾。
+  
+  - --copy: 保留原始字幕檔案在原位置
+  - --move: 移動後移除原始字幕檔案
+  - 這兩個選項互斥，不能同時使用
+  - 僅在字幕和影片檔案位於不同目錄時生效
+  - 包含自動檔名衝突解決和備份支援功能
 
 配置支援:
   - AI 設定: 支援自訂 API 端點、模型、溫度等參數
@@ -342,6 +415,30 @@ A: 先清除快取 `subx-cli cache clear`，再重新執行 match 命令。
 
 **Q: 任務執行逾時怎麼辦？**
 A: 增加逾時時間：`subx-cli config set general.task_timeout_seconds 7200`  # 設定為 2 小時
+
+**Q: 檔案整理（複製/移動）操作失敗？**
+A: 檢查以下常見問題：
+- 確保目標影片目錄具有寫入權限
+- 檢查複製操作是否有足夠的磁碟空間
+- 檔名衝突時系統會自動重新命名並加上數字後綴
+- 使用 `--dry-run` 在執行前預覽操作：`subx-cli match --dry-run --copy /path`
+
+**Q: 可以同時使用 --copy 和 --move 嗎？**
+A: 不可以，這兩個選項互斥。請選擇 `--copy` 保留原始檔案或 `--move` 清理原始位置。
+
+**Q: 為什麼有些字幕沒有被複製/移動到影片資料夾？**
+A: 複製/移動操作只在以下條件下執行：
+- 字幕和影片檔案位於不同目錄
+- AI 匹配信心度超過閾值（預設 80%）
+- 目標位置不存在相同名稱的檔案
+使用 `--dry-run` 查看將要執行的操作。
+
+**Q: 如何處理複製/移動操作中的檔名衝突？**
+A: 系統會自動處理衝突：
+- 比較檔案內容當名稱相同時
+- 自動重新命名並加上數字後綴（如 `movie.srt` → `movie.1.srt`）
+- 啟用 `--backup` 時建立備份檔案
+- 跳過衝突檔案並繼續處理其他檔案
 
 ## LICENSE
 

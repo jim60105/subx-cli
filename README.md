@@ -17,7 +17,8 @@ An subtitle processing CLI tool that powered by AI technology to automatically m
 ## Features
 
 - 🤖 **AI Smart Matching** - Uses AI technology to automatically identify video-subtitle correspondence and rename files
-- 🔄 **Format Conversion** - Supports conversion between mainstream subtitle formats like SRT, ASS, VTT, SUB
+- � **File Organization** - Automatically copy or move matched subtitle files to video folders for seamless playback
+- �🔄 **Format Conversion** - Supports conversion between mainstream subtitle formats like SRT, ASS, VTT, SUB
 - ⏰ **Timeline Correction** - Automatically detects and corrects subtitle timing offset issues
 - 🏃 **Batch Processing** - Process entire folders of media files at once
 - 🔍 **Dry-run Mode** - Preview operation results for safety and reliability
@@ -81,6 +82,15 @@ subx-cli match --dry-run /path/to/media/folder
 
 # Recursively process subfolders
 subx-cli match --recursive /path/to/media/folder
+
+# Copy matched subtitles to video folders
+subx-cli match --copy /path/to/media/folder
+
+# Move matched subtitles to video folders
+subx-cli match --move /path/to/media/folder
+
+# Combine with recursive and backup options
+subx-cli match --recursive --copy --backup /path/to/media/folder
 ```
 
 **Format Conversion**
@@ -120,9 +130,9 @@ subx-cli cache clear
 # 1. Process downloaded videos and subtitles
 cd ~/Downloads/TV_Show_S01/
 
-# 2. AI match and rename subtitles
-subx-cli match --dry-run .  # Preview first
-subx-cli match .            # Execute after confirmation
+# 2. AI match and rename subtitles with file organization
+subx-cli match --dry-run --copy .  # Preview first
+subx-cli match --copy .            # Execute after confirmation
 
 # 3. Unify conversion to SRT format
 subx-cli convert --format srt .
@@ -131,21 +141,73 @@ subx-cli convert --format srt .
 subx-cli sync --batch .
 ```
 
+### File Organization Scenarios
+```bash
+# Scenario 1: Keep original subtitles in place, copy to video folders
+subx-cli match --recursive --copy /media/collection/
+
+# Scenario 2: Move subtitles to video folders, clean up original locations
+subx-cli match --recursive --move /media/collection/
+
+# Scenario 3: Preview file organization operations
+subx-cli match --dry-run --copy --recursive /media/collection/
+
+# Scenario 4: Organize files with backup protection
+subx-cli match --move --backup --recursive /media/collection/
+```
+subx-cli sync --batch .
+```
+
 ### Folder Structure Example
 ```
-Before processing:
-TV_Show_S01/
-├── S01E01.mkv
-├── S01E02.mkv
-├── subtitle_from_internet_1.ass
-└── subtitle_from_internet_2.ass
+Before processing (distributed structure):
+media/
+├── movies/
+│   ├── Action/
+│   │   └── Movie1.mkv
+│   └── Drama/
+│       └── Movie2.mp4
+└── subtitles/
+    ├── english/
+    │   ├── Movie1.srt
+    │   └── Movie2.srt
+    └── chinese/
+        ├── Movie1.zh.srt
+        └── Movie2.zh.srt
 
-After processing:
-TV_Show_S01/
-├── S01E01.mkv
-├── S01E01.ass          # Matched and renamed
-├── S01E02.mkv
-└── S01E02.ass          # Matched and renamed
+After processing with --copy option:
+media/
+├── movies/
+│   ├── Action/
+│   │   ├── Movie1.mkv
+│   │   ├── Movie1.srt           # Copied from subtitles/english/
+│   │   └── Movie1.zh.srt        # Copied from subtitles/chinese/
+│   └── Drama/
+│       ├── Movie2.mp4
+│       ├── Movie2.srt           # Copied from subtitles/english/
+│       └── Movie2.zh.srt        # Copied from subtitles/chinese/
+└── subtitles/                   # Original files preserved
+    ├── english/
+    │   ├── Movie1.srt
+    │   └── Movie2.srt
+    └── chinese/
+        ├── Movie1.zh.srt
+        └── Movie2.zh.srt
+
+After processing with --move option:
+media/
+├── movies/
+│   ├── Action/
+│   │   ├── Movie1.mkv
+│   │   ├── Movie1.srt           # Moved from subtitles/english/
+│   │   └── Movie1.zh.srt        # Moved from subtitles/chinese/
+│   └── Drama/
+│       ├── Movie2.mp4
+│       ├── Movie2.srt           # Moved from subtitles/english/
+│       └── Movie2.zh.srt        # Moved from subtitles/chinese/
+└── subtitles/                   # Original files removed
+    ├── english/                 # Empty directories
+    └── chinese/
 ```
 
 ## Configuration Options
@@ -235,6 +297,20 @@ Options:
   --confidence <NUM>    Minimum confidence threshold (0-100, default: 80)
   --recursive           Recursively process subfolders
   --backup              Backup original files before renaming
+  --copy, -c            Copy matched subtitle files to video folders
+  --move, -m            Move matched subtitle files to video folders
+
+File Organization:
+  The --copy and --move options enable automatic file organization for better
+  media player compatibility. When subtitles are matched with videos in different
+  directories, these options will copy or move the subtitle files to the same
+  folder as their corresponding video files.
+  
+  - --copy: Preserves original subtitle files in their original locations
+  - --move: Removes original subtitle files after moving them
+  - These options are mutually exclusive and cannot be used together
+  - Only applied when subtitle and video files are in different directories
+  - Includes automatic filename conflict resolution with backup support
 
 Configuration Support:
   - AI Settings: Support custom API endpoints, models, temperature, etc.
@@ -342,6 +418,30 @@ A: Clear cache first with `subx-cli cache clear`, then re-run the match command.
 
 **Q: What to do about task execution timeouts?**
 A: Increase timeout duration: `subx-cli config set general.task_timeout_seconds 7200`  # Set to 2 hours
+
+**Q: File organization (copy/move) operations fail?**
+A: Check the following common issues:
+- Ensure target video directories have write permissions
+- Check if there's sufficient disk space for copy operations
+- For filename conflicts, the system will automatically rename files with numeric suffixes
+- Use `--dry-run` to preview operations before execution: `subx-cli match --dry-run --copy /path`
+
+**Q: Can I use both --copy and --move together?**
+A: No, these options are mutually exclusive. Choose either `--copy` to preserve original files or `--move` to clean up original locations.
+
+**Q: Why are some subtitles not being copied/moved to video folders?**
+A: The copy/move operations only apply when:
+- Subtitle and video files are in different directories
+- AI matching confidence exceeds the threshold (default 80%)
+- Files don't already exist in the target location with identical names
+Use `--dry-run` to see which operations will be performed.
+
+**Q: How to handle filename conflicts during copy/move operations?**
+A: The system automatically handles conflicts by:
+- Comparing file content when names match
+- Auto-renaming with numeric suffixes (e.g., `movie.srt` → `movie.1.srt`)
+- Creating backups when `--backup` is enabled
+- Skipping conflicting files and continuing with others
 
 ## LICENSE
 
