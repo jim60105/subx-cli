@@ -171,7 +171,7 @@ impl FormatConverter {
                     crate::core::matcher::discovery::MediaFileType::Subtitle
                 )
             })
-            .map(|f| f.path) // 使用 path 欄位，行為不變
+            .map(|f| f.path) // Use path field, behavior unchanged
             .collect();
         Ok(paths)
     }

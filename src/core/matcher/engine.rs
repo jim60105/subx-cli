@@ -253,12 +253,15 @@ impl MatchEngine {
         let match_result = self.ai_client.analyze_content(analysis_request).await?;
 
         // Debug: Log AI analysis results
-        eprintln!("🔍 AI 分析結果:");
-        eprintln!("   - 總匹配數: {}", match_result.matches.len());
-        eprintln!("   - 信心度閾值: {:.2}", self.config.confidence_threshold);
+        eprintln!("🔍 AI Analysis Results:");
+        eprintln!("   - Total matches: {}", match_result.matches.len());
+        eprintln!(
+            "   - Confidence threshold: {:.2}",
+            self.config.confidence_threshold
+        );
         for ai_match in &match_result.matches {
             eprintln!(
-                "   - {} -> {} (信心度: {:.2})",
+                "   - {} -> {} (confidence: {:.2})",
                 ai_match.video_file_id, ai_match.subtitle_file_id, ai_match.confidence
             );
         }
@@ -288,27 +291,27 @@ impl MatchEngine {
                     }
                     (None, Some(_)) => {
                         eprintln!(
-                            "⚠️  找不到 AI 建議的影片檔案 ID: '{}'",
+                            "⚠️  Cannot find AI-suggested video file ID: '{}'",
                             ai_match.video_file_id
                         );
-                        self.log_available_files(&videos, "影片");
+                        self.log_available_files(&videos, "video");
                     }
                     (Some(_), None) => {
                         eprintln!(
-                            "⚠️  找不到 AI 建議的字幕檔案 ID: '{}'",
+                            "⚠️  Cannot find AI-suggested subtitle file ID: '{}'",
                             ai_match.subtitle_file_id
                         );
-                        self.log_available_files(&subtitles, "字幕");
+                        self.log_available_files(&subtitles, "subtitle");
                     }
                     (None, None) => {
-                        eprintln!("⚠️  找不到 AI 建議的檔案對:");
-                        eprintln!("     影片 ID: '{}'", ai_match.video_file_id);
-                        eprintln!("     字幕 ID: '{}'", ai_match.subtitle_file_id);
+                        eprintln!("⚠️  Cannot find AI-suggested file pair:");
+                        eprintln!("     Video ID: '{}'", ai_match.video_file_id);
+                        eprintln!("     Subtitle ID: '{}'", ai_match.subtitle_file_id);
                     }
                 }
             } else {
                 eprintln!(
-                    "ℹ️  AI 匹配信心度過低 ({:.2}): {} <-> {}",
+                    "ℹ️  AI match confidence too low ({:.2}): {} <-> {}",
                     ai_match.confidence, ai_match.video_file_id, ai_match.subtitle_file_id
                 );
             }
@@ -316,13 +319,13 @@ impl MatchEngine {
 
         // Check if no operations were generated and provide debugging info
         if operations.is_empty() {
-            eprintln!("\n❌ 沒有找到符合條件的檔案匹配");
-            eprintln!("🔍 可用檔案統計:");
-            eprintln!("   影片檔案 ({} 個):", videos.len());
+            eprintln!("\n❌ No matching files found that meet the criteria");
+            eprintln!("🔍 Available file statistics:");
+            eprintln!("   Video files ({} files):", videos.len());
             for v in &videos {
                 eprintln!("     - ID: {} | {}", v.id, v.relative_path);
             }
-            eprintln!("   字幕檔案 ({} 個):", subtitles.len());
+            eprintln!("   Subtitle files ({} files):", subtitles.len());
             for s in &subtitles {
                 eprintln!("     - ID: {} | {}", s.id, s.relative_path);
             }
@@ -548,10 +551,10 @@ impl MatchEngine {
 
     /// Log available files to assist debugging when a match is not found.
     fn log_available_files(&self, files: &[&MediaFile], file_type: &str) {
-        eprintln!("   可用的{}檔案:", file_type);
+        eprintln!("   Available {} files:", file_type);
         for f in files {
             eprintln!(
-                "     - ID: {} | 名稱: {} | 路徑: {}",
+                "     - ID: {} | Name: {} | Path: {}",
                 f.id, f.name, f.relative_path
             );
         }
@@ -564,24 +567,27 @@ impl MatchEngine {
         videos: &[MediaFile],
         subtitles: &[MediaFile],
     ) {
-        eprintln!("\n❌ 沒有找到符合條件的檔案匹配");
-        eprintln!("🔍 AI 分析結果:");
-        eprintln!("   - 總匹配數: {}", match_result.matches.len());
-        eprintln!("   - 信心度閾值: {:.2}", self.config.confidence_threshold);
+        eprintln!("\n❌ No matching files found that meet the criteria");
+        eprintln!("🔍 AI analysis results:");
+        eprintln!("   - Total matches: {}", match_result.matches.len());
         eprintln!(
-            "   - 符合閾值的匹配: {}",
+            "   - Confidence threshold: {:.2}",
+            self.config.confidence_threshold
+        );
+        eprintln!(
+            "   - Matches meeting threshold: {}",
             match_result
                 .matches
                 .iter()
                 .filter(|m| m.confidence >= self.config.confidence_threshold)
                 .count()
         );
-        eprintln!("\n📂 掃描到的檔案:");
-        eprintln!("   影片檔案 ({} 個):", videos.len());
+        eprintln!("\n📂 Scanned files:");
+        eprintln!("   Video files ({} files):", videos.len());
         for v in videos {
             eprintln!("     - ID: {} | {}", v.id, v.relative_path);
         }
-        eprintln!("   字幕檔案 ({} 個):", subtitles.len());
+        eprintln!("   Subtitle files ({} files):", subtitles.len());
         for s in subtitles {
             eprintln!("     - ID: {} | {}", s.id, s.relative_path);
         }

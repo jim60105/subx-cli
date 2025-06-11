@@ -57,15 +57,15 @@ impl ProductionConfigService {
     /// # Errors
     ///
     /// Returns an error if the configuration builder cannot be initialized.
-    /// 使用預設環境變數提供者建立配置服務（現有方法保持相容）
+    /// Creates a configuration service using the default environment variable provider (maintains compatibility with existing methods).
     pub fn new() -> Result<Self> {
         Self::with_env_provider(Arc::new(SystemEnvironmentProvider::new()))
     }
 
-    /// 使用指定環境變數提供者建立配置服務
+    /// Create a configuration service using the specified environment variable provider.
     ///
-    /// # 參數
-    /// * `env_provider` - 環境變數提供者
+    /// # Arguments
+    /// * `env_provider` - Environment variable provider
     pub fn with_env_provider(env_provider: Arc<dyn EnvironmentProvider>) -> Result<Self> {
         let config_builder = ConfigCrate::builder()
             .add_source(File::with_name("config/default").required(false))
@@ -414,7 +414,7 @@ mod tests {
 
     #[test]
     fn test_production_config_service_openai_api_key_loading() {
-        // 測試 OPENAI_API_KEY 環境變數載入
+        // Test OPENAI_API_KEY environment variable loading
         let mut env_provider = TestEnvironmentProvider::new();
         env_provider.set_var("OPENAI_API_KEY", "sk-test-openai-key-env");
 
@@ -431,7 +431,7 @@ mod tests {
 
     #[test]
     fn test_production_config_service_openai_base_url_loading() {
-        // 測試 OPENAI_BASE_URL 環境變數載入
+        // Test OPENAI_BASE_URL environment variable loading
         let mut env_provider = TestEnvironmentProvider::new();
         env_provider.set_var("OPENAI_BASE_URL", "https://test.openai.com/v1");
 
@@ -445,7 +445,7 @@ mod tests {
 
     #[test]
     fn test_production_config_service_both_openai_env_vars() {
-        // 測試同時設定兩個 OPENAI 環境變數
+        // Test setting both OPENAI environment variables simultaneously
         let mut env_provider = TestEnvironmentProvider::new();
         env_provider.set_var("OPENAI_API_KEY", "sk-test-key-both");
         env_provider.set_var("OPENAI_BASE_URL", "https://both.openai.com/v1");
@@ -461,25 +461,25 @@ mod tests {
 
     #[test]
     fn test_production_config_service_no_openai_env_vars() {
-        // 測試沒有 OPENAI 環境變數的情況
-        let env_provider = TestEnvironmentProvider::new(); // 空的提供者
+        // Test the case with no OPENAI environment variables
+        let env_provider = TestEnvironmentProvider::new(); // Empty provider
 
         let service = ProductionConfigService::with_env_provider(Arc::new(env_provider))
             .expect("Failed to create config service");
 
         let config = service.get_config().expect("Failed to get config");
 
-        // 應該使用預設值
+        // Should use default values
         assert_eq!(config.ai.api_key, None);
-        assert_eq!(config.ai.base_url, "https://api.openai.com/v1"); // 預設值
+        assert_eq!(config.ai.base_url, "https://api.openai.com/v1"); // Default value
     }
 
     #[test]
     fn test_production_config_service_api_key_priority() {
-        // 測試 API key 優先權：如果已有 API key，不應覆蓋
+        // Test API key priority: existing API key should not be overwritten
         let mut env_provider = TestEnvironmentProvider::new();
         env_provider.set_var("OPENAI_API_KEY", "sk-env-key");
-        // 模擬從其他來源（如配置檔案）載入的 API key
+        // Simulate API key loaded from other sources (e.g., configuration file)
         env_provider.set_var("SUBX_AI_APIKEY", "sk-config-key");
 
         let service = ProductionConfigService::with_env_provider(Arc::new(env_provider))
@@ -487,8 +487,8 @@ mod tests {
 
         let config = service.get_config().expect("Failed to get config");
 
-        // SUBX_AI_APIKEY 應該有更高優先權（因為它先處理）
-        // 這個測試只驗證優先順序，至少應該有值
+        // SUBX_AI_APIKEY should have higher priority (since it's processed first)
+        // This test only verifies priority order, should at least have a value
         assert!(config.ai.api_key.is_some());
     }
 }

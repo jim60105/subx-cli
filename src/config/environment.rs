@@ -1,42 +1,46 @@
-//! 環境變數提供者模組
+//! Environment variable provider module.
 //!
-//! 此模組定義了抽象環境變數存取的特徵，以及對應的生產與測試實作。
+//! This module defines traits for abstracting environment variable access,
+//! along with corresponding production and test implementations.
 
 use std::collections::HashMap;
 
-/// 環境變數提供者特徵
+/// Environment variable provider trait.
 ///
-/// 此特徵抽象了環境變數的存取，允許在測試中注入模擬實作
+/// This trait abstracts environment variable access, allowing for mock implementations
+/// to be injected during testing.
 pub trait EnvironmentProvider: Send + Sync {
-    /// 取得指定環境變數的值
+    /// Get the value of the specified environment variable.
     ///
-    /// # 參數
-    /// * `key` - 環境變數名稱
+    /// # Arguments
+    /// * `key` - Environment variable name
     ///
-    /// # 回傳值
-    /// 如果環境變數存在且有效，回傳 `Some(value)`，否則回傳 `None`
+    /// # Returns
+    /// Returns `Some(value)` if the environment variable exists and is valid,
+    /// otherwise returns `None`.
     fn get_var(&self, key: &str) -> Option<String>;
 
-    /// 檢查環境變數是否存在
+    /// Check if an environment variable exists.
     ///
-    /// # 參數
-    /// * `key` - 環境變數名稱
+    /// # Arguments
+    /// * `key` - Environment variable name
     ///
-    /// # 回傳值
-    /// 如果環境變數存在，回傳 `true`，否則回傳 `false`
+    /// # Returns
+    /// Returns `true` if the environment variable exists, otherwise `false`.
     fn has_var(&self, key: &str) -> bool {
         self.get_var(key).is_some()
     }
 }
 
-/// 系統環境變數提供者實作
+/// System environment variable provider implementation.
 ///
-/// 此實作直接讀取系統環境變數，用於生產環境
+/// This implementation directly reads system environment variables,
+/// intended for use in production environments.
 #[derive(Debug, Default)]
 pub struct SystemEnvironmentProvider;
 
 impl SystemEnvironmentProvider {
-    /// 建立新的系統環境變數提供者
+    /// Create a new system environment variable provider.
     pub fn new() -> Self {
         Self
     }
@@ -48,48 +52,49 @@ impl EnvironmentProvider for SystemEnvironmentProvider {
     }
 }
 
-/// 測試環境變數提供者實作
+/// Test environment variable provider implementation.
 ///
-/// 此實作使用預設的變數映射，用於測試環境的完全隔離
+/// This implementation uses a predefined variable mapping,
+/// intended for complete isolation in test environments.
 #[derive(Debug)]
 pub struct TestEnvironmentProvider {
     variables: HashMap<String, String>,
 }
 
 impl TestEnvironmentProvider {
-    /// 建立新的測試環境變數提供者
+    /// Create a new test environment variable provider.
     pub fn new() -> Self {
         Self {
             variables: HashMap::new(),
         }
     }
 
-    /// 建立包含指定變數的測試提供者
+    /// Create a test provider containing specified variables.
     ///
-    /// # 參數
-    /// * `variables` - 環境變數映射
+    /// # Arguments
+    /// * `variables` - Environment variable mapping
     pub fn with_variables(variables: HashMap<String, String>) -> Self {
         Self { variables }
     }
 
-    /// 設定環境變數
+    /// Set an environment variable.
     ///
-    /// # 參數
-    /// * `key` - 環境變數名稱
-    /// * `value` - 環境變數值
+    /// # Arguments
+    /// * `key` - Environment variable name
+    /// * `value` - Environment variable value
     pub fn set_var(&mut self, key: &str, value: &str) {
         self.variables.insert(key.to_string(), value.to_string());
     }
 
-    /// 移除環境變數
+    /// Remove an environment variable.
     ///
-    /// # 參數
-    /// * `key` - 環境變數名稱
+    /// # Arguments
+    /// * `key` - Environment variable name
     pub fn remove_var(&mut self, key: &str) {
         self.variables.remove(key);
     }
 
-    /// 清除所有環境變數
+    /// Clear all environment variables.
     pub fn clear(&mut self) {
         self.variables.clear();
     }
@@ -114,7 +119,7 @@ mod tests {
     #[test]
     fn test_system_environment_provider_existing_var() {
         let provider = SystemEnvironmentProvider::new();
-        // 使用通常存在的環境變數進行測試
+        // Test using a commonly existing environment variable
         let path = provider.get_var("PATH");
         assert!(path.is_some());
         assert!(!path.unwrap().is_empty());

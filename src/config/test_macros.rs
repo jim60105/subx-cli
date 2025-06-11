@@ -29,16 +29,16 @@ macro_rules! test_with_config {
     }};
 }
 
-/// 使用指定環境變數映射執行 ProductionConfigService 測試
+/// Execute ProductionConfigService tests with specified environment variable mapping.
 ///
-/// 此巨集建立一個 TestEnvironmentProvider，設定指定的環境變數，
-/// 然後使用該提供者建立 ProductionConfigService 執行測試
+/// This macro creates a TestEnvironmentProvider, sets the specified environment variables,
+/// then uses that provider to create a ProductionConfigService for testing.
 ///
-/// # 參數
-/// * `$env_vars` - 環境變數映射表達式（HashMap<&str, &str>）
-/// * `$test` - 測試閉包，接收 ProductionConfigService 引用
+/// # Arguments
+/// * `$env_vars` - Environment variable mapping expression (HashMap<&str, &str>)
+/// * `$test` - Test closure that receives a ProductionConfigService reference
 ///
-/// # 範例
+/// # Examples
 ///
 /// ```rust,ignore
 /// use subx_cli::{test_production_config_with_env, std::collections::HashMap};
@@ -61,7 +61,7 @@ macro_rules! test_production_config_with_env {
 
         let mut env_provider = $crate::config::TestEnvironmentProvider::new();
 
-        // 將環境變數映射轉換為字串並設定到提供者
+        // Convert environment variable mapping to strings and set them in the provider
         for (key, value) in $env_vars {
             env_provider.set_var(key, value);
         }
@@ -74,17 +74,17 @@ macro_rules! test_production_config_with_env {
     }};
 }
 
-/// 使用 OPENAI 環境變數執行 ProductionConfigService 測試
+/// Execute ProductionConfigService tests with OPENAI environment variables.
 ///
-/// 此巨集是 test_production_config_with_env! 的便利版本，
-/// 專門用於測試 OPENAI_API_KEY 和 OPENAI_BASE_URL 環境變數
+/// This macro is a convenience version of test_production_config_with_env!,
+/// specifically designed for testing OPENAI_API_KEY and OPENAI_BASE_URL environment variables.
 ///
-/// # 參數
-/// * `$api_key` - OPENAI_API_KEY 值（Option<&str>）
-/// * `$base_url` - OPENAI_BASE_URL 值（Option<&str>）  
-/// * `$test` - 測試閉包，接收 ProductionConfigService 引用
+/// # Arguments
+/// * `$api_key` - OPENAI_API_KEY value (Option<&str>)
+/// * `$base_url` - OPENAI_BASE_URL value (Option<&str>)  
+/// * `$test` - Test closure that receives a ProductionConfigService reference
 ///
-/// # 範例
+/// # Examples
 ///
 /// ```rust,ignore
 /// use subx_cli::test_production_config_with_openai_env;
@@ -106,12 +106,12 @@ macro_rules! test_production_config_with_openai_env {
 
         let mut env_provider = $crate::config::TestEnvironmentProvider::new();
 
-        // 設定 OPENAI_API_KEY（如果提供）
+        // Set OPENAI_API_KEY (if provided)
         if let Some(api_key) = $api_key {
             env_provider.set_var("OPENAI_API_KEY", api_key);
         }
 
-        // 設定 OPENAI_BASE_URL（如果提供）
+        // Set OPENAI_BASE_URL (if provided)
         if let Some(base_url) = $base_url {
             env_provider.set_var("OPENAI_BASE_URL", base_url);
         }
@@ -126,16 +126,16 @@ macro_rules! test_production_config_with_openai_env {
     }};
 }
 
-/// 建立臨時的 ProductionConfigService 與環境變數提供者供測試函數使用
+/// Create a temporary ProductionConfigService with environment variable provider for test functions.
 ///
-/// 此巨集建立一個具有指定環境變數的 ProductionConfigService 變數，
-/// 可以在整個測試函數中使用
+/// This macro creates a ProductionConfigService variable with specified environment variables
+/// that can be used throughout the entire test function.
 ///
-/// # 參數
-/// * `$service_name` - 服務變數名稱
-/// * `$env_vars` - 環境變數映射表達式（HashMap<&str, &str>）
+/// # Arguments
+/// * `$service_name` - Service variable name
+/// * `$env_vars` - Environment variable mapping expression (HashMap<&str, &str>)
 ///
-/// # 範例
+/// # Examples
 ///
 /// ```rust,ignore
 /// use subx_cli::create_production_config_service_with_env;
@@ -165,15 +165,15 @@ macro_rules! create_production_config_service_with_env {
     };
 }
 
-/// 建立空環境變數的 ProductionConfigService 供測試使用
+/// Create a ProductionConfigService with empty environment variables for testing.
 ///
-/// 此巨集建立一個沒有任何環境變數的 ProductionConfigService，
-/// 用於測試預設行為
+/// This macro creates a ProductionConfigService without any environment variables,
+/// used for testing default behavior.
 ///
-/// # 參數
-/// * `$service_name` - 服務變數名稱
+/// # Arguments
+/// * `$service_name` - Service variable name
 ///
-/// # 範例
+/// # Examples
 ///
 /// ```rust,ignore
 /// use subx_cli::create_production_config_service_with_empty_env;
@@ -182,7 +182,7 @@ macro_rules! create_production_config_service_with_env {
 ///     create_production_config_service_with_empty_env!(service);
 ///
 ///     let config = service.get_config().unwrap();
-///     assert_eq!(config.ai.api_key, None); // 預期無 API key
+///     assert_eq!(config.ai.api_key, None); // Expected no API key
 /// }
 /// ```
 #[macro_export]
@@ -238,7 +238,7 @@ mod env_macro_tests {
             |service: &crate::config::ProductionConfigService| {
                 let config = service.get_config().unwrap();
                 assert_eq!(config.ai.api_key, Some("sk-only-key".to_string()));
-                // base_url 應該使用預設值
+                // base_url should use default value
                 assert_eq!(config.ai.base_url, "https://api.openai.com/v1");
             }
         );
