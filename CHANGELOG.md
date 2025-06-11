@@ -7,6 +7,39 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.0] - 2025-06-11
+### Added
+- Added: Comprehensive test infrastructure optimization with CLITestHelper, TestFileManager, OutputValidator, AudioMockGenerator, and SubtitleGenerator utilities.
+- Added: Configuration service system with dependency injection pattern, ConfigService trait, and production/test implementations.
+- Added: Complete test system refactoring enabling parallel test execution by removing all #[serial] annotations.
+- Added: TestConfigBuilder API for fluent configuration creation and isolated test environments.
+- Added: Coverage checking script with configurable thresholds and verbose reporting.
+- Added: Comprehensive English documentation for all public APIs following rustdoc standards.
+- Added: GPLv3 license with proper headers and copyright information.
+- Added: Enhanced CI/CD pipeline with documentation quality checks and coverage enforcement.
+- Added: Performance benchmarks for AI retry mechanisms and file ID generation.
+- Added: Animated SVG logo with gradient effects and feature visualization.
+
+### Changed
+- Changed: Migrated all Chinese comments and documentation to English for international accessibility.
+- Changed: Refactored configuration system to eliminate unsafe global state and enable dependency injection.
+- Changed: Improved test architecture with isolated configurations for parallel safety.
+- Changed: Enhanced documentation structure with comprehensive rustdoc guidelines and quality validation.
+- Changed: Upgraded test execution to support true parallel processing without race conditions.
+- Changed: Standardized all scripts with GPLv3 headers and improved error handling.
+- Changed: Moved unit tests from tests/ directory to implementation files following Rust conventions.
+
+### Fixed
+- Fixed: Test race conditions in configuration integration tests with proper state isolation.
+- Fixed: Documentation compilation issues and broken intra-doc links.
+- Fixed: AI retry mechanism performance benchmarks with correct error handling and threading.
+- Fixed: CLI help display tests to check for English strings instead of Chinese.
+- Fixed: All clippy warnings and rustdoc validation errors.
+
+### Security
+- Security: Eliminated unsafe code in configuration management system.
+- Security: Improved dependency management with updated security guidelines.
+
 ## [0.2.0] - 2025-06-09
 ### Added
 - Added: Parallel processing system for batch operations, including TaskScheduler, WorkerPool, and priority/FIFO queue support.
@@ -52,6 +85,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Initial release of SubX CLI tool
 - Rust-based intelligent subtitle processing
 
-[Unreleased]: https://github.com/SubX-Project/SubX/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/SubX-Project/SubX/compare/v0.3.0...HEAD
+[0.3.0]: https://github.com/SubX-Project/SubX/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/SubX-Project/SubX/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/SubX-Project/SubX/releases/tag/v0.1.0
