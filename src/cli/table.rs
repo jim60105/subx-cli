@@ -48,59 +48,55 @@ use tabled::{Table, Tabled};
 /// Display row structure for file matching operation results.
 ///
 /// This structure represents a single row in the match results table,
-/// containing all the information needed to display the outcome of an
-/// AI-powered file matching operation. Each row represents one video-subtitle
-/// pair and its processing status.
+/// containing file type identifier and complete file path. Each row shows
+/// one piece of information from an AI-powered file matching operation,
+/// with multiple rows grouped together to represent one complete match result.
 ///
 /// # Field Descriptions
 ///
-/// - `status`: Visual indicator of the operation result (✓, ✗, ⚠, etc.)
-/// - `video_file`: Original video file name or path
-/// - `subtitle_file`: Original subtitle file name or path  
-/// - `new_name`: Proposed or applied new subtitle file name
+/// - `file_type`: File type identifier (Video 1, Subtitle 1, New name 1)
+/// - `file_path`: Complete file path displayed without truncation
 ///
-/// # Status Symbols
+/// # File Type Identifiers
 ///
-/// Common status values and their meanings:
-/// - `✓`: Successfully matched and renamed
-/// - `⚠`: Matched with low confidence (manual review recommended)
-/// - `✗`: Failed to match or process
-/// - `≈`: Approximate match (confidence below threshold)
-/// - `→`: Dry-run mode (would be renamed)
+/// Standard file type values:
+/// - `Video 1`, `Video 2`, etc.: Original video files used as reference
+/// - `Subtitle 1`, `Subtitle 2`, etc.: Original subtitle files to be renamed
+/// - `New name 1`, `New name 2`, etc.: Generated new names for subtitle files
 ///
 /// # Examples
 ///
 /// ```rust
 /// use subx_cli::cli::table::MatchDisplayRow;
 ///
-/// // Successfully matched
-/// let success_row = MatchDisplayRow {
-///     status: "✓".to_string(),
-///     filename: "Video 1: Movie.2023.1080p.BluRay.mp4".to_string(),
+/// // Video file entry
+/// let video_row = MatchDisplayRow {
+///     file_type: "Video 1".to_string(),
+///     file_path: "/path/to/Movie.2023.1080p.BluRay.mp4".to_string(),
 /// };
 ///
-/// // Low confidence match
-/// let warning_row = MatchDisplayRow {
-///     status: "⚠".to_string(),
-///     filename: "Video 2: Episode.S01E01.mkv".to_string(),
+/// // Subtitle file entry
+/// let subtitle_row = MatchDisplayRow {
+///     file_type: "Subtitle 1".to_string(),
+///     file_path: "/path/to/random_subtitle.srt".to_string(),
 /// };
 ///
-/// // Match failure example shows only status
-/// let error_row = MatchDisplayRow {
-///     status: "✗".to_string(),
-///     filename: String::new(),
+/// // New name entry
+/// let newname_row = MatchDisplayRow {
+///     file_type: "New name 1".to_string(),
+///     file_path: "/path/to/Movie.2023.1080p.BluRay.srt".to_string(),
 /// };
 /// ```
 #[derive(Tabled)]
-/// Match result table row for displaying status and related file information in vertical layout
+/// Match result table row for displaying file type and path in clean two-column layout
 pub struct MatchDisplayRow {
-    /// Processing status visual indicator (✓, 🔍, ⚠, ✗)
-    #[tabled(rename = "Status")]
-    pub status: String,
+    /// File type identifier (Video 1, Subtitle 1, New name 1)
+    #[tabled(rename = "Type")]
+    pub file_type: String,
 
-    /// Video file, subtitle file and new filename stacked vertically
-    #[tabled(rename = "Filename")]
-    pub filename: String,
+    /// Complete file path without truncation
+    #[tabled(rename = "Path")]
+    pub file_path: String,
 }
 
 /// Create a formatted table string from match operation results.
