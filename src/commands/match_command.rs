@@ -661,14 +661,14 @@ mod tests {
         // Create test configuration with specific settings
         let config = TestConfigBuilder::new()
             .with_ai_provider("openai")
-            .with_ai_model("gpt-4")
+            .with_ai_model("gpt-4.1")
             .build_config();
         let config_service = Arc::new(TestConfigService::new(config));
 
         // Verify configuration is correctly isolated
         let loaded_config = config_service.get_config()?;
         assert_eq!(loaded_config.ai.provider, "openai");
-        assert_eq!(loaded_config.ai.model, "gpt-4");
+        assert_eq!(loaded_config.ai.model, "gpt-4.1");
 
         Ok(())
     }

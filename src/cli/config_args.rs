@@ -166,7 +166,7 @@ pub enum ConfigAction {
     /// subx config set ai.max_sample_length 2000
     ///
     /// # Array values (JSON format)
-    /// subx config set ai.supported_models '["gpt-4", "gpt-3.5-turbo"]'
+    /// subx config set ai.supported_models '["gpt-4.1"]'
     /// ```
     ///
     /// # Validation Rules

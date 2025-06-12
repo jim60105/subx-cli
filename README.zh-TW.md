@@ -66,7 +66,7 @@ export OPENAI_BASE_URL="https://api.openai.com/v1"
 # 或通過配置檔案指令設定
 subx-cli config set ai.api_key "your-api-key-here"
 subx-cli config set ai.base_url "https://api.openai.com/v1"
-subx-cli config set ai.model "gpt-4o-mini"
+subx-cli config set ai.model "gpt-4.1-mini"
 subx-cli config set general.backup_enabled true
 ```
 
@@ -220,7 +220,7 @@ media/
 # AI 服務提供商，目前支援 "openai"
 provider = "openai"
 # 使用的 AI 模型
-model = "gpt-4o-mini"
+model = "gpt-4.1-mini"
 # API 端點，可由 OPENAI_BASE_URL 環境變數覆蓋
 base_url = "https://api.openai.com/v1"
 # API 金鑰，可由 OPENAI_API_KEY 環境變數覆蓋

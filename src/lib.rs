@@ -57,7 +57,7 @@
 //! use subx_cli::config::{TestConfigService, Config};
 //!
 //! // Create configuration service with AI settings
-//! let config_service = TestConfigService::with_ai_settings("openai", "gpt-4");
+//! let config_service = TestConfigService::with_ai_settings("openai", "gpt-4.1");
 //! let config = config_service.config();
 //!
 //! // Access configuration values

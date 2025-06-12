@@ -18,7 +18,7 @@ use crate::config::{Config, OverflowStrategy};
 ///
 /// let config = TestConfigBuilder::new()
 ///     .with_ai_provider("openai")
-///     .with_ai_model("gpt-4")
+///     .with_ai_model("gpt-4.1")
 ///     .with_sync_threshold(0.8)
 ///     .build_config();
 /// ```
@@ -50,7 +50,7 @@ impl TestConfigBuilder {
     ///
     /// # Arguments
     ///
-    /// * `model` - The AI model name (e.g., "gpt-4", "claude-3")
+    /// * `model` - The AI model name (e.g., "gpt-4.1", "claude-3")
     pub fn with_ai_model(mut self, model: &str) -> Self {
         self.config.ai.model = model.to_string();
         self
@@ -417,14 +417,14 @@ mod tests {
     fn test_builder_chaining() {
         let config = TestConfigBuilder::new()
             .with_ai_provider("openai")
-            .with_ai_model("gpt-4")
+            .with_ai_model("gpt-4.1")
             .with_sync_threshold(0.8)
             .with_max_concurrent_jobs(8)
             .with_task_queue_size(200)
             .build_config();
 
         assert_eq!(config.ai.provider, "openai");
-        assert_eq!(config.ai.model, "gpt-4");
+        assert_eq!(config.ai.model, "gpt-4.1");
         assert_eq!(config.sync.correlation_threshold, 0.8);
         assert_eq!(config.general.max_concurrent_jobs, 8);
         assert_eq!(config.parallel.task_queue_size, 200);

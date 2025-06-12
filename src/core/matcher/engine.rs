@@ -1230,7 +1230,7 @@ impl MatchEngine {
                 .duration_since(std::time::UNIX_EPOCH)
                 .map(|d| d.as_secs())
                 .unwrap_or(0),
-            ai_model_used: "gpt-4o-mini".to_string(), // TODO: 從配置服務獲取實際模型
+            ai_model_used: "gpt-4.1-mini".to_string(), // TODO: 從配置服務獲取實際模型
             // 記錄產生 cache 時的重定位模式與備份設定
             original_relocation_mode: format!("{:?}", self.config.relocation_mode),
             original_backup_enabled: self.config.backup_enabled,

@@ -118,13 +118,13 @@ use subx_cli::config::TestConfigService;
 fn test_ai_configuration() {
     let config_service = TestConfigService::with_ai_settings_and_key(
         "openai",
-        "gpt-4",
+        "gpt-4.1",
         "sk-test-key"
     );
     
     let config = config_service.get_config().unwrap();
     assert_eq!(config.ai.provider, "openai");
-    assert_eq!(config.ai.model, "gpt-4");
+    assert_eq!(config.ai.model, "gpt-4.1");
     assert_eq!(config.ai.api_key, Some("sk-test-key".to_string()));
 }
 ```
@@ -138,7 +138,7 @@ fn test_ai_configuration() {
 fn test_configuration_precedence() {
     let test_service = TestConfigService::with_ai_settings_and_key(
         "openai", 
-        "gpt-4", 
+        "gpt-4.1", 
         "explicit-key"
     );
 
@@ -178,7 +178,7 @@ use subx_cli::config::{ConfigService, TestConfigService};
 async fn test_command_with_dependency_injection() {
     // Create isolated configuration
     let config_service: Arc<dyn ConfigService> = Arc::new(
-        TestConfigService::with_ai_settings("openai", "gpt-4")
+        TestConfigService::with_ai_settings("openai", "gpt-4.1")
     );
     
     // Inject into command
@@ -195,7 +195,7 @@ use crate::common::cli_helpers::CLITestHelper;
 
 #[test]
 async fn test_cli_workflow() {
-    let helper = CLITestHelper::with_ai_settings("openai", "gpt-4");
+    let helper = CLITestHelper::with_ai_settings("openai", "gpt-4.1");
     
     // Create test files
     helper.create_subtitle_file("test.srt", "Test content").await.unwrap();
@@ -437,7 +437,7 @@ async fn test_function_with_config_injection<T: ConfigService>(
 
 #[tokio::test]
 async fn test_with_custom_config() {
-    let config_service = TestConfigService::with_ai_settings("openai", "gpt-4");
+    let config_service = TestConfigService::with_ai_settings("openai", "gpt-4.1");
     let result = test_function_with_config_injection(&config_service).await;
     assert!(result.is_ok());
 }
@@ -490,8 +490,7 @@ fn test_with_builder_pattern() {
 #[test]
 fn test_multiple_ai_providers() {
     let test_cases = vec![
-        ("openai", "gpt-4"),
-        ("openai", "gpt-3.5-turbo"),
+        ("openai", "gpt-4.1"),
         ("anthropic", "claude-3"),
     ];
     
@@ -732,7 +731,7 @@ fn test_with_defaults() {
     test_with_default_config!(|config_service| {
         let config = config_service.get_config().unwrap();
         assert_eq!(config.ai.provider, "openai");
-        assert_eq!(config.ai.model, "gpt-4o-mini");
+        assert_eq!(config.ai.model, "gpt-4.1-mini");
     });
 }
 ```
@@ -759,10 +758,10 @@ use subx_cli::test_with_ai_config_and_key;
 
 #[test]
 fn test_with_full_ai_config() {
-    test_with_ai_config_and_key!("openai", "gpt-4", "sk-test-key", |config_service| {
+    test_with_ai_config_and_key!("openai", "gpt-4.1", "sk-test-key", |config_service| {
         let config = config_service.get_config().unwrap();
         assert_eq!(config.ai.provider, "openai");
-        assert_eq!(config.ai.model, "gpt-4");
+        assert_eq!(config.ai.model, "gpt-4.1");
         assert_eq!(config.ai.api_key, Some("sk-test-key".to_string()));
     });
 }
@@ -853,13 +852,13 @@ fn test_complex_configuration() {
     test_with_config!(
         TestConfigBuilder::new()
             .with_ai_provider("openai")
-            .with_ai_model("gpt-4")
+            .with_ai_model("gpt-4.1")
             .with_sync_threshold(0.9)
             .with_max_offset(30.0),
         |config_service| {
             let config = config_service.get_config().unwrap();
             assert_eq!(config.ai.provider, "openai");
-            assert_eq!(config.ai.model, "gpt-4");
+            assert_eq!(config.ai.model, "gpt-4.1");
             assert_eq!(config.sync.correlation_threshold, 0.9);
             assert_eq!(config.sync.max_offset_seconds, 30.0);
         }
@@ -897,7 +896,7 @@ Both manual configuration and macros are valid approaches. Choose based on your 
 fn test_manual_config() {
     let config_service = TestConfigService::with_ai_settings_and_key(
         "openai", 
-        "gpt-4", 
+        "gpt-4.1", 
         "sk-test-key"
     );
     let config = config_service.get_config().unwrap();
@@ -907,7 +906,7 @@ fn test_manual_config() {
 // Using macro (more concise)
 #[test]
 fn test_macro_config() {
-    test_with_ai_config_and_key!("openai", "gpt-4", "sk-test-key", |config_service| {
+    test_with_ai_config_and_key!("openai", "gpt-4.1", "sk-test-key", |config_service| {
         let config = config_service.get_config().unwrap();
         assert_eq!(config.ai.provider, "openai");
     });

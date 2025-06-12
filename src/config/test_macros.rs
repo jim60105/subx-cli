@@ -353,10 +353,10 @@ macro_rules! test_with_ai_config {
 /// ```rust,ignore
 /// use subx_cli::{test_with_ai_config_and_key, config::ConfigService};
 ///
-/// test_with_ai_config_and_key!("openai", "gpt-4", "test-key", |config_service: &dyn ConfigService| {
+/// test_with_ai_config_and_key!("openai", "gpt-4.1", "test-key", |config_service: &dyn ConfigService| {
 ///     let config = config_service.get_config().unwrap();
 ///     assert_eq!(config.ai.provider, "openai");
-///     assert_eq!(config.ai.model, "gpt-4");
+///     assert_eq!(config.ai.model, "gpt-4.1");
 ///     assert_eq!(config.ai.api_key, Some("test-key".to_string()));
 /// });
 /// ```
@@ -517,12 +517,12 @@ mod tests {
     fn test_macro_with_ai_config_and_key() {
         test_with_ai_config_and_key!(
             "openai",
-            "gpt-4",
+            "gpt-4.1",
             "test-key",
             |config_service: &crate::config::TestConfigService| {
                 let config = config_service.get_config().unwrap();
                 assert_eq!(config.ai.provider, "openai");
-                assert_eq!(config.ai.model, "gpt-4");
+                assert_eq!(config.ai.model, "gpt-4.1");
                 assert_eq!(config.ai.api_key, Some("test-key".to_string()));
             }
         );

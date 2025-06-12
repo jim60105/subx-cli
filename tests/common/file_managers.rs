@@ -116,7 +116,7 @@ log_level = "debug"
 
 [ai]
 provider = "openai"
-model = "gpt-3.5-turbo"
+model = "gpt-4.1"
 api_key = "test_key"
 
 [sync]

@@ -10,11 +10,11 @@ fn test_config_builder_basic_functionality() {
     // Test basic functionality of the config builder
     let config = TestConfigBuilder::new()
         .with_ai_provider("openai")
-        .with_ai_model("gpt-4")
+        .with_ai_model("gpt-4.1")
         .build_config();
 
     assert_eq!(config.ai.provider, "openai");
-    assert_eq!(config.ai.model, "gpt-4");
+    assert_eq!(config.ai.model, "gpt-4.1");
 }
 
 #[test]
@@ -116,11 +116,11 @@ fn test_config_builder_chaining() {
     // Test chaining of config builder methods
     let config = TestConfigBuilder::new()
         .with_ai_provider("openai")
-        .with_ai_model("gpt-4")
+        .with_ai_model("gpt-4.1")
         .build_config();
 
     assert_eq!(config.ai.provider, "openai");
-    assert_eq!(config.ai.model, "gpt-4");
+    assert_eq!(config.ai.model, "gpt-4.1");
 }
 
 #[test]

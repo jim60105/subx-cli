@@ -21,7 +21,7 @@
 //! let config = AIConfig {
 //!     provider: "openai".to_string(),
 //!     api_key: Some("sk-...".to_string()),
-//!     model: "gpt-4".to_string(),
+//!     model: "gpt-4.1".to_string(),
 //!     // ... other fields
 //! };
 //!
@@ -71,7 +71,7 @@ use crate::services::ai::{AIProvider, OpenAIClient};
 /// let config = AIConfig {
 ///     provider: "openai".to_string(),
 ///     api_key: Some("sk-your-api-key".to_string()),
-///     model: "gpt-4".to_string(),
+///     model: "gpt-4.1".to_string(),
 ///     base_url: "https://api.openai.com/v1".to_string(),
 ///     max_sample_length: 2000,
 ///     temperature: 0.3,
@@ -117,7 +117,7 @@ impl AIClientFactory {
     /// let config = AIConfig {
     ///     provider: "openai".to_string(),
     ///     api_key: Some("sk-key".to_string()),
-    ///     model: "gpt-3.5-turbo".to_string(),
+    ///     model: "gpt-4.1".to_string(),
     ///     // ... other configuration
     /// };
     ///

@@ -182,7 +182,7 @@ mod tests {
         let config = service.get_config().unwrap();
 
         assert_eq!(config.ai.provider, "openai");
-        assert_eq!(config.ai.model, "gpt-4o-mini");
+        assert_eq!(config.ai.model, "gpt-4.1-mini");
     }
 
     #[test]
@@ -197,11 +197,11 @@ mod tests {
     #[test]
     fn test_config_service_with_ai_settings_and_key() {
         let service =
-            TestConfigService::with_ai_settings_and_key("openai", "gpt-4", "test-api-key");
+            TestConfigService::with_ai_settings_and_key("openai", "gpt-4.1", "test-api-key");
         let config = service.get_config().unwrap();
 
         assert_eq!(config.ai.provider, "openai");
-        assert_eq!(config.ai.model, "gpt-4");
+        assert_eq!(config.ai.model, "gpt-4.1");
         assert_eq!(config.ai.api_key, Some("test-api-key".to_string()));
     }
 

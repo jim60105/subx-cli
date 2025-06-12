@@ -424,7 +424,7 @@ mod tests {
         // Test configuration with OpenAI API key using TestConfigService
         let test_service = TestConfigService::with_ai_settings_and_key(
             "openai",
-            "gpt-4o-mini",
+            "gpt-4.1-mini",
             "sk-test-openai-key-123",
         );
 
@@ -434,7 +434,7 @@ mod tests {
             Some("sk-test-openai-key-123".to_string())
         );
         assert_eq!(config.ai.provider, "openai");
-        assert_eq!(config.ai.model, "gpt-4o-mini");
+        assert_eq!(config.ai.model, "gpt-4.1-mini");
     }
 
     #[test]
@@ -470,12 +470,12 @@ mod tests {
     fn test_config_service_provider_precedence() {
         // Test that manually configured values take precedence
         let test_service =
-            TestConfigService::with_ai_settings_and_key("openai", "gpt-4", "sk-explicit-key");
+            TestConfigService::with_ai_settings_and_key("openai", "gpt-4.1", "sk-explicit-key");
 
         let config = test_service.get_config().unwrap();
         assert_eq!(config.ai.api_key, Some("sk-explicit-key".to_string()));
         assert_eq!(config.ai.provider, "openai");
-        assert_eq!(config.ai.model, "gpt-4");
+        assert_eq!(config.ai.model, "gpt-4.1");
     }
 
     #[test]
@@ -486,7 +486,7 @@ mod tests {
 
         // Should use default values
         assert_eq!(config.ai.provider, "openai");
-        assert_eq!(config.ai.model, "gpt-4o-mini");
+        assert_eq!(config.ai.model, "gpt-4.1-mini");
         assert_eq!(config.ai.base_url, "https://api.openai.com/v1");
         assert_eq!(config.ai.api_key, None); // No API key by default
     }

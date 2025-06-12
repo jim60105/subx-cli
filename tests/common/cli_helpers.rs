@@ -437,10 +437,10 @@ mod tests {
 
     #[tokio::test]
     async fn test_cli_helper_with_ai_settings() {
-        let helper = CLITestHelper::with_ai_settings("openai", "gpt-4");
+        let helper = CLITestHelper::with_ai_settings("openai", "gpt-4.1");
         let config = helper.config_service().get_config().unwrap();
         assert_eq!(config.ai.provider, "openai");
-        assert_eq!(config.ai.model, "gpt-4");
+        assert_eq!(config.ai.model, "gpt-4.1");
     }
 
     #[tokio::test]

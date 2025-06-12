@@ -93,7 +93,7 @@ mod tests {
 
     #[test]
     fn test_ai_prompt_with_file_ids_english() {
-        let client = OpenAIClient::new("test_key".into(), "gpt-4".into(), 0.1, 0, 0);
+        let client = OpenAIClient::new("test_key".into(), "gpt-4.1".into(), 0.1, 0, 0);
         let request = AnalysisRequest {
             video_files: vec!["ID:file_abc123456789abcd | Name:movie.mkv | Path:movie.mkv".into()],
             subtitle_files: vec![
@@ -117,7 +117,7 @@ mod tests {
 
     #[test]
     fn test_parse_match_result_with_ids() {
-        let client = OpenAIClient::new("test_key".into(), "gpt-4".into(), 0.1, 0, 0);
+        let client = OpenAIClient::new("test_key".into(), "gpt-4.1".into(), 0.1, 0, 0);
         let json_resp = r#"{
             "matches": [{
                 "video_file_id": "file_abc123456789abcd",
@@ -139,7 +139,7 @@ mod tests {
 
     #[test]
     fn test_ai_prompt_structure_consistency() {
-        let client = OpenAIClient::new("test_key".into(), "gpt-4".into(), 0.1, 0, 0);
+        let client = OpenAIClient::new("test_key".into(), "gpt-4.1".into(), 0.1, 0, 0);
         let request = AnalysisRequest {
             video_files: vec![
                 "ID:file_video1 | Name:video1.mkv | Path:season1/video1.mkv".into(),
@@ -165,7 +165,7 @@ mod tests {
 
     #[test]
     fn test_parse_confidence_score() {
-        let client = OpenAIClient::new("test_key".into(), "gpt-4".into(), 0.1, 0, 0);
+        let client = OpenAIClient::new("test_key".into(), "gpt-4.1".into(), 0.1, 0, 0);
         let json_resp = r#"{
             "score": 0.88,
             "factors": ["filename_similarity", "content_correlation"]

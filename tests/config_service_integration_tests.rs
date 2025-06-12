@@ -17,7 +17,7 @@ fn test_production_config_service_creation() {
 
     // Verify default values are loaded
     assert_eq!(config.ai.provider, "openai");
-    assert_eq!(config.ai.model, "gpt-4o-mini");
+    assert_eq!(config.ai.model, "gpt-4.1-mini");
     assert_eq!(config.formats.default_output, "srt");
 }
 
@@ -28,7 +28,7 @@ fn test_test_config_service_creation() {
 
     // Verify default values
     assert_eq!(config.ai.provider, "openai");
-    assert_eq!(config.ai.model, "gpt-4o-mini");
+    assert_eq!(config.ai.model, "gpt-4.1-mini");
 }
 
 #[test]
@@ -55,7 +55,7 @@ fn test_config_builder_basic() {
 fn test_config_builder_comprehensive() {
     let config = TestConfigBuilder::new()
         .with_ai_provider("openai")
-        .with_ai_model("gpt-4")
+        .with_ai_model("gpt-4.1")
         .with_ai_api_key("test-key")
         .with_max_sample_length(5000)
         .with_sync_threshold(0.9)
@@ -65,7 +65,7 @@ fn test_config_builder_comprehensive() {
         .build_config();
 
     assert_eq!(config.ai.provider, "openai");
-    assert_eq!(config.ai.model, "gpt-4");
+    assert_eq!(config.ai.model, "gpt-4.1");
     assert_eq!(config.ai.api_key, Some("test-key".to_string()));
     assert_eq!(config.ai.max_sample_length, 5000);
     assert_eq!(config.sync.correlation_threshold, 0.9);
@@ -115,7 +115,7 @@ fn test_app_creation_with_production_config() {
 
     // Should have default production values
     assert_eq!(config.ai.provider, "openai");
-    assert_eq!(config.ai.model, "gpt-4o-mini");
+    assert_eq!(config.ai.model, "gpt-4.1-mini");
 }
 
 #[test]

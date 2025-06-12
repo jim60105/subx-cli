@@ -46,9 +46,9 @@ mod tests {
 
     #[tokio::test]
     async fn test_openai_client_creation() {
-        let client = OpenAIClient::new("test-key".into(), "gpt-4o-mini".into(), 0.5, 2, 100);
+        let client = OpenAIClient::new("test-key".into(), "gpt-4.1-mini".into(), 0.5, 2, 100);
         assert_eq!(client.api_key, "test-key");
-        assert_eq!(client.model, "gpt-4o-mini");
+        assert_eq!(client.model, "gpt-4.1-mini");
         assert_eq!(client.temperature, 0.5);
         assert_eq!(client.retry_attempts, 2);
         assert_eq!(client.retry_delay_ms, 100);
@@ -65,7 +65,7 @@ mod tests {
             })))
             .mount(&server)
             .await;
-        let mut client = OpenAIClient::new("test-key".into(), "gpt-4o-mini".into(), 0.3, 1, 0);
+        let mut client = OpenAIClient::new("test-key".into(), "gpt-4.1-mini".into(), 0.3, 1, 0);
         client.base_url = server.uri();
         let messages = vec![json!({"role":"user","content":"test"})];
         let resp = client.chat_completion(messages).await.unwrap();
@@ -82,7 +82,7 @@ mod tests {
             })))
             .mount(&server)
             .await;
-        let mut client = OpenAIClient::new("bad-key".into(), "gpt-4o-mini".into(), 0.3, 1, 0);
+        let mut client = OpenAIClient::new("bad-key".into(), "gpt-4.1-mini".into(), 0.3, 1, 0);
         client.base_url = server.uri();
         let messages = vec![json!({"role":"user","content":"test"})];
         let result = client.chat_completion(messages).await;

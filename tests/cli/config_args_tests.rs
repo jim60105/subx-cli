@@ -14,13 +14,13 @@ fn test_config_list_parse() {
 
 #[test]
 fn test_config_set_parse() {
-    let cli = Cli::try_parse_from(&["subx", "config", "set", "ai.provider", "gpt-4"]).
+    let cli = Cli::try_parse_from(&["subx", "config", "set", "ai.provider", "gpt-4.1"]).
         expect("parse 'config set'");
     match cli.command {
         Commands::Config(args) => {
             if let ConfigAction::Set { key, value } = args.action {
                 assert_eq!(key, "ai.provider");
-                assert_eq!(value, "gpt-4");
+                assert_eq!(value, "gpt-4.1");
             } else {
                 panic!("Expected Set action");
             }

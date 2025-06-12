@@ -109,7 +109,7 @@ pub struct Config {
 ///
 /// let ai_config = AIConfig::default();
 /// assert_eq!(ai_config.provider, "openai");
-/// assert_eq!(ai_config.model, "gpt-4o-mini");
+/// assert_eq!(ai_config.model, "gpt-4.1-mini");
 /// assert_eq!(ai_config.temperature, 0.3);
 /// ```
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -137,7 +137,7 @@ impl Default for AIConfig {
         Self {
             provider: "openai".to_string(),
             api_key: None,
-            model: "gpt-4o-mini".to_string(),
+            model: "gpt-4.1-mini".to_string(),
             base_url: "https://api.openai.com/v1".to_string(),
             max_sample_length: 3000,
             temperature: 0.3,
@@ -390,7 +390,7 @@ mod config_tests {
     fn test_default_config_creation() {
         let config = Config::default();
         assert_eq!(config.ai.provider, "openai");
-        assert_eq!(config.ai.model, "gpt-4o-mini");
+        assert_eq!(config.ai.model, "gpt-4.1-mini");
         assert_eq!(config.formats.default_output, "srt");
         assert!(!config.general.backup_enabled);
         assert_eq!(config.general.max_concurrent_jobs, 4);
@@ -400,7 +400,7 @@ mod config_tests {
     fn test_ai_config_defaults() {
         let ai_config = AIConfig::default();
         assert_eq!(ai_config.provider, "openai");
-        assert_eq!(ai_config.model, "gpt-4o-mini");
+        assert_eq!(ai_config.model, "gpt-4.1-mini");
         assert_eq!(ai_config.temperature, 0.3);
         assert_eq!(ai_config.max_sample_length, 3000);
     }

@@ -32,7 +32,7 @@ impl MockOpenAITestHelper {
                 }
             ],
             "usage": { "prompt_tokens": 100, "completion_tokens": 50, "total_tokens": 150 },
-            "model": "gpt-4o-mini"
+            "model": "gpt-4.1-mini"
         });
 
         Mock::given(method("POST"))
@@ -56,7 +56,7 @@ impl MockOpenAITestHelper {
                 { "message": { "content": response_content }, "finish_reason": "stop" }
             ],
             "usage": { "prompt_tokens": 100, "completion_tokens": 50, "total_tokens": 150 },
-            "model": "gpt-4o-mini"
+            "model": "gpt-4.1-mini"
         });
 
         Mock::given(method("POST"))
@@ -79,7 +79,7 @@ impl MockOpenAITestHelper {
                 { "message": { "content": response_content }, "finish_reason": "stop" }
             ],
             "usage": { "prompt_tokens": 100, "completion_tokens": 50, "total_tokens": 150 },
-            "model": "gpt-4o-mini"
+            "model": "gpt-4.1-mini"
         });
 
         Mock::given(method("POST"))
@@ -118,7 +118,7 @@ impl MockOpenAITestHelper {
                 { "message": { "content": response_content }, "finish_reason": "stop" }
             ],
             "usage": { "prompt_tokens": 100, "completion_tokens": 50, "total_tokens": 150 },
-            "model": "gpt-4o-mini"
+            "model": "gpt-4.1-mini"
         });
         Mock::given(method("POST"))
             .and(path("/chat/completions"))
