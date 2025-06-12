@@ -70,4 +70,17 @@ impl MockOpenAITestHelper {
         // Retrieve received requests to trigger expectation verification on server drop.
         let _ = self.mock_server.received_requests().await;
     }
+
+    /// Setup an error response with given status code and error message.
+    pub async fn setup_error_response(&self, status: u16, error_message: &str) {
+        let response_body = json!({
+            "error": { "message": error_message }
+        });
+        Mock::given(method("POST"))
+            .and(path("/chat/completions"))
+            .and(header("authorization", "Bearer mock-api-key"))
+            .respond_with(ResponseTemplate::new(status).set_body_json(response_body))
+            .mount(&self.mock_server)
+            .await;
+    }
 }

@@ -315,6 +315,13 @@ impl TestConfigBuilder {
         self
     }
 
+    /// 設定並行處理工作者數量及隊列大小，用於整合測試
+    pub fn with_parallel_settings(mut self, max_workers: usize, queue_size: usize) -> Self {
+        self.config.general.max_concurrent_jobs = max_workers;
+        self.config.parallel.task_queue_size = queue_size;
+        self
+    }
+
     // Builder Methods
 
     /// Build a test configuration service with the configured settings.
