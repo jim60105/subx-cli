@@ -1,5 +1,13 @@
 # 配置系統 Legacy 完全移除計劃
 
+## 里程碑
+以下列步驟為本次遷移工作的主要里程碑：
+1. **里程碑 1**：將配置類型從 `config_legacy.rs` 遷移到 `src/config/mod.rs`，並移除 legacy 檔案。
+2. **里程碑 2**：擴展 `ConfigService` trait 及其在 `ProductionConfigService` 和 `TestConfigService` 的實作。
+3. **里程碑 3**：更新 CLI command (`config_command.rs`)，移除舊版執行邏輯並改用 `ConfigService`。
+4. **里程碑 4**：新增整合測試以驗證完整遷移後的配置功能。
+5. **里程碑 5**：執行格式化、Clippy、文件檢查，撰寫工作報告。
+
 **目標**: 完全移除 `config_legacy.rs` 文件，將所有配置數據結構和方法完整遷移到現代 ConfigService 系統，確保系統完全使用依賴注入的配置服務。
 
 ## 背景分析

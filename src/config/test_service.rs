@@ -5,7 +5,9 @@
 //! predictable configuration states.
 
 use crate::config::service::ConfigService;
+use crate::error::SubXError;
 use crate::{Result, config::Config};
+use std::path::PathBuf;
 
 /// Test configuration service implementation.
 ///
@@ -111,6 +113,55 @@ impl ConfigService for TestConfigService {
 
     fn reload(&self) -> Result<()> {
         // Test configuration doesn't need reloading since it's fixed
+        Ok(())
+    }
+
+    fn save_config(&self) -> Result<()> {
+        // Test environment does not perform actual file I/O
+        Ok(())
+    }
+
+    fn save_config_to_file(&self, _path: &PathBuf) -> Result<()> {
+        // Test environment does not perform actual file I/O
+        Ok(())
+    }
+
+    fn get_config_file_path(&self) -> Result<PathBuf> {
+        // Return a dummy path to avoid conflicts in test environment
+        Ok(PathBuf::from("/tmp/subx_test_config.toml"))
+    }
+
+    fn get_config_value(&self, key: &str) -> Result<String> {
+        // Delegate to fixed configuration
+        // Note: unwrap_or_default to handle Option fields
+        let config = &self.fixed_config;
+        let parts: Vec<&str> = key.split('.').collect();
+        match parts.as_slice() {
+            ["ai", "provider"] => Ok(config.ai.provider.clone()),
+            ["ai", "model"] => Ok(config.ai.model.clone()),
+            ["ai", "api_key"] => Ok(config.ai.api_key.clone().unwrap_or_default()),
+            ["ai", "base_url"] => Ok(config.ai.base_url.clone()),
+            ["ai", "temperature"] => Ok(config.ai.temperature.to_string()),
+            ["formats", "default_output"] => Ok(config.formats.default_output.clone()),
+            ["formats", "default_encoding"] => Ok(config.formats.default_encoding.clone()),
+            ["sync", "max_offset_seconds"] => Ok(config.sync.max_offset_seconds.to_string()),
+            ["sync", "correlation_threshold"] => Ok(config.sync.correlation_threshold.to_string()),
+            ["general", "backup_enabled"] => Ok(config.general.backup_enabled.to_string()),
+            ["general", "max_concurrent_jobs"] => {
+                Ok(config.general.max_concurrent_jobs.to_string())
+            }
+            ["parallel", "max_workers"] => Ok(config.parallel.max_workers.to_string()),
+            ["parallel", "chunk_size"] => Ok(config.parallel.chunk_size.to_string()),
+            _ => Err(SubXError::config(format!(
+                "Unknown configuration key: {}",
+                key
+            ))),
+        }
+    }
+
+    fn reset_to_defaults(&self) -> Result<()> {
+        // Reset the fixed configuration to default values
+        // Note: This requires interior mutability if used concurrently
         Ok(())
     }
 }

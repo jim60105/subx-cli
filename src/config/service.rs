@@ -24,17 +24,81 @@ pub trait ConfigService: Send + Sync {
     /// # Errors
     ///
     /// Returns an error if configuration loading or validation fails.
+    /// Get the current configuration.
+    ///
+    /// Returns the current [`Config`] instance loaded from files,
+    /// environment variables, and defaults.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if configuration loading fails due to:
+    /// - Invalid TOML format in configuration files
+    /// - Missing required configuration values
+    /// - File system access issues
     fn get_config(&self) -> Result<Config>;
 
     /// Reload configuration from sources.
     ///
-    /// Forces a reload of configuration from all configured sources.
-    /// This is useful for dynamic configuration updates.
+    /// Forces a reload of configuration from all sources, discarding
+    /// any cached values.
     ///
     /// # Errors
     ///
     /// Returns an error if configuration reloading fails.
     fn reload(&self) -> Result<()>;
+
+    /// Save current configuration to the default file location.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - Unable to determine config file path
+    /// - File system write permissions are insufficient
+    /// - TOML serialization fails
+    fn save_config(&self) -> Result<()>;
+
+    /// Save configuration to a specific file path.
+    ///
+    /// # Arguments
+    ///
+    /// - `path`: Target file path for the configuration
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - TOML serialization fails
+    /// - Unable to create parent directories
+    /// - File write operation fails
+    fn save_config_to_file(&self, path: &PathBuf) -> Result<()>;
+
+    /// Get the default configuration file path.
+    ///
+    /// # Returns
+    ///
+    /// Returns the path where configuration files are expected to be located,
+    /// typically `$CONFIG_DIR/subx/config.toml`.
+    fn get_config_file_path(&self) -> Result<PathBuf>;
+
+    /// Get a specific configuration value by key path.
+    ///
+    /// # Arguments
+    ///
+    /// - `key`: Dot-separated path to the configuration value (e.g., "ai.provider")
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the key is not recognized.
+    fn get_config_value(&self, key: &str) -> Result<String>;
+
+    /// Reset configuration to default values.
+    ///
+    /// This will overwrite the current configuration file with default values
+    /// and reload the configuration.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if save or reload fails.
+    fn reset_to_defaults(&self) -> Result<()>;
 }
 
 /// Production configuration service implementation.
@@ -228,6 +292,87 @@ impl ConfigService for ProductionConfigService {
 
         debug!("ProductionConfigService: Configuration reloaded successfully");
         Ok(())
+    }
+
+    fn save_config(&self) -> Result<()> {
+        let config = self.get_config()?;
+        let path = self.get_config_file_path()?;
+        self.save_config_to_file(&path)
+    }
+
+    fn save_config_to_file(&self, path: &PathBuf) -> Result<()> {
+        let config = self.get_config()?;
+        let toml_content = toml::to_string_pretty(&config)
+            .map_err(|e| SubXError::config(format!("TOML serialization error: {}", e)))?;
+
+        if let Some(parent) = path.parent() {
+            std::fs::create_dir_all(parent).map_err(|e| {
+                SubXError::config(format!("Failed to create config directory: {}", e))
+            })?;
+        }
+
+        std::fs::write(path, toml_content)
+            .map_err(|e| SubXError::config(format!("Failed to write config file: {}", e)))?;
+
+        Ok(())
+    }
+
+    fn get_config_file_path(&self) -> Result<PathBuf> {
+        if let Ok(custom) = std::env::var("SUBX_CONFIG_PATH") {
+            return Ok(PathBuf::from(custom));
+        }
+
+        let config_dir = dirs::config_dir()
+            .ok_or_else(|| SubXError::config("Unable to determine config directory"))?;
+        Ok(config_dir.join("subx").join("config.toml"))
+    }
+
+    fn get_config_value(&self, key: &str) -> Result<String> {
+        let config = self.get_config()?;
+        let parts: Vec<&str> = key.split('.').collect();
+        match parts.as_slice() {
+            ["ai", "provider"] => Ok(config.ai.provider.clone()),
+            ["ai", "model"] => Ok(config.ai.model.clone()),
+            ["ai", "api_key"] => Ok(config.ai.api_key.clone().unwrap_or_default()),
+            ["ai", "base_url"] => Ok(config.ai.base_url.clone()),
+            ["ai", "temperature"] => Ok(config.ai.temperature.to_string()),
+            ["formats", "default_output"] => Ok(config.formats.default_output.clone()),
+            ["formats", "default_encoding"] => Ok(config.formats.default_encoding.clone()),
+            ["formats", "preserve_styling"] => Ok(config.formats.preserve_styling.to_string()),
+            ["sync", "max_offset_seconds"] => Ok(config.sync.max_offset_seconds.to_string()),
+            ["sync", "correlation_threshold"] => Ok(config.sync.correlation_threshold.to_string()),
+            ["sync", "audio_sample_rate"] => Ok(config.sync.audio_sample_rate.to_string()),
+            ["general", "backup_enabled"] => Ok(config.general.backup_enabled.to_string()),
+            ["general", "max_concurrent_jobs"] => {
+                Ok(config.general.max_concurrent_jobs.to_string())
+            }
+            ["general", "log_level"] => Ok(config.general.log_level.clone()),
+            ["parallel", "max_workers"] => Ok(config.parallel.max_workers.to_string()),
+            ["parallel", "chunk_size"] => Ok(config.parallel.chunk_size.to_string()),
+            _ => Err(SubXError::config(format!(
+                "Unknown configuration key: {}",
+                key
+            ))),
+        }
+    }
+
+    fn reset_to_defaults(&self) -> Result<()> {
+        let default_config = Config::default();
+        let path = self.get_config_file_path()?;
+
+        let toml_content = toml::to_string_pretty(&default_config)
+            .map_err(|e| SubXError::config(format!("TOML serialization error: {}", e)))?;
+
+        if let Some(parent) = path.parent() {
+            std::fs::create_dir_all(parent).map_err(|e| {
+                SubXError::config(format!("Failed to create config directory: {}", e))
+            })?;
+        }
+
+        std::fs::write(&path, toml_content)
+            .map_err(|e| SubXError::config(format!("Failed to write config file: {}", e)))?;
+
+        self.reload()
     }
 }
 

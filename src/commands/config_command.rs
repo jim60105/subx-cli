@@ -108,7 +108,7 @@
 
 use crate::Result;
 use crate::cli::{ConfigAction, ConfigArgs};
-use crate::config::{Config, ConfigService};
+use crate::config::ConfigService;
 use crate::error::SubXError;
 
 /// Execute configuration management operations with validation and type safety.
@@ -247,57 +247,18 @@ use crate::error::SubXError;
 /// ```
 pub async fn execute(args: ConfigArgs, config_service: &dyn ConfigService) -> Result<()> {
     match args.action {
-        ConfigAction::Set { key, value } => {
-            // Load current configuration for modification
-            let mut config = config_service.get_config()?;
-
-            // Parse hierarchical configuration key (e.g., "ai.provider")
-            let parts: Vec<&str> = key.splitn(2, '.').collect();
-            if parts.len() == 2 {
-                match parts[0] {
-                    "ai" => match parts[1] {
-                        "api_key" => config.ai.api_key = Some(value),
-                        "model" => config.ai.model = value,
-                        _ => {
-                            return Err(SubXError::config(format!(
-                                "Invalid AI configuration key: {}",
-                                key
-                            )));
-                        }
-                    },
-                    "formats" => match parts[1] {
-                        "default_output" => config.formats.default_output = value,
-                        _ => {
-                            return Err(SubXError::config(format!(
-                                "Invalid Formats configuration key: {}",
-                                key
-                            )));
-                        }
-                    },
-                    _ => {
-                        return Err(SubXError::config(format!(
-                            "Invalid configuration section: {}",
-                            parts[0]
-                        )));
-                    }
-                }
-            } else {
-                return Err(SubXError::config(format!(
-                    "Invalid configuration key format: {} (should be section.field)",
-                    key
-                )));
-            }
-            config.save()?;
-            println!("Set {} = {}", key, config.get_value(&key)?);
+        ConfigAction::Set { .. } => {
+            return Err(SubXError::config(
+                "Setting configuration values not yet supported with ConfigService. Use config files or environment variables instead.",
+            ));
         }
         ConfigAction::Get { key } => {
-            let config = config_service.get_config()?;
-            let value = config.get_value(&key)?;
+            let value = config_service.get_config_value(&key)?;
             println!("{}", value);
         }
         ConfigAction::List => {
             let config = config_service.get_config()?;
-            if let Some(path) = &config.loaded_from {
+            if let Ok(path) = config_service.get_config_file_path() {
                 println!("# Configuration file path: {}\n", path.display());
             }
             println!(
@@ -307,10 +268,9 @@ pub async fn execute(args: ConfigArgs, config_service: &dyn ConfigService) -> Re
             );
         }
         ConfigAction::Reset => {
-            let default_config = Config::default();
-            default_config.save()?;
+            config_service.reset_to_defaults()?;
             println!("Configuration reset to default values");
-            if let Ok(path) = Config::config_file_path() {
+            if let Ok(path) = config_service.get_config_file_path() {
                 println!("Default configuration saved to: {}", path.display());
             }
         }
