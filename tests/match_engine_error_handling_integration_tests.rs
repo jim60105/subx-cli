@@ -1,6 +1,5 @@
 //! Integration tests for AI service error handling with Wiremock mock AI server.
 
-use serde_json::json;
 use std::{fs, path::Path};
 use tempfile::TempDir;
 
@@ -9,7 +8,7 @@ use subx_cli::commands::match_command;
 use subx_cli::config::TestConfigBuilder;
 
 mod common;
-use common::MockOpenAITestHelper;
+use common::mock_openai_helper::MockOpenAITestHelper;
 
 /// Basic file setup for error handling tests.
 fn create_test_files(root: &Path) {

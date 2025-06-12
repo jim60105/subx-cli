@@ -1150,12 +1150,15 @@ impl MatchEngine {
         recursive: bool,
     ) -> Result<Option<Vec<MatchOperation>>> {
         let current_snapshot = self.calculate_file_snapshot(directory, recursive)?;
-        let cache_data = CacheData::load(&self.get_cache_file_path()?).ok();
+        let cache_file_path = self.get_cache_file_path()?;
+
+        let cache_data = CacheData::load(&cache_file_path).ok();
         if let Some(cache_data) = cache_data {
+            let current_config_hash = self.calculate_config_hash()?;
+
             if cache_data.directory == directory.to_string_lossy()
                 && cache_data.file_snapshot == current_snapshot
-                && cache_data.ai_model_used == self.calculate_config_hash()?
-                && cache_data.config_hash == self.calculate_config_hash()?
+                && cache_data.config_hash == current_config_hash
             {
                 // Rebuild match operation list
                 let files = self.discovery.scan_directory(directory, recursive)?;
@@ -1224,7 +1227,7 @@ impl MatchEngine {
                 .duration_since(std::time::UNIX_EPOCH)
                 .map(|d| d.as_secs())
                 .unwrap_or(0),
-            ai_model_used: self.calculate_config_hash()?,
+            ai_model_used: "gpt-4o-mini".to_string(), // TODO: 從配置服務獲取實際模型
             // 記錄產生 cache 時的重定位模式與備份設定
             original_relocation_mode: format!("{:?}", self.config.relocation_mode),
             original_backup_enabled: self.config.backup_enabled,
@@ -1242,16 +1245,28 @@ impl MatchEngine {
 
     /// Get cache file path
     fn get_cache_file_path(&self) -> Result<std::path::PathBuf> {
-        let dir = dirs::config_dir()
-            .ok_or_else(|| SubXError::config("Unable to determine cache directory"))?;
+        // 首先檢查 XDG_CONFIG_HOME 環境變數（用於測試）
+        let dir = if let Some(xdg_config) = std::env::var_os("XDG_CONFIG_HOME") {
+            std::path::PathBuf::from(xdg_config)
+        } else {
+            dirs::config_dir()
+                .ok_or_else(|| SubXError::config("Unable to determine cache directory"))?
+        };
         Ok(dir.join("subx").join("match_cache.json"))
     }
 
     /// Calculate current configuration hash for cache validation
     fn calculate_config_hash(&self) -> Result<String> {
-        // Use a fixed hash for now since we don't have access to global config
-        // This will be improved when cache validation is refactored
-        Ok("default_config_hash".to_string())
+        use std::collections::hash_map::DefaultHasher;
+        use std::hash::{Hash, Hasher};
+
+        let mut hasher = DefaultHasher::new();
+        // 將影響快取有效性的配置項目加入雜湊
+        format!("{:?}", self.config.relocation_mode).hash(&mut hasher);
+        self.config.backup_enabled.hash(&mut hasher);
+        // 添加其他相關的配置項目
+
+        Ok(format!("{:016x}", hasher.finish()))
     }
 
     /// Find a media file by ID, with an optional fallback to relative path or name.

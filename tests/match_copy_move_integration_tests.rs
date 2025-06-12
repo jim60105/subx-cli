@@ -10,7 +10,9 @@ use subx_cli::commands::match_command;
 use subx_cli::config::TestConfigBuilder;
 use tempfile::TempDir;
 mod common;
-use common::{MatchResponseGenerator, MockOpenAITestHelper};
+use common::{
+    mock_openai_helper::MockOpenAITestHelper, test_data_generators::MatchResponseGenerator,
+};
 
 /// Test basic copy operation functionality
 #[tokio::test]

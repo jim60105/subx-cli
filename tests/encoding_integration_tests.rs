@@ -8,7 +8,10 @@ use subx_cli::{
 use tempfile::tempdir;
 
 mod common;
-use common::{SubtitleFormat, SubtitleGenerator, TestFileManager};
+use common::{
+    file_managers::TestFileManager,
+    mock_generators::{SubtitleFormat, SubtitleGenerator},
+};
 
 #[test]
 fn test_subtitle_file_encoding_detection() {

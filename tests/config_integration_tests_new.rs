@@ -3,7 +3,7 @@
 use subx_cli::config::{ConfigService, ProductionConfigService, TestConfigBuilder};
 
 mod common;
-use common::TestFileManager;
+use common::file_managers::TestFileManager;
 
 #[test]
 fn test_config_builder_basic_functionality() {

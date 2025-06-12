@@ -1,6 +1,6 @@
 mod common;
 use common::{
-    MatchResponseGenerator, MockChatCompletionResponse, MockOpenAITestHelper, MockUsageStats,
+    mock_openai_helper::MockOpenAITestHelper, test_data_generators::MatchResponseGenerator,
 };
 
 use std::fs;
@@ -23,15 +23,7 @@ async fn test_high_load_scenario() {
     mock_helper
         .setup_delayed_response(
             100, // 100ms 延遲
-            MockChatCompletionResponse {
-                content: MatchResponseGenerator::multiple_matches(),
-                model: "gpt-4o-mini".to_string(),
-                usage: Some(MockUsageStats {
-                    prompt_tokens: 500,
-                    completion_tokens: 200,
-                    total_tokens: 700,
-                }),
-            },
+            &MatchResponseGenerator::multiple_matches(),
         )
         .await;
 

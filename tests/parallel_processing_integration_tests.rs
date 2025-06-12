@@ -5,7 +5,11 @@ use subx_cli::core::parallel::{
 use tempfile::TempDir;
 
 mod common;
-use common::{MatchResponseGenerator, MockOpenAITestHelper, SubtitleFormat, SubtitleGenerator};
+use common::{
+    mock_generators::{SubtitleFormat, SubtitleGenerator},
+    mock_openai_helper::MockOpenAITestHelper,
+    test_data_generators::MatchResponseGenerator,
+};
 
 #[tokio::test]
 async fn test_batch_file_processing() {

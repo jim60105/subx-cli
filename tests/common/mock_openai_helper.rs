@@ -3,27 +3,13 @@ use std::time::Duration;
 use wiremock::matchers::{header, method, path};
 use wiremock::{Mock, MockServer, ResponseTemplate};
 
-/// 標準化模擬 OpenAI 聊天完成回應資料結構
-#[derive(Debug, Clone)]
-pub struct MockChatCompletionResponse {
-    pub content: String,
-    pub model: String,
-    pub usage: Option<MockUsageStats>,
-}
-
-/// 模擬使用量統計資料
-#[derive(Debug, Clone)]
-pub struct MockUsageStats {
-    pub prompt_tokens: u32,
-    pub completion_tokens: u32,
-    pub total_tokens: u32,
-}
-
 /// Helper for setting up a Wiremock mock OpenAI server in integration tests.
+#[allow(dead_code)]
 pub struct MockOpenAITestHelper {
     mock_server: MockServer,
 }
 
+#[allow(dead_code)]
 impl MockOpenAITestHelper {
     /// Start a new mock OpenAI server instance.
     pub async fn new() -> Self {
@@ -44,6 +30,30 @@ impl MockOpenAITestHelper {
                     "message": { "content": response_content },
                     "finish_reason": "stop"
                 }
+            ],
+            "usage": { "prompt_tokens": 100, "completion_tokens": 50, "total_tokens": 150 },
+            "model": "gpt-4o-mini"
+        });
+
+        Mock::given(method("POST"))
+            .and(path("/chat/completions"))
+            .and(header("authorization", "Bearer mock-api-key"))
+            .and(header("content-type", "application/json"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(response_body))
+            .mount(&self.mock_server)
+            .await;
+    }
+
+    /// Mock a successful chat completion with dynamic file IDs for cache testing.
+    /// This method will return correct file IDs based on actual discovered files.
+    pub async fn mock_chat_completion_with_dynamic_ids(&self, video_id: &str, subtitle_id: &str) {
+        use crate::common::test_data_generators::MatchResponseGenerator;
+
+        let response_content =
+            MatchResponseGenerator::successful_match_with_ids(video_id, subtitle_id);
+        let response_body = json!({
+            "choices": [
+                { "message": { "content": response_content }, "finish_reason": "stop" }
             ],
             "usage": { "prompt_tokens": 100, "completion_tokens": 50, "total_tokens": 150 },
             "model": "gpt-4o-mini"
@@ -102,24 +112,14 @@ impl MockOpenAITestHelper {
     }
 
     /// Setup a delayed chat completion response to simulate network latency.
-    pub async fn setup_delayed_response(
-        &self,
-        delay_ms: u64,
-        response: MockChatCompletionResponse,
-    ) {
-        let mut response_body = json!({
+    pub async fn setup_delayed_response(&self, delay_ms: u64, response_content: &str) {
+        let response_body = json!({
             "choices": [
-                { "message": { "content": response.content }, "finish_reason": "stop" }
+                { "message": { "content": response_content }, "finish_reason": "stop" }
             ],
-            "model": response.model
+            "usage": { "prompt_tokens": 100, "completion_tokens": 50, "total_tokens": 150 },
+            "model": "gpt-4o-mini"
         });
-        if let Some(usage) = response.usage {
-            response_body["usage"] = json!({
-                "prompt_tokens": usage.prompt_tokens,
-                "completion_tokens": usage.completion_tokens,
-                "total_tokens": usage.total_tokens,
-            });
-        }
         Mock::given(method("POST"))
             .and(path("/chat/completions"))
             .and(header("authorization", "Bearer mock-api-key"))

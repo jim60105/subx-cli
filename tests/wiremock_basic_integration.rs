@@ -1,5 +1,7 @@
 mod common;
-use common::{MatchResponseGenerator, MockOpenAITestHelper};
+use common::{
+    mock_openai_helper::MockOpenAITestHelper, test_data_generators::MatchResponseGenerator,
+};
 
 use subx_cli::config::TestConfigBuilder;
 use subx_cli::config::service::ConfigService;

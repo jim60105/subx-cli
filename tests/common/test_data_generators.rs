@@ -1,8 +1,10 @@
 use serde_json::json;
 
 /// Generator for mock match responses used in integration tests.
+#[allow(dead_code)]
 pub struct MatchResponseGenerator;
 
+#[allow(dead_code)]
 impl MatchResponseGenerator {
     /// Generate a single successful match response.
     pub fn successful_single_match() -> String {
@@ -11,6 +13,23 @@ impl MatchResponseGenerator {
                 {
                     "video_file_id": "file_video123",
                     "subtitle_file_id": "file_subtitle123",
+                    "confidence": 0.95,
+                    "match_factors": ["filename_similarity", "content_correlation"]
+                }
+            ],
+            "confidence": 0.95,
+            "reasoning": "High confidence match based on filename similarity and content analysis."
+        })
+        .to_string()
+    }
+
+    /// Generate a successful match response with specific file IDs.
+    pub fn successful_match_with_ids(video_id: &str, subtitle_id: &str) -> String {
+        json!({
+            "matches": [
+                {
+                    "video_file_id": video_id,
+                    "subtitle_file_id": subtitle_id,
                     "confidence": 0.95,
                     "match_factors": ["filename_similarity", "content_correlation"]
                 }

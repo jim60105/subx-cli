@@ -5,7 +5,7 @@ use subx_cli::config::TestConfigBuilder;
 use subx_cli::services::audio::AusAudioAnalyzer;
 
 mod common;
-use common::{AudioMockGenerator, TestFileManager};
+use common::{file_managers::TestFileManager, mock_generators::AudioMockGenerator};
 
 #[tokio::test]
 async fn test_aus_audio_loading() {
