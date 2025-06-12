@@ -336,6 +336,12 @@ impl TestConfigBuilder {
     pub fn config_mut(&mut self) -> &mut Config {
         &mut self.config
     }
+    /// 設定 AI 基礎 URL 為 mock server，用於整合測試
+    pub fn with_mock_ai_server(mut self, mock_url: &str) -> Self {
+        self.config.ai.base_url = mock_url.to_string();
+        self.config.ai.api_key = Some("mock-api-key".to_string());
+        self
+    }
 }
 
 impl Default for TestConfigBuilder {

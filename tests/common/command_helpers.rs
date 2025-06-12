@@ -1,7 +1,7 @@
-use tempfile::TempDir;
 use std::fs;
 use std::path::PathBuf;
 use subx_cli::config::Config;
+use tempfile::TempDir;
 
 /// 建立測試快取檔案，回傳 match_cache.json 路徑
 pub async fn create_test_cache_files(dir: &TempDir) -> PathBuf {
