@@ -7,7 +7,7 @@
 use crate::config::service::ConfigService;
 use crate::error::SubXError;
 use crate::{Result, config::Config};
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 /// Test configuration service implementation.
 ///
@@ -121,7 +121,7 @@ impl ConfigService for TestConfigService {
         Ok(())
     }
 
-    fn save_config_to_file(&self, _path: &PathBuf) -> Result<()> {
+    fn save_config_to_file(&self, _path: &Path) -> Result<()> {
         // Test environment does not perform actual file I/O
         Ok(())
     }

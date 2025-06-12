@@ -106,10 +106,9 @@
 //! config_command::execute(get_args).await?;
 //! ```
 
-use crate::Result;
 use crate::cli::{ConfigAction, ConfigArgs};
 use crate::config::ConfigService;
-use crate::error::SubXError;
+use crate::error::{SubXError, SubXResult};
 
 /// Execute configuration management operations with validation and type safety.
 ///
@@ -245,7 +244,7 @@ use crate::error::SubXError;
 /// };
 /// config_command::execute(reset_config).await?;
 /// ```
-pub async fn execute(args: ConfigArgs, config_service: &dyn ConfigService) -> Result<()> {
+pub async fn execute(args: ConfigArgs, config_service: &dyn ConfigService) -> SubXResult<()> {
     match args.action {
         ConfigAction::Set { .. } => {
             return Err(SubXError::config(
@@ -294,33 +293,34 @@ pub async fn execute(args: ConfigArgs, config_service: &dyn ConfigService) -> Re
 pub async fn execute_with_config(
     args: ConfigArgs,
     config_service: std::sync::Arc<dyn ConfigService>,
-) -> Result<()> {
+) -> SubXResult<()> {
     match args.action {
+        ConfigAction::Set { .. } => {
+            return Err(SubXError::config(
+                "Setting configuration values not yet supported with ConfigService. Use config files or environment variables instead.".to_string(),
+            ));
+        }
         ConfigAction::Get { key } => {
-            let config = config_service.get_config()?;
-            let value = config.get_value(&key)?;
+            let value = config_service.get_config_value(&key)?;
             println!("{}", value);
         }
         ConfigAction::List => {
             let config = config_service.get_config()?;
+            if let Ok(path) = config_service.get_config_file_path() {
+                println!("# Configuration file path: {}\n", path.display());
+            }
             println!(
                 "{}",
-                toml::to_string_pretty(&config).map_err(|e| {
-                    SubXError::config(format!("Failed to serialize configuration: {}", e))
-                })?
+                toml::to_string_pretty(&config)
+                    .map_err(|e| SubXError::config(format!("TOML serialization error: {}", e)))?
             );
         }
         ConfigAction::Reset => {
-            // For config service, reset means reload
-            config_service.reload()?;
-            println!("✓ Configuration reloaded");
-        }
-        ConfigAction::Set { key: _, value: _ } => {
-            // Note: Setting values requires mutable config service which we don't have yet
-            // For now, return an error indicating this limitation
-            return Err(SubXError::config(
-                "Setting configuration values not yet supported with ConfigService. Use config files or environment variables instead.",
-            ));
+            config_service.reset_to_defaults()?;
+            println!("Configuration reset to default values");
+            if let Ok(path) = config_service.get_config_file_path() {
+                println!("Default configuration saved to: {}", path.display());
+            }
         }
     }
     Ok(())

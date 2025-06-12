@@ -34,9 +34,7 @@ impl ConfigValidator for AIValidator {
         if config.ai.provider == "openai" {
             if let Some(api_key) = config.ai.api_key.as_deref() {
                 if !api_key.starts_with("sk-") && !api_key.is_empty() {
-                    return Err(SubXError::config(
-                        "OpenAI API key must start with 'sk-'",
-                    ));
+                    return Err(SubXError::config("OpenAI API key must start with 'sk-'"));
                 }
             }
         }

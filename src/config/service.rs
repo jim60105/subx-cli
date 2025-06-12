@@ -8,7 +8,7 @@ use crate::config::{EnvironmentProvider, SystemEnvironmentProvider};
 use crate::{Result, config::Config, error::SubXError};
 use config::{Config as ConfigCrate, ConfigBuilder, Environment, File, builder::DefaultState};
 use log::debug;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::{Arc, RwLock};
 
 /// Configuration service trait for dependency injection.
@@ -69,7 +69,7 @@ pub trait ConfigService: Send + Sync {
     /// - TOML serialization fails
     /// - Unable to create parent directories
     /// - File write operation fails
-    fn save_config_to_file(&self, path: &PathBuf) -> Result<()>;
+    fn save_config_to_file(&self, path: &Path) -> Result<()>;
 
     /// Get the default configuration file path.
     ///
@@ -295,12 +295,12 @@ impl ConfigService for ProductionConfigService {
     }
 
     fn save_config(&self) -> Result<()> {
-        let config = self.get_config()?;
+        let _config = self.get_config()?;
         let path = self.get_config_file_path()?;
         self.save_config_to_file(&path)
     }
 
-    fn save_config_to_file(&self, path: &PathBuf) -> Result<()> {
+    fn save_config_to_file(&self, path: &Path) -> Result<()> {
         let config = self.get_config()?;
         let toml_content = toml::to_string_pretty(&config)
             .map_err(|e| SubXError::config(format!("TOML serialization error: {}", e)))?;

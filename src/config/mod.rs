@@ -344,7 +344,7 @@ impl Default for ParallelConfig {
 ///
 /// let strategy = OverflowStrategy::Block;
 /// assert_eq!(strategy, OverflowStrategy::Block);
-/// 
+///
 /// // Comparison and serialization
 /// let strategies = vec![
 ///     OverflowStrategy::Block,
@@ -440,14 +440,3 @@ pub use builder::TestConfigBuilder;
 pub use environment::{EnvironmentProvider, SystemEnvironmentProvider, TestEnvironmentProvider};
 pub use service::{ConfigService, ProductionConfigService};
 pub use test_service::TestConfigService;
-
-// Re-export configuration types
-pub use self::{
-    Config,
-    AIConfig,
-    FormatsConfig,
-    SyncConfig,
-    GeneralConfig,
-    ParallelConfig,
-    OverflowStrategy,
-};
