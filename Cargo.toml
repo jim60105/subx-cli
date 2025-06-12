@@ -3,7 +3,7 @@ name = "subx-cli"
 version = "0.4.1"
 edition = "2024"
 authors = ["CHEN, CHUN <jim60105@gmail.com>"]
-description = "智慧字幕處理 CLI 工具，使用 AI 技術自動匹配、重命名和處理字幕檔案"
+description = "Intelligent subtitle processing CLI tool, using AI technology to automatically match, rename and process subtitle files"
 license = "GPL-3.0-or-later"
 repository = "https://github.com/jim60105/subx-cli"
 homepage = "https://github.com/jim60105/subx-cli"
@@ -29,66 +29,66 @@ doc_markdown = "allow"  # Allow markdown formatting warnings
 missing_docs = "allow"  # Allow missing docs at rust level
 
 [dependencies]
-# CLI 框架
+# CLI framework
 clap = { version = "4.5.40", features = ["derive", "cargo"] }
 clap_complete = "4.5.54"
 
-# 字幕格式解析相依
+# Subtitle format parsing dependencies
 regex = "1.0"
 encoding_rs = "0.8"
 
-# 非同步執行時
+# Async runtime
 tokio = { version = "1.0", features = ["full"] }
 
-# 錯誤處理
+# Error handling
 anyhow = "1.0"
 thiserror = "2.0"
 
-# 序列化
+# Serialization
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 toml = "0.8"
 
-# 配置管理
+# Configuration management
 config = "0.15"
 
-# HTTP 客戶端
+# HTTP client
 reqwest = { version = "0.12.20", features = ["json", "rustls-tls"] }
 
-# 檔案掃描
+# File scanning
 walkdir = "2.3"
 
-# URL 解析與驗證
+# URL parsing and validation
 url = "2"
 
-# 檔案變更監控
+# File change monitoring
 notify = "8.0"
 
-# 並行處理支援
+# Parallel processing support
 futures = "0.3"
 
-# 非同步 trait 支援
+# Async trait support
 async-trait = "0.1"
 uuid = { version = "1.3", features = ["v4"] }
 
-# 日誌
+# Logging
 log = "0.4"
 env_logger = "0.11"
 
-# 用戶介面
+# User interface
 colored = "3.0"
 tabled = "0.20"
 indicatif = "0.17"
 dialoguer = "0.11"
 md5 = "0.7"
 
-# 配置管理相依：路徑解析與多核心檢測
-# 音訊處理
+# Configuration management dependencies: path resolution and multi-core detection
+# Audio processing
 symphonia = { version = "0.5", features = ["all"] }
-# 音訊處理系統遷移至 aus crate
+# Audio processing system migration to aus crate
 aus = "0.1.8"
 
-# 配置管理相依：路徑解析與多核心檢測
+# Configuration management dependencies: path resolution and multi-core detection
 dirs = "6.0"
 num_cpus = "1.0"
 
@@ -133,7 +133,7 @@ opt-level = 0
 debug = true
 split-debuginfo = "unpacked"
 
-#[ Cross-platform dependencies ]
+# Cross-platform dependencies
 [target.'cfg(windows)'.dependencies]
 winapi = { version = "0.3", features = ["winuser"] }
 
