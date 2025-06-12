@@ -247,6 +247,7 @@ use crate::error::{SubXError, SubXResult};
 pub async fn execute(args: ConfigArgs, config_service: &dyn ConfigService) -> SubXResult<()> {
     match args.action {
         ConfigAction::Set { .. } => {
+            // TODO: Implement setting configuration values with ConfigService
             return Err(SubXError::config(
                 "Setting configuration values not yet supported with ConfigService. Use config files or environment variables instead.",
             ));

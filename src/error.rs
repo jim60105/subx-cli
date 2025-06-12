@@ -163,7 +163,7 @@ mod tests {
         let config_error = SubXError::config("missing key");
         let message = config_error.user_friendly_message();
         assert!(message.contains("Configuration error:"));
-        assert!(message.contains("subx config --help"));
+        assert!(message.contains("subx-cli config --help"));
 
         let ai_error = SubXError::ai_service("network failure".to_string());
         let message = ai_error.user_friendly_message();
@@ -354,7 +354,7 @@ impl SubXError {
         match self {
             SubXError::Io(e) => format!("File operation error: {}", e),
             SubXError::Config { message } => format!(
-                "Configuration error: {}\nHint: run 'subx config --help' for details",
+                "Configuration error: {}\nHint: run 'subx-cli config --help' for details",
                 message
             ),
             SubXError::AiService(msg) => format!(
