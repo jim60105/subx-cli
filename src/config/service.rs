@@ -318,7 +318,8 @@ impl ConfigService for ProductionConfigService {
     }
 
     fn get_config_file_path(&self) -> Result<PathBuf> {
-        if let Ok(custom) = std::env::var("SUBX_CONFIG_PATH") {
+        // Allow injection via EnvironmentProvider for testing
+        if let Some(custom) = self.env_provider.get_var("SUBX_CONFIG_PATH") {
             return Ok(PathBuf::from(custom));
         }
 
