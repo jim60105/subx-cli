@@ -8,14 +8,13 @@ mod common;
 use common::mock_openai_helper::MockOpenAITestHelper;
 use common::test_data_generators::MatchResponseGenerator;
 
-// 使用序列化測試來避免環境變數競爭
-static TEST_MUTEX: std::sync::Mutex<()> = std::sync::Mutex::new(());
+// 使用 async mutex 來避免環境變數競爭，同時避免 clippy::await_holding_lock 警告
+static TEST_MUTEX: tokio::sync::Mutex<()> = tokio::sync::Mutex::const_new(());
 
 #[tokio::test]
-#[allow(clippy::await_holding_lock)]
 async fn test_cache_reuse_preserves_copy_mode() {
-    // 使用鎖確保測試序列化，避免環境變數競爭
-    let _guard = TEST_MUTEX.lock().unwrap();
+    // 使用 async mutex 避免環境變數競爭，同時避免在持有鎖時 await
+    let _guard = TEST_MUTEX.lock().await;
 
     // 使用固定的測試根目錄，確保快取路徑一致
     let test_root = std::path::Path::new("/tmp/subx_cache_test");
@@ -91,10 +90,9 @@ async fn test_cache_reuse_preserves_copy_mode() {
 }
 
 #[tokio::test]
-#[allow(clippy::await_holding_lock)]
 async fn test_cache_reuse_preserves_move_mode() {
-    // 使用鎖確保測試序列化，避免環境變數競爭
-    let _guard = TEST_MUTEX.lock().unwrap();
+    // 使用 async mutex 避免環境變數競爭，同時避免在持有鎖時 await
+    let _guard = TEST_MUTEX.lock().await;
 
     // 使用固定的測試根目錄，確保快取路徑一致
     let test_root = std::path::Path::new("/tmp/subx_cache_test_move");
