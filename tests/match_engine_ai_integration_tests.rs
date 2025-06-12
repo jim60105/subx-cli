@@ -23,11 +23,11 @@ async fn test_parallel_match_operations_with_mock() {
     let root = temp_dir.path();
 
     // Create multiple test video and subtitle files
-    create_multiple_test_files(&root, 5);
+    create_multiple_test_files(root, 5);
 
     // 掃描檔案以獲取實際的檔案 ID
     let discovery = subx_cli::core::matcher::FileDiscovery::new();
-    let files = discovery.scan_directory(&root, true).unwrap();
+    let files = discovery.scan_directory(root, true).unwrap();
     let video_files: Vec<_> = files
         .iter()
         .filter(|f| matches!(f.file_type, subx_cli::core::matcher::MediaFileType::Video))
@@ -115,7 +115,7 @@ async fn test_parallel_match_operations_with_mock() {
         elapsed
     );
 
-    verify_parallel_processing_results(&root, 5);
+    verify_parallel_processing_results(root, 5);
 }
 
 #[tokio::test]
@@ -124,7 +124,7 @@ async fn test_confidence_threshold_filtering() {
     let root = temp_dir.path();
 
     // Create a single test file
-    create_test_files(&root);
+    create_test_files(root);
 
     // Mock AI service to return low-confidence response
     let mock_helper = MockOpenAITestHelper::new().await;
@@ -154,7 +154,7 @@ async fn test_confidence_threshold_filtering() {
     let copied = fs::read_dir(&video_dir)
         .unwrap()
         .filter_map(|e| e.ok())
-        .any(|e| e.path().extension().map_or(false, |ext| ext == "srt"));
+        .any(|e| e.path().extension().is_some_and(|ext| ext == "srt"));
     assert!(!copied, "Low confidence matches should be rejected");
 }
 
@@ -192,7 +192,7 @@ fn verify_parallel_processing_results(root: &Path, count: usize) {
     let processed = fs::read_dir(&video_dir)
         .unwrap()
         .filter_map(|e| e.ok())
-        .filter(|e| e.path().extension().map_or(false, |ext| ext == "srt"))
+        .filter(|e| e.path().extension().is_some_and(|ext| ext == "srt"))
         .count();
     assert_eq!(
         processed, count,

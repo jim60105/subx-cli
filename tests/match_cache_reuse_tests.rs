@@ -12,6 +12,7 @@ use common::test_data_generators::MatchResponseGenerator;
 static TEST_MUTEX: std::sync::Mutex<()> = std::sync::Mutex::new(());
 
 #[tokio::test]
+#[allow(clippy::await_holding_lock)]
 async fn test_cache_reuse_preserves_copy_mode() {
     // 使用鎖確保測試序列化，避免環境變數競爭
     let _guard = TEST_MUTEX.lock().unwrap();
@@ -90,6 +91,7 @@ async fn test_cache_reuse_preserves_copy_mode() {
 }
 
 #[tokio::test]
+#[allow(clippy::await_holding_lock)]
 async fn test_cache_reuse_preserves_move_mode() {
     // 使用鎖確保測試序列化，避免環境變數競爭
     let _guard = TEST_MUTEX.lock().unwrap();

@@ -6,8 +6,6 @@ use common::{
 use subx_cli::config::TestConfigBuilder;
 use subx_cli::config::service::ConfigService;
 /// 基本的 Wiremock 整合測試範例，示範如何使用 MockOpenAITestHelper 及 TestConfigBuilder
-
-/// 基本的 Wiremock 整合測試範例，示範如何使用 MockOpenAITestHelper 及 TestConfigBuilder
 #[tokio::test]
 async fn wiremock_basic_integration_example() {
     // 啟動 mock OpenAI 服務並模擬成功回應

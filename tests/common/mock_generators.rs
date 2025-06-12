@@ -134,6 +134,7 @@ impl AudioMockGenerator {
 
             if segment.is_speech {
                 // 產生語音樣本（簡單的正弦波混合）
+                #[allow(clippy::needless_range_loop)]
                 for i in start_sample..end_sample.min(total_samples) {
                     let t = i as f32 / self.sample_rate as f32;
                     // 混合多個頻率模擬語音

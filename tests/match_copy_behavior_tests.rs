@@ -25,7 +25,7 @@ async fn test_copy_mode_preserves_original_file() {
 
     // 首先掃描檔案以獲取實際的檔案 ID
     let discovery = subx_cli::core::matcher::FileDiscovery::new();
-    let files = discovery.scan_directory(&root, true).unwrap();
+    let files = discovery.scan_directory(root, true).unwrap();
     let video_file = files
         .iter()
         .find(|f| matches!(f.file_type, subx_cli::core::matcher::MediaFileType::Video))
@@ -88,7 +88,7 @@ async fn test_copy_mode_with_rename() {
 
     // 首先掃描檔案以獲取實際的檔案 ID
     let discovery = subx_cli::core::matcher::FileDiscovery::new();
-    let files = discovery.scan_directory(&root, true).unwrap();
+    let files = discovery.scan_directory(root, true).unwrap();
     let video_file = files
         .iter()
         .find(|f| matches!(f.file_type, subx_cli::core::matcher::MediaFileType::Video))

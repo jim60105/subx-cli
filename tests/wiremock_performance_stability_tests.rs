@@ -16,7 +16,7 @@ async fn test_high_load_scenario() {
     let root = temp_dir.path();
 
     // 建立大量測試檔案
-    create_multiple_test_files(&root, 50);
+    create_multiple_test_files(root, 50);
 
     let mock_helper = MockOpenAITestHelper::new().await;
     // 設定具有延遲的回應以模擬網路條件
@@ -59,7 +59,7 @@ async fn test_memory_stability() {
         let temp_dir = TempDir::new().unwrap();
         let root = temp_dir.path();
 
-        create_test_files(&root);
+        create_test_files(root);
 
         let mock_helper = MockOpenAITestHelper::new().await;
         mock_helper

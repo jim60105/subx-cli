@@ -402,7 +402,7 @@ mod tests {
         let result = analyzer.analyze(repeated_data).unwrap();
 
         // Verify byte distribution is correctly recorded
-        assert!(result.byte_distribution.len() > 0);
+        assert!(!result.byte_distribution.is_empty());
         assert_eq!(*result.byte_distribution.get(&b'a').unwrap(), 3);
         assert_eq!(*result.byte_distribution.get(&b'b').unwrap(), 3);
         assert_eq!(*result.byte_distribution.get(&b'c').unwrap(), 3);
