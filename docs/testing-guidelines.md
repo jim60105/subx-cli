@@ -258,18 +258,22 @@ fn test_service_reload_behavior() {
 
 ```
 tests/
-├── common/                     # Shared test utilities
-│   ├── cli_helpers.rs         # CLI testing helpers
-│   ├── file_managers.rs       # File operation helpers
-│   ├── mock_generators.rs     # Mock data generators
-│   └── validators.rs          # Common validation utilities
-├── integration_tests.rs       # Main integration tests
-├── config_integration_tests.rs # Configuration integration tests
-├── parallel_processing_integration_tests.rs
-└── cli/                       # CLI-specific tests
+├── common/                         # Shared test utilities
+│   ├── cli_helpers.rs             # CLI testing helpers
+│   ├── file_managers.rs           # File operation helpers
+│   ├── mock_openai_helper.rs      # Wiremock mock server helper
+│   ├── test_data_generators.rs    # AI response payload generators
+│   ├── integration_test_macros.rs # Convenience macros for mock-AI tests
+│   └── validators.rs              # Common validation utilities
+├── wiremock_basic_integration.rs       # Basic Wiremock usage examples
+├── match_engine_ai_integration_tests.rs # AI matching integration tests
+├── match_engine_error_handling_integration_tests.rs # Error handling tests
+├── match_copy_move_integration_tests.rs        # Copy/move behavior tests
+├── parallel_processing_integration_tests.rs     # Parallel processing tests
+└── cli/                           # CLI-specific tests
     ├── config_args_tests.rs
     └── ui_tests.rs
-```
+``` 
 
 ### Unit Test Location
 
@@ -669,6 +673,49 @@ For questions or improvements to these guidelines, please refer to the project's
 
 ## Testing Macros and Utilities
 
+### Wiremock Integration Testing Framework
+
+To isolate integration tests from the real OpenAI API, SubX provides a Wiremock-based testing framework.
+This framework allows you to start a mock server, define predictable AI responses, and inject the mock URL into your tests.
+
+Key components (in `tests/common/`):
+- `mock_openai_helper.rs`: manages a `wiremock::MockServer`, with helpers:
+  - `MockOpenAITestHelper::new().await` – start a mock server
+  - `mock_chat_completion_success(&str)` – mock a successful `/chat/completions` response
+  - `setup_error_response(status, &str)` – mock API error responses (401, 429, 500, etc.)
+  - `setup_delayed_response(delay_ms, &str)` – simulate network latency
+  - `verify_expectations().await` – assert that expected calls were received
+- `test_data_generators.rs`: produces standard AI response payloads, e.g.:
+  - `MatchResponseGenerator::successful_single_match()`
+  - `MatchResponseGenerator::successful_match_with_ids(video_id, subtitle_id)`
+  - `MatchResponseGenerator::no_matches_found()`
+- `integration_test_macros.rs`: defines macros for concise tests:
+  - `test_with_mock_ai!(test_name, response_str, |root, config, mock| async move { … })`
+  - `test_with_mock_ai_error!(test_name, status, msg, |root, config, mock| async move { … })`
+
+Usage pattern:
+```rust
+#[tokio::test]
+async fn test_match_command_success() {
+    // 1. start mock server and stub AI response
+    let mock = MockOpenAITestHelper::new().await;
+    mock.mock_chat_completion_success(
+        &MatchResponseGenerator::successful_single_match()
+    ).await;
+
+    // 2. inject mock URL into TestConfigBuilder
+    let config = TestConfigBuilder::new()
+        .with_mock_ai_server(&mock.base_url())
+        .build_service();
+
+    // 3. run the command under test
+    let result = subx_cli::commands::match_command::execute(&args, &config).await;
+    assert!(result.is_ok());
+
+    // 4. verify mock expectations (call count, path, headers)
+    mock.verify_expectations().await;
+}
+```
 SubX provides convenient testing macros that simplify test configuration while enforcing architectural best practices. These macros automatically use dependency injection and ensure test isolation.
 
 ### Configuration Testing Macros
