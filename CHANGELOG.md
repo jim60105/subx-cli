@@ -7,6 +7,35 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.0] - 2025-06-12
+### Added
+- Added: Wiremock integration testing framework for comprehensive mock testing without external API dependencies.
+- Added: Success check mark (✓) display after successful file operations (rename, copy, move).
+- Added: Cross mark (✗) display for failed file operations with meaningful error messages.
+- Added: Copy/move-to-video-folder functionality for match command with --copy/-c and --move/-m parameters.
+- Added: Comprehensive ConfigService integration tests for file I/O and configuration management.
+- Added: Performance and stability testing with high load scenarios and memory stability validation.
+- Added: MockOpenAITestHelper with delayed response support and error simulation capabilities.
+
+### Changed
+- Changed: Default AI model upgraded from "gpt-4o-mini" to "gpt-4.1-mini" across all configurations and examples.
+- Changed: Replaced legacy config system with unified ConfigService architecture using dependency injection.
+- Changed: Project description refined to "AI subtitle processing CLI tool, which automatically matches, renames, and converts subtitle files."
+- Changed: All Chinese comments and documentation converted to English for international consistency.
+- Changed: Configuration error hints updated to reference correct CLI command (`subx-cli config --help`).
+- Changed: Increased documentation check timeout from 20 to 30 seconds to prevent CI failures.
+
+### Fixed
+- Fixed: Critical logic error in copy mode where original files were incorrectly renamed, now properly preserves source files.
+- Fixed: Cache reuse mechanism in match command to support copy/move parameters correctly.
+- Fixed: Clippy warnings for await_holding_lock by replacing std::sync::Mutex with tokio::sync::Mutex.
+- Fixed: Wiremock integration test cache reuse issues with proper test isolation using static mutex.
+- Fixed: File ID mismatch issues between mock expectations and actual IDs in cache validation.
+
+### Removed
+- Removed: "Early development" notice from README files as project has matured.
+- Removed: Legacy config_legacy.rs module completely in favor of unified ConfigService.
+
 ## [0.4.1] - 2025-06-11
 ### Fixed
 - Fixed: Documentation test examples to match current struct field names in cli::table module.
@@ -107,7 +136,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Initial release of SubX CLI tool
 - Rust-based intelligent subtitle processing
 
-[Unreleased]: https://github.com/SubX-Project/SubX/compare/v0.4.1...HEAD
+[Unreleased]: https://github.com/SubX-Project/SubX/compare/v0.5.0...HEAD
+[0.5.0]: https://github.com/SubX-Project/SubX/compare/v0.4.1...v0.5.0
 [0.4.1]: https://github.com/SubX-Project/SubX/compare/v0.4.0...v0.4.1
 [0.4.0]: https://github.com/SubX-Project/SubX/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/SubX-Project/SubX/compare/v0.2.0...v0.3.0
