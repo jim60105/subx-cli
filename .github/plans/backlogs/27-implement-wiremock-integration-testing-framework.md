@@ -246,20 +246,113 @@ impl MatchResponseGenerator {
 
 #### 階段 2：整合測試重構（預估 4-5 小時）
 
-**2.1 重構 match_copy_move_integration_tests.rs**
+**2.1 修改現有的 `tests/match_cache_reuse_tests.rs`**
 
-將現有測試改為使用 mock server：
+此檔案已存在並包含快取重用功能的整合測試，需要修改為使用 wiremock：
 
+現有測試概述：
+- `test_cache_reuse_preserves_copy_mode()` - 測試快取重用時複製模式的保持
+- `test_cache_reuse_preserves_move_mode()` - 測試快取重用時移動模式的保持
+
+修改步驟：
+1. **移除 `#[ignore]` 標記**：允許測試在 CI 中執行
+2. **加入 wiremock 依賴**：
 ```rust
-use crate::common::MockOpenAITestHelper;
-use crate::common::test_data_generators::MatchResponseGenerator;
-use subx_cli::config::TestConfigBuilder;
+mod common;
+use common::{MockOpenAITestHelper, MatchResponseGenerator};
+```
 
+3. **重構 `test_cache_reuse_preserves_copy_mode()`**：
+```rust
 #[tokio::test]
-async fn test_match_copy_operation_with_mock_ai() {
-    // 建立測試環境
+async fn test_cache_reuse_preserves_copy_mode() {
     let temp_dir = TempDir::new().unwrap();
     let root = temp_dir.path();
+    
+    // 建立測試檔案結構
+    let video_dir = root.join("videos");
+    let subtitle_dir = root.join("subtitles");
+    fs::create_dir_all(&video_dir).unwrap();
+    fs::create_dir_all(&subtitle_dir).unwrap();
+    fs::write(video_dir.join("movie.mp4"), "video").unwrap();
+    fs::write(subtitle_dir.join("movie.srt"), "sub").unwrap();
+
+    // 建立 mock AI 服務，設定只期望一次 API 呼叫
+    let mock_helper = MockOpenAITestHelper::new().await;
+    mock_helper.mock_chat_completion_with_expectation(
+        &MatchResponseGenerator::successful_single_match(),
+        1 // 期望只有一次 API 呼叫（第二次應使用快取）
+    ).await;
+
+    // 使用 mock server 的配置
+    let config_service = TestConfigBuilder::new()
+        .with_mock_ai_server(mock_helper.base_url())
+        .build_service();
+
+    // 第一次執行（預覽模式）- 應呼叫 AI 服務
+    let args_preview = MatchArgs {
+        path: root.to_path_buf(),
+        dry_run: true,
+        // ...existing args...
+    };
+    match_command::execute(args_preview, &config_service).await.unwrap();
+
+    // 第二次執行（實際執行）- 應使用快取
+    let args_execute = MatchArgs {
+        path: root.to_path_buf(),
+        dry_run: false,
+        // ...existing args...
+    };
+    match_command::execute(args_execute, &config_service).await.unwrap();
+
+    // ...existing assertions...
+    
+    // 驗證 mock server 只收到一次請求
+    mock_helper.verify_expectations().await;
+}
+```
+
+4. **重構 `test_cache_reuse_preserves_move_mode()`**：
+```rust
+#[tokio::test]
+async fn test_cache_reuse_preserves_move_mode() {
+    // 類似的重構，但測試移動模式
+    let mock_helper = MockOpenAITestHelper::new().await;
+    mock_helper.mock_chat_completion_with_expectation(
+        &MatchResponseGenerator::successful_single_match(),
+        1
+    ).await;
+    
+    // ...existing test logic with mock server config...
+    
+    mock_helper.verify_expectations().await;
+}
+```
+
+**2.2 修改現有的 `tests/match_copy_behavior_tests.rs`**
+
+此檔案已存在並包含複製行為的整合測試，需要修改為使用 wiremock：
+
+現有測試概述：
+- `test_copy_mode_preserves_original_file()` - 測試複製模式保留原始檔案
+- `test_copy_mode_with_rename()` - 測試複製模式的重新命名行為
+
+修改步驟：
+1. **移除 `#[ignore]` 標記**：允許測試在 CI 中執行
+2. **加入 wiremock 依賴**：
+```rust
+mod common;
+use common::{MockOpenAITestHelper, MatchResponseGenerator};
+```
+
+3. **重構 `test_copy_mode_preserves_original_file()`**：
+```rust
+#[tokio::test]
+async fn test_copy_mode_preserves_original_file() {
+    let temp_dir = TempDir::new().unwrap();
+    let root = temp_dir.path();
+    
+    // ...existing file creation logic...
 
     // 建立 mock AI 服務
     let mock_helper = MockOpenAITestHelper::new().await;
@@ -267,134 +360,140 @@ async fn test_match_copy_operation_with_mock_ai() {
         &MatchResponseGenerator::successful_single_match()
     ).await;
 
-    // 建立測試檔案
-    create_test_files(&root);
-
-    // 使用 mock server 的配置
+    // 使用 mock server 配置替換真實 API
     let config_service = TestConfigBuilder::new()
         .with_mock_ai_server(mock_helper.base_url())
         .build_service();
 
-    // 執行匹配命令
     let args = MatchArgs {
-        path: root.to_path_buf(),
-        dry_run: false,
-        confidence: 50,
-        recursive: true,
-        backup: true,
-        copy: true,
-        move_files: false,
+        // ...existing args...
     };
-
-    let result = match_command::execute(args, &config_service).await;
-    assert!(result.is_ok());
-
-    // 驗證結果
-    verify_copy_operation_results(&root);
-}
-
-fn create_test_files(root: &Path) {
-    let video_dir = root.join("videos");
-    let subtitle_dir = root.join("subtitles");
-    fs::create_dir_all(&video_dir).unwrap();
-    fs::create_dir_all(&subtitle_dir).unwrap();
-
-    fs::write(video_dir.join("movie1.mp4"), "fake video content").unwrap();
-    fs::write(
-        subtitle_dir.join("subtitle1.srt"),
-        "1\n00:00:01,000 --> 00:00:02,000\nTest subtitle\n",
-    ).unwrap();
-}
-
-fn verify_copy_operation_results(root: &Path) {
-    let video_dir = root.join("videos");
-    let expected_copy = video_dir.join("movie1.srt");
-    assert!(expected_copy.exists(), "Copy operation should create the expected file");
     
-    let original_file = root.join("subtitles").join("subtitle1.srt");
-    assert!(original_file.exists(), "Original file should still exist after copy");
+    match_command::execute(args, &config_service).await.unwrap();
+
+    // ...existing assertions...
 }
 ```
 
-**2.2 建立錯誤處理測試**
-
+4. **重構 `test_copy_mode_with_rename()`**：
 ```rust
 #[tokio::test]
-async fn test_match_with_ai_service_error() {
+async fn test_copy_mode_with_rename() {
+    // 類似的重構模式
+    let mock_helper = MockOpenAITestHelper::new().await;
+    mock_helper.mock_chat_completion_success(
+        &MatchResponseGenerator::successful_single_match()
+    ).await;
+    
+    // ...existing test logic with mock server config...
+}
+```
+
+**2.3 修改現有的 `tests/match_copy_move_integration_tests.rs`**
+
+此檔案已存在並包含匹配命令的複製和移動功能的完整端到端測試，雖然目前沒有明確設置 AI API key，但調用了 `match_command::execute`，可能在某些情況下會嘗試連接真實的 AI 服務。
+
+現有測試概述：
+- `test_match_copy_operation()` - 測試基本複製操作功能
+- `test_match_move_operation()` - 測試基本移動操作功能
+- `test_match_dry_run_no_changes()` - 測試 dry run 模式不修改檔案
+- `test_conflicting_copy_move_flags()` - 測試衝突的複製和移動標誌
+
+修改步驟：
+1. **加入 wiremock 依賴**：
+```rust
+mod common;
+use common::{MockOpenAITestHelper, MatchResponseGenerator};
+```
+
+2. **重構所有測試方法使用 mock 服務**：
+```rust
+#[tokio::test]
+async fn test_match_copy_operation() {
     let temp_dir = TempDir::new().unwrap();
     let root = temp_dir.path();
-    
-    // 設定 mock server 回傳錯誤
+
+    // ...existing file setup...
+
+    // 建立 mock AI 服務
     let mock_helper = MockOpenAITestHelper::new().await;
-    mock_helper.setup_error_response(401, "Invalid API key").await;
-    
-    create_test_files(&root);
-    
+    mock_helper.mock_chat_completion_success(
+        &MatchResponseGenerator::successful_single_match()
+    ).await;
+
+    // 使用 mock server 配置
     let config_service = TestConfigBuilder::new()
         .with_mock_ai_server(mock_helper.base_url())
         .build_service();
-    
-    let args = MatchArgs {
-        path: root.to_path_buf(),
-        dry_run: false,
-        confidence: 50,
-        recursive: true,
-        backup: true,
-        copy: false,
-        move_files: false,
-    };
-    
+
     let result = match_command::execute(args, &config_service).await;
-    assert!(result.is_err());
-    
-    let error_message = result.unwrap_err().to_string();
-    assert!(error_message.contains("401") || error_message.contains("Invalid API key"));
+
+    // ...existing assertions...
 }
 ```
 
-**2.3 建立重試邏輯測試**
+3. **為所有測試方法應用相同的重構模式**：
+   - `test_match_move_operation()` 
+   - `test_match_dry_run_no_changes()`
+   - `test_conflicting_copy_move_flags()` (此測試可能不需要 AI 服務)
 
+**2.4 檢查並可能修改 `tests/parallel_processing_integration_tests.rs`**
+
+此檔案包含並行處理整合測試，其中一個測試調用了 `match_command::execute_parallel_match`，需要檢查是否需要 AI 服務。
+
+現有測試概述：
+- `test_batch_file_processing()` - 測試批次檔案處理
+- `test_parallel_command_integration()` - 測試並行命令整合
+
+修改步驟：
+1. **檢查測試是否實際需要 AI 服務**：
+   - 如果 `execute_parallel_match` 需要 AI 服務，則加入 mock 配置
+   - 如果不需要，則保持現狀
+
+2. **如果需要修改，則應用相同的重構模式**：
 ```rust
 #[tokio::test]
-async fn test_match_with_retry_logic() {
-    let temp_dir = TempDir::new().unwrap();
-    let root = temp_dir.path(); 
-    
+async fn test_parallel_command_integration() {
+    // 如果需要 AI 服務
     let mock_helper = MockOpenAITestHelper::new().await;
-    
-    // 前兩次請求失敗，第三次成功
-    mock_helper.setup_retry_scenario(vec![
-        (500, "Internal Server Error"),
-        (502, "Bad Gateway"),
-        (200, &MatchResponseGenerator::successful_single_match()),
-    ]).await;
-    
-    create_test_files(&root);
-    
-    let config_service = TestConfigBuilder::new()
-        .with_mock_ai_server(mock_helper.base_url())
-        .with_ai_retry_settings(3, 100) // 3 次重試，100ms 延遲
-        .build_service();
-    
-    let args = MatchArgs {
-        path: root.to_path_buf(),
-        dry_run: false,
-        confidence: 50,
-        recursive: true,
-        backup: true,
-        copy: false,
-        move_files: false,
-    };
-    
-    let start_time = std::time::Instant::now();
-    let result = match_command::execute(args, &config_service).await;
-    let elapsed = start_time.elapsed();
-    
-    assert!(result.is_ok());
-    // 驗證重試邏輯有正確執行（應該花費一些時間）
-    assert!(elapsed > std::time::Duration::from_millis(200));
+    mock_helper.mock_chat_completion_success(
+        &MatchResponseGenerator::successful_multiple_matches()
+    ).await;
+
+    // ...existing test logic with mock server config...
 }
 ```
+
+### 現有測試檔案分析
+
+根據對所有 match 相關測試檔案的分析，我們將現有測試分為以下幾類：
+
+#### 1. 需要重構的檔案（依賴真實 AI 服務）
+- **`tests/match_cache_reuse_tests.rs`**：使用 `#[ignore]` 和 `with_ai_api_key("test-key")`
+- **`tests/match_copy_behavior_tests.rs`**：使用 `#[ignore]` 和 `with_ai_api_key("test-key")`
+
+#### 2. 可能需要重構的檔案（調用 match_command 但 AI 依賴不明確）
+- **`tests/match_copy_move_integration_tests.rs`**：調用 `match_command::execute` 但沒有明確設置 AI key，可能在運行時失敗或跳過 AI 功能
+- **`tests/parallel_processing_integration_tests.rs`**：部分測試調用 `execute_parallel_match`，需要進一步分析
+
+#### 3. 已經使用 mock 的檔案（無需修改）
+- **`tests/match_engine_error_display_integration_tests.rs`**：使用自定義的 `DummyAI` struct
+- **`tests/match_engine_id_integration_tests.rs`**：使用自定義的 `MockAIClientWithIds` struct
+
+這種分類確保我們：
+1. 重點關注真正需要重構的檔案
+2. 不會破壞已經正常工作的 mock 實作
+3. 可以識別可能存在潛在問題的測試
+
+**保持現狀的測試檔案**（已使用 mock AI 或不依賴外部服務）：
+- `tests/match_engine_error_display_integration_tests.rs` - 使用 `DummyAI`
+- `tests/match_engine_id_integration_tests.rs` - 使用 `MockAIClientWithIds`
+- [ ] **修改** `tests/match_copy_move_integration_tests.rs` 使用 wiremock
+  - [ ] 加入 wiremock 依賴
+  - [ ] 重構 `test_match_copy_operation()`
+  - [ ] 重構 `test_match_move_operation()`
+  - [ ] 重構 `test_match_dry_run_no_changes()`
+  - [ ] 重構 `test_conflicting_copy_move_flags()`
 
 #### 階段 3：高級測試場景（預估 3-4 小時）
 
@@ -696,59 +795,61 @@ test_with_mock_ai!(
 
 ### 實作檢查清單
 
-#### 必須完成項目
+#### 階段 1：基礎設施 ✅
+- [ ] 在 `Cargo.toml` 中加入 wiremock 依賴項
+- [ ] 建立 `tests/common/mod.rs` 中的 mock 輔助工具
+- [ ] 實作 `MockOpenAITestHelper` 結構體
+- [ ] 實作 `MatchResponseGenerator` 回應生成器
+- [ ] 實作 `TestConfigBuilder` 配置建構器
+- [ ] 建立測試資料生成工具
+- [ ] 撰寫基本的 wiremock 整合範例
 
-- [ ] **建立 MockOpenAITestHelper 基礎類別**
-  - [ ] 實作 `new()` 方法建立 wiremock server
-  - [ ] 實作 `base_url()` 方法取得 mock server URL
-  - [ ] 實作 `mock_chat_completion_success()` 方法
-  - [ ] 實作 `setup_error_response()` 方法
-  - [ ] 實作 `setup_delayed_response()` 方法
+#### 階段 2：現有整合測試重構 ✅
+- [ ] **修改** `tests/match_cache_reuse_tests.rs` 使用 wiremock
+  - [ ] 移除 `#[ignore]` 標記
+  - [ ] 重構 `test_cache_reuse_preserves_copy_mode()` 使用 mock 服務
+  - [ ] 重構 `test_cache_reuse_preserves_move_mode()` 使用 mock 服務
+  - [ ] 新增錯誤處理測試案例
+- [ ] **修改** `tests/match_copy_behavior_tests.rs` 使用 wiremock
+  - [ ] 移除 `#[ignore]` 標記
+  - [ ] 重構 `test_copy_mode_preserves_original_file()` 使用 mock 服務
+  - [ ] 重構 `test_copy_mode_with_rename()` 使用 mock 服務
+  - [ ] 新增錯誤處理測試案例
+- [ ] **修改** `tests/match_copy_move_integration_tests.rs` 使用 wiremock
+  - [ ] 重構 `test_match_copy_operation()` 使用 mock 服務
+  - [ ] 重構 `test_match_move_operation()` 使用 mock 服務
+  - [ ] 重構 `test_match_dry_run_no_changes()` 使用 mock 服務
+  - [ ] 檢查 `test_conflicting_copy_move_flags()` 是否需要 AI 服務
+- [ ] **檢查並可能修改** `tests/parallel_processing_integration_tests.rs`
+  - [ ] 分析 `test_parallel_command_integration()` 是否需要 AI 服務
+  - [ ] 如果需要，則重構使用 mock 服務
+  
+**保持現狀的測試檔案**（已使用 mock AI 或不依賴外部服務）：
+- `tests/match_engine_error_display_integration_tests.rs` - 使用 `DummyAI`
+- `tests/match_engine_id_integration_tests.rs` - 使用 `MockAIClientWithIds`
+- [ ] **修改** `tests/match_copy_move_integration_tests.rs` 使用 wiremock
+  - [ ] 加入 wiremock 依賴
+  - [ ] 重構 `test_match_copy_operation()`
+  - [ ] 重構 `test_match_move_operation()`
+  - [ ] 重構 `test_match_dry_run_no_changes()`
+  - [ ] 重構 `test_conflicting_copy_move_flags()`
 
-- [ ] **建立測試資料產生器**
-  - [ ] 實作 `MatchResponseGenerator::successful_single_match()`
-  - [ ] 實作 `MatchResponseGenerator::no_matches_found()`
-  - [ ] 實作 `MatchResponseGenerator::multiple_matches()`
-  - [ ] 實作錯誤回應產生器
+#### 階段 3：新增整合測試場景 ✅
+- [ ] 建立 `tests/match_engine_ai_integration_tests.rs` 新檔案
+- [ ] 建立 `tests/match_engine_error_handling_integration_tests.rs` 新檔案
+- [ ] 實作各種 AI 服務回應場景的測試
 
-- [ ] **擴展 TestConfigBuilder**
-  - [ ] 新增 `with_mock_ai_server()` 方法
-  - [ ] 新增 `with_ai_retry_settings()` 方法
-  - [ ] 新增 `build_with_mock_server()` 方法
+#### 階段 4：測試隔離與並行性 ✅
+- [ ] 驗證所有測試可以並行執行
+- [ ] 確保每個測試使用獨立的 mock server
+- [ ] 驗證測試間無狀態洩漏
+- [ ] 建立測試穩定性驗證腳本
 
-- [ ] **重構現有整合測試**
-  - [ ] 重構 `test_match_copy_operation()` 使用 mock
-  - [ ] 重構 `test_match_move_operation()` 使用 mock
-  - [ ] 重構 `test_match_copy_dry_run()` 使用 mock
-
-- [ ] **新增錯誤處理測試**
-  - [ ] API 認證錯誤測試 (401)
-  - [ ] 服務限流測試 (429)
-  - [ ] 伺服器錯誤測試 (500)
-  - [ ] 網路逾時測試
-
-- [ ] **新增高級測試場景**
-  - [ ] 並行處理測試
-  - [ ] 信心度閾值測試
-  - [ ] 載荷測試
-  - [ ] 記憶體穩定性測試
-
-#### 選擇性改進項目
-
-- [ ] **測試效能監控**
-  - [ ] 新增測試執行時間監控
-  - [ ] 新增記憶體使用量監控
-  - [ ] 新增 mock server 回應時間設定
-
-- [ ] **測試巨集系統**
-  - [ ] 實作 `test_with_mock_ai!` 巨集
-  - [ ] 實作 `test_with_mock_ai_error!` 巨集
-  - [ ] 實作測試模板巨集
-
-- [ ] **進階 Mock 功能**
-  - [ ] 實作請求驗證功能
-  - [ ] 實作請求計數功能
-  - [ ] 實作回應序列功能（多次不同回應）
+#### 階段 5：文件與最佳實踐 ✅
+- [ ] 更新專案文件說明 wiremock 使用方式
+- [ ] 建立開發者測試指南
+- [ ] 建立 CI/CD 設定更新指南
+- [ ] 撰寫效能基準測試比較
 
 ### 測試隔離確保措施
 
@@ -836,13 +937,20 @@ impl Drop for MockOpenAITestHelper {
 
 ### 完成標準
 
-- [ ] 所有現有的 `match_command` 整合測試都改用 mock
-- [ ] 新增至少 10 個不同場景的測試案例
+- [ ] 所有依賴真實 AI 服務的 `match_command` 整合測試都改用 wiremock
+- [ ] 完成 `tests/match_cache_reuse_tests.rs` 的所有測試重構
+- [ ] 完成 `tests/match_copy_behavior_tests.rs` 的所有測試重構  
+- [ ] 完成 `tests/match_copy_move_integration_tests.rs` 的所有測試重構
+- [ ] 分析並處理 `tests/parallel_processing_integration_tests.rs` 中可能的 AI 依賴
+- [ ] 新增至少 10 個不同錯誤處理場景的測試案例
 - [ ] 測試執行時間減少 80% 以上
 - [ ] 所有測試在離線環境下都能正常執行
 - [ ] CI/CD 構建時間減少且更穩定
 - [ ] 程式碼覆蓋率維持或提升
 - [ ] 完整的文檔和使用範例
+- [ ] 快取功能的徹底測試和驗證
+- [ ] 檔案操作（複製、移動、備份）的完整測試覆蓋
+- [ ] 所有重構的測試都移除了 `#[ignore]` 標記並可在 CI 中執行
 
 ### 後續改進方向
 
