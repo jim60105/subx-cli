@@ -1,6 +1,7 @@
 pub mod cli_helpers;
 pub mod command_helpers;
 pub mod file_managers;
+pub mod integration_test_macros;
 pub mod mock_generators;
 pub mod mock_openai_helper;
 pub mod parallel_helpers;
@@ -13,6 +14,7 @@ pub use command_helpers::*;
 pub use file_managers::TestFileManager;
 pub use mock_generators::{AudioMockGenerator, SubtitleFormat, SubtitleGenerator};
 pub use mock_openai_helper::MockOpenAITestHelper;
+pub use mock_openai_helper::{MockChatCompletionResponse, MockUsageStats};
 pub use parallel_helpers::*;
 pub use sync_helpers::*;
 pub use test_data_generators::MatchResponseGenerator;

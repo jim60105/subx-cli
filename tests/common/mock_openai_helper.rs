@@ -1,6 +1,23 @@
 use serde_json::json;
+use std::time::Duration;
 use wiremock::matchers::{header, method, path};
 use wiremock::{Mock, MockServer, ResponseTemplate};
+
+/// 標準化模擬 OpenAI 聊天完成回應資料結構
+#[derive(Debug, Clone)]
+pub struct MockChatCompletionResponse {
+    pub content: String,
+    pub model: String,
+    pub usage: Option<MockUsageStats>,
+}
+
+/// 模擬使用量統計資料
+#[derive(Debug, Clone)]
+pub struct MockUsageStats {
+    pub prompt_tokens: u32,
+    pub completion_tokens: u32,
+    pub total_tokens: u32,
+}
 
 /// Helper for setting up a Wiremock mock OpenAI server in integration tests.
 pub struct MockOpenAITestHelper {
@@ -80,6 +97,37 @@ impl MockOpenAITestHelper {
             .and(path("/chat/completions"))
             .and(header("authorization", "Bearer mock-api-key"))
             .respond_with(ResponseTemplate::new(status).set_body_json(response_body))
+            .mount(&self.mock_server)
+            .await;
+    }
+
+    /// Setup a delayed chat completion response to simulate network latency.
+    pub async fn setup_delayed_response(
+        &self,
+        delay_ms: u64,
+        response: MockChatCompletionResponse,
+    ) {
+        let mut response_body = json!({
+            "choices": [
+                { "message": { "content": response.content }, "finish_reason": "stop" }
+            ],
+            "model": response.model
+        });
+        if let Some(usage) = response.usage {
+            response_body["usage"] = json!({
+                "prompt_tokens": usage.prompt_tokens,
+                "completion_tokens": usage.completion_tokens,
+                "total_tokens": usage.total_tokens,
+            });
+        }
+        Mock::given(method("POST"))
+            .and(path("/chat/completions"))
+            .and(header("authorization", "Bearer mock-api-key"))
+            .respond_with(
+                ResponseTemplate::new(200)
+                    .set_delay(Duration::from_millis(delay_ms))
+                    .set_body_json(response_body),
+            )
             .mount(&self.mock_server)
             .await;
     }
