@@ -1,8 +1,8 @@
-//! Config 系統整合測試：get_config_value 方法驗證
+//! Config system integration tests: get_config_value method validation
 
 use subx_cli::config::{ConfigService, TestConfigBuilder};
 
-/// 驗證 get_config_value 正確返回預期值
+/// Validates that get_config_value correctly returns expected values
 #[test]
 fn test_get_config_value_success() {
     let service = TestConfigBuilder::new()
@@ -21,7 +21,7 @@ fn test_get_config_value_success() {
     );
 }
 
-/// 驗證 get_config_value 對未知鍵返回錯誤
+/// Validates that get_config_value returns error for unknown keys
 #[test]
 fn test_get_config_value_unknown_key() {
     let service = TestConfigBuilder::new().build_service();

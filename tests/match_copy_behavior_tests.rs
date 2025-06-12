@@ -23,7 +23,7 @@ async fn test_copy_mode_preserves_original_file() {
     let subtitle_path = subtitle_dir.join("sub.srt");
     fs::write(&subtitle_path, b"content").unwrap();
 
-    // 首先掃描檔案以獲取實際的檔案 ID
+    // First scan files to get actual file IDs
     let discovery = subx_cli::core::matcher::FileDiscovery::new();
     let files = discovery.scan_directory(root, true).unwrap();
     let video_file = files
@@ -40,7 +40,7 @@ async fn test_copy_mode_preserves_original_file() {
         })
         .unwrap();
 
-    // 建立 mock AI 服務
+    // Create mock AI service
     let mock_helper = MockOpenAITestHelper::new().await;
     mock_helper
         .mock_chat_completion_success(&MatchResponseGenerator::successful_match_with_ids(
@@ -64,12 +64,12 @@ async fn test_copy_mode_preserves_original_file() {
     match_command::execute(args, &config_service).await.unwrap();
 
     let target = video_dir.join("movie.srt");
-    assert!(subtitle_path.exists(), "原始檔案應保留");
-    assert!(target.exists(), "目標位置應有副本");
+    assert!(subtitle_path.exists(), "Original file should be preserved");
+    assert!(target.exists(), "Target location should have a copy");
     assert_eq!(
         fs::read(&subtitle_path).unwrap(),
         fs::read(&target).unwrap(),
-        "副本內容應與原始一致"
+        "Copied content should be the same as the original"
     );
 }
 
@@ -86,7 +86,7 @@ async fn test_copy_mode_with_rename() {
     let subtitle_path = subtitle_dir.join("sub.srt");
     fs::write(&subtitle_path, b"content").unwrap();
 
-    // 首先掃描檔案以獲取實際的檔案 ID
+    // First scan files to get actual file IDs
     let discovery = subx_cli::core::matcher::FileDiscovery::new();
     let files = discovery.scan_directory(root, true).unwrap();
     let video_file = files
@@ -103,7 +103,7 @@ async fn test_copy_mode_with_rename() {
         })
         .unwrap();
 
-    // 建立 mock AI 服務
+    // Create mock AI service
     let mock_helper = MockOpenAITestHelper::new().await;
     mock_helper
         .mock_chat_completion_success(&MatchResponseGenerator::successful_match_with_ids(
@@ -129,14 +129,20 @@ async fn test_copy_mode_with_rename() {
     let original_subtitle = subtitle_dir.join("sub.srt");
     let copied_to_video_dir = video_dir.join("movie.srt");
 
-    // 在 Copy 模式下，原始檔案應保持不變
-    assert!(original_subtitle.exists(), "原始檔案應保持不變");
-    assert!(copied_to_video_dir.exists(), "目標位置應有副本");
+    // In Copy mode, the original file should remain unchanged
+    assert!(
+        original_subtitle.exists(),
+        "Original file should remain unchanged"
+    );
+    assert!(
+        copied_to_video_dir.exists(),
+        "Target location should have a copy"
+    );
 
-    // 檢查副本內容是否正確
+    // Check if the copied content is correct
     assert_eq!(
         fs::read(&original_subtitle).unwrap(),
         fs::read(&copied_to_video_dir).unwrap(),
-        "副本內容應與原始檔案一致"
+        "Copied content should be the same as the original file"
     );
 }

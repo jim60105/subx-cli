@@ -37,16 +37,16 @@ impl AIProvider for DummyAI {
 
 #[tokio::test]
 async fn test_rename_operation_success_and_error_messages() {
-    // 使用 TestConfigService 確保隔離
+    // Use TestConfigService to ensure isolation
     let _config_service = TestConfigService::with_defaults();
 
-    // 此測試主要驗證我們的程式碼結構和邏輯正確性
-    // 由於 rename_file 是私有方法，我們測試公共介面的行為
+    // This test primarily validates our code structure and logic correctness
+    // Since rename_file is a private method, we test the behavior of the public interface
 
     let temp_dir = TempDir::new().unwrap();
     let temp_path = temp_dir.path();
 
-    // 建立測試檔案
+    // Create test files
     let original_file = temp_path.join("original.srt");
     fs::write(
         &original_file,
@@ -66,25 +66,25 @@ async fn test_rename_operation_success_and_error_messages() {
         },
     );
 
-    // 使用 match_files 測試整個流程，它會內部呼叫 rename_file
+    // Use match_files to test the entire process, which internally calls rename_file
     let result = engine.match_files(temp_path, false).await;
 
-    // 由於沒有視頻檔案，所以不會有匹配結果，但操作應該成功完成
+    // Since there are no video files, there will be no match results, but the operation should complete successfully
     assert!(result.is_ok());
     let operations = result.unwrap();
 
-    // 驗證沒有操作被創建（因為沒有匹配的視頻檔案）
+    // Verify that no operations were created (since there were no matching video files)
     assert_eq!(operations.len(), 0);
 }
 
 #[tokio::test]
 async fn test_file_relocation_operations_with_success_indicators() {
-    // 使用 TestConfigService 確保隔離
+    // Use TestConfigService to ensure isolation
     let _config_service = TestConfigService::with_defaults();
 
-    // 此測試驗證錯誤標記和成功標記的格式正確性
-    // 由於難以模擬檔案系統失敗後檔案不存在的情況，
-    // 我們主要測試程式碼邏輯和訊息格式的正確性
+    // This test verifies the format correctness of error and success indicators
+    // As it is difficult to simulate the scenario where files do not exist after a filesystem failure,
+    // we primarily test the correctness of the code logic and message formatting
 
     let temp_dir = TempDir::new().unwrap();
     let temp_path = temp_dir.path();
@@ -101,20 +101,20 @@ async fn test_file_relocation_operations_with_success_indicators() {
         },
     );
 
-    // 使用 match_files 測試整個流程
+    // Use match_files to test the entire process
     let result = engine.match_files(temp_path, false).await;
 
-    // 由於沒有檔案，所以不會有匹配結果，但操作應該成功完成
+    // Since there are no files, there will be no match results, but the operation should complete successfully
     assert!(result.is_ok());
     let operations = result.unwrap();
 
-    // 驗證沒有操作被創建（因為沒有檔案）
+    // Verify that no operations were created (since there were no files)
     assert_eq!(operations.len(), 0);
 }
 
 #[test]
 fn test_error_message_formats() {
-    // 測試錯誤訊息格式的正確性
+    // Test the correctness of error message formats
     let test_cases = vec![
         ("Copy", "source.srt", "target.srt"),
         ("Move", "subtitle.ass", "video.ass"),
@@ -122,14 +122,14 @@ fn test_error_message_formats() {
     ];
 
     for (operation, source, target) in test_cases {
-        // 測試成功訊息格式
+        // Test success message format
         let success_msg = format!("  ✓ {}: {} -> {}", operation, source, target);
         assert!(success_msg.contains("✓"));
         assert!(success_msg.contains(operation));
         assert!(success_msg.contains(source));
         assert!(success_msg.contains(target));
 
-        // 測試失敗訊息格式
+        // Test error message format
         let error_msg = format!(
             "  ✗ {} failed: {} -> {} (target file does not exist after operation)",
             operation, source, target

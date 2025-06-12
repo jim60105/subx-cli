@@ -9,20 +9,20 @@ use subx_cli::commands::match_command;
 use subx_cli::config::TestConfigBuilder;
 use tempfile::TempDir;
 
-/// 載荷測試：模擬大量檔案處理並驗證效能
+/// Load test: Simulate processing many files and verify performance
 #[tokio::test]
 async fn test_high_load_scenario() {
     let temp_dir = TempDir::new().unwrap();
     let root = temp_dir.path();
 
-    // 建立大量測試檔案
+    // Create multiple test files
     create_multiple_test_files(root, 50);
 
     let mock_helper = MockOpenAITestHelper::new().await;
-    // 設定具有延遲的回應以模擬網路條件
+    // Set up response with delay to simulate network conditions
     mock_helper
         .setup_delayed_response(
-            100, // 100ms 延遲
+            100, // 100ms delay
             &MatchResponseGenerator::multiple_matches(),
         )
         .await;
@@ -47,12 +47,12 @@ async fn test_high_load_scenario() {
     let elapsed = start_time.elapsed();
 
     assert!(result.is_ok());
-    println!("高載荷測試完成時間: {:?}", elapsed);
-    // 驗證在合理時間內完成（應小於 30 秒）
+    println!("High load test completion time: {:?}", elapsed);
+    // Verify completion within reasonable time (should be less than 30 seconds)
     assert!(elapsed < std::time::Duration::from_secs(30));
 }
 
-/// 記憶體穩定性測試：多次執行以檢測潛在的記憶體洩漏
+/// Memory stability test: Multiple executions to detect potential memory leaks
 #[tokio::test]
 async fn test_memory_stability() {
     for iteration in 1..=10 {
@@ -81,9 +81,9 @@ async fn test_memory_stability() {
         };
 
         let result = match_command::execute(args, &config_service).await;
-        assert!(result.is_ok(), "迭代 {} 失敗", iteration);
+        assert!(result.is_ok(), "Iteration {} failed", iteration);
 
-        // 清理資源
+        // Clean up resources
         drop(mock_helper);
         drop(config_service);
         drop(temp_dir);

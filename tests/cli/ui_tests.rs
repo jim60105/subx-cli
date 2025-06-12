@@ -6,14 +6,14 @@ use subx_cli::services::ai::AiUsageStats;
 fn test_table_formatting_cli() {
     let rows = vec![MatchDisplayRow {
         status: "🔍 Preview".to_string(),
-        video_file: "檔案".to_string(),
-        subtitle_file: "編碼".to_string(),
-        new_name: "信心值".to_string(),
+        video_file: "File".to_string(),
+        subtitle_file: "Encoding".to_string(),
+        new_name: "Confidence".to_string(),
     }];
     let table = create_match_table(rows);
-    assert!(table.contains("檔案"));
-    assert!(table.contains("編碼"));
-    assert!(table.contains("信心值"));
+    assert!(table.contains("File"));
+    assert!(table.contains("Encoding"));
+    assert!(table.contains("Confidence"));
 }
 
 #[test]

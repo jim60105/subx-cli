@@ -34,7 +34,7 @@ async fn test_match_copy_operation() {
     )
     .unwrap();
 
-    // 建立 mock AI 服務
+    // Create mock AI service
     let mock_helper = MockOpenAITestHelper::new().await;
     mock_helper
         .mock_chat_completion_success(&MatchResponseGenerator::successful_single_match())
@@ -115,7 +115,7 @@ async fn test_match_move_operation() {
     )
     .unwrap();
 
-    // 建立 mock AI 服務
+    // Create mock AI service
     let mock_helper = MockOpenAITestHelper::new().await;
     mock_helper
         .mock_chat_completion_success(&MatchResponseGenerator::successful_single_match())
@@ -196,7 +196,7 @@ async fn test_match_copy_dry_run() {
     )
     .unwrap();
 
-    // 建立 mock AI 服務
+    // Create mock AI service
     let mock_helper = MockOpenAITestHelper::new().await;
     mock_helper
         .mock_chat_completion_success(&MatchResponseGenerator::successful_single_match())

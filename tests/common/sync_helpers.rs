@@ -3,14 +3,13 @@ use tempfile::TempDir;
 use tokio::fs;
 
 /// Create mock audio file for tests
-/// 建立測試用的模擬音訊檔案
 #[allow(dead_code)]
 pub async fn create_test_audio_with_dialogue() -> PathBuf {
     let temp_dir = TempDir::new().unwrap();
     let path = temp_dir.path().join("dialogue.wav");
 
-    // 建立一個簡單的模擬音訊檔案用於測試
-    // 在真實實作中，這會呼叫音訊生成服務
+    // Create a simple mock audio file for testing
+    // In a real implementation, this would call an audio generation service
     fs::write(&path, b"RIFF....WAVE").await.unwrap();
     path
 }

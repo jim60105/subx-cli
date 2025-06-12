@@ -1,9 +1,9 @@
-//! 輸出驗證工具，提供靈活的測試輸出驗證功能。
+//! Output validation tools, providing flexible test output validation functionality.
 
 use regex::Regex;
 use std::fmt;
 
-/// 驗證結果
+/// Validation result
 #[derive(Debug, Clone)]
 pub struct ValidationResult {
     successes: Vec<String>,
@@ -11,7 +11,7 @@ pub struct ValidationResult {
 }
 
 impl ValidationResult {
-    /// 建立新的驗證結果
+    /// Create new validation result
     pub fn new() -> Self {
         Self {
             successes: Vec::new(),
@@ -19,39 +19,39 @@ impl ValidationResult {
         }
     }
 
-    /// 新增成功項目
+    /// Add success item
     pub fn add_success(&mut self, message: String) {
         self.successes.push(message);
     }
 
-    /// 新增失敗項目
+    /// Add failure item
     pub fn add_failure(&mut self, message: String) {
         self.failures.push(message);
     }
 
-    /// 檢查是否有效
+    /// Check if valid
     pub fn is_valid(&self) -> bool {
         self.failures.is_empty()
     }
 
-    /// 取得成功項目
+    /// Get success items
     #[allow(dead_code)]
     pub fn successes(&self) -> &[String] {
         &self.successes
     }
 
-    /// 取得失敗項目
+    /// Get failure items
     #[allow(dead_code)]
     pub fn failures(&self) -> &[String] {
         &self.failures
     }
 
-    /// 取得失敗數量
+    /// Get failure count
     pub fn failure_count(&self) -> usize {
         self.failures.len()
     }
 
-    /// 取得成功數量
+    /// Get success count
     pub fn success_count(&self) -> usize {
         self.successes.len()
     }
@@ -75,7 +75,7 @@ impl fmt::Display for ValidationResult {
     }
 }
 
-/// 輸出驗證器，使用正規表達式模式進行驗證
+/// Output validator, using regular expression patterns for validation
 pub struct OutputValidator {
     patterns: Vec<Regex>,
     anti_patterns: Vec<Regex>,
@@ -84,7 +84,7 @@ pub struct OutputValidator {
 }
 
 impl OutputValidator {
-    /// 建立新的輸出驗證器
+    /// Create new output validator
     pub fn new() -> Self {
         Self {
             patterns: Vec::new(),
@@ -94,7 +94,7 @@ impl OutputValidator {
         }
     }
 
-    /// 新增期望模式
+    /// Add expected pattern
     pub fn expect_pattern(mut self, pattern: &str) -> Self {
         match Regex::new(pattern) {
             Ok(regex) => {
@@ -106,7 +106,7 @@ impl OutputValidator {
         self
     }
 
-    /// 新增拒絕模式
+    /// Add rejected pattern
     pub fn reject_pattern(mut self, pattern: &str) -> Self {
         match Regex::new(pattern) {
             Ok(regex) => {
@@ -118,38 +118,38 @@ impl OutputValidator {
         self
     }
 
-    /// 期望包含特定字串
+    /// Expect to contain specific substring
     pub fn expect_contains(self, text: &str) -> Self {
         self.expect_pattern(&regex::escape(text))
     }
 
-    /// 拒絕包含特定字串
+    /// Reject containing specific substring
     #[allow(dead_code)]
     pub fn reject_contains(self, text: &str) -> Self {
         self.reject_pattern(&regex::escape(text))
     }
 
-    /// 期望行數
+    /// Expect line count
     #[allow(dead_code)]
     pub fn expect_line_count(self, count: usize) -> Self {
         self.expect_pattern(&format!(r"^(?:[^\n]*\n){{{count}}}[^\n]*$", count = count))
     }
 
-    /// 期望空輸出
+    /// Expect empty output
     pub fn expect_empty(self) -> Self {
         self.expect_pattern(r"^\s*$")
     }
 
-    /// 期望非空輸出
+    /// Expect non-empty output
     pub fn expect_not_empty(self) -> Self {
         self.reject_pattern(r"^\s*$")
     }
 
-    /// 驗證輸出
+    /// Validate output
     pub fn validate(&self, output: &str) -> ValidationResult {
         let mut result = ValidationResult::new();
 
-        // 檢查期望模式
+        // Check expected patterns
         for (i, pattern) in self.patterns.iter().enumerate() {
             let description = &self.pattern_descriptions[i];
             if pattern.is_match(output) {
@@ -159,7 +159,7 @@ impl OutputValidator {
             }
         }
 
-        // 檢查拒絕模式
+        // Check rejected patterns
         for (i, pattern) in self.anti_patterns.iter().enumerate() {
             let description = &self.anti_pattern_descriptions[i];
             if pattern.is_match(output) {
@@ -172,7 +172,7 @@ impl OutputValidator {
         result
     }
 
-    /// 驗證並斷言成功
+    /// Validate and assert success
     pub fn validate_and_assert(&self, output: &str) {
         let result = self.validate(output);
         if !result.is_valid() {

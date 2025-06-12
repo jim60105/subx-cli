@@ -2,7 +2,7 @@
 use assert_cmd::Command;
 use predicates::prelude::*;
 
-/// CLI 主體整合測試: 版本、說明與錯誤指令行為驗證
+/// CLI main integration tests: version, help and error command behavior validation
 #[tokio::test]
 async fn test_version_display() {
     let mut cmd = Command::cargo_bin("subx-cli").unwrap();

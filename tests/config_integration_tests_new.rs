@@ -1,4 +1,4 @@
-//! 配置系統整合測試
+//! Configuration system integration tests
 
 use subx_cli::config::{ConfigService, ProductionConfigService, TestConfigBuilder};
 
@@ -7,7 +7,7 @@ use common::file_managers::TestFileManager;
 
 #[test]
 fn test_config_builder_basic_functionality() {
-    // 測試配置建構器基本功能
+    // Test basic functionality of the config builder
     let config = TestConfigBuilder::new()
         .with_ai_provider("openai")
         .with_ai_model("gpt-4")
@@ -19,7 +19,7 @@ fn test_config_builder_basic_functionality() {
 
 #[test]
 fn test_config_builder_ai_settings() {
-    // 測試 AI 相關設定
+    // Test AI-related settings
     let config = TestConfigBuilder::new()
         .with_ai_provider("anthropic")
         .with_ai_model("claude-3")
@@ -31,7 +31,7 @@ fn test_config_builder_ai_settings() {
 
 #[test]
 fn test_config_service_interface() {
-    // 測試配置服務介面
+    // Test config service interface
     let service = TestConfigBuilder::new()
         .with_ai_provider("test_provider")
         .with_ai_model("test_model")
@@ -41,28 +41,28 @@ fn test_config_service_interface() {
     assert_eq!(config.ai.provider, "test_provider");
     assert_eq!(config.ai.model, "test_model");
 
-    // 測試重載功能
+    // Test reload functionality
     assert!(service.reload().is_ok());
 }
 
 #[test]
 fn test_production_config_service() {
-    // 測試生產配置服務
+    // Test production config service
     match ProductionConfigService::new() {
         Ok(service) => {
             let config = service.get_config().unwrap();
-            // 驗證預設配置載入
+            // Verify default config is loaded
             assert!(!config.ai.provider.is_empty());
         }
         Err(_) => {
-            // 在測試環境中可能沒有配置檔案，這是正常的
+            // It's normal not to have a config file in the test environment
         }
     }
 }
 
 #[test]
 fn test_config_with_custom_settings() {
-    // 測試自訂設定
+    // Test custom settings
     let config = TestConfigBuilder::new()
         .with_ai_provider("custom_provider")
         .build_config();
@@ -72,7 +72,7 @@ fn test_config_with_custom_settings() {
 
 #[tokio::test]
 async fn test_config_with_file_manager() {
-    // 使用新的測試工具進行檔案管理測試
+    // Test file management with the new test tool
     let mut file_manager = TestFileManager::new();
     let test_dir = file_manager
         .create_isolated_test_directory("config_test")
@@ -80,7 +80,7 @@ async fn test_config_with_file_manager() {
         .unwrap();
     let test_dir_path = test_dir.to_path_buf();
 
-    // 建立測試配置檔案
+    // Create test config file
     let config_path = file_manager
         .create_test_config(&test_dir_path, "test_config.toml", &test_dir_path)
         .await
@@ -88,7 +88,7 @@ async fn test_config_with_file_manager() {
 
     assert!(config_path.exists());
 
-    // 驗證配置檔案內容
+    // Verify config file content
     let content = std::fs::read_to_string(&config_path).unwrap();
     assert!(content.contains("[general]"));
     assert!(content.contains("[ai]"));
@@ -97,7 +97,7 @@ async fn test_config_with_file_manager() {
 
 #[test]
 fn test_multiple_config_instances() {
-    // 測試多個配置實例的隔離性
+    // Test isolation of multiple config instances
     let config1 = TestConfigBuilder::new()
         .with_ai_provider("provider1")
         .build_config();
@@ -106,14 +106,14 @@ fn test_multiple_config_instances() {
         .with_ai_provider("provider2")
         .build_config();
 
-    // 確保配置實例間相互隔離
+    // Ensure config instances are isolated
     assert_eq!(config1.ai.provider, "provider1");
     assert_eq!(config2.ai.provider, "provider2");
 }
 
 #[test]
 fn test_config_builder_chaining() {
-    // 測試配置建構器的鏈式調用
+    // Test chaining of config builder methods
     let config = TestConfigBuilder::new()
         .with_ai_provider("openai")
         .with_ai_model("gpt-4")
@@ -125,7 +125,7 @@ fn test_config_builder_chaining() {
 
 #[test]
 fn test_parallel_config_creation() {
-    // 測試並行配置建立
+    // Test parallel creation of config instances
     use std::thread;
 
     let handles: Vec<_> = (0..10)

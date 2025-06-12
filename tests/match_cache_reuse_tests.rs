@@ -8,22 +8,22 @@ mod common;
 use common::mock_openai_helper::MockOpenAITestHelper;
 use common::test_data_generators::MatchResponseGenerator;
 
-// 使用 async mutex 來避免環境變數競爭，同時避免 clippy::await_holding_lock 警告
+// Using async mutex to avoid environment variable race conditions while avoiding clippy::await_holding_lock warning
 static TEST_MUTEX: tokio::sync::Mutex<()> = tokio::sync::Mutex::const_new(());
 
 #[tokio::test]
 async fn test_cache_reuse_preserves_copy_mode() {
-    // 使用 async mutex 避免環境變數競爭，同時避免在持有鎖時 await
+    // Use async mutex to avoid environment variable race conditions while avoiding await while holding lock
     let _guard = TEST_MUTEX.lock().await;
 
-    // 使用固定的測試根目錄，確保快取路徑一致
+    // Use a fixed test root directory to ensure consistent cache path
     let test_root = std::path::Path::new("/tmp/subx_cache_test");
     if test_root.exists() {
         fs::remove_dir_all(test_root).unwrap();
     }
     fs::create_dir_all(test_root).unwrap();
 
-    // 設定快取目錄
+    // Set cache directory
     unsafe {
         std::env::set_var("XDG_CONFIG_HOME", test_root);
     }
@@ -36,7 +36,7 @@ async fn test_cache_reuse_preserves_copy_mode() {
     fs::write(video_dir.join("video_copy.mp4"), "video").unwrap();
     fs::write(subtitle_dir.join("subtitle_copy.srt"), "sub").unwrap();
 
-    // 發現檔案以獲取實際的檔案 ID
+    // Scan files to get actual file IDs
     use subx_cli::core::matcher::FileDiscovery;
     let discovery = FileDiscovery::new();
     let files = discovery.scan_directory(test_root, true).unwrap();
@@ -44,7 +44,7 @@ async fn test_cache_reuse_preserves_copy_mode() {
     let video_file = files.iter().find(|f| f.name.ends_with(".mp4")).unwrap();
     let subtitle_file = files.iter().find(|f| f.name.ends_with(".srt")).unwrap();
 
-    // 建立 mock AI 服務，使用實際的檔案 ID，設定只期望一次 API 呼叫
+    // Create mock AI service using actual file IDs, set to expect only one API call
     let mock_helper = MockOpenAITestHelper::new().await;
     mock_helper
         .mock_chat_completion_with_expectation(
@@ -57,7 +57,7 @@ async fn test_cache_reuse_preserves_copy_mode() {
         .with_mock_ai_server(&mock_helper.base_url())
         .build_service();
 
-    // 第一次執行 dry-run 建立快取
+    // First execution dry-run to create cache
     let args_preview = MatchArgs {
         path: test_root.to_path_buf(),
         dry_run: true,
@@ -71,10 +71,10 @@ async fn test_cache_reuse_preserves_copy_mode() {
         .await
         .unwrap();
 
-    // 第二次執行相同的 dry-run 操作，應該使用快取（相同的目錄）
+    // Second execution of the same dry-run operation, should use cache (same directory)
     let args_second = MatchArgs {
-        path: test_root.to_path_buf(), // 使用相同的目錄
-        dry_run: true,                 // 保持相同模式
+        path: test_root.to_path_buf(), // Use the same directory
+        dry_run: true,                 // Keep the same mode
         recursive: true,
         confidence: 80,
         backup: false,
@@ -85,23 +85,23 @@ async fn test_cache_reuse_preserves_copy_mode() {
         .await
         .unwrap();
 
-    // 驗證 mock server 只收到一次請求
+    // Verify mock server received only one request
     mock_helper.verify_expectations().await;
 }
 
 #[tokio::test]
 async fn test_cache_reuse_preserves_move_mode() {
-    // 使用 async mutex 避免環境變數競爭，同時避免在持有鎖時 await
+    // Use async mutex to avoid environment variable race conditions while avoiding await while holding lock
     let _guard = TEST_MUTEX.lock().await;
 
-    // 使用固定的測試根目錄，確保快取路徑一致
+    // Use a fixed test root directory to ensure consistent cache path
     let test_root = std::path::Path::new("/tmp/subx_cache_test_move");
     if test_root.exists() {
         fs::remove_dir_all(test_root).unwrap();
     }
     fs::create_dir_all(test_root).unwrap();
 
-    // 設定快取目錄
+    // Set cache directory
     unsafe {
         std::env::set_var("XDG_CONFIG_HOME", test_root);
     }
@@ -114,7 +114,7 @@ async fn test_cache_reuse_preserves_move_mode() {
     fs::write(video_dir.join("video_move.mp4"), "video").unwrap();
     fs::write(subtitle_dir.join("subtitle_move.srt"), "sub").unwrap();
 
-    // 發現檔案以獲取實際的檔案 ID
+    // Scan files to get actual file IDs
     use subx_cli::core::matcher::FileDiscovery;
     let discovery = FileDiscovery::new();
     let files = discovery.scan_directory(test_root, true).unwrap();
@@ -122,7 +122,7 @@ async fn test_cache_reuse_preserves_move_mode() {
     let video_file = files.iter().find(|f| f.name.ends_with(".mp4")).unwrap();
     let subtitle_file = files.iter().find(|f| f.name.ends_with(".srt")).unwrap();
 
-    // 建立 mock AI 服務，使用實際的檔案 ID，設定只期望一次 API 呼叫
+    // Create mock AI service using actual file IDs, set to expect only one API call
     let mock_helper = MockOpenAITestHelper::new().await;
     mock_helper
         .mock_chat_completion_with_expectation(
@@ -135,7 +135,7 @@ async fn test_cache_reuse_preserves_move_mode() {
         .with_mock_ai_server(&mock_helper.base_url())
         .build_service();
 
-    // 第一次執行 dry-run 建立快取
+    // First execution dry-run to create cache
     let args_preview = MatchArgs {
         path: test_root.to_path_buf(),
         dry_run: true,
@@ -149,10 +149,10 @@ async fn test_cache_reuse_preserves_move_mode() {
         .await
         .unwrap();
 
-    // 第二次執行相同的 dry-run 操作，應該使用快取
+    // Second execution of the same dry-run operation, should use cache
     let args_second = MatchArgs {
         path: test_root.to_path_buf(),
-        dry_run: true, // 保持相同模式
+        dry_run: true, // Keep the same mode
         recursive: true,
         confidence: 80,
         backup: false,
@@ -163,6 +163,6 @@ async fn test_cache_reuse_preserves_move_mode() {
         .await
         .unwrap();
 
-    // 驗證 mock server 只收到一次請求
+    // Verify mock server received only one request
     mock_helper.verify_expectations().await;
 }

@@ -1,6 +1,6 @@
 #![allow(unused_imports, dead_code)]
-//! 同步功能整合測試
-//! 測試跨模組的同步工作流程
+//! Synchronization functionality integration tests
+//! Testing cross-module synchronization workflows
 
 use subx_cli::core::sync::SyncEngine;
 use subx_cli::core::sync::dialogue::DialogueDetector;
@@ -15,42 +15,42 @@ use std::path::PathBuf;
 mod common;
 use common::{TestFileManager, AudioMockGenerator, SubtitleGenerator, SubtitleFormat};
 
-/// 測試端到端同步工作流程
+/// Test end-to-end synchronization workflow
 #[tokio::test] 
 async fn test_end_to_end_sync_workflow() {
-    // 使用新的配置系統
+    // Use new configuration system
     let config = TestConfigBuilder::new()
         .with_dialogue_detection(true)
         .build_config();
     
-    // 建立完整的測試場景
+    // Create complete test scenario
     let temp_dir = TempDir::new().unwrap();
     
-    // 1. 建立測試音訊檔案
+    // 1. Create test audio file
     let audio_file = temp_dir.path().join("test_audio.wav");
     let dialogue_pattern = vec![
-        (0.0, 1.0, false),   // 靜音
-        (1.0, 3.0, true),    // 對話 1
-        (3.0, 3.5, false),   // 短暫靜音
-        (3.5, 6.0, true),    // 對話 2
-        (6.0, 7.0, false),   // 靜音
+        (0.0, 1.0, false),   // Silence
+        (1.0, 3.0, true),    // Dialogue 1
+        (3.0, 3.5, false),   // Brief silence
+        (3.5, 6.0, true),    // Dialogue 2
+        (6.0, 7.0, false),   // Silence
     ];
     
     generate_dialogue_audio(&audio_file, &dialogue_pattern, 44100).await;
     
-    // 2. 建立不對齊的字幕檔案
+    // 2. Create misaligned subtitle file
     let subtitle_file = temp_dir.path().join("misaligned.srt");
     let subtitle_content = r#"1
 00:00:02,500 --> 00:00:04,500
-第一句對話（延遲 1.5 秒）
+First dialogue (delayed by 1.5 seconds)
 
 2
 00:00:05,000 --> 00:00:07,500
-第二句對話（延遲 1.5 秒）
+Second dialogue (delayed by 1.5 seconds)
 "#;
     tokio::fs::write(&subtitle_file, subtitle_content).await.unwrap();
 
-    // 3. 執行完整同步工作流程
+    // 3. Run complete synchronization workflow
     let sync_config = SyncConfig {
         max_offset_seconds: 5.0,
         correlation_threshold: 0.3,
@@ -59,35 +59,35 @@ async fn test_end_to_end_sync_workflow() {
     };
     let sync_engine = SyncEngine::new(sync_config);
     
-    // 4. 載入字幕檔案
+    // 4. Load subtitle file
     let subtitle = subx_cli::core::formats::load_subtitle_file(&subtitle_file).unwrap();
     
-    // 5. 執行同步
+    // 5. Execute synchronization
     let sync_result = sync_engine.sync_subtitle(&audio_file, &subtitle).await.unwrap();
     
-    // 6. 驗證同步結果
-    assert!(sync_result.confidence >= 0.0, "信心度應該是有效的");
-    assert!(sync_result.offset_seconds.abs() <= 5.0, "偏移應該在合理範圍內");
+    // 6. Verify synchronization results
+    assert!(sync_result.confidence >= 0.0, "Confidence should be valid");
+    assert!(sync_result.offset_seconds.abs() <= 5.0, "Offset should be within reasonable range");
     
-    // 7. 應用偏移
+    // 7. Apply offset
     let mut adjusted_subtitle = subtitle.clone();
     sync_engine.apply_sync_offset(&mut adjusted_subtitle, sync_result.offset_seconds).unwrap();
     
-    // 8. 驗證調整後的字幕
+    // 8. Verify adjusted subtitle
     assert_eq!(adjusted_subtitle.entries.len(), subtitle.entries.len());
     for (original, adjusted) in subtitle.entries.iter().zip(adjusted_subtitle.entries.iter()) {
         if sync_result.offset_seconds >= 0.0 {
-            assert!(adjusted.start_time >= original.start_time, "正偏移應該增加時間");
+            assert!(adjusted.start_time >= original.start_time, "Positive offset should increase time");
         } else {
-            assert!(adjusted.start_time <= original.start_time, "負偏移應該減少時間");
+            assert!(adjusted.start_time <= original.start_time, "Negative offset should decrease time");
         }
     }
 }
 
-/// 測試對話檢測整合工作流程
+/// Test dialogue detection integration workflow
 #[tokio::test]
 async fn test_dialogue_detection_integration() {
-    // 使用新的配置系統
+    // Use new configuration system
     let config = TestConfigBuilder::new()
         .with_dialogue_detection(true)
         .with_sync_threshold(0.6)
@@ -95,48 +95,48 @@ async fn test_dialogue_detection_integration() {
     
     let temp_dir = TempDir::new().unwrap();
     
-    // 建立測試音訊檔案 
+    // Create test audio file 
     let audio_file = temp_dir.path().join("dialogue_test.wav");
     let dialogue_pattern = vec![
-        (0.0, 0.5, false),   // 靜音開始
-        (0.5, 2.0, true),    // 第一段對話
-        (2.0, 2.5, false),   // 間隔
-        (2.5, 4.5, true),    // 第二段對話
-        (4.5, 5.0, false),   // 靜音結束
+        (0.0, 0.5, false),   // Silence start
+        (0.5, 2.0, true),    // First dialogue segment
+        (2.0, 2.5, false),   // Interval
+        (2.5, 4.5, true),    // Second dialogue segment
+        (4.5, 5.0, false),   // Silence end
     ];
     
     generate_dialogue_audio(&audio_file, &dialogue_pattern, 44100).await;
     
-    // 建立對話檢測器
+    // Create dialogue detector
     let detector = DialogueDetector::new().unwrap();
     
-    // 執行對話檢測
+    // Perform dialogue detection
     let segments = detector.detect_dialogue(&audio_file).await.unwrap();
     
-    // 驗證檢測結果
+    // Verify detection results
     if !segments.is_empty() {
-        // 檢查有對話和靜音段落
+        // Check for dialogue and silence segments
         let speech_segments: Vec<_> = segments.iter().filter(|s| s.is_speech).collect();
         let silence_segments: Vec<_> = segments.iter().filter(|s| !s.is_speech).collect();
         
-        // 應該有一些檢測到的段落
-        assert!(!segments.is_empty(), "應該檢測到一些音訊段落");
+        // There should be some detected segments
+        assert!(!segments.is_empty(), "Some audio segments should be detected");
         
-        // 驗證語音比例計算
+        // Verify speech ratio calculation
         let speech_ratio = detector.get_speech_ratio(&segments);
-        assert!(speech_ratio >= 0.0 && speech_ratio <= 1.0, "語音比例應該在 0-1 之間");
+        assert!(speech_ratio >= 0.0 && speech_ratio <= 1.0, "Speech ratio should be between 0 and 1");
         
-        // 檢查段落時間順序
+        // Check segment time order
         for window in segments.windows(2) {
-            assert!(window[0].start_time <= window[1].start_time, "段落應該按時間順序排列");
+            assert!(window[0].start_time <= window[1].start_time, "Segments should be in chronological order");
         }
     }
 }
 
-/// 測試同步引擎與對話檢測的整合
+/// Test synchronization engine and dialogue detection integration
 #[tokio::test]
 async fn test_sync_engine_dialogue_integration() {
-    // 使用新的配置系統
+    // Use new configuration system
     let config = TestConfigBuilder::new()
         .with_dialogue_detection(true)
         .with_sync_threshold(0.8)
@@ -144,7 +144,7 @@ async fn test_sync_engine_dialogue_integration() {
     
     let temp_dir = TempDir::new().unwrap();
     
-    // 建立測試音訊和字幕
+    // Create test audio and subtitle
     let audio_file = temp_dir.path().join("integration_audio.wav");
     let dialogue_pattern = vec![
         (0.0, 1.0, false),
@@ -155,17 +155,17 @@ async fn test_sync_engine_dialogue_integration() {
     
     generate_dialogue_audio(&audio_file, &dialogue_pattern, 44100).await;
     
-    // 建立配對的字幕
+    // Create paired subtitle
     let subtitle = Subtitle {
         entries: vec![
-            SubtitleEntry::new(1, Duration::from_secs(1), Duration::from_secs(3), "第一句".to_string()),
-            SubtitleEntry::new(2, Duration::from_secs(3), Duration::from_secs(6), "第二句".to_string()),
+            SubtitleEntry::new(1, Duration::from_secs(1), Duration::from_secs(3), "First sentence".to_string()),
+            SubtitleEntry::new(2, Duration::from_secs(3), Duration::from_secs(6), "Second sentence".to_string()),
         ],
         metadata: SubtitleMetadata::default(),
         format: SubtitleFormatType::Srt,
     };
     
-    // 測試同步引擎
+    // Test synchronization engine
     let sync_config = SyncConfig {
         max_offset_seconds: 3.0,
         correlation_threshold: 0.2,
@@ -174,40 +174,40 @@ async fn test_sync_engine_dialogue_integration() {
     };
     let sync_engine = SyncEngine::new(sync_config);
     
-    // 執行同步
+    // Execute synchronization
     let sync_result = sync_engine.sync_subtitle(&audio_file, &subtitle).await.unwrap();
     
-    // 驗證結果結構
+    // Verify result structure
     assert!(sync_result.offset_seconds.abs() <= 3.0);
     assert!(sync_result.confidence >= 0.0 && sync_result.confidence <= 1.0);
     assert!(sync_result.correlation_peak >= 0.0 && sync_result.correlation_peak <= 1.0);
     
-    // 測試對話檢測器
+    // Test dialogue detector
     let detector = DialogueDetector::new().unwrap();
     let segments = detector.detect_dialogue(&audio_file).await.unwrap();
     
-    // 驗證兩個組件的整合
+    // Verify integration of the two components
     if !segments.is_empty() {
         let speech_ratio = detector.get_speech_ratio(&segments);
         
-        // 如果有足夠的語音，同步結果應該相對可靠
+        // If there is enough speech, the synchronization result should be relatively reliable
         if speech_ratio > 0.3 {
-            assert!(sync_result.confidence >= 0.1, "有足夠語音時應該有一定信心度");
+            assert!(sync_result.confidence >= 0.1, "There should be some confidence when there is enough speech");
         }
     }
 }
 
-/// 測試同步品質評估
+/// Test synchronization quality assessment
 #[tokio::test]
 async fn test_sync_quality_assessment() {
-    // 使用新的配置系統
+    // Use new configuration system
     let config = TestConfigBuilder::new()
         .with_sync_threshold(0.8)
         .build_config();
     
     let temp_dir = TempDir::new().unwrap();
     
-    // 建立高品質對齊的測試案例
+    // Create high-quality aligned test case
     let good_audio = temp_dir.path().join("good_sync.wav");
     let good_pattern = vec![
         (1.0, 3.0, true),
@@ -217,14 +217,14 @@ async fn test_sync_quality_assessment() {
     
     let good_subtitle = Subtitle {
         entries: vec![
-            SubtitleEntry::new(1, Duration::from_secs(1), Duration::from_secs(3), "完美對齊".to_string()),
-            SubtitleEntry::new(2, Duration::from_secs(4), Duration::from_secs(6), "也很對齊".to_string()),
+            SubtitleEntry::new(1, Duration::from_secs(1), Duration::from_secs(3), "Perfectly aligned".to_string()),
+            SubtitleEntry::new(2, Duration::from_secs(4), Duration::from_secs(6), "Well aligned".to_string()),
         ],
         metadata: SubtitleMetadata::default(),
         format: SubtitleFormatType::Srt,
     };
     
-    // 建立低品質對齊的測試案例
+    // Create low-quality aligned test case
     let bad_audio = temp_dir.path().join("bad_sync.wav");
     let bad_pattern = vec![
         (0.0, 2.0, true),
@@ -234,8 +234,8 @@ async fn test_sync_quality_assessment() {
     
     let bad_subtitle = Subtitle {
         entries: vec![
-            SubtitleEntry::new(1, Duration::from_secs(3), Duration::from_secs(5), "錯位字幕".to_string()),
-            SubtitleEntry::new(2, Duration::from_secs(8), Duration::from_secs(10), "嚴重錯位".to_string()),
+            SubtitleEntry::new(1, Duration::from_secs(3), Duration::from_secs(5), "Misaligned subtitle".to_string()),
+            SubtitleEntry::new(2, Duration::from_secs(8), Duration::from_secs(10), "Severely misaligned".to_string()),
         ],
         metadata: SubtitleMetadata::default(),
         format: SubtitleFormatType::Srt,
@@ -249,14 +249,14 @@ async fn test_sync_quality_assessment() {
     };
     let sync_engine = SyncEngine::new(sync_config);
     
-    // 測試好的同步品質
+    // Test good synchronization quality
     let good_result = sync_engine.sync_subtitle(&good_audio, &good_subtitle).await.unwrap();
     
-    // 測試壞的同步品質
+    // Test bad synchronization quality
     let bad_result = sync_engine.sync_subtitle(&bad_audio, &bad_subtitle).await.unwrap();
     
-    // 比較結果品質
-    // 注意：由於音訊生成和相關性計算的限制，我們主要測試結果結構的合理性
+    // Compare result quality
+    // Note: Due to limitations in audio generation and correlation calculation, we mainly test the reasonableness of the result structure
     assert!(good_result.confidence <= 1.0);
     assert!(bad_result.confidence <= 1.0);
     assert!(good_result.offset_seconds.abs() <= 5.0);

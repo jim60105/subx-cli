@@ -13,14 +13,14 @@ use common::{
 
 #[tokio::test]
 async fn test_batch_file_processing() {
-    // 建立測試環境與多個字幕檔案
+    // Create test environment with multiple subtitle files
     let temp = TempDir::new().unwrap();
     let _config = TestConfigBuilder::new()
         .with_task_priorities(true)
         .with_auto_balance_workers(true)
         .build_config();
 
-    // 使用 SubtitleGenerator 建立測試檔案
+    // Use SubtitleGenerator to create test files
     let test_files = vec!["test1.srt", "test2.srt", "test3.srt"];
 
     for name in &test_files {
@@ -52,19 +52,19 @@ async fn test_batch_file_processing() {
 
 #[tokio::test]
 async fn test_parallel_command_integration() {
-    // 創建測試影片與字幕資料夾結構
+    // Create test video and subtitle folder structure
     let temp = TempDir::new().unwrap();
     let video_dir = temp.path().join("videos");
     let subtitle_dir = temp.path().join("subtitles");
     tokio::fs::create_dir_all(&video_dir).await.unwrap();
     tokio::fs::create_dir_all(&subtitle_dir).await.unwrap();
-    // 創建範例影片與字幕檔案
+    // Create sample video and subtitle files
     let video = video_dir.join("video1.mkv");
     let subtitle = subtitle_dir.join("sub1.srt");
     tokio::fs::write(&video, b"dummy").await.unwrap();
     tokio::fs::write(&subtitle, b"dummy").await.unwrap();
 
-    // 建立 mock AI 服務
+    // Set up mock AI service
     let mock_helper = MockOpenAITestHelper::new().await;
     mock_helper
         .mock_chat_completion_success(&MatchResponseGenerator::multiple_matches())

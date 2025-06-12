@@ -1,11 +1,11 @@
-//! 測試檔案管理工具，提供並行測試隔離和臨時檔案管理。
+//! Test file management tools, providing parallel test isolation and temporary file management.
 
 use std::path::{Path, PathBuf};
 use subx_cli::{Result, error::SubXError};
 use tempfile::TempDir;
 use tokio::fs;
 
-/// 測試檔案管理器，支援並行測試隔離
+/// Test file manager, supporting parallel test isolation
 pub struct TestFileManager {
     temp_dirs: Vec<TempDir>,
     cleanup_on_drop: bool,
@@ -13,36 +13,36 @@ pub struct TestFileManager {
 }
 
 impl TestFileManager {
-    /// 建立新的測試檔案管理器
+    /// Create new test file manager
     pub fn new() -> Self {
         Self {
             temp_dirs: Vec::new(),
             cleanup_on_drop: true,
-            isolation_enabled: true, // 預設啟用隔離模式
+            isolation_enabled: true, // Default enable isolation mode
         }
     }
 
-    /// 設定失敗時保留檔案
+    /// Set to preserve files on failure
     pub fn preserve_on_failure(mut self) -> Self {
         self.cleanup_on_drop = false;
         self
     }
 
-    /// 啟用並行隔離模式
+    /// Enable parallel isolation mode
     #[allow(dead_code)]
     pub fn enable_parallel_isolation(mut self) -> Self {
         self.isolation_enabled = true;
         self
     }
 
-    /// 停用並行隔離模式
+    /// Disable parallel isolation mode
     #[allow(dead_code)]
     pub fn disable_parallel_isolation(mut self) -> Self {
         self.isolation_enabled = false;
         self
     }
 
-    /// 建立隔離的測試目錄
+    /// Create isolated test directory
     pub async fn create_isolated_test_directory(&mut self, name: &str) -> Result<&Path> {
         let temp_dir = TempDir::new().map_err(|e| {
             SubXError::FileOperationFailed(format!("Failed to create temp dir: {}", e))
@@ -50,11 +50,11 @@ impl TestFileManager {
         let path = temp_dir.path();
 
         if self.isolation_enabled {
-            // 為每個測試建立完全隔離的環境
+            // Create a completely isolated environment for each test
             self.setup_isolated_environment(path, name).await?;
         }
 
-        // 為除錯方便，建立符號連結
+        // For debugging convenience, create a symbolic link
         if cfg!(debug_assertions) {
             #[cfg(unix)]
             {
@@ -79,15 +79,15 @@ impl TestFileManager {
 
         self.temp_dirs.push(temp_dir);
 
-        // 返回最後新增的臨時目錄路徑
+        // Return the path of the last added temporary directory
         Ok(self.temp_dirs.last().unwrap().path())
     }
 
-    /// 建立測試檔案
+    /// Create test file
     pub async fn create_test_file(&self, dir: &Path, name: &str, content: &str) -> Result<PathBuf> {
         let file_path = dir.join(name);
 
-        // 確保父目錄存在
+        // Ensure the parent directory exists
         if let Some(parent) = file_path.parent() {
             fs::create_dir_all(parent).await.map_err(|e| {
                 SubXError::FileOperationFailed(format!("Failed to create directory: {}", e))
@@ -101,7 +101,7 @@ impl TestFileManager {
         Ok(file_path)
     }
 
-    /// 建立測試配置檔案
+    /// Create test configuration file
     pub async fn create_test_config(
         &self,
         dir: &Path,
@@ -137,9 +137,9 @@ parallel_safe = true
             .await
     }
 
-    /// 設定隔離的配置環境
+    /// Set up isolated configuration environment
     async fn setup_isolated_environment(&self, path: &Path, test_name: &str) -> Result<()> {
-        // 建立測試專用配置，確保沒有狀態共享
+        // Create test-specific configuration to ensure no state sharing
         let config_content = format!(
             r#"
 [general]
@@ -169,17 +169,17 @@ timestamp = "{}"
         Ok(())
     }
 
-    /// 取得所有臨時目錄的數量
+    /// Get the count of all temporary directories
     pub fn temp_dir_count(&self) -> usize {
         self.temp_dirs.len()
     }
 
-    /// 檢查是否啟用清理
+    /// Check if cleanup is enabled
     pub fn is_cleanup_enabled(&self) -> bool {
         self.cleanup_on_drop
     }
 
-    /// 檢查是否啟用隔離
+    /// Check if isolation is enabled
     pub fn is_isolation_enabled(&self) -> bool {
         self.isolation_enabled
     }
@@ -192,7 +192,7 @@ impl Drop for TestFileManager {
                 println!("Preserving test directory: {:?}", temp_dir.path());
             }
         }
-        // TempDir 會自動清理，除非設定為保留
+        // TempDir will automatically clean up unless set to preserve
     }
 }
 
@@ -234,7 +234,7 @@ mod tests {
             .create_isolated_test_directory("test")
             .await
             .unwrap();
-        let dir_path = dir.to_path_buf(); // 複製路徑以避免借用衝突
+        let dir_path = dir.to_path_buf(); // Clone the path to avoid borrow conflicts
 
         let file_path = manager
             .create_test_file(&dir_path, "test.txt", "test content")
@@ -255,7 +255,7 @@ mod tests {
             .create_isolated_test_directory("test")
             .await
             .unwrap();
-        let dir_path = dir.to_path_buf(); // 複製路徑以避免借用衝突
+        let dir_path = dir.to_path_buf(); // Clone the path to avoid borrow conflicts
 
         let config_path = manager
             .create_test_config(&dir_path, "test_config.toml", &dir_path)

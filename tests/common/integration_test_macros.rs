@@ -1,4 +1,4 @@
-/// 用於整合測試的便利巨集
+/// Convenient macro for integration tests
 #[macro_export]
 macro_rules! test_with_mock_ai {
     ($test_name:ident, $response:expr, $test_body:expr) => {
@@ -19,7 +19,7 @@ macro_rules! test_with_mock_ai {
     };
 }
 
-/// 建立帶有錯誤回應的整合測試
+/// Create integration test with error response
 #[macro_export]
 macro_rules! test_with_mock_ai_error {
     ($test_name:ident, $status:expr, $error_msg:expr, $test_body:expr) => {

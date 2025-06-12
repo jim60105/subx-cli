@@ -1,6 +1,6 @@
 #![allow(unused_imports, dead_code)]
-//! 並行處理整合測試
-//! 測試跨模組的並行工作流程和協調
+//! Parallel processing integration tests
+//! Testing cross-module parallel workflows and coordination
 
 use subx_cli::core::parallel::{TaskScheduler, WorkerPool};
 use subx_cli::core::parallel::task::{Task, TaskResult, TaskStatus, ProcessingOperation, FileProcessingTask};
@@ -10,13 +10,13 @@ use std::sync::{Arc, atomic::{AtomicUsize, Ordering}};
 use std::time::{Duration, Instant};
 use async_trait::async_trait;
 
-/// 測試工作池與調度器整合
+/// Test worker pool and scheduler integration
 #[tokio::test]
 async fn test_worker_pool_integration() {
     let scheduler = TaskScheduler::new_with_defaults();
     let completion_counter = Arc::new(AtomicUsize::new(0));
     
-    // 建立測試任務
+    // Create test tasks
     struct IntegrationTask {
         id: String,
         counter: Arc<AtomicUsize>,
@@ -40,7 +40,7 @@ async fn test_worker_pool_integration() {
         }
     }
     
-    // 提交多個任務測試工作池整合
+    // Submit multiple tasks to test worker pool integration
     let mut results = Vec::new();
     for i in 0..5 {
         let task = IntegrationTask {
@@ -53,27 +53,27 @@ async fn test_worker_pool_integration() {
         results.push(result);
     }
     
-    // 驗證所有任務都成功完成
+    // Verify all tasks completed successfully
     for result in results {
         assert!(matches!(result, TaskResult::Success(_)));
     }
     
-    // 等待所有任務完成並驗證計數器
+    // Wait for all tasks to complete and verify counter
     tokio::time::sleep(Duration::from_millis(100)).await;
     let final_count = completion_counter.load(Ordering::SeqCst);
-    assert_eq!(final_count, 5, "所有 5 個任務都應該完成");
+    assert_eq!(final_count, 5, "All 5 tasks should have completed");
     
-    // 驗證調度器狀態
+    // Verify scheduler state
     assert_eq!(scheduler.get_queue_size(), 0);
     assert_eq!(scheduler.get_active_workers(), 0);
 }
 
-/// 測試跨組件錯誤處理
+/// Test error handling across components
 #[tokio::test]
 async fn test_error_handling_across_components() {
     let scheduler = TaskScheduler::new_with_defaults();
     
-    // 建立會失敗的任務
+    // Create a task that fails
     struct FailingTask {
         id: String,
         should_fail: bool,
@@ -98,7 +98,7 @@ async fn test_error_handling_across_components() {
         }
     }
     
-    // 混合成功和失敗任務
+    // Mix successful and failing tasks
     let success_task = FailingTask {
         id: "success".to_string(),
         should_fail: false,
@@ -109,23 +109,23 @@ async fn test_error_handling_across_components() {
         should_fail: true,
     };
     
-    // 執行任務並驗證錯誤處理
+    // Execute tasks and verify error handling
     let success_result = scheduler.submit_task(Box::new(success_task)).await.unwrap();
     let fail_result = scheduler.submit_task(Box::new(fail_task)).await.unwrap();
     
     assert!(matches!(success_result, TaskResult::Success(_)));
     assert!(matches!(fail_result, TaskResult::Failed(_)));
     
-    // 系統應該能夠處理錯誤並繼續運作
+    // The system should be able to handle errors and continue operating
     assert_eq!(scheduler.get_queue_size(), 0);
 }
 
-/// 測試資源管理整合
+/// Test resource management integration
 #[tokio::test]
 async fn test_resource_management_integration() {
     let scheduler = TaskScheduler::new_with_defaults();
     
-    // 建立消耗不同資源的任務
+    // Create tasks that consume different resources
     struct ResourceTask {
         id: String,
         task_type: String,
@@ -141,9 +141,9 @@ async fn test_resource_management_integration() {
         
         fn task_type(&self) -> &'static str {
             match self.task_type.as_str() {
-                "cpu" => "convert",      // CPU 密集型
-                "io" => "match",         // I/O 密集型
-                _ => "sync",             // 混合型
+                "cpu" => "convert",      // CPU intensive
+                "io" => "match",         // I/O intensive
+                _ => "sync",             // Mixed
             }
         }
         
@@ -152,7 +152,7 @@ async fn test_resource_management_integration() {
         }
     }
     
-    // 提交不同類型的任務
+    // Submit different types of tasks
     let task_types = vec![
         ("cpu", "cpu"),
         ("io", "io"), 
@@ -170,12 +170,12 @@ async fn test_resource_management_integration() {
         assert!(matches!(result, TaskResult::Success(_)));
     }
     
-    // 驗證資源管理
+    // Verify resource management
     tokio::time::sleep(Duration::from_millis(50)).await;
     assert_eq!(scheduler.get_queue_size(), 0);
 }
 
-/// 測試大規模並行處理
+/// Test large-scale parallel processing
 #[tokio::test]
 async fn test_large_scale_parallel_processing() {
     let scheduler = TaskScheduler::new_with_defaults();
@@ -183,7 +183,7 @@ async fn test_large_scale_parallel_processing() {
     let task_count = 20;
     let completion_counter = Arc::new(AtomicUsize::new(0));
     
-    // 建立大量任務
+    // Create a large number of tasks
     struct BulkTask {
         id: usize,
         counter: Arc<AtomicUsize>,
@@ -192,7 +192,7 @@ async fn test_large_scale_parallel_processing() {
     #[async_trait]
     impl Task for BulkTask {
         async fn execute(&self) -> TaskResult {
-            // 模擬一些處理時間
+            // Simulate some processing time
             tokio::time::sleep(Duration::from_millis(5)).await;
             self.counter.fetch_add(1, Ordering::SeqCst);
             TaskResult::Success(format!("Bulk task {} completed", self.id))
@@ -207,7 +207,7 @@ async fn test_large_scale_parallel_processing() {
         }
     }
     
-    // 提交所有任務
+    // Submit all tasks
     let mut success_count = 0;
     for i in 0..task_count {
         let task = BulkTask {
@@ -218,7 +218,7 @@ async fn test_large_scale_parallel_processing() {
         match scheduler.submit_task(Box::new(task)).await {
             Ok(TaskResult::Success(_)) => success_count += 1,
             Ok(TaskResult::Failed(_)) => {
-                // 某些任務可能因為資源限制而失敗，這是可接受的
+                // Some tasks may fail due to resource constraints, this is acceptable
             }
             _ => {}
         }
@@ -226,20 +226,20 @@ async fn test_large_scale_parallel_processing() {
     
     let processing_time = start_time.elapsed();
     
-    // 等待任務完成
+    // Wait for tasks to complete
     tokio::time::sleep(Duration::from_millis(100)).await;
     let final_count = completion_counter.load(Ordering::SeqCst);
     
-    // 驗證處理結果
-    assert!(success_count > 0, "至少應該有一些任務成功");
-    assert!(final_count <= task_count, "完成計數不應超過提交計數");
-    assert!(processing_time < Duration::from_secs(5), "處理時間應該合理");
+    // Verify processing results
+    assert!(success_count > 0, "At least some tasks should have succeeded");
+    assert!(final_count <= task_count, "Completion count should not exceed submission count");
+    assert!(processing_time < Duration::from_secs(5), "Processing time should be reasonable");
     
-    // 驗證系統狀態
+    // Verify system state
     assert_eq!(scheduler.get_queue_size(), 0);
 }
 
-/// 測試優先級處理整合
+/// Test priority processing integration
 #[tokio::test]
 async fn test_priority_processing_integration() {
     let scheduler = TaskScheduler::new_with_defaults();
@@ -268,7 +268,7 @@ async fn test_priority_processing_integration() {
         }
     }
     
-    // 提交不同優先級的任務
+    // Submit tasks with different priorities
     let priorities = vec![
         ("low", TaskPriority::Low),
         ("critical", TaskPriority::Critical),
@@ -287,25 +287,25 @@ async fn test_priority_processing_integration() {
         assert!(matches!(result, TaskResult::Success(_)));
     }
     
-    // 等待執行完成
+    // Wait for execution to complete
     tokio::time::sleep(Duration::from_millis(50)).await;
     
-    // 驗證執行順序
+    // Verify execution order
     let order = execution_order.lock().unwrap();
-    assert_eq!(order.len(), 4, "所有 4 個任務都應該執行");
+    assert_eq!(order.len(), 4, "All 4 tasks should have been executed");
     
-    // 檢查優先級順序（如果調度器支持的話）
-    // 注意：實際的執行順序可能受到並行性影響
-    println!("執行順序: {:?}", *order);
+    // Check priority order (if supported by the scheduler)
+    // Note: The actual execution order may be affected by concurrency
+    println!("Execution order: {:?}", *order);
 }
 
-/// 測試檔案處理任務整合
+/// Test file processing task integration
 #[tokio::test]
 async fn test_file_processing_integration() {
     let scheduler = TaskScheduler::new_with_defaults();
     let temp_dir = TempDir::new().unwrap();
     
-    // 建立測試檔案
+    // Create test file
     let input_file = temp_dir.path().join("test.srt");
     let srt_content = r#"1
 00:00:01,000 --> 00:00:03,000
@@ -317,7 +317,7 @@ Second subtitle line
 "#;
     tokio::fs::write(&input_file, srt_content).await.unwrap();
     
-    // 測試檔案驗證任務
+    // Test file validation task
     let validate_task = FileProcessingTask {
         input_path: input_file.clone(),
         output_path: None,
@@ -327,7 +327,7 @@ Second subtitle line
     let result = scheduler.submit_task(Box::new(validate_task)).await.unwrap();
     assert!(matches!(result, TaskResult::Success(_)));
     
-    // 測試檔案轉換任務
+    // Test file conversion task
     let output_file = temp_dir.path().join("output.ass");
     let convert_task = FileProcessingTask {
         input_path: input_file.clone(),
@@ -341,10 +341,10 @@ Second subtitle line
     let result = scheduler.submit_task(Box::new(convert_task)).await.unwrap();
     assert!(matches!(result, TaskResult::Success(_)));
     
-    // 驗證輸出檔案存在
+    // Verify output file exists
     assert!(tokio::fs::metadata(&output_file).await.is_ok());
     
-    // 測試檔案匹配任務
+    // Test file matching task
     let match_task = FileProcessingTask {
         input_path: temp_dir.path().to_path_buf(),
         output_path: None,

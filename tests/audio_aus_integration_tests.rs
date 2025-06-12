@@ -1,4 +1,4 @@
-//! aus 整合測試
+//! aus integration tests
 
 use std::path::PathBuf;
 use subx_cli::config::TestConfigBuilder;
@@ -15,7 +15,7 @@ async fn test_aus_audio_loading() {
 
     let analyzer = AusAudioAnalyzer::new(16000);
 
-    // 使用 AudioMockGenerator 建立測試音訊
+    // Use AudioMockGenerator to create test audio
     let audio_gen = AudioMockGenerator::new(44100).with_duration(5.0);
     let mut file_manager = TestFileManager::new();
     let test_dir = file_manager
@@ -42,7 +42,7 @@ async fn test_aus_envelope_extraction() {
 
     let analyzer = AusAudioAnalyzer::new(16000);
 
-    // 使用 AudioMockGenerator 建立測試音訊
+    // Use AudioMockGenerator to create test audio
     let audio_gen = AudioMockGenerator::new(44100).with_duration(3.0);
     let mut file_manager = TestFileManager::new();
     let test_dir = file_manager

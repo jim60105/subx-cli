@@ -25,7 +25,7 @@ async fn test_parallel_match_operations_with_mock() {
     // Create multiple test video and subtitle files
     create_multiple_test_files(root, 5);
 
-    // 掃描檔案以獲取實際的檔案 ID
+    // Scan files to obtain actual file IDs
     let discovery = subx_cli::core::matcher::FileDiscovery::new();
     let files = discovery.scan_directory(root, true).unwrap();
     let video_files: Vec<_> = files
@@ -42,7 +42,7 @@ async fn test_parallel_match_operations_with_mock() {
         })
         .collect();
 
-    // 創建多個匹配的動態響應
+    // Create multiple dynamic match responses
     let matches_json = json!({
         "matches": [
             {

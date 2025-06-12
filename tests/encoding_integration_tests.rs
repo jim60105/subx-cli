@@ -1,4 +1,4 @@
-//! 編碼檢測整合測試
+//! Encoding detection integration tests
 
 use std::fs;
 use subx_cli::{
@@ -22,7 +22,7 @@ Hello, World!
 
 2
 00:00:04,000 --> 00:00:06,000
-測試字幕
+Test Subtitle
 "#;
     let path = dir.path().join("test_utf8.srt");
     fs::write(&path, srt).unwrap();
@@ -56,7 +56,7 @@ fn test_end_to_end_encoding_conversion() {
 
 #[tokio::test]
 async fn test_encoding_detection_with_generated_files() {
-    // 使用新的測試工具產生測試檔案
+    // Use new test tools to generate test files
     let mut file_manager = TestFileManager::new();
     let test_dir = file_manager
         .create_isolated_test_directory("encoding_test")
@@ -64,15 +64,15 @@ async fn test_encoding_detection_with_generated_files() {
         .unwrap();
     let test_dir_path = test_dir.to_path_buf();
 
-    // 產生不同類型的測試檔案
+    // Generate different types of test files
     let generator = SubtitleGenerator::new(SubtitleFormat::Srt)
-        .add_entry(1.0, 3.0, "測試字幕 1")
+        .add_entry(1.0, 3.0, "Test subtitle 1")
         .add_entry(4.0, 6.0, "Test subtitle 2");
 
     let subtitle_path = test_dir_path.join("test.srt");
     generator.save_to_file(&subtitle_path).await.unwrap();
 
-    // 測試編碼檢測
+    // Test encoding detection
     let detector = EncodingDetector::with_defaults();
     let info = detector
         .detect_file_encoding(subtitle_path.to_str().unwrap())
@@ -84,7 +84,7 @@ async fn test_encoding_detection_with_generated_files() {
 
 #[test]
 fn test_encoding_detection_with_custom_config() {
-    // 測試自訂配置的編碼檢測
+    // Test encoding detection with custom configuration
     let config = TestConfigBuilder::new()
         .with_ai_provider("openai")
         .build_config();
@@ -94,7 +94,7 @@ fn test_encoding_detection_with_custom_config() {
     let content = "Simple test content";
     fs::write(&path, content).unwrap();
 
-    // 使用配置進行編碼檢測
+    // Use configuration for encoding detection
     let detector = EncodingDetector::with_config(&config);
     let info = detector
         .detect_file_encoding(path.to_str().unwrap())
