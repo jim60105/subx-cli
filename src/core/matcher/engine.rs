@@ -810,9 +810,10 @@ impl MatchEngine {
                 match op.relocation_mode {
                     FileRelocationMode::Copy => {
                         if op.requires_relocation {
-                            self.execute_copy_then_rename(op).await?;
+                            self.execute_copy_operation(op).await?;
                         } else {
-                            self.rename_file(op).await?;
+                            // In copy mode, create a local copy with new name
+                            self.execute_local_copy(op).await?;
                         }
                     }
                     FileRelocationMode::Move => {
@@ -962,14 +963,15 @@ impl MatchEngine {
     }
 
     /// Execute copy operation followed by rename of the copied file
-    async fn execute_copy_then_rename(&self, op: &MatchOperation) -> Result<()> {
+    /// Execute copy operation - copies original file to target location without modifying original
+    async fn execute_copy_operation(&self, op: &MatchOperation) -> Result<()> {
         if let Some(target_path) = &op.relocation_target_path {
             // Resolve filename conflicts
             let final_target = self.resolve_filename_conflict(target_path.clone())?;
             if let Some(parent) = final_target.parent() {
                 std::fs::create_dir_all(parent)?;
             }
-            // Backup if enabled
+            // Backup target file if it exists and backup is enabled
             if self.config.backup_enabled && final_target.exists() {
                 let backup_path = final_target.with_extension(format!(
                     "{}.backup",
@@ -980,24 +982,50 @@ impl MatchEngine {
                 ));
                 std::fs::copy(&final_target, backup_path)?;
             }
-            // Copy original subtitle to target
+            // Copy original subtitle to target location
+            // In copy mode, the original file remains unchanged
             std::fs::copy(&op.subtitle_file.path, &final_target)?;
-            // Rename original file if needed
-            if op.new_subtitle_name != op.subtitle_file.name {
-                let renamed_original = op.subtitle_file.path.with_file_name(&op.new_subtitle_name);
-                std::fs::rename(&op.subtitle_file.path, &renamed_original)?;
-                if renamed_original.exists() {
-                    println!(
-                        "  ✓ Renamed: {} -> {}",
-                        op.subtitle_file.name, op.new_subtitle_name
-                    );
-                }
-            }
+
             // Display copy operation result
             if final_target.exists() {
                 println!(
                     "  ✓ Copied: {} -> {}",
-                    op.subtitle_file.path.file_name().unwrap().to_string_lossy(),
+                    op.subtitle_file.name,
+                    final_target.file_name().unwrap().to_string_lossy()
+                );
+            }
+        }
+        Ok(())
+    }
+
+    /// Execute local copy operation - creates a copy with new name in the same directory
+    async fn execute_local_copy(&self, op: &MatchOperation) -> Result<()> {
+        if op.new_subtitle_name != op.subtitle_file.name {
+            let target_path = op.subtitle_file.path.with_file_name(&op.new_subtitle_name);
+
+            // Handle filename conflicts
+            let final_target = self.resolve_filename_conflict(target_path)?;
+
+            // Backup target file if it exists and backup is enabled
+            if self.config.backup_enabled && final_target.exists() {
+                let backup_path = final_target.with_extension(format!(
+                    "{}.backup",
+                    final_target
+                        .extension()
+                        .and_then(|s| s.to_str())
+                        .unwrap_or("")
+                ));
+                std::fs::copy(&final_target, backup_path)?;
+            }
+
+            // Copy original file to new name in same directory
+            std::fs::copy(&op.subtitle_file.path, &final_target)?;
+
+            // Display copy operation result
+            if final_target.exists() {
+                println!(
+                    "  ✓ Copied: {} -> {}",
+                    op.subtitle_file.name,
                     final_target.file_name().unwrap().to_string_lossy()
                 );
             }

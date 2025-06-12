@@ -72,8 +72,17 @@ async fn test_copy_mode_with_rename() {
         .build_service();
     match_command::execute(args, &config_service).await.unwrap();
 
-    let renamed_original = subtitle_dir.join("movie.srt");
-    let copied = video_dir.join("movie.srt");
-    assert!(renamed_original.exists(), "原始檔案應重新命名");
-    assert!(copied.exists(), "目標位置應有副本");
+    let original_subtitle = subtitle_dir.join("sub.srt");
+    let copied_to_video_dir = video_dir.join("movie.srt");
+
+    // 在 Copy 模式下，原始檔案應保持不變
+    assert!(original_subtitle.exists(), "原始檔案應保持不變");
+    assert!(copied_to_video_dir.exists(), "目標位置應有副本");
+
+    // 檢查副本內容是否正確
+    assert_eq!(
+        fs::read(&original_subtitle).unwrap(),
+        fs::read(&copied_to_video_dir).unwrap(),
+        "副本內容應與原始檔案一致"
+    );
 }
