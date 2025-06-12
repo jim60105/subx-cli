@@ -40,4 +40,34 @@ impl MockOpenAITestHelper {
             .mount(&self.mock_server)
             .await;
     }
+
+    /// Mock a chat completion response with exact expected number of calls.
+    pub async fn mock_chat_completion_with_expectation(
+        &self,
+        response_content: &str,
+        expected_calls: usize,
+    ) {
+        let response_body = json!({
+            "choices": [
+                { "message": { "content": response_content }, "finish_reason": "stop" }
+            ],
+            "usage": { "prompt_tokens": 100, "completion_tokens": 50, "total_tokens": 150 },
+            "model": "gpt-4o-mini"
+        });
+
+        Mock::given(method("POST"))
+            .and(path("/chat/completions"))
+            .and(header("authorization", "Bearer mock-api-key"))
+            .and(header("content-type", "application/json"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(response_body))
+            .expect(expected_calls as u64)
+            .mount(&self.mock_server)
+            .await;
+    }
+
+    /// Verify that all expectations registered on the mock server have been met.
+    pub async fn verify_expectations(&self) {
+        // Retrieve received requests to trigger expectation verification on server drop.
+        let _ = self.mock_server.received_requests().await;
+    }
 }

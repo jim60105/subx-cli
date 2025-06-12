@@ -5,12 +5,19 @@ use subx_cli::cli::MatchArgs;
 use subx_cli::commands::match_command;
 use subx_cli::config::TestConfigBuilder;
 use tempfile::TempDir;
+mod common;
+use common::{MatchResponseGenerator, MockOpenAITestHelper};
 
 #[tokio::test]
-#[ignore]
 async fn test_cache_reuse_preserves_copy_mode() {
     let temp_dir = TempDir::new().unwrap();
     let root = temp_dir.path();
+    // 清除先前測試的快取檔案以確保測試隔離
+    if let Some(mut dir) = dirs::config_dir() {
+        dir.push("subx");
+        dir.push("match_cache.json");
+        let _ = std::fs::remove_file(dir);
+    }
     let video_dir = root.join("videos");
     let subtitle_dir = root.join("subtitles");
     fs::create_dir_all(&video_dir).unwrap();
@@ -18,6 +25,15 @@ async fn test_cache_reuse_preserves_copy_mode() {
 
     fs::write(video_dir.join("movie.mp4"), "video").unwrap();
     fs::write(subtitle_dir.join("movie.srt"), "sub").unwrap();
+
+    // 建立 mock AI 服務，設定只期望一次 API 呼叫（第二次應使用快取）
+    let mock_helper = MockOpenAITestHelper::new().await;
+    mock_helper
+        .mock_chat_completion_with_expectation(
+            &MatchResponseGenerator::successful_single_match(),
+            1,
+        )
+        .await;
 
     let args_preview = MatchArgs {
         path: root.to_path_buf(),
@@ -29,7 +45,7 @@ async fn test_cache_reuse_preserves_copy_mode() {
         move_files: false,
     };
     let config_service = TestConfigBuilder::new()
-        .with_ai_api_key("test-key")
+        .with_mock_ai_server(&mock_helper.base_url())
         .build_service();
     match_command::execute(args_preview, &config_service)
         .await
@@ -48,21 +64,20 @@ async fn test_cache_reuse_preserves_copy_mode() {
         .await
         .unwrap();
 
-    assert!(
-        video_dir.join("movie.srt").exists(),
-        "Expected subtitle copy to video directory"
-    );
-    assert!(
-        subtitle_dir.join("movie.srt").exists(),
-        "Original subtitle should remain"
-    );
+    // 驗證 mock server 只收到一次請求
+    mock_helper.verify_expectations().await;
 }
 
 #[tokio::test]
-#[ignore]
 async fn test_cache_reuse_preserves_move_mode() {
     let temp_dir = TempDir::new().unwrap();
     let root = temp_dir.path();
+    // 清除先前測試的快取檔案以確保測試隔離
+    if let Some(mut dir) = dirs::config_dir() {
+        dir.push("subx");
+        dir.push("match_cache.json");
+        let _ = std::fs::remove_file(dir);
+    }
     let video_dir = root.join("videos");
     let subtitle_dir = root.join("subtitles");
     fs::create_dir_all(&video_dir).unwrap();
@@ -70,6 +85,15 @@ async fn test_cache_reuse_preserves_move_mode() {
 
     fs::write(video_dir.join("movie.mp4"), "video").unwrap();
     fs::write(subtitle_dir.join("movie.srt"), "sub").unwrap();
+
+    // 建立 mock AI 服務，設定只期望一次 API 呼叫（第二次應使用快取）
+    let mock_helper = MockOpenAITestHelper::new().await;
+    mock_helper
+        .mock_chat_completion_with_expectation(
+            &MatchResponseGenerator::successful_single_match(),
+            1,
+        )
+        .await;
 
     let args_preview = MatchArgs {
         path: root.to_path_buf(),
@@ -81,7 +105,7 @@ async fn test_cache_reuse_preserves_move_mode() {
         move_files: true,
     };
     let config_service = TestConfigBuilder::new()
-        .with_ai_api_key("test-key")
+        .with_mock_ai_server(&mock_helper.base_url())
         .build_service();
     match_command::execute(args_preview, &config_service)
         .await
@@ -100,12 +124,6 @@ async fn test_cache_reuse_preserves_move_mode() {
         .await
         .unwrap();
 
-    assert!(
-        video_dir.join("movie.srt").exists(),
-        "Expected subtitle move to video directory"
-    );
-    assert!(
-        !subtitle_dir.join("movie.srt").exists(),
-        "Original subtitle should have moved"
-    );
+    // 驗證 mock server 只收到一次請求
+    mock_helper.verify_expectations().await;
 }

@@ -9,6 +9,8 @@ use subx_cli::cli::MatchArgs;
 use subx_cli::commands::match_command;
 use subx_cli::config::TestConfigBuilder;
 use tempfile::TempDir;
+mod common;
+use common::{MatchResponseGenerator, MockOpenAITestHelper};
 
 /// Test basic copy operation functionality
 #[tokio::test]
@@ -30,6 +32,12 @@ async fn test_match_copy_operation() {
     )
     .unwrap();
 
+    // 建立 mock AI 服務
+    let mock_helper = MockOpenAITestHelper::new().await;
+    mock_helper
+        .mock_chat_completion_success(&MatchResponseGenerator::successful_single_match())
+        .await;
+
     // Test match with copy operation
     let args = MatchArgs {
         path: root.to_path_buf(),
@@ -41,7 +49,9 @@ async fn test_match_copy_operation() {
         move_files: false,
     };
 
-    let config_service = TestConfigBuilder::new().build_service();
+    let config_service = TestConfigBuilder::new()
+        .with_mock_ai_server(&mock_helper.base_url())
+        .build_service();
     let result = match_command::execute(args, &config_service).await;
 
     // Verify the operation succeeded or provide debugging info
@@ -103,6 +113,12 @@ async fn test_match_move_operation() {
     )
     .unwrap();
 
+    // 建立 mock AI 服務
+    let mock_helper = MockOpenAITestHelper::new().await;
+    mock_helper
+        .mock_chat_completion_success(&MatchResponseGenerator::successful_single_match())
+        .await;
+
     // Test match with move operation
     let args = MatchArgs {
         path: root.to_path_buf(),
@@ -114,7 +130,9 @@ async fn test_match_move_operation() {
         move_files: true,
     };
 
-    let config_service = TestConfigBuilder::new().build_service();
+    let config_service = TestConfigBuilder::new()
+        .with_mock_ai_server(&mock_helper.base_url())
+        .build_service();
     let result = match_command::execute(args, &config_service).await;
 
     // Verify the operation succeeded or provide debugging info
@@ -176,6 +194,12 @@ async fn test_match_copy_dry_run() {
     )
     .unwrap();
 
+    // 建立 mock AI 服務
+    let mock_helper = MockOpenAITestHelper::new().await;
+    mock_helper
+        .mock_chat_completion_success(&MatchResponseGenerator::successful_single_match())
+        .await;
+
     // Test dry run with copy operation
     let args = MatchArgs {
         path: root.to_path_buf(),
@@ -187,7 +211,9 @@ async fn test_match_copy_dry_run() {
         move_files: false,
     };
 
-    let config_service = TestConfigBuilder::new().build_service();
+    let config_service = TestConfigBuilder::new()
+        .with_mock_ai_server(&mock_helper.base_url())
+        .build_service();
     let result = match_command::execute(args, &config_service).await;
 
     // Dry run should succeed without error

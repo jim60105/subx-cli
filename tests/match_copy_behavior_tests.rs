@@ -5,9 +5,10 @@ use subx_cli::cli::MatchArgs;
 use subx_cli::commands::match_command;
 use subx_cli::config::TestConfigBuilder;
 use tempfile::TempDir;
+mod common;
+use common::{MatchResponseGenerator, MockOpenAITestHelper};
 
 #[tokio::test]
-#[ignore]
 async fn test_copy_mode_preserves_original_file() {
     let temp_dir = TempDir::new().unwrap();
     let root = temp_dir.path();
@@ -20,6 +21,12 @@ async fn test_copy_mode_preserves_original_file() {
     let subtitle_path = subtitle_dir.join("sub.srt");
     fs::write(&subtitle_path, b"content").unwrap();
 
+    // 建立 mock AI 服務
+    let mock_helper = MockOpenAITestHelper::new().await;
+    mock_helper
+        .mock_chat_completion_success(&MatchResponseGenerator::successful_single_match())
+        .await;
+
     let args = MatchArgs {
         path: root.to_path_buf(),
         dry_run: false,
@@ -30,7 +37,7 @@ async fn test_copy_mode_preserves_original_file() {
         move_files: false,
     };
     let config_service = TestConfigBuilder::new()
-        .with_ai_api_key("test-key")
+        .with_mock_ai_server(&mock_helper.base_url())
         .build_service();
     match_command::execute(args, &config_service).await.unwrap();
 
@@ -45,7 +52,6 @@ async fn test_copy_mode_preserves_original_file() {
 }
 
 #[tokio::test]
-#[ignore]
 async fn test_copy_mode_with_rename() {
     let temp_dir = TempDir::new().unwrap();
     let root = temp_dir.path();
@@ -58,6 +64,12 @@ async fn test_copy_mode_with_rename() {
     let subtitle_path = subtitle_dir.join("sub.srt");
     fs::write(&subtitle_path, b"content").unwrap();
 
+    // 建立 mock AI 服務
+    let mock_helper = MockOpenAITestHelper::new().await;
+    mock_helper
+        .mock_chat_completion_success(&MatchResponseGenerator::successful_single_match())
+        .await;
+
     let args = MatchArgs {
         path: root.to_path_buf(),
         dry_run: false,
@@ -68,7 +80,7 @@ async fn test_copy_mode_with_rename() {
         move_files: false,
     };
     let config_service = TestConfigBuilder::new()
-        .with_ai_api_key("test-key")
+        .with_mock_ai_server(&mock_helper.base_url())
         .build_service();
     match_command::execute(args, &config_service).await.unwrap();
 

@@ -5,7 +5,7 @@ use subx_cli::core::parallel::{
 use tempfile::TempDir;
 
 mod common;
-use common::{SubtitleFormat, SubtitleGenerator};
+use common::{MatchResponseGenerator, MockOpenAITestHelper, SubtitleFormat, SubtitleGenerator};
 
 #[tokio::test]
 async fn test_batch_file_processing() {
@@ -60,11 +60,21 @@ async fn test_parallel_command_integration() {
     tokio::fs::write(&video, b"dummy").await.unwrap();
     tokio::fs::write(&subtitle, b"dummy").await.unwrap();
 
+    // 建立 mock AI 服務
+    let mock_helper = MockOpenAITestHelper::new().await;
+    mock_helper
+        .mock_chat_completion_success(&MatchResponseGenerator::multiple_matches())
+        .await;
+
+    let config_service = TestConfigBuilder::new()
+        .with_mock_ai_server(&mock_helper.base_url())
+        .build_service();
+
     let result = subx_cli::commands::match_command::execute_parallel_match(
         temp.path(),
         true,
         None,
-        &subx_cli::config::TestConfigService::with_defaults(),
+        &config_service,
     )
     .await;
     assert!(result.is_ok());
