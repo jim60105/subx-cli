@@ -7,18 +7,15 @@
 
 English | [中文](./README.zh-TW.md)
 
-An subtitle processing CLI tool that powered by AI technology to automatically match, rename, and process subtitle files.
+AI subtitle processing CLI tool, which automatically matches, renames, and converts subtitle files.
 
 </div>
-
-> [!NOTE]  
-> This project is currently in early development. Basic functionality has been implemented, but there may still be room for improvement. If you find any issues please feel free to submit an Issue.
 
 ## Features
 
 - 🤖 **AI Smart Matching** - Uses AI technology to automatically identify video-subtitle correspondence and rename files
-- � **File Organization** - Automatically copy or move matched subtitle files to video folders for seamless playback
-- �🔄 **Format Conversion** - Supports conversion between mainstream subtitle formats like SRT, ASS, VTT, SUB
+- 📁 **File Organization** - Automatically copy or move matched subtitle files to video folders for seamless playback
+- 🔄 **Format Conversion** - Supports conversion between mainstream subtitle formats like SRT, ASS, VTT, SUB
 - ⏰ **Timeline Correction** - Automatically detects and corrects subtitle timing offset issues
 - 🏃 **Batch Processing** - Process entire folders of media files at once
 - 🔍 **Dry-run Mode** - Preview operation results for safety and reliability
