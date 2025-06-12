@@ -66,10 +66,10 @@ pub struct CacheData {
     pub ai_model_used: String,
     /// Hash of configuration used for matching
     pub config_hash: String,
-    /// 記錄產生 cache 時的重定位模式
+    /// Records the relocation mode when the cache was generated
     #[serde(default)]
     pub original_relocation_mode: String,
-    /// 記錄是否啟用了 backup
+    /// Records whether backup was enabled when the cache was generated
     #[serde(default)]
     pub original_backup_enabled: bool,
 }

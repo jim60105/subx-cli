@@ -274,7 +274,7 @@ mod language_name_tests {
                 conflict_resolution: ConflictResolution::Skip,
             },
         );
-        // 檔案名稱包含多個點且無副檔名情況
+        // File name contains multiple dots and no extension case
         let video = MediaFile {
             id: "".to_string(),
             relative_path: "".to_string(),
@@ -305,7 +305,7 @@ mod language_name_tests {
         let temp_dir = TempDir::new().unwrap();
         let temp_path = temp_dir.path();
 
-        // 建立測試檔案
+        // Create a test file
         let original_file = temp_path.join("original.srt");
         fs::write(
             &original_file,
@@ -313,7 +313,7 @@ mod language_name_tests {
         )
         .unwrap();
 
-        // 建立測試用的 MatchEngine
+        // Create a test MatchEngine
         let engine = MatchEngine::new(
             Box::new(DummyAI),
             MatchConfig {
@@ -326,7 +326,7 @@ mod language_name_tests {
             },
         );
 
-        // 建立 MatchOperation
+        // Create a MatchOperation
         let subtitle_file = MediaFile {
             id: "test_id".to_string(),
             relative_path: "original.srt".to_string(),
@@ -356,18 +356,21 @@ mod language_name_tests {
             relocation_mode: FileRelocationMode::None,
         };
 
-        // 執行重新命名操作
+        // Execute the rename operation
         let result = engine.rename_file(&match_op).await;
 
-        // 驗證操作成功
+        // Verify the operation was successful
         assert!(result.is_ok());
 
-        // 驗證檔案已重新命名
+        // Verify the file has been renamed
         let renamed_file = temp_path.join("renamed.srt");
-        assert!(renamed_file.exists(), "重新命名的檔案應該存在");
-        assert!(!original_file.exists(), "原始檔案應該已被重新命名");
+        assert!(renamed_file.exists(), "The renamed file should exist");
+        assert!(
+            !original_file.exists(),
+            "The original file should have been renamed"
+        );
 
-        // 驗證檔案內容正確
+        // Verify the file content is correct
         let content = fs::read_to_string(&renamed_file).unwrap();
         assert!(content.contains("Test subtitle"));
     }
@@ -380,7 +383,7 @@ mod language_name_tests {
         let temp_dir = TempDir::new().unwrap();
         let temp_path = temp_dir.path();
 
-        // 建立測試檔案
+        // Create test file
         let original_file = temp_path.join("original.srt");
         fs::write(
             &original_file,
@@ -388,7 +391,7 @@ mod language_name_tests {
         )
         .unwrap();
 
-        // 建立測試用的 MatchEngine
+        // Create a test MatchEngine
         let engine = MatchEngine::new(
             Box::new(DummyAI),
             MatchConfig {
@@ -401,7 +404,7 @@ mod language_name_tests {
             },
         );
 
-        // 建立 MatchOperation
+        // Create a MatchOperation
         let subtitle_file = MediaFile {
             id: "test_id".to_string(),
             relative_path: "original.srt".to_string(),
@@ -431,54 +434,54 @@ mod language_name_tests {
             relocation_mode: FileRelocationMode::None,
         };
 
-        // 模擬檔案系統操作後檔案不存在的情況
-        // 首先正常執行重新命名操作
+        // Simulate file not existing after operation
+        // First, execute the rename operation normally
         let result = engine.rename_file(&match_op).await;
         assert!(result.is_ok());
 
-        // 手動刪除重新命名後的檔案來模擬失敗情況
+        // Manually delete the renamed file to simulate failure
         let renamed_file = temp_path.join("renamed.srt");
         if renamed_file.exists() {
             fs::remove_file(&renamed_file).unwrap();
         }
 
-        // 重新建立原始檔案進行第二次測試
+        // Recreate the original file for the second test
         fs::write(
             &original_file,
             "1\n00:00:01,000 --> 00:00:02,000\nTest subtitle",
         )
         .unwrap();
 
-        // 創建一個會失敗的重新命名操作，通過覆寫 rename 實作
-        // 由於無法直接模擬 std::fs::rename 失敗後檔案不存在的情況，
-        // 我們測試檔案操作完成後手動移除檔案的情況
+        // Create a rename operation that will fail, by overwriting the rename implementation
+        // Since we cannot directly simulate std::fs::rename failure with file not existing,
+        // we test the scenario where the file is manually removed after the operation completes
         let result = engine.rename_file(&match_op).await;
         assert!(result.is_ok());
 
-        // 再次手動刪除檔案
+        // Manually delete the file again
         let renamed_file = temp_path.join("renamed.srt");
         if renamed_file.exists() {
             fs::remove_file(&renamed_file).unwrap();
         }
 
-        // 此測試主要驗證程式碼結構正確，實際的錯誤訊息顯示需要通過集成測試驗證
-        // 因為我們無法輕易模擬檔案系統操作成功但檔案不存在的異常情況
+        // This test mainly verifies the code structure is correct, the actual error message display needs to be validated through integration tests
+        // Because we cannot easily simulate the scenario where the file system operation succeeds but the file does not exist
     }
 
     #[test]
     fn test_file_operation_message_format() {
-        // 測試錯誤訊息格式是否正確
+        // Test error message format
         let source_name = "test.srt";
         let target_name = "renamed.srt";
 
-        // 模擬成功訊息格式
+        // Simulate success message format
         let success_msg = format!("  ✓ Renamed: {} -> {}", source_name, target_name);
         assert!(success_msg.contains("✓"));
         assert!(success_msg.contains("Renamed:"));
         assert!(success_msg.contains(source_name));
         assert!(success_msg.contains(target_name));
 
-        // 模擬失敗訊息格式
+        // Simulate failure message format
         let error_msg = format!(
             "  ✗ Rename failed: {} -> {} (target file does not exist after operation)",
             source_name, target_name
@@ -492,16 +495,16 @@ mod language_name_tests {
 
     #[test]
     fn test_copy_operation_message_format() {
-        // 測試複製操作的訊息格式
+        // Test copy operation message format
         let source_name = "subtitle.srt";
         let target_name = "video.srt";
 
-        // 模擬成功訊息格式
+        // Simulate success message format
         let success_msg = format!("  ✓ Copied: {} -> {}", source_name, target_name);
         assert!(success_msg.contains("✓"));
         assert!(success_msg.contains("Copied:"));
 
-        // 模擬失敗訊息格式
+        // Simulate failure message format
         let error_msg = format!(
             "  ✗ Copy failed: {} -> {} (target file does not exist after operation)",
             source_name, target_name
@@ -513,16 +516,16 @@ mod language_name_tests {
 
     #[test]
     fn test_move_operation_message_format() {
-        // 測試移動操作的訊息格式
+        // Test move operation message format
         let source_name = "subtitle.srt";
         let target_name = "video.srt";
 
-        // 模擬成功訊息格式
+        // Simulate success message format
         let success_msg = format!("  ✓ Moved: {} -> {}", source_name, target_name);
         assert!(success_msg.contains("✓"));
         assert!(success_msg.contains("Moved:"));
 
-        // 模擬失敗訊息格式
+        // Simulate failure message format
         let error_msg = format!(
             "  ✗ Move failed: {} -> {} (target file does not exist after operation)",
             source_name, target_name
@@ -762,7 +765,7 @@ impl MatchEngine {
     fn generate_subtitle_name(&self, video: &MediaFile, subtitle: &MediaFile) -> String {
         let detector = LanguageDetector::new();
 
-        // 從影片檔案名稱中移除副檔名（如果有）
+        // Remove the extension from the video file name (if any)
         let video_base_name = if !video.extension.is_empty() {
             video
                 .name

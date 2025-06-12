@@ -124,12 +124,16 @@ pub enum ProcessingOperation {
     ValidateFormat,
     /// Copy subtitle file to video folder
     CopyToVideoFolder {
+        /// Path to the source subtitle file to be copied
         source: std::path::PathBuf,
+        /// Path to the target video folder where the subtitle will be copied
         target: std::path::PathBuf,
     },
     /// Move subtitle file to video folder
     MoveToVideoFolder {
+        /// Path to the source subtitle file to be moved
         source: std::path::PathBuf,
+        /// Path to the target video folder where the subtitle will be moved
         target: std::path::PathBuf,
     },
 }
