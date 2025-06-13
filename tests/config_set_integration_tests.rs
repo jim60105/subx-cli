@@ -1,6 +1,6 @@
 //! Integration tests for config set operations.
 
-use subx_cli::config::{Config, ConfigService, TestConfigBuilder, validator};
+use subx_cli::config::{ConfigService, TestConfigBuilder, validator};
 use subx_cli::test_with_config;
 
 #[test]

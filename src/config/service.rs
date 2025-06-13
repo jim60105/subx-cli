@@ -744,7 +744,7 @@ mod tests {
     #[test]
     fn test_config_service_direct_access() {
         // Test direct configuration access and mutation
-        let mut test_service = TestConfigService::with_defaults();
+        let test_service = TestConfigService::with_defaults();
 
         // Test direct read access
         assert_eq!(test_service.config().ai.provider, "openai");
