@@ -227,7 +227,7 @@ api_key = "your-api-key-here"
 # AI response randomness control (0.0-2.0)
 temperature = 0.3
 # Maximum content length sent to AI
-max_sample_length = 2000
+max_sample_length = 3000
 # Number of retry attempts for API request failures
 retry_attempts = 3
 # Retry interval (milliseconds)
@@ -237,27 +237,27 @@ retry_delay_ms = 1000
 # Default output format
 default_output = "srt"
 # Whether to preserve styling during conversion
-preserve_styling = true
+preserve_styling = false
 # Default text encoding
 default_encoding = "utf-8"
 # Encoding detection confidence threshold (0.0-1.0)
-encoding_detection_confidence = 0.7
+encoding_detection_confidence = 0.8
 
 [sync]
 # Maximum offset range for audio sync (seconds)
-max_offset_seconds = 30.0
+max_offset_seconds = 10.0
 # Audio correlation analysis threshold (0.0-1.0)
-correlation_threshold = 0.7
+correlation_threshold = 0.8
 # Audio energy threshold for dialogue detection
-dialogue_detection_threshold = 0.01
+dialogue_detection_threshold = 0.6
 # Minimum dialogue segment duration (milliseconds)
 min_dialogue_duration_ms = 500
 # Dialogue segment merge gap (milliseconds)
-dialogue_merge_gap_ms = 500
+dialogue_merge_gap_ms = 200
 # Whether to enable dialogue detection feature
 enable_dialogue_detection = true
 # Audio processing sample rate (Hz)
-audio_sample_rate = 16000
+audio_sample_rate = 44100
 # Whether to auto-detect audio sample rate
 auto_detect_sample_rate = true
 
@@ -267,21 +267,27 @@ backup_enabled = false
 # Maximum number of concurrent jobs
 max_concurrent_jobs = 4
 # Task execution timeout (seconds)
-task_timeout_seconds = 3600
+task_timeout_seconds = 300
 # Whether to display progress bar
 enable_progress_bar = true
 # Worker thread idle timeout (seconds)
-worker_idle_timeout_seconds = 300
+worker_idle_timeout_seconds = 60
 
 [parallel]
+# Maximum number of worker threads
+max_workers = 8  # Default: num_cpus::get()
 # Task queue size limit
-task_queue_size = 100
+task_queue_size = 1000
 # Whether to enable task priority scheduling
-enable_task_priorities = true
+enable_task_priorities = false
 # Whether to enable automatic load balancing
 auto_balance_workers = true
-# Queue overflow strategy ("block" | "drop_oldest" | "reject")
-queue_overflow_strategy = "block"
+# Queue overflow strategy ("Block" | "Drop" | "Expand")
+overflow_strategy = "Block"
+# Chunk size for parallel processing (not implemented)
+chunk_size = 1000
+# Whether to enable work stealing (not implemented)
+enable_work_stealing = true
 ```
 
 ## Command Reference
