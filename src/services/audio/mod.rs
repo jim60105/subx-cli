@@ -141,6 +141,9 @@ pub use analyzer::{AudioFeatures, AusAudioAnalyzer, FrameFeatures};
 pub mod dialogue_detector;
 pub use dialogue_detector::AusDialogueDetector;
 
+pub mod transcoder;
+pub use transcoder::AudioTranscoder;
+
 /// Audio energy envelope for waveform analysis.
 ///
 /// Represents the amplitude envelope of an audio signal over time,
