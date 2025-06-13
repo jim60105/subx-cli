@@ -85,8 +85,10 @@ md5 = "0.7"
 # Configuration management dependencies: path resolution and multi-core detection
 # Audio processing
 symphonia = { version = "0.5", features = ["all-codecs", "all-formats"] }
-# Audio processing system migration to aus crate
+ # Audio processing system migration to aus crate
 aus = "0.1.8"
+tempfile = "3.10"
+hound = "3.5"
 
 # Configuration management dependencies: path resolution and multi-core detection
 dirs = "6.0"

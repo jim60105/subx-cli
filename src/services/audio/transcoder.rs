@@ -1,14 +1,22 @@
 //! 音訊轉碼服務：基於 Symphonia 的多格式轉 WAV 機制。
 
 use crate::{Result, error::SubXError};
-use std::fs;
+use hound::{SampleFormat, WavSpec, WavWriter};
+use std::fs::File;
 use std::path::{Path, PathBuf};
+use symphonia::core::{
+    audio::{Layout, SampleBuffer},
+    codecs::CODEC_TYPE_NULL,
+    errors::Error as SymphoniaError,
+    io::MediaSourceStream,
+};
 use symphonia::core::{codecs::CodecRegistry, probe::Probe};
 use symphonia::default::{get_codecs, get_probe};
-
+use tempfile::TempDir;
 /// 音訊轉碼器：檢測檔案格式並將非 WAV 檔案轉為 WAV。
 pub struct AudioTranscoder {
-    temp_dir: PathBuf,
+    /// 臨時目錄，用於存放轉碼結果
+    temp_dir: TempDir,
     probe: &'static Probe,
     codecs: &'static CodecRegistry,
 }
@@ -16,8 +24,7 @@ pub struct AudioTranscoder {
 impl AudioTranscoder {
     /// 建立新的 AudioTranscoder 實例，並初始化暫存資料夾。
     pub fn new() -> Result<Self> {
-        let temp_dir = std::env::temp_dir().join("subx_audio_transcode");
-        fs::create_dir_all(&temp_dir).map_err(|e| {
+        let temp_dir = TempDir::new().map_err(|e| {
             SubXError::audio_processing(format!("Failed to create temp dir: {}", e))
         })?;
         let probe = get_probe();
@@ -41,20 +48,98 @@ impl AudioTranscoder {
         }
     }
 
-    /// 將輸入音訊檔案轉碼為 WAV。尚未實作，僅回傳未實作錯誤。
-    pub async fn transcode_to_wav<P: AsRef<Path>>(&self, _input_path: P) -> Result<PathBuf> {
-        Err(SubXError::audio_processing(
-            "transcode_to_wav not implemented".to_string(),
-        ))
+    /// 將輸入音訊檔案轉碼為 WAV，並儲存於臨時目錄中。
+    pub async fn transcode_to_wav<P: AsRef<Path>>(&self, input_path: P) -> Result<PathBuf> {
+        let input = input_path.as_ref();
+        // 開啟原始音訊檔案
+        let file = File::open(input).map_err(|e| {
+            SubXError::audio_processing(format!(
+                "Failed to open input file {}: {}",
+                input.display(),
+                e
+            ))
+        })?;
+        let mss = MediaSourceStream::new(Box::new(file), Default::default());
+        // 偵測格式並建立 FormatReader
+        let probed = self
+            .probe
+            .format(
+                &Default::default(),
+                mss,
+                &Default::default(),
+                &Default::default(),
+            )
+            .map_err(|e| SubXError::audio_processing(format!("Format probe error: {}", e)))?;
+        let mut format = probed.format;
+        // 選擇第一個有效音軌
+        let track = format
+            .tracks()
+            .iter()
+            .find(|t| t.codec_params.codec != CODEC_TYPE_NULL)
+            .ok_or_else(|| SubXError::audio_processing("No audio track found".to_string()))?;
+        // 建立解碼器
+        let mut decoder = self
+            .codecs
+            .make(&track.codec_params, &Default::default())
+            .map_err(|e| SubXError::audio_processing(format!("Decoder error: {}", e)))?;
+        // 設定 WAV 寫入規格
+        let sample_rate = track.codec_params.sample_rate.unwrap_or(44100);
+        // 根據 channel_layout 決定聲道數量，若未知則預設為立體聲
+        let layout = track.codec_params.channel_layout.unwrap_or(Layout::Stereo);
+        let channels = layout.into_channels().count() as u16;
+        let spec = WavSpec {
+            channels,
+            sample_rate,
+            bits_per_sample: 16,
+            sample_format: SampleFormat::Int,
+        };
+        let wav_path = self
+            .temp_dir
+            .path()
+            .join(input.file_stem().unwrap_or_default())
+            .with_extension("wav");
+        let mut writer = WavWriter::create(&wav_path, spec)
+            .map_err(|e| SubXError::audio_processing(format!("WAV writer error: {}", e)))?;
+        // 解碼並寫入 WAV
+        loop {
+            match format.next_packet() {
+                Ok(packet) => {
+                    let audio_buf = decoder
+                        .decode(&packet)
+                        .map_err(|e| SubXError::audio_processing(format!("Decode error: {}", e)))?;
+                    let mut sample_buf =
+                        SampleBuffer::<i16>::new(audio_buf.capacity() as u64, *audio_buf.spec());
+                    sample_buf.copy_interleaved_ref(audio_buf);
+                    for sample in sample_buf.samples() {
+                        writer.write_sample(*sample).map_err(|e| {
+                            SubXError::audio_processing(format!("Write sample error: {}", e))
+                        })?;
+                    }
+                }
+                Err(SymphoniaError::IoError(err))
+                    if err.kind() == std::io::ErrorKind::UnexpectedEof =>
+                {
+                    break;
+                }
+                Err(e) => {
+                    return Err(SubXError::audio_processing(format!(
+                        "Packet read error: {}",
+                        e
+                    )));
+                }
+            }
+        }
+        writer
+            .finalize()
+            .map_err(|e| SubXError::audio_processing(format!("Finalize WAV error: {}", e)))?;
+        Ok(wav_path)
     }
 
-    /// 清理暫存目錄及其內容。
-    pub fn cleanup(&self) -> Result<()> {
-        if self.temp_dir.exists() {
-            fs::remove_dir_all(&self.temp_dir).map_err(|e| {
-                SubXError::audio_processing(format!("Failed to clean temp dir: {}", e))
-            })?;
-        }
+    /// 主動清理臨時目錄
+    pub fn cleanup(self) -> Result<()> {
+        self.temp_dir
+            .close()
+            .map_err(|e| SubXError::audio_processing(format!("Failed to clean temp dir: {}", e)))?;
         Ok(())
     }
 }
