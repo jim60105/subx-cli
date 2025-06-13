@@ -7,6 +7,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.6.0] - 2025-06-13
+### Added
+- Added: Configuration set command with `config set` functionality and comprehensive validation system.
+- Added: Default encoding configuration integration in EncodingDetector with configurable fallback behavior.
+- Added: TestConfigService support for isolated testing environments.
+- Added: Comprehensive unit and integration tests for configuration set command (Backlog #30).
+- Added: Configuration value validation module with type checking and range validation.
+
+### Changed
+- Changed: Improved documentation readability for configuration guide with better structure and Traditional Chinese translation.
+- Changed: Aligned configuration examples between English and Traditional Chinese README files.
+- Changed: Renamed check_docs.sh to quality_check.sh to better reflect comprehensive quality assurance functionality.
+- Changed: Enhanced CI workflow by consolidating test steps and accelerating coverage uploads.
+
+### Fixed
+- Fixed: AI model name now properly retrieved from configuration service instead of hardcoded values.
+- Fixed: Removed unused imports and unnecessary mut variables to eliminate compiler warnings.
+- Fixed: Missing rustdoc documentation and replaced Chinese comments with English equivalents.
+
+### Removed
+- Removed: Unused configuration items (temp_dir, log_level, cache_dir, chunk_size, enable_work_stealing) from configuration system.
+- Removed: Placeholder performance tests that were not implemented.
+
 ## [0.5.0] - 2025-06-12
 ### Added
 - Added: Wiremock integration testing framework for comprehensive mock testing without external API dependencies.
@@ -136,7 +159,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Initial release of SubX CLI tool
 - Rust-based intelligent subtitle processing
 
-[Unreleased]: https://github.com/SubX-Project/SubX/compare/v0.5.0...HEAD
+[Unreleased]: https://github.com/SubX-Project/SubX/compare/v0.6.0...HEAD
+[0.6.0]: https://github.com/SubX-Project/SubX/compare/v0.5.0...v0.6.0
 [0.5.0]: https://github.com/SubX-Project/SubX/compare/v0.4.1...v0.5.0
 [0.4.1]: https://github.com/SubX-Project/SubX/compare/v0.4.0...v0.4.1
 [0.4.0]: https://github.com/SubX-Project/SubX/compare/v0.3.0...v0.4.0
