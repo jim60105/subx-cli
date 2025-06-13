@@ -8,6 +8,7 @@ use crate::config::service::ConfigService;
 use crate::error::SubXError;
 use crate::{Result, config::Config};
 use std::path::{Path, PathBuf};
+use std::sync::Mutex;
 
 /// Test configuration service implementation.
 ///
@@ -15,7 +16,7 @@ use std::path::{Path, PathBuf};
 /// ensuring complete isolation between tests and predictable behavior.
 /// It does not load from external sources or cache.
 pub struct TestConfigService {
-    fixed_config: Config,
+    config: Mutex<Config>,
 }
 
 impl TestConfigService {
@@ -26,7 +27,7 @@ impl TestConfigService {
     /// * `config` - The fixed configuration to use
     pub fn new(config: Config) -> Self {
         Self {
-            fixed_config: config,
+            config: Mutex::new(config),
         }
     }
 
@@ -94,21 +95,21 @@ impl TestConfigService {
     /// Get the underlying configuration.
     ///
     /// This is useful for tests that need direct access to the configuration object.
-    pub fn config(&self) -> &Config {
-        &self.fixed_config
+    pub fn config(&self) -> std::sync::MutexGuard<Config> {
+        self.config.lock().unwrap()
     }
 
     /// Get a mutable reference to the underlying configuration.
     ///
     /// This allows tests to modify the configuration after creation.
-    pub fn config_mut(&mut self) -> &mut Config {
-        &mut self.fixed_config
+    pub fn config_mut(&self) -> std::sync::MutexGuard<Config> {
+        self.config.lock().unwrap()
     }
 }
 
 impl ConfigService for TestConfigService {
     fn get_config(&self) -> Result<Config> {
-        Ok(self.fixed_config.clone())
+        Ok(self.config.lock().unwrap().clone())
     }
 
     fn reload(&self) -> Result<()> {
@@ -132,9 +133,9 @@ impl ConfigService for TestConfigService {
     }
 
     fn get_config_value(&self, key: &str) -> Result<String> {
-        // Delegate to fixed configuration
+        // Delegate to current configuration
         // Note: unwrap_or_default to handle Option fields
-        let config = &self.fixed_config;
+        let config = self.config.lock().unwrap();
         let parts: Vec<&str> = key.split('.').collect();
         match parts.as_slice() {
             ["ai", "provider"] => Ok(config.ai.provider.clone()),
@@ -159,8 +160,168 @@ impl ConfigService for TestConfigService {
     }
 
     fn reset_to_defaults(&self) -> Result<()> {
-        // Reset the fixed configuration to default values
-        // Note: This requires interior mutability if used concurrently
+        // Reset the configuration to default values
+        *self.config.lock().unwrap() = Config::default();
+        Ok(())
+    }
+
+    fn set_config_value(&self, key: &str, value: &str) -> Result<()> {
+        // Load current configuration
+        let mut cfg = self.get_config()?;
+        // Validate and set the value using the same logic as ProductionConfigService
+        self.validate_and_set_value(&mut cfg, key, value)?;
+        // Validate the entire configuration
+        crate::config::validator::validate_config(&cfg)?;
+        // Update the internal configuration
+        *self.config.lock().unwrap() = cfg;
+        Ok(())
+    }
+}
+
+impl TestConfigService {
+    /// Validate and set a configuration value (same logic as ProductionConfigService).
+    fn validate_and_set_value(&self, config: &mut Config, key: &str, value: &str) -> Result<()> {
+        use crate::config::OverflowStrategy;
+        use crate::config::validation::*;
+        use crate::error::SubXError;
+
+        let parts: Vec<&str> = key.split('.').collect();
+        match parts.as_slice() {
+            ["ai", "provider"] => {
+                validate_enum(value, &["openai", "anthropic", "local"])?;
+                config.ai.provider = value.to_string();
+            }
+            ["ai", "api_key"] => {
+                if !value.is_empty() {
+                    validate_api_key(value)?;
+                    config.ai.api_key = Some(value.to_string());
+                } else {
+                    config.ai.api_key = None;
+                }
+            }
+            ["ai", "model"] => {
+                config.ai.model = value.to_string();
+            }
+            ["ai", "base_url"] => {
+                validate_url(value)?;
+                config.ai.base_url = value.to_string();
+            }
+            ["ai", "max_sample_length"] => {
+                let v = validate_usize_range(value, 100, 10000)?;
+                config.ai.max_sample_length = v;
+            }
+            ["ai", "temperature"] => {
+                let v = validate_float_range(value, 0.0, 1.0)?;
+                config.ai.temperature = v;
+            }
+            ["ai", "retry_attempts"] => {
+                let v = validate_uint_range(value, 1, 10)?;
+                config.ai.retry_attempts = v;
+            }
+            ["ai", "retry_delay_ms"] => {
+                let v = validate_u64_range(value, 100, 30000)?;
+                config.ai.retry_delay_ms = v;
+            }
+            ["formats", "default_output"] => {
+                validate_enum(value, &["srt", "ass", "vtt", "webvtt"])?;
+                config.formats.default_output = value.to_string();
+            }
+            ["formats", "preserve_styling"] => {
+                let v = parse_bool(value)?;
+                config.formats.preserve_styling = v;
+            }
+            ["formats", "default_encoding"] => {
+                validate_enum(value, &["utf-8", "gbk", "big5", "shift_jis"])?;
+                config.formats.default_encoding = value.to_string();
+            }
+            ["formats", "encoding_detection_confidence"] => {
+                let v = validate_float_range(value, 0.0, 1.0)?;
+                config.formats.encoding_detection_confidence = v;
+            }
+            ["sync", "max_offset_seconds"] => {
+                let v = validate_float_range(value, 0.0, 300.0)?;
+                config.sync.max_offset_seconds = v;
+            }
+            ["sync", "correlation_threshold"] => {
+                let v = validate_float_range(value, 0.0, 1.0)?;
+                config.sync.correlation_threshold = v;
+            }
+            ["sync", "dialogue_detection_threshold"] => {
+                let v = validate_float_range(value, 0.0, 1.0)?;
+                config.sync.dialogue_detection_threshold = v;
+            }
+            ["sync", "min_dialogue_duration_ms"] => {
+                let v = validate_uint_range(value, 100, 5000)?;
+                config.sync.min_dialogue_duration_ms = v;
+            }
+            ["sync", "dialogue_merge_gap_ms"] => {
+                let v = validate_uint_range(value, 50, 2000)?;
+                config.sync.dialogue_merge_gap_ms = v;
+            }
+            ["sync", "enable_dialogue_detection"] => {
+                let v = parse_bool(value)?;
+                config.sync.enable_dialogue_detection = v;
+            }
+            ["sync", "audio_sample_rate"] => {
+                let v = validate_uint_range(value, 8000, 192000)?;
+                config.sync.audio_sample_rate = v;
+            }
+            ["sync", "auto_detect_sample_rate"] => {
+                let v = parse_bool(value)?;
+                config.sync.auto_detect_sample_rate = v;
+            }
+            ["general", "backup_enabled"] => {
+                let v = parse_bool(value)?;
+                config.general.backup_enabled = v;
+            }
+            ["general", "max_concurrent_jobs"] => {
+                let v = validate_usize_range(value, 1, 64)?;
+                config.general.max_concurrent_jobs = v;
+            }
+            ["general", "task_timeout_seconds"] => {
+                let v = validate_u64_range(value, 30, 3600)?;
+                config.general.task_timeout_seconds = v;
+            }
+            ["general", "enable_progress_bar"] => {
+                let v = parse_bool(value)?;
+                config.general.enable_progress_bar = v;
+            }
+            ["general", "worker_idle_timeout_seconds"] => {
+                let v = validate_u64_range(value, 10, 3600)?;
+                config.general.worker_idle_timeout_seconds = v;
+            }
+            ["parallel", "max_workers"] => {
+                let v = validate_usize_range(value, 1, 64)?;
+                config.parallel.max_workers = v;
+            }
+            ["parallel", "task_queue_size"] => {
+                let v = validate_usize_range(value, 100, 10000)?;
+                config.parallel.task_queue_size = v;
+            }
+            ["parallel", "enable_task_priorities"] => {
+                let v = parse_bool(value)?;
+                config.parallel.enable_task_priorities = v;
+            }
+            ["parallel", "auto_balance_workers"] => {
+                let v = parse_bool(value)?;
+                config.parallel.auto_balance_workers = v;
+            }
+            ["parallel", "overflow_strategy"] => {
+                validate_enum(value, &["Block", "Drop", "Expand"])?;
+                config.parallel.overflow_strategy = match value {
+                    "Block" => OverflowStrategy::Block,
+                    "Drop" => OverflowStrategy::Drop,
+                    "Expand" => OverflowStrategy::Expand,
+                    _ => unreachable!(),
+                };
+            }
+            _ => {
+                return Err(SubXError::config(format!(
+                    "Unknown configuration key: {}",
+                    key
+                )));
+            }
+        }
         Ok(())
     }
 }

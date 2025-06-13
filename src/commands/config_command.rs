@@ -245,11 +245,16 @@ use crate::error::{SubXError, SubXResult};
 /// ```
 pub async fn execute(args: ConfigArgs, config_service: &dyn ConfigService) -> SubXResult<()> {
     match args.action {
-        ConfigAction::Set { .. } => {
-            // TODO: Implement setting configuration values with ConfigService
-            return Err(SubXError::config(
-                "Setting configuration values not yet supported with ConfigService. Use config files or environment variables instead.",
-            ));
+        ConfigAction::Set { key, value } => {
+            config_service.set_config_value(&key, &value)?;
+            println!("✓ Configuration '{}' set to '{}'", key, value);
+            // Display the updated value to confirm
+            if let Ok(current) = config_service.get_config_value(&key) {
+                println!("  Current value: {}", current);
+            }
+            if let Ok(path) = config_service.get_config_file_path() {
+                println!("  Saved to: {}", path.display());
+            }
         }
         ConfigAction::Get { key } => {
             let value = config_service.get_config_value(&key)?;
@@ -295,10 +300,16 @@ pub async fn execute_with_config(
     config_service: std::sync::Arc<dyn ConfigService>,
 ) -> SubXResult<()> {
     match args.action {
-        ConfigAction::Set { .. } => {
-            return Err(SubXError::config(
-                "Setting configuration values not yet supported with ConfigService. Use config files or environment variables instead.".to_string(),
-            ));
+        ConfigAction::Set { key, value } => {
+            config_service.set_config_value(&key, &value)?;
+            println!("✓ Configuration '{}' set to '{}'", key, value);
+            // Display the updated value to confirm
+            if let Ok(current) = config_service.get_config_value(&key) {
+                println!("  Current value: {}", current);
+            }
+            if let Ok(path) = config_service.get_config_file_path() {
+                println!("  Saved to: {}", path.display());
+            }
         }
         ConfigAction::Get { key } => {
             let value = config_service.get_config_value(&key)?;
