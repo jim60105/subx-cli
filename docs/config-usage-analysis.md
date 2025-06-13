@@ -23,7 +23,7 @@
 |---------|------|---------|-------------|---------|-------------|------|
 | `default_output` | String | "srt" | **呼叫樹:**<br>• `ConvertCommand::execute()` (line 217, 265) → `src/commands/convert_command.rs:217,265`<br>• `FormatsValidator::validate()` → `src/config/validator.rs` | CLI 轉換命令的預設輸出格式 | `subx-cli convert` | ✅ 使用中 |
 | `preserve_styling` | bool | false | **呼叫樹:**<br>• `ConvertCommand::execute()` (line 209, 257) → `src/commands/convert_command.rs:209,257`<br>• `FormatConverter::transform()` (line 68, 82, 112) → `src/core/formats/transformers.rs:68,82,112` | 控制格式轉換時是否保留樣式 | `subx-cli convert` | ✅ 使用中 |
-| `default_encoding` | String | "utf-8" | **呼叫樹:**<br>• `EncodingDetector::new()` (line 17, 35) → `src/core/formats/encoding/detector.rs:17,35`<br>• `FormatsValidator::validate()` → `src/config/validator.rs` | 預設檔案編碼設定 | `subx-cli detect-encoding`, `subx-cli convert` | ✅ 使用中 |
+| `default_encoding` | String | "utf-8" | **呼叫樹:**<br>• 配置系統支援: `ProductionConfigService::get_config_value()` → `src/config/service.rs:520`<br>• 配置驗證: `FormatsValidator::validate()` → `src/config/validator.rs:92`<br>• **實際功能**: 未在編碼檢測或檔案處理中使用 | 預設檔案編碼設定（配置中支援但未實際使用） | 無 | ⚠️ 已定義但未使用 |
 | `encoding_detection_confidence` | f32 | 0.8 | **呼叫樹:**<br>• `EncodingDetector::new()` (line 17, 35) → `src/core/formats/encoding/detector.rs:17,35`<br>• `EncodingDetector::detect_file()` 使用此閾值進行編碼檢測 | 編碼自動檢測的信心度閾值 | `subx-cli detect-encoding`, `subx-cli convert` | ✅ 使用中 |
 
 ### 同步配置 (`[sync]`)
@@ -66,14 +66,15 @@
 
 ## 總結
 
-### 完全整合的配置 (29 項) - 含詳細呼叫樹
+### 完全整合的配置 (28 項) - 含詳細呼叫樹
 - **AI 配置**: 8/8 項已使用，包含完整的從配置載入到實際 API 呼叫的路徑，包括 provider 選擇和自訂 base_url
-- **格式配置**: 4/4 項已使用，包含編碼檢測、格式轉換流程
+- **格式配置**: 3/4 項已使用，包含編碼檢測、格式轉換流程
 - **同步配置**: 8/8 項已使用，主要在 SyncCommand 和相關引擎中使用，包含音訊處理、對話檢測和自動採樣率檢測
 - **一般配置**: 5/5 項已使用，包含備份、並行任務調度、進度條顯示和逾時設定
 - **並行處理配置**: 5/5 項已使用（task_queue_size, enable_task_priorities, auto_balance_workers, overflow_strategy, max_workers）
 
-### 已定義但未使用的配置 (0 項)
+### 已定義但未使用的配置 (1 項)
+- **格式配置**: `default_encoding` - 在配置系統中支援但未在實際編碼處理功能中使用
 
 **最後更新**: 2025-06-13 - 基於實際程式碼使用情況完成配置分析
 
@@ -83,12 +84,12 @@
 
 目前 `ProductionConfigService::get_config_value()` 方法只支援有限的配置鍵，但實際程式碼中使用了更多配置項目：
 
-**get_config_value 支援的配置鍵 (16 項)**：
+**get_config_value 支援的配置鍵 (15 項)**：
 - AI: provider, model, api_key, base_url, temperature (缺少: max_sample_length, retry_attempts, retry_delay_ms)
 - 格式: default_output, default_encoding, preserve_styling (缺少: encoding_detection_confidence)
 - 同步: max_offset_seconds, correlation_threshold, audio_sample_rate (缺少: 5 項對話檢測相關配置)
-- 一般: backup_enabled, max_concurrent_jobs, log_level (缺少: 5 項並行處理相關配置)
-- 並行: max_workers, chunk_size (缺少: 5 項高級並行配置)
+- 一般: backup_enabled, max_concurrent_jobs (缺少: 3 項進度和逾時相關配置)
+- 並行: max_workers (缺少: 4 項高級並行配置)
 
 **建議修復**：
 1. 擴展 `get_config_value` 方法以支援所有實際使用的配置項目
