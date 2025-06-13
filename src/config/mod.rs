@@ -43,6 +43,7 @@ pub mod environment;
 pub mod service;
 pub mod test_macros;
 pub mod test_service;
+pub mod validation;
 pub mod validator;
 
 // ============================================================================

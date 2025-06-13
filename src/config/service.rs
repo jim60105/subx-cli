@@ -99,6 +99,21 @@ pub trait ConfigService: Send + Sync {
     ///
     /// Returns an error if save or reload fails.
     fn reset_to_defaults(&self) -> Result<()>;
+
+    /// Set a specific configuration value by key path.
+    ///
+    /// # Arguments
+    ///
+    /// - `key`: Dot-separated path to the configuration value
+    /// - `value`: New value as string (will be converted to appropriate type)
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if validation or persistence fails, including:
+    /// - Unknown configuration key
+    /// - Type conversion or validation error
+    /// - Failure to persist configuration
+    fn set_config_value(&self, key: &str, value: &str) -> Result<()>;
 }
 
 /// Production configuration service implementation.
@@ -253,6 +268,170 @@ impl ProductionConfigService {
         debug!("ProductionConfigService: Configuration loaded and validated successfully");
         Ok(app_config)
     }
+
+    /// Validate and set a configuration value.
+    fn validate_and_set_value(&self, config: &mut Config, key: &str, value: &str) -> Result<()> {
+        use crate::config::OverflowStrategy;
+        use crate::config::validation::*;
+        use crate::error::SubXError;
+
+        let parts: Vec<&str> = key.split('.').collect();
+        match parts.as_slice() {
+            ["ai", "provider"] => {
+                validate_enum(value, &["openai", "anthropic", "local"])?;
+                config.ai.provider = value.to_string();
+            }
+            ["ai", "api_key"] => {
+                if !value.is_empty() {
+                    validate_api_key(value)?;
+                    config.ai.api_key = Some(value.to_string());
+                } else {
+                    config.ai.api_key = None;
+                }
+            }
+            ["ai", "model"] => {
+                config.ai.model = value.to_string();
+            }
+            ["ai", "base_url"] => {
+                validate_url(value)?;
+                config.ai.base_url = value.to_string();
+            }
+            ["ai", "max_sample_length"] => {
+                let v = validate_usize_range(value, 100, 10000)?;
+                config.ai.max_sample_length = v;
+            }
+            ["ai", "temperature"] => {
+                let v = validate_float_range(value, 0.0, 1.0)?;
+                config.ai.temperature = v;
+            }
+            ["ai", "retry_attempts"] => {
+                let v = validate_uint_range(value, 1, 10)?;
+                config.ai.retry_attempts = v;
+            }
+            ["ai", "retry_delay_ms"] => {
+                let v = validate_u64_range(value, 100, 30000)?;
+                config.ai.retry_delay_ms = v;
+            }
+            ["formats", "default_output"] => {
+                validate_enum(value, &["srt", "ass", "vtt", "webvtt"])?;
+                config.formats.default_output = value.to_string();
+            }
+            ["formats", "preserve_styling"] => {
+                let v = parse_bool(value)?;
+                config.formats.preserve_styling = v;
+            }
+            ["formats", "default_encoding"] => {
+                validate_enum(value, &["utf-8", "gbk", "big5", "shift_jis"])?;
+                config.formats.default_encoding = value.to_string();
+            }
+            ["formats", "encoding_detection_confidence"] => {
+                let v = validate_float_range(value, 0.0, 1.0)?;
+                config.formats.encoding_detection_confidence = v;
+            }
+            ["sync", "max_offset_seconds"] => {
+                let v = validate_float_range(value, 0.0, 300.0)?;
+                config.sync.max_offset_seconds = v;
+            }
+            ["sync", "correlation_threshold"] => {
+                let v = validate_float_range(value, 0.0, 1.0)?;
+                config.sync.correlation_threshold = v;
+            }
+            ["sync", "dialogue_detection_threshold"] => {
+                let v = validate_float_range(value, 0.0, 1.0)?;
+                config.sync.dialogue_detection_threshold = v;
+            }
+            ["sync", "min_dialogue_duration_ms"] => {
+                let v = validate_uint_range(value, 100, 5000)?;
+                config.sync.min_dialogue_duration_ms = v;
+            }
+            ["sync", "dialogue_merge_gap_ms"] => {
+                let v = validate_uint_range(value, 50, 2000)?;
+                config.sync.dialogue_merge_gap_ms = v;
+            }
+            ["sync", "enable_dialogue_detection"] => {
+                let v = parse_bool(value)?;
+                config.sync.enable_dialogue_detection = v;
+            }
+            ["sync", "audio_sample_rate"] => {
+                let v = validate_uint_range(value, 8000, 192000)?;
+                config.sync.audio_sample_rate = v;
+            }
+            ["sync", "auto_detect_sample_rate"] => {
+                let v = parse_bool(value)?;
+                config.sync.auto_detect_sample_rate = v;
+            }
+            ["general", "backup_enabled"] => {
+                let v = parse_bool(value)?;
+                config.general.backup_enabled = v;
+            }
+            ["general", "max_concurrent_jobs"] => {
+                let v = validate_usize_range(value, 1, 64)?;
+                config.general.max_concurrent_jobs = v;
+            }
+            ["general", "task_timeout_seconds"] => {
+                let v = validate_u64_range(value, 30, 3600)?;
+                config.general.task_timeout_seconds = v;
+            }
+            ["general", "enable_progress_bar"] => {
+                let v = parse_bool(value)?;
+                config.general.enable_progress_bar = v;
+            }
+            ["general", "worker_idle_timeout_seconds"] => {
+                let v = validate_u64_range(value, 10, 3600)?;
+                config.general.worker_idle_timeout_seconds = v;
+            }
+            ["parallel", "max_workers"] => {
+                let v = validate_usize_range(value, 1, 64)?;
+                config.parallel.max_workers = v;
+            }
+            ["parallel", "task_queue_size"] => {
+                let v = validate_usize_range(value, 100, 10000)?;
+                config.parallel.task_queue_size = v;
+            }
+            ["parallel", "enable_task_priorities"] => {
+                let v = parse_bool(value)?;
+                config.parallel.enable_task_priorities = v;
+            }
+            ["parallel", "auto_balance_workers"] => {
+                let v = parse_bool(value)?;
+                config.parallel.auto_balance_workers = v;
+            }
+            ["parallel", "overflow_strategy"] => {
+                validate_enum(value, &["Block", "Drop", "Expand"])?;
+                config.parallel.overflow_strategy = match value {
+                    "Block" => OverflowStrategy::Block,
+                    "Drop" => OverflowStrategy::Drop,
+                    "Expand" => OverflowStrategy::Expand,
+                    _ => unreachable!(),
+                };
+            }
+            _ => {
+                return Err(SubXError::config(format!(
+                    "Unknown configuration key: {}",
+                    key
+                )));
+            }
+        }
+        Ok(())
+    }
+
+    /// Save configuration to file with specific config object.
+    fn save_config_to_file_with_config(
+        &self,
+        path: &std::path::Path,
+        config: &Config,
+    ) -> Result<()> {
+        let toml_content = toml::to_string_pretty(config)
+            .map_err(|e| SubXError::config(format!("TOML serialization error: {}", e)))?;
+        if let Some(parent) = path.parent() {
+            std::fs::create_dir_all(parent).map_err(|e| {
+                SubXError::config(format!("Failed to create config directory: {}", e))
+            })?;
+        }
+        std::fs::write(path, toml_content)
+            .map_err(|e| SubXError::config(format!("Failed to write config file: {}", e)))?;
+        Ok(())
+    }
 }
 
 impl ConfigService for ProductionConfigService {
@@ -353,6 +532,29 @@ impl ConfigService for ProductionConfigService {
                 key
             ))),
         }
+    }
+
+    fn set_config_value(&self, key: &str, value: &str) -> Result<()> {
+        // 1. Load current configuration
+        let mut config = self.get_config()?;
+
+        // 2. Validate and set the value
+        self.validate_and_set_value(&mut config, key, value)?;
+
+        // 3. Validate the entire configuration
+        crate::config::validator::validate_config(&config)?;
+
+        // 4. Save to file
+        let path = self.get_config_file_path()?;
+        self.save_config_to_file_with_config(&path, &config)?;
+
+        // 5. Update cache
+        {
+            let mut cache = self.cached_config.write().unwrap();
+            *cache = Some(config);
+        }
+
+        Ok(())
     }
 
     fn reset_to_defaults(&self) -> Result<()> {
