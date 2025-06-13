@@ -8,6 +8,7 @@ pub struct EncodingDetector {
     confidence_threshold: f32,
     max_sample_size: usize,
     supported_charsets: Vec<Charset>,
+    default_encoding: String,
 }
 
 impl EncodingDetector {
@@ -17,6 +18,7 @@ impl EncodingDetector {
             confidence_threshold: config.formats.encoding_detection_confidence,
             max_sample_size: 8192,
             supported_charsets: Self::default_charsets(),
+            default_encoding: config.formats.default_encoding.clone(),
         }
     }
 
@@ -26,6 +28,7 @@ impl EncodingDetector {
             confidence_threshold: 0.8, // Default confidence threshold
             max_sample_size: 8192,
             supported_charsets: Self::default_charsets(),
+            default_encoding: "utf-8".to_string(),
         }
     }
 
@@ -35,6 +38,7 @@ impl EncodingDetector {
             confidence_threshold: config.formats.encoding_detection_confidence,
             max_sample_size: 8192,
             supported_charsets: Self::default_charsets(),
+            default_encoding: config.formats.default_encoding.clone(),
         }
     }
 
@@ -299,20 +303,32 @@ impl EncodingDetector {
         data: &[u8],
     ) -> Result<EncodingInfo> {
         if candidates.is_empty() {
+            let default_charset = self.parse_charset_name(&self.default_encoding);
+            let sample = self.decode_sample(data, &default_charset)?;
             return Ok(EncodingInfo {
-                charset: Charset::Unknown,
-                confidence: 0.0,
+                charset: default_charset,
+                confidence: 0.1,
                 bom_detected: false,
-                sample_text: String::from("Unable to detect encoding"),
+                sample_text: format!(
+                    "Unable to detect encoding, using default: {} (sample: {})",
+                    self.default_encoding,
+                    sample.chars().take(50).collect::<String>()
+                ),
             });
         }
         let best = &candidates[0];
         if best.confidence < self.confidence_threshold {
+            let default_charset = self.parse_charset_name(&self.default_encoding);
+            let sample = self.decode_sample(data, &default_charset)?;
             return Ok(EncodingInfo {
-                charset: Charset::Utf8,
+                charset: default_charset,
                 confidence: 0.5,
                 bom_detected: false,
-                sample_text: "Using default encoding: UTF-8".to_string(),
+                sample_text: format!(
+                    "Low confidence detection, using default: {} (sample: {})",
+                    self.default_encoding,
+                    sample.chars().take(50).collect::<String>()
+                ),
             });
         }
         let sample = self.decode_sample(data, &best.charset)?;
@@ -344,6 +360,24 @@ impl EncodingDetector {
             Charset::Windows1252,
         ]
     }
+
+    /// Convert encoding name string to Charset enum
+    fn parse_charset_name(&self, encoding_name: &str) -> Charset {
+        match encoding_name.to_lowercase().as_str() {
+            "utf-8" | "utf8" => Charset::Utf8,
+            "utf-16le" | "utf16le" => Charset::Utf16Le,
+            "utf-16be" | "utf16be" => Charset::Utf16Be,
+            "utf-32le" | "utf32le" => Charset::Utf32Le,
+            "utf-32be" | "utf32be" => Charset::Utf32Be,
+            "gbk" | "gb2312" => Charset::Gbk,
+            "shift-jis" | "shift_jis" | "sjis" => Charset::ShiftJis,
+            "iso-8859-1" | "iso88591" | "latin1" => Charset::Iso88591,
+            "windows-1252" | "windows1252" | "cp1252" => Charset::Windows1252,
+            "big5" => Charset::Big5,
+            "euc-kr" | "euckr" => Charset::Euckr,
+            _ => Charset::Utf8, // Default fallback
+        }
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -369,6 +403,7 @@ mod tests {
             confidence_threshold: 0.7,
             max_sample_size: 8192,
             supported_charsets: EncodingDetector::default_charsets(),
+            default_encoding: "utf-8".to_string(),
         }
     }
 
@@ -559,5 +594,85 @@ mod tests {
 
         // Detection should complete within reasonable time (< 100ms)
         assert!(duration.as_millis() < 100);
+    }
+
+    /// Test default encoding configuration usage
+    #[test]
+    fn test_default_encoding_usage() {
+        // Create detector with GBK as default encoding
+        let mut detector = EncodingDetector {
+            confidence_threshold: 0.95, // Very high threshold to force default usage
+            max_sample_size: 8192,
+            supported_charsets: EncodingDetector::default_charsets(),
+            default_encoding: "gbk".to_string(),
+        };
+
+        // Use truly ambiguous data that won't meet very high confidence threshold
+        // Mixed high-byte data that could be various encodings
+        let ambiguous_data = vec![0x80, 0x81, 0x82, 0x83, 0x84, 0x85];
+        let result = detector.detect_encoding(&ambiguous_data).unwrap();
+
+        // Should fall back to configured default encoding (GBK)
+        assert_eq!(result.charset, Charset::Gbk);
+        assert!(result.sample_text.contains("gbk") || result.sample_text.contains("default"));
+        assert!(result.confidence < 0.95); // Should be fallback confidence
+
+        // Test with UTF-16LE as default
+        detector.default_encoding = "utf-16le".to_string();
+        let result = detector.detect_encoding(&ambiguous_data).unwrap();
+        assert_eq!(result.charset, Charset::Utf16Le);
+        assert!(result.sample_text.contains("utf-16le") || result.sample_text.contains("default"));
+    }
+
+    /// Test encoding name parsing
+    #[test]
+    fn test_encoding_name_parsing() {
+        let detector = create_test_detector();
+
+        // Test various encoding name formats
+        assert_eq!(detector.parse_charset_name("utf-8"), Charset::Utf8);
+        assert_eq!(detector.parse_charset_name("UTF8"), Charset::Utf8);
+        assert_eq!(detector.parse_charset_name("gbk"), Charset::Gbk);
+        assert_eq!(detector.parse_charset_name("GBK"), Charset::Gbk);
+        assert_eq!(detector.parse_charset_name("shift-jis"), Charset::ShiftJis);
+        assert_eq!(detector.parse_charset_name("SHIFT_JIS"), Charset::ShiftJis);
+        assert_eq!(detector.parse_charset_name("big5"), Charset::Big5);
+        assert_eq!(detector.parse_charset_name("iso-8859-1"), Charset::Iso88591);
+        assert_eq!(
+            detector.parse_charset_name("windows-1252"),
+            Charset::Windows1252
+        );
+
+        // Test unknown encoding fallback
+        assert_eq!(
+            detector.parse_charset_name("unknown-encoding"),
+            Charset::Utf8
+        );
+    }
+
+    /// Test configuration integration
+    #[test]
+    fn test_config_integration() {
+        use crate::config::Config;
+
+        // Create config with custom default encoding
+        let mut config = Config::default();
+        config.formats.default_encoding = "gbk".to_string();
+        config.formats.encoding_detection_confidence = 0.9;
+
+        let detector = EncodingDetector::new(&config);
+
+        // Verify configuration was applied
+        assert_eq!(detector.default_encoding, "gbk");
+        assert_eq!(detector.confidence_threshold, 0.9);
+
+        // Test with low-confidence data
+        let ambiguous_data = vec![0x48, 0x65, 0x6C, 0x6C, 0x6F]; // "Hello"
+        let result = detector.detect_encoding(&ambiguous_data).unwrap();
+
+        // Should use GBK as default when confidence is low
+        if result.confidence < 0.9 {
+            assert_eq!(result.charset, Charset::Gbk);
+        }
     }
 }
