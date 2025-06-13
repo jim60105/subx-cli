@@ -21,9 +21,24 @@ impl AusAdapter {
         let path_str = path_ref
             .to_str()
             .ok_or_else(|| SubXError::audio_processing("Failed to convert path to UTF-8 string"))?;
-        aus::read(path_str).map_err(|e| {
-            SubXError::audio_processing(format!("aus failed to read audio file: {:?}", e))
-        })
+
+        let audio_file = aus::read(path_str).map_err(|e| {
+            SubXError::audio_processing(format!(
+                "aus failed to read audio file '{}': {:?}",
+                path_ref.display(),
+                e
+            ))
+        })?;
+
+        // Validate the loaded audio file has samples
+        if audio_file.samples.is_empty() {
+            return Err(SubXError::audio_processing(format!(
+                "Audio file '{}' contains no samples",
+                path_ref.display()
+            )));
+        }
+
+        Ok(audio_file)
     }
 
     /// Convert AudioFile to SubX-compatible AudioData.

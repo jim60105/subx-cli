@@ -28,6 +28,13 @@ impl AusDialogueDetector {
 
     /// Multi-feature dialogue detection.
     pub fn detect_dialogue(&self, audio_file: &AudioFile) -> Result<Vec<DialogueSegment>> {
+        // Validate audio file has samples
+        if audio_file.samples.is_empty() {
+            return Err(crate::error::SubXError::audio_processing(
+                "Audio file contains no samples for dialogue detection",
+            ));
+        }
+
         let samples = &audio_file.samples[0];
         let sample_rate = audio_file.sample_rate;
         let stft_result = spectrum::rstft(

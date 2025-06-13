@@ -29,12 +29,24 @@ impl AusAudioAnalyzer {
             .to_str()
             .ok_or_else(|| SubXError::audio_processing("Failed to convert path to UTF-8 string"))?;
         let mut audio_file = aus::read(path_str)?;
+
+        // Validate audio file has samples
+        if audio_file.samples.is_empty() {
+            return Err(SubXError::audio_processing(format!(
+                "Audio file contains no samples: {}",
+                path.display()
+            )));
+        }
+
         if audio_file.num_channels > 1 {
             aus::mixdown(&mut audio_file);
         }
 
-        // Fix duration calculation issue
-        if audio_file.duration == 0.0 && !audio_file.samples[0].is_empty() {
+        // Fix duration calculation issue - check samples array is not empty before accessing
+        if audio_file.duration == 0.0
+            && !audio_file.samples.is_empty()
+            && !audio_file.samples[0].is_empty()
+        {
             audio_file.duration =
                 audio_file.samples[0].len() as f64 / audio_file.sample_rate as f64;
         }
@@ -45,6 +57,14 @@ impl AusAudioAnalyzer {
     /// Load audio file and convert to AudioData format
     pub async fn load_audio_data<P: AsRef<Path>>(&self, audio_path: P) -> Result<AudioData> {
         let audio_file = self.load_audio_file(audio_path).await?;
+
+        // Additional safety check (should not be needed due to load_audio_file validation)
+        if audio_file.samples.is_empty() {
+            return Err(SubXError::audio_processing(
+                "Audio file contains no samples after loading",
+            ));
+        }
+
         let samples: Vec<f32> = audio_file.samples[0].iter().map(|&x| x as f32).collect();
         Ok(AudioData {
             samples,
@@ -57,6 +77,14 @@ impl AusAudioAnalyzer {
     /// Extract audio energy envelope
     pub async fn extract_envelope<P: AsRef<Path>>(&self, audio_path: P) -> Result<AudioEnvelope> {
         let audio_file = self.load_audio_file(audio_path).await?;
+
+        // Additional safety check (should not be needed due to load_audio_file validation)
+        if audio_file.samples.is_empty() {
+            return Err(SubXError::audio_processing(
+                "Audio file contains no samples for envelope extraction",
+            ));
+        }
+
         let samples = &audio_file.samples[0];
         let mut energy_samples = Vec::new();
         for chunk in samples.chunks(self.hop_size) {
@@ -111,6 +139,13 @@ impl AusAudioAnalyzer {
 
     /// Audio feature analysis using aus
     pub async fn analyze_audio_features(&self, audio_file: &AudioFile) -> Result<AudioFeatures> {
+        // Validate audio file has samples
+        if audio_file.samples.is_empty() {
+            return Err(SubXError::audio_processing(
+                "Audio file contains no samples for feature analysis",
+            ));
+        }
+
         let samples = &audio_file.samples[0];
         let stft_result = spectrum::rstft(
             samples,
