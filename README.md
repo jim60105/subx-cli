@@ -329,18 +329,19 @@ Usage:
 
 ## Troubleshooting
 
-### Common Issues
+### Q: What to do if AI matching accuracy is low?
 
-**Q: What to do if AI matching accuracy is low?**
 A: Ensure filenames contain sufficient identifying information (like show name, season, episode numbers). You can also try adjusting the `--confidence` parameter or configure AI model temperature: `subx-cli config set ai.temperature 0.1`
 
-**Q: Timeline sync fails?**
+### Q: Timeline sync fails?
+
 A: Ensure video files are accessible and check if file formats are supported. If automatic sync isn't ideal, you can try:
 - Manually specify offset: `subx-cli sync --offset <seconds> video.mp4 subtitle.srt`
 - Adjust sync configuration: `subx-cli config set sync.correlation_threshold 0.6`
 - Enable dialogue detection: `subx-cli config set sync.enable_dialogue_detection true`
 
-**Q: Poor performance when processing large numbers of files?**
+### Q: Poor performance when processing large numbers of files?
+
 A: You can adjust parallel processing configuration:
 ```bash
 subx-cli config set general.max_concurrent_jobs 8     # Increase concurrency
@@ -348,36 +349,43 @@ subx-cli config set parallel.task_queue_size 200     # Increase queue size
 subx-cli config set parallel.auto_balance_workers true # Enable load balancing
 ```
 
-**Q: Inaccurate encoding detection?**
+### Q: Inaccurate encoding detection?
+
 A: Adjust detection confidence threshold: `subx-cli config set formats.encoding_detection_confidence 0.8`
 
-**Q: Cache files taking up too much space?**
+### Q: Cache files taking up too much space?
+
 A: Use the `subx-cli cache clear` command to clear all cache files.
 
-**Q: How to re-match when new videos and subtitles are added?**
+### Q: How to re-match when new videos and subtitles are added?
+
 A: Clear cache first with `subx-cli cache clear`, then re-run the match command.
 
-**Q: What to do about task execution timeouts?**
+### Q: What to do about task execution timeouts?
+
 A: Increase timeout duration: `subx-cli config set general.task_timeout_seconds 7200`  # Set to 2 hours
 
-**Q: File organization (copy/move) operations fail?**
+### Q: File organization (copy/move) operations fail?
 A: Check the following common issues:
 - Ensure target video directories have write permissions
 - Check if there's sufficient disk space for copy operations
 - For filename conflicts, the system will automatically rename files with numeric suffixes
 - Use `--dry-run` to preview operations before execution: `subx-cli match --dry-run --copy /path`
 
-**Q: Can I use both --copy and --move together?**
+### Q: Can I use both --copy and --move together?
+
 A: No, these options are mutually exclusive. Choose either `--copy` to preserve original files or `--move` to clean up original locations.
 
-**Q: Why are some subtitles not being copied/moved to video folders?**
+### Q: Why are some subtitles not being copied/moved to video folders?
+
 A: The copy/move operations only apply when:
 - Subtitle and video files are in different directories
 - AI matching confidence exceeds the threshold (default 80%)
 - Files don't already exist in the target location with identical names
 Use `--dry-run` to see which operations will be performed.
 
-**Q: How to handle filename conflicts during copy/move operations?**
+### Q: How to handle filename conflicts during copy/move operations?
+
 A: The system automatically handles conflicts by:
 - Comparing file content when names match
 - Auto-renaming with numeric suffixes (e.g., `movie.srt` → `movie.1.srt`)

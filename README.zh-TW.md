@@ -328,18 +328,19 @@ subx-cli config set ai.model "gpt-4.1-mini"
 
 ## 疑難排解
 
-### 常見問題
+### Q: AI 匹配準確度不高怎麼辦？
 
-**Q: AI 匹配準確度不高怎麼辦？**
 A: 確保檔案名包含足夠的識別資訊（如劇名、季數、集數）。同時可以嘗試調整 `--confidence` 參數或配置 AI 模型溫度：`subx-cli config set ai.temperature 0.1`
 
-**Q: 時間軸同步失敗？**
+### Q: 時間軸同步失敗？
+
 A: 確保影片檔案可存取，並檢查檔案格式是否支援。如果自動同步不理想，可以嘗試：
 - 手動指定偏移量：`subx-cli sync --offset <seconds> video.mp4 subtitle.srt`
 - 調整同步配置：`subx-cli config set sync.correlation_threshold 0.6`
 - 啟用對話檢測：`subx-cli config set sync.enable_dialogue_detection true`
 
-**Q: 處理大量檔案時性能不佳？**
+### Q: 處理大量檔案時性能不佳？
+
 A: 可以調整並行處理配置：
 ```bash
 subx-cli config set general.max_concurrent_jobs 8     # 增加並發數
@@ -347,36 +348,44 @@ subx-cli config set parallel.task_queue_size 200     # 增加佇列大小
 subx-cli config set parallel.auto_balance_workers true # 啟用負載平衡
 ```
 
-**Q: 編碼檢測不準確？**
+### Q: 編碼檢測不準確？
+
 A: 調整檢測信心度閾值：`subx-cli config set formats.encoding_detection_confidence 0.8`
 
-**Q: 快取檔案佔用太多空間？**
+### Q: 快取檔案佔用太多空間？
+
 A: 使用 `subx-cli cache clear` 指令可以清除所有快取檔案。
 
-**Q: 如何在新的影片與字幕加入後重新匹配？**
+### Q: 如何在新的影片與字幕加入後重新匹配？
+
 A: 先清除快取 `subx-cli cache clear`，再重新執行 match 命令。
 
-**Q: 任務執行逾時怎麼辦？**
+### Q: 任務執行逾時怎麼辦？
+
 A: 增加逾時時間：`subx-cli config set general.task_timeout_seconds 7200`  # 設定為 2 小時
 
-**Q: 檔案整理（複製/移動）操作失敗？**
+### Q: 檔案整理（複製/移動）操作失敗？
+
 A: 檢查以下常見問題：
 - 確保目標影片目錄具有寫入權限
 - 檢查複製操作是否有足夠的磁碟空間
 - 檔名衝突時系統會自動重新命名並加上數字後綴
 - 使用 `--dry-run` 在執行前預覽操作：`subx-cli match --dry-run --copy /path`
 
-**Q: 可以同時使用 --copy 和 --move 嗎？**
+### Q: 可以同時使用 --copy 和 --move 嗎？
+
 A: 不可以，這兩個選項互斥。請選擇 `--copy` 保留原始檔案或 `--move` 清理原始位置。
 
-**Q: 為什麼有些字幕沒有被複製/移動到影片資料夾？**
+### Q: 為什麼有些字幕沒有被複製/移動到影片資料夾？
+
 A: 複製/移動操作只在以下條件下執行：
 - 字幕和影片檔案位於不同目錄
 - AI 匹配信心度超過閾值（預設 80%）
 - 目標位置不存在相同名稱的檔案
 使用 `--dry-run` 查看將要執行的操作。
 
-**Q: 如何處理複製/移動操作中的檔名衝突？**
+### Q: 如何處理複製/移動操作中的檔名衝突？
+
 A: 系統會自動處理衝突：
 - 比較檔案內容當名稱相同時
 - 自動重新命名並加上數字後綴（如 `movie.srt` → `movie.1.srt`）
