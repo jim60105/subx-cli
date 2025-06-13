@@ -159,47 +159,47 @@ subx-cli match --move --backup --recursive /media/collection/
 media/
 ├── movies/
 │   ├── Action/
-│   │   └── Movie1.mkv
+│   │   └── The.Matrix.1999.1080p.BluRay.mkv
 │   └── Drama/
-│       └── Movie2.mp4
+│       └── Forrest.Gump.1994.720p.WEB-DL.mp4
 └── subtitles/
     ├── english/
-    │   ├── Movie1.srt
-    │   └── Movie2.srt
+    │   ├── Matrix_EN_Sub.srt
+    │   └── ForrestGump_English.srt
     └── chinese/
-        ├── Movie1.zh.srt
-        └── Movie2.zh.srt
+        ├── 駭客任務_中文字幕.srt
+        └── 阿甘正傳.繁中.srt
 
-使用 --copy 選項處理後：
+使用 --copy 選項處理後（AI 智慧匹配）：
 media/
 ├── movies/
 │   ├── Action/
-│   │   ├── Movie1.mkv
-│   │   ├── Movie1.srt           # 從 subtitles/english/ 複製
-│   │   └── Movie1.zh.srt        # 從 subtitles/chinese/ 複製
+│   │   ├── The.Matrix.1999.1080p.BluRay.mkv
+│   │   ├── The.Matrix.1999.1080p.BluRay.srt           # AI 匹配 Matrix_EN_Sub.srt 並重新命名
+│   │   └── The.Matrix.1999.1080p.BluRay.zh.srt        # AI 匹配 駭客任務_中文字幕.srt 並重新命名
 │   └── Drama/
-│       ├── Movie2.mp4
-│       ├── Movie2.srt           # 從 subtitles/english/ 複製
-│       └── Movie2.zh.srt        # 從 subtitles/chinese/ 複製
+│       ├── Forrest.Gump.1994.720p.WEB-DL.mp4
+│       ├── Forrest.Gump.1994.720p.WEB-DL.srt           # AI 匹配 ForrestGump_English.srt 並重新命名
+│       └── Forrest.Gump.1994.720p.WEB-DL.zh.srt        # AI 匹配 阿甘正傳.繁中.srt 並重新命名
 └── subtitles/                   # 原始檔案保留
     ├── english/
-    │   ├── Movie1.srt
-    │   └── Movie2.srt
+    │   ├── Matrix_EN_Sub.srt
+    │   └── ForrestGump_English.srt
     └── chinese/
-        ├── Movie1.zh.srt
-        └── Movie2.zh.srt
+        ├── 駭客任務_中文字幕.srt
+        └── 阿甘正傳.繁中.srt
 
-使用 --move 選項處理後：
+使用 --move 選項處理後（AI 智慧匹配）：
 media/
 ├── movies/
 │   ├── Action/
-│   │   ├── Movie1.mkv
-│   │   ├── Movie1.srt           # 從 subtitles/english/ 移動
-│   │   └── Movie1.zh.srt        # 從 subtitles/chinese/ 移動
+│   │   ├── The.Matrix.1999.1080p.BluRay.mkv
+│   │   ├── The.Matrix.1999.1080p.BluRay.srt           # AI 匹配並重新命名後移動
+│   │   └── The.Matrix.1999.1080p.BluRay.zh.srt        # AI 匹配並重新命名後移動
 │   └── Drama/
-│       ├── Movie2.mp4
-│       ├── Movie2.srt           # 從 subtitles/english/ 移動
-│       └── Movie2.zh.srt        # 從 subtitles/chinese/ 移動
+│       ├── Forrest.Gump.1994.720p.WEB-DL.mp4
+│       ├── Forrest.Gump.1994.720p.WEB-DL.srt           # AI 匹配並重新命名後移動
+│       └── Forrest.Gump.1994.720p.WEB-DL.zh.srt        # AI 匹配並重新命名後移動
 └── subtitles/                   # 原始檔案已移除
     ├── english/                 # 空目錄
     └── chinese/

@@ -159,47 +159,47 @@ Before processing (distributed structure):
 media/
 ├── movies/
 │   ├── Action/
-│   │   └── Movie1.mkv
+│   │   └── The.Matrix.1999.1080p.BluRay.mkv
 │   └── Drama/
-│       └── Movie2.mp4
+│       └── Forrest.Gump.1994.720p.WEB-DL.mp4
 └── subtitles/
     ├── english/
-    │   ├── Movie1.srt
-    │   └── Movie2.srt
+    │   ├── Matrix_EN_Sub.srt
+    │   └── ForrestGump_English.srt
     └── chinese/
-        ├── Movie1.zh.srt
-        └── Movie2.zh.srt
+        ├── 駭客任務_中文字幕.srt
+        └── 阿甘正傳.繁中.srt
 
-After processing with --copy option:
+After processing with --copy option (AI Smart Matching):
 media/
 ├── movies/
 │   ├── Action/
-│   │   ├── Movie1.mkv
-│   │   ├── Movie1.srt           # Copied from subtitles/english/
-│   │   └── Movie1.zh.srt        # Copied from subtitles/chinese/
+│   │   ├── The.Matrix.1999.1080p.BluRay.mkv
+│   │   ├── The.Matrix.1999.1080p.BluRay.srt           # AI matched Matrix_EN_Sub.srt and renamed
+│   │   └── The.Matrix.1999.1080p.BluRay.zh.srt        # AI matched 駭客任務_中文字幕.srt and renamed
 │   └── Drama/
-│       ├── Movie2.mp4
-│       ├── Movie2.srt           # Copied from subtitles/english/
-│       └── Movie2.zh.srt        # Copied from subtitles/chinese/
+│       ├── Forrest.Gump.1994.720p.WEB-DL.mp4
+│       ├── Forrest.Gump.1994.720p.WEB-DL.srt           # AI matched ForrestGump_English.srt and renamed
+│       └── Forrest.Gump.1994.720p.WEB-DL.zh.srt        # AI matched 阿甘正傳.繁中.srt and renamed
 └── subtitles/                   # Original files preserved
     ├── english/
-    │   ├── Movie1.srt
-    │   └── Movie2.srt
+    │   ├── Matrix_EN_Sub.srt
+    │   └── ForrestGump_English.srt
     └── chinese/
-        ├── Movie1.zh.srt
-        └── Movie2.zh.srt
+        ├── 駭客任務_中文字幕.srt
+        └── 阿甘正傳.繁中.srt
 
-After processing with --move option:
+After processing with --move option (AI Smart Matching):
 media/
 ├── movies/
 │   ├── Action/
-│   │   ├── Movie1.mkv
-│   │   ├── Movie1.srt           # Moved from subtitles/english/
-│   │   └── Movie1.zh.srt        # Moved from subtitles/chinese/
+│   │   ├── The.Matrix.1999.1080p.BluRay.mkv
+│   │   ├── The.Matrix.1999.1080p.BluRay.srt           # AI matched and renamed, then moved
+│   │   └── The.Matrix.1999.1080p.BluRay.zh.srt        # AI matched and renamed, then moved
 │   └── Drama/
-│       ├── Movie2.mp4
-│       ├── Movie2.srt           # Moved from subtitles/english/
-│       └── Movie2.zh.srt        # Moved from subtitles/chinese/
+│       ├── Forrest.Gump.1994.720p.WEB-DL.mp4
+│       ├── Forrest.Gump.1994.720p.WEB-DL.srt           # AI matched and renamed, then moved
+│       └── Forrest.Gump.1994.720p.WEB-DL.zh.srt        # AI matched and renamed, then moved
 └── subtitles/                   # Original files removed
     ├── english/                 # Empty directories
     └── chinese/
