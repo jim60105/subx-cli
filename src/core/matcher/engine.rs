@@ -64,6 +64,8 @@ pub struct MatchConfig {
     pub relocation_mode: FileRelocationMode,
     /// Strategy for handling filename conflicts during relocation
     pub conflict_resolution: ConflictResolution,
+    /// AI model name used for analysis
+    pub ai_model: String,
 }
 
 #[cfg(test)]
@@ -98,6 +100,7 @@ mod language_name_tests {
                 backup_enabled: false,
                 relocation_mode: FileRelocationMode::None,
                 conflict_resolution: ConflictResolution::Skip,
+                ai_model: "test-model".to_string(),
             },
         );
         let video = MediaFile {
@@ -133,6 +136,7 @@ mod language_name_tests {
                 backup_enabled: false,
                 relocation_mode: FileRelocationMode::None,
                 conflict_resolution: ConflictResolution::Skip,
+                ai_model: "test-model".to_string(),
             },
         );
         let video = MediaFile {
@@ -168,6 +172,7 @@ mod language_name_tests {
                 backup_enabled: false,
                 relocation_mode: FileRelocationMode::None,
                 conflict_resolution: ConflictResolution::Skip,
+                ai_model: "test-model".to_string(),
             },
         );
         let video = MediaFile {
@@ -202,6 +207,7 @@ mod language_name_tests {
                 backup_enabled: false,
                 relocation_mode: FileRelocationMode::None,
                 conflict_resolution: ConflictResolution::Skip,
+                ai_model: "test-model".to_string(),
             },
         );
         let video = MediaFile {
@@ -237,6 +243,7 @@ mod language_name_tests {
                 backup_enabled: false,
                 relocation_mode: FileRelocationMode::None,
                 conflict_resolution: ConflictResolution::Skip,
+                ai_model: "test-model".to_string(),
             },
         );
         let video = MediaFile {
@@ -272,6 +279,7 @@ mod language_name_tests {
                 backup_enabled: false,
                 relocation_mode: FileRelocationMode::None,
                 conflict_resolution: ConflictResolution::Skip,
+                ai_model: "test-model".to_string(),
             },
         );
         // File name contains multiple dots and no extension case
@@ -323,6 +331,7 @@ mod language_name_tests {
                 backup_enabled: false,
                 relocation_mode: FileRelocationMode::None,
                 conflict_resolution: ConflictResolution::Skip,
+                ai_model: "test-model".to_string(),
             },
         );
 
@@ -401,6 +410,7 @@ mod language_name_tests {
                 backup_enabled: false,
                 relocation_mode: FileRelocationMode::None,
                 conflict_resolution: ConflictResolution::Skip,
+                ai_model: "test-model".to_string(),
             },
         );
 
@@ -1230,7 +1240,7 @@ impl MatchEngine {
                 .duration_since(std::time::UNIX_EPOCH)
                 .map(|d| d.as_secs())
                 .unwrap_or(0),
-            ai_model_used: "gpt-4.1-mini".to_string(), // TODO: Get actual model from config service
+            ai_model_used: self.config.ai_model.clone(),
             // Record relocation mode and backup settings when cache was generated
             original_relocation_mode: format!("{:?}", self.config.relocation_mode),
             original_backup_enabled: self.config.backup_enabled,

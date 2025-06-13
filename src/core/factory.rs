@@ -83,6 +83,7 @@ impl ComponentFactory {
             backup_enabled: self.config.general.backup_enabled,
             relocation_mode: crate::core::matcher::engine::FileRelocationMode::None,
             conflict_resolution: crate::core::matcher::engine::ConflictResolution::AutoRename,
+            ai_model: self.config.ai.model.clone(),
         };
         Ok(MatchEngine::new(ai_provider, match_config))
     }

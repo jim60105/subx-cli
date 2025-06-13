@@ -63,6 +63,7 @@ async fn test_rename_operation_success_and_error_messages() {
             backup_enabled: false,
             relocation_mode: FileRelocationMode::None,
             conflict_resolution: ConflictResolution::Skip,
+            ai_model: "test-model".to_string(),
         },
     );
 
@@ -98,6 +99,7 @@ async fn test_file_relocation_operations_with_success_indicators() {
             backup_enabled: false,
             relocation_mode: FileRelocationMode::None,
             conflict_resolution: ConflictResolution::Skip,
+            ai_model: "test-model".to_string(),
         },
     );
 

@@ -317,6 +317,7 @@ pub async fn execute_with_client(
         backup_enabled: args.backup || config.general.backup_enabled,
         relocation_mode,
         conflict_resolution: crate::core::matcher::engine::ConflictResolution::AutoRename,
+        ai_model: config.ai.model.clone(),
     };
 
     // Initialize the matching engine with AI client and configuration
