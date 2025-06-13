@@ -95,16 +95,8 @@ impl DialogueDetector {
     }
 
     async fn load_audio(&self, audio_path: &Path) -> Result<AudioData> {
-        use crate::services::audio::{AudioAnalyzer, AusAdapter};
-
-        // Decide whether to auto-detect sample rate based on configuration
-        let sample_rate = if self.config.auto_detect_sample_rate {
-            let adapter = AusAdapter::new(self.config.audio_sample_rate);
-            adapter.read_audio_file(audio_path)?.sample_rate
-        } else {
-            self.config.audio_sample_rate
-        };
-        let analyzer = AudioAnalyzer::new(sample_rate);
+        // Load audio data with automatic transcoding for non-WAV formats
+        let analyzer = crate::services::audio::AudioAnalyzer::new(self.config.audio_sample_rate);
         analyzer.load_audio_data(audio_path).await
     }
 

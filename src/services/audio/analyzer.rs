@@ -1,6 +1,6 @@
 //! Audio analyzer based on the aus crate.
 
-use crate::services::audio::{AudioData, AudioEnvelope};
+use crate::services::audio::{AudioData, AudioEnvelope, AudioTranscoder};
 use crate::{Result, error::SubXError};
 use aus::{AudioFile, WindowType, analysis, operations, spectrum};
 use std::path::Path;
@@ -54,9 +54,28 @@ impl AusAudioAnalyzer {
         Ok(audio_file)
     }
 
+    /// Load audio file with automatic transcoding for non-WAV formats.
+    pub async fn load_audio_file_with_transcoding<P: AsRef<Path>>(
+        &self,
+        audio_path: P,
+    ) -> Result<AudioFile> {
+        let input = audio_path.as_ref();
+        let transcoder = AudioTranscoder::new()?;
+        let wav_path = if transcoder.needs_transcoding(input)? {
+            transcoder.transcode_to_wav(input).await?
+        } else {
+            input.to_path_buf()
+        };
+        let result = self.load_audio_file(&wav_path).await;
+        if wav_path != input {
+            let _ = std::fs::remove_file(&wav_path);
+        }
+        result
+    }
+
     /// Load audio file and convert to AudioData format
     pub async fn load_audio_data<P: AsRef<Path>>(&self, audio_path: P) -> Result<AudioData> {
-        let audio_file = self.load_audio_file(audio_path).await?;
+        let audio_file = self.load_audio_file_with_transcoding(audio_path).await?;
 
         // Additional safety check (should not be needed due to load_audio_file validation)
         if audio_file.samples.is_empty() {
@@ -76,7 +95,7 @@ impl AusAudioAnalyzer {
 
     /// Extract audio energy envelope
     pub async fn extract_envelope<P: AsRef<Path>>(&self, audio_path: P) -> Result<AudioEnvelope> {
-        let audio_file = self.load_audio_file(audio_path).await?;
+        let audio_file = self.load_audio_file_with_transcoding(audio_path).await?;
 
         // Additional safety check (should not be needed due to load_audio_file validation)
         if audio_file.samples.is_empty() {

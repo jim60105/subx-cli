@@ -2894,6 +2894,7 @@ dependencies = [
  "encoding_rs",
  "env_logger",
  "futures",
+ "hound",
  "indicatif",
  "libc",
  "log",

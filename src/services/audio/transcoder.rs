@@ -21,6 +21,52 @@ pub struct AudioTranscoder {
     codecs: &'static CodecRegistry,
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    use tempfile::TempDir;
+
+    /// Create a minimal WAV file for testing transcoding.
+    fn create_minimal_wav_file(dir: &TempDir) -> PathBuf {
+        let path = dir.path().join("test.wav");
+        let spec = WavSpec {
+            channels: 1,
+            sample_rate: 44100,
+            bits_per_sample: 16,
+            sample_format: SampleFormat::Int,
+        };
+        let mut writer = WavWriter::create(&path, spec).unwrap();
+        writer.write_sample(0i16).unwrap();
+        writer.finalize().unwrap();
+        path
+    }
+
+    #[test]
+    fn test_needs_transcoding() {
+        let transcoder = AudioTranscoder::new().expect("Failed to create transcoder");
+        assert!(transcoder.needs_transcoding("test.mp4").unwrap());
+        assert!(transcoder.needs_transcoding("test.MKV").unwrap());
+        assert!(transcoder.needs_transcoding("test.ogg").unwrap());
+        assert!(!transcoder.needs_transcoding("test.wav").unwrap());
+    }
+
+    #[tokio::test]
+    #[ignore]
+    async fn test_transcode_wav_to_wav() {
+        let transcoder = AudioTranscoder::new().expect("Failed to create transcoder");
+        let temp_dir = TempDir::new().unwrap();
+        let wav_path = create_minimal_wav_file(&temp_dir);
+        let out_path = transcoder
+            .transcode_to_wav(&wav_path)
+            .await
+            .expect("Transcode failed");
+        assert_eq!(out_path.extension().and_then(|e| e.to_str()), Some("wav"));
+        let meta = std::fs::metadata(&out_path).expect("Failed to stat output file");
+        assert!(meta.len() > 0, "Output WAV file should not be empty");
+    }
+}
+
 impl AudioTranscoder {
     /// 建立新的 AudioTranscoder 實例，並初始化暫存資料夾。
     pub fn new() -> Result<Self> {

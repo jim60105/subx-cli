@@ -16,6 +16,7 @@ AI subtitle processing CLI tool, which automatically matches, renames, and conve
 - 🤖 **AI Smart Matching** - Uses AI technology to automatically identify video-subtitle correspondence and rename files
 - 📁 **File Organization** - Automatically copy or move matched subtitle files to video folders for seamless playback
 - 🔄 **Format Conversion** - Supports conversion between mainstream subtitle formats like SRT, ASS, VTT, SUB
+- 🔊 **Audio Transcoding** - Auto-transcode diverse audio container formats (MP4, MKV, WebM, OGG) to WAV for synchronization analysis
 - ⏰ **Timeline Correction** - Automatically detects and corrects subtitle timing offset issues
 - 🏃 **Batch Processing** - Process entire folders of media files at once
 - 🔍 **Dry-run Mode** - Preview operation results for safety and reliability
@@ -285,12 +286,15 @@ Configuration Support:
 ### `subx-cli sync` - Timeline Correction
 ```
 Options:
-  <VIDEO>               Video file path
+  <VIDEO>               Video file path (supports MP4, MKV/WebM, OGG, WAV audio input)
   <SUBTITLE>            Subtitle file path
   --offset <SECONDS>    Manually specify offset
   --batch               Batch processing mode
   --range <SECONDS>     Offset detection range (default: max_offset_seconds from config)
   --threshold <THRESHOLD>  Correlation threshold (0-1, default: correlation_threshold from config)
+
+Audio Format Support:
+  - MP4, MKV/WebM, OGG, WAV containers (automatically transcoded to WAV for analysis)
 
 Configuration Support:
   - Sync Settings: Maximum offset range, correlation threshold, dialogue detection, etc.
