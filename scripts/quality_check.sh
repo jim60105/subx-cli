@@ -1,5 +1,5 @@
 #!/bin/bash
-# scripts/check_docs.sh
+# scripts/quality_check.sh
 #
 # Copyright (C) 2025 陳鈞
 #
@@ -16,8 +16,9 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 #
-# Documentation Quality Check Script for SubX
-# This script performs comprehensive documentation quality checks
+# Quality Assurance Check Script for SubX
+# This script performs comprehensive code quality checks including compilation,
+# formatting, linting, documentation, and testing
 
 set -e
 
@@ -41,17 +42,16 @@ usage() {
     echo "  -v, --verbose            Show verbose output"
     echo "  -h, --help               Show this help"
     echo ""
-    echo "This script performs comprehensive documentation quality checks including:"
+    echo "This script performs comprehensive quality assurance checks including:"
     echo "  - Code compilation and formatting checks"
-    echo "  - Clippy linting"
-    echo "  - Documentation generation"
+    echo "  - Clippy linting and code quality analysis"
+    echo "  - Documentation generation and coverage"
     echo "  - Documentation examples testing"
-    echo "  - Documentation coverage analysis"
     echo "  - Unit and integration tests"
     echo ""
     echo "Examples:"
-    echo "  $0                       Run all checks with standard output"
-    echo "  $0 -v                    Run all checks with verbose output"
+    echo "  $0                       Run all quality checks with standard output"
+    echo "  $0 -v                    Run all quality checks with verbose output"
 }
 
 # Parse command line arguments
@@ -170,8 +170,8 @@ main() {
     parse_args "$@"
     
     # Show startup message
-    echo "🔍 SubX Documentation Quality Check Starting..."
-    echo "======================================"
+    echo "🔍 SubX Quality Assurance Check Starting..."
+    echo "========================================"
     
     # 1. Code compilation check
     if [[ "${VERBOSE}" == "true" ]]; then
@@ -278,15 +278,15 @@ main() {
 
     # Summary
     echo ""
-    echo "======================================"
-    print_status "$BLUE" "📊 Documentation Quality Check Summary"
-    echo "======================================"
+    echo "========================================"
+    print_status "$BLUE" "📊 Quality Assurance Check Summary"
+    echo "========================================"
     print_status "$GREEN" "✅ Passed checks: $passed_checks"
     print_status "$RED" "❌ Failed checks: $failed_checks"  
     print_status "$BLUE" "📋 Total checks: $total_checks"
 
     if [ $failed_checks -eq 0 ]; then
-        print_status "$GREEN" "\n🎉 All documentation quality checks passed!"
+        print_status "$GREEN" "\n🎉 All quality assurance checks passed!"
         exit 0
     else
         print_status "$RED" "\n⚠️  Some checks failed, please review the error messages above"

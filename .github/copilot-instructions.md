@@ -17,7 +17,7 @@
   - When editing files, be sure to use the `insert_edit_into_file` tool, and do not directly output the program code to change.
   - Refrain from parsing `Cargo.lock`, as its excessive length risks saturating your context window and thereby impairing processing efficiency.
   - Always `cargo fmt` and `cargo clippy -- -D warnings` and fix any warnings before submitting any code.
-  - Always execute `timeout 30 scripts/check_docs.sh` to check documentation quality. If the script runs longer than 20 seconds, run with `timeout 30 scripts/check_docs.sh -v` to get more details.
+  - Always execute `timeout 30 scripts/quality_check.sh` to check code quality. If the script runs longer than 20 seconds, run with `timeout 30 scripts/quality_check.sh -v` to get more details.
   - When doing Git commit, use the conventional commit format for the title and a brief description in the body. Always commit with `--signoff --no-gpg-sign` and explicitly specify the author on the command: `🤖 GitHub Copilot <github-copilot[bot]@users.noreply.github.com>`. Write the commit in English.
   - Use `scripts/check_coverage.sh -T` to check code coverage.
 

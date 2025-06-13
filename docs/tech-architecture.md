@@ -660,8 +660,8 @@ strip = true
 - **codecov** - 覆蓋率報告和追蹤
 - **並行測試** - 測試穩定性驗證
 
-### 3. 文件品質
-- **文件檢查腳本** - `scripts/check_docs.sh`
+### 3. 程式碼品質和文件品質檢查
+- **檢查腳本** - `scripts/quality_check.sh`
 - **內連結驗證** - 確保文件連結有效
 - **API 文件** - 完整的 rustdoc 文件
 

@@ -55,13 +55,13 @@ jobs:
     - name: Check clippy
       run: cargo clippy -- -D warnings
 
-    - name: Comprehensive Documentation Quality Check
+    - name: Comprehensive Code Quality Check
       run: |
-        # Make the documentation check script executable (if not already)
-        chmod +x scripts/check_docs.sh
+        # Make the code check script executable (if not already)
+        chmod +x scripts/quality_check.sh
         
-        # Run the comprehensive documentation quality check script
-        ./scripts/check_docs.sh
+        # Run the comprehensive code quality check script
+        ./scripts/quality_check.sh
 
     - name: Run tests
       run: cargo test --verbose

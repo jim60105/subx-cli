@@ -16,7 +16,7 @@
   * Follow the testing principles and practices outlined in `docs/testing-guidelines.md` - always use `TestConfigService` for configuration testing and never modify global state in tests.
   * Refrain from parsing `Cargo.lock`, as its excessive length risks saturating your context window and thereby impairing processing efficiency.
   * Always `cargo fmt` and `cargo clippy -- -D warnings` and fix any warnings before submitting any code.
-  * Always execute `timeout 30 scripts/check_docs.sh` to check documentation quality. If the script runs longer than 20 seconds, run with `timeout 30 scripts/check_docs.sh -v` to get more details.
+  * Always execute `timeout 30 scripts/quality_check.sh` to check code quality. If the script runs longer than 20 seconds, run with `timeout 30 scripts/quality_check.sh -v` to get more details.
   * Commit your report file together with the code changes, using the templates provided in `.github/codex/`.
   * Git commit after completing your work, using the conventional commit format for the title and a brief description in the body. Always commit with `--signoff` and `--no-gpg-sign`. Write the commit in English.
   * Use `scripts/check_coverage.sh -T` to check code coverage.

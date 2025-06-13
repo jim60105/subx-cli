@@ -300,24 +300,24 @@ cargo clippy -- -W missing_docs -D warnings
 
 Documentation quality is enforced through our comprehensive CI/CD pipeline. The project includes an automated documentation quality check script that is integrated into the GitHub Actions workflow.
 
-#### Automated Documentation Quality Check
+#### Automated Quality Check
 
-The `scripts/check_docs.sh` script performs comprehensive documentation quality checks and is automatically executed in our CI pipeline:
+The `scripts/quality_check.sh` script performs comprehensive quality checks and is automatically executed in our CI pipeline:
 
 ```yaml
-# Comprehensive Documentation Quality Check
-- name: Comprehensive Documentation Quality Check
+# Comprehensive Code Quality Check
+- name: Comprehensive Code Quality Check
   run: |
-    # Make the documentation check script executable (if not already)
-    chmod +x scripts/check_docs.sh
+    # Make the code check script executable (if not already)
+    chmod +x scripts/quality_check.sh
     
-    # Run the comprehensive documentation quality check script
-    ./scripts/check_docs.sh
+    # Run the comprehensive quality check script
+    ./scripts/quality_check.sh
 ```
 
 #### What the Script Checks
 
-The `scripts/check_docs.sh` script performs the following checks:
+The `scripts/quality_check.sh` script performs the following checks:
 
 1. **Code Compilation**: Ensures all code compiles successfully with `cargo check --all-features`
 2. **Code Formatting**: Validates code formatting with `cargo fmt -- --check`
@@ -334,7 +334,7 @@ Developers can run the same checks locally before committing:
 
 ```bash
 # Run the comprehensive documentation quality check
-./scripts/check_docs.sh
+./scripts/quality_check.sh
 
 # Or run individual checks
 cargo clippy --all-features -- -W missing_docs -D warnings
@@ -425,7 +425,7 @@ SubX provides automated documentation quality checking through various tools and
 
 ```bash
 # Quick documentation quality check
-./scripts/check_docs.sh
+./scripts/quality_check.sh
 
 # Generate documentation with quality verification
 cargo doc --all-features --no-deps --open
@@ -546,8 +546,8 @@ pub struct Example {
 
 **1. Pre-development Check**
 ```bash
-# Execute documentation quality check
-./scripts/check_docs.sh
+# Execute code quality check
+./scripts/quality_check.sh
 
 # Check existing documentation completeness
 cargo doc --all-features --no-deps
@@ -577,8 +577,8 @@ cargo doc --all-features --no-deps
 
 **Weekly Maintenance (Recommended Fridays)**
 ```bash
-# Execute comprehensive documentation quality check
-./scripts/check_docs.sh
+# Execute comprehensive code quality check
+./scripts/quality_check.sh
 
 # Check documentation coverage
 cargo clippy --all-features -- -W missing_docs | grep "missing documentation"
@@ -609,8 +609,8 @@ cargo clippy --all-features -- -W missing_docs | grep "missing documentation"
 
 **1. Documentation Quality Check Script**
 ```bash
-# Execute comprehensive documentation quality check
-./scripts/check_docs.sh
+# Execute comprehensive code quality check
+./scripts/quality_check.sh
 
 # Check specific module documentation
 cargo doc --package subx-cli --no-deps
@@ -654,8 +654,8 @@ cargo test --doc --package subx-cli --verbose
 # Setup pre-commit hook
 cat > .git/hooks/pre-commit << 'EOF'
 #!/bin/bash
-echo "Executing documentation quality check..."
-./scripts/check_docs.sh
+echo "Executing code quality check..."
+./scripts/quality_check.sh
 EOF
 
 chmod +x .git/hooks/pre-commit
@@ -754,16 +754,16 @@ The project uses a comprehensive documentation quality check script integrated i
 
 ```yaml
 # .github/workflows/build-test-audit-coverage.yml
-- name: Comprehensive Documentation Quality Check
+- name: Comprehensive Code Quality Check
   run: |
-    # Make the documentation check script executable (if not already)
-    chmod +x scripts/check_docs.sh
+    # Make the code check script executable (if not already)
+    chmod +x scripts/quality_check.sh
     
-    # Run the comprehensive documentation quality check script
-    ./scripts/check_docs.sh
+    # Run the comprehensive quality check script
+    ./scripts/quality_check.sh
 ```
 
-This replaces individual documentation checks with a unified script (`scripts/check_docs.sh`) that performs:
+This replaces individual code checks with a unified script (`scripts/quality_check.sh`) that performs:
 - Code compilation and formatting validation
 - Clippy linting with documentation checks
 - Documentation generation and warning detection
@@ -816,7 +816,7 @@ git commit -m "docs: fix documentation warnings and broken links
 #### Documentation Review Checklist
 
 **Pre-PR Submission Check**
-- [ ] `./scripts/check_docs.sh` passes
+- [ ] `./scripts/quality_check.sh` passes
 - [ ] All new public APIs have complete documentation
 - [ ] Documentation example code compiles and runs
 - [ ] No broken intra-doc links
