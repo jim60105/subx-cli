@@ -87,7 +87,7 @@ subx-cli match --copy /path/to/media/folder
 subx-cli match --move /path/to/media/folder
 
 # 結合遞迴和備份選項使用
-subx-cli match --recursive --copy --backup /path/to/media/folder
+subx-cli match --recursive --move --backup /path/to/media/folder
 ```
 
 **格式轉換**
@@ -207,82 +207,26 @@ media/
 
 ## 配置選項
 
+SubX 支援透過環境變數和配置檔案進行全面配置。
+
+### 快速配置
+```bash
+# 設定 OpenAI API Key
+export OPENAI_API_KEY="your-api-key-here"
+
+# 可選：自訂 OpenAI 端點
+export OPENAI_BASE_URL="https://api.openai.com/v1"
+
+# 或使用配置指令
+subx-cli config set ai.api_key "your-api-key-here"
+subx-cli config set ai.model "gpt-4.1-mini"
+```
+
 ### 配置檔案位置
 - Linux/macOS: `~/.config/subx/config.toml`
 - Windows: `%APPDATA%\subx\config.toml`
 
-### 配置範例
-```toml
-[ai]
-# AI 服務提供商，目前支援 "openai"
-provider = "openai"
-# 使用的 AI 模型
-model = "gpt-4.1-mini"
-# API 端點，可由 OPENAI_BASE_URL 環境變數覆蓋
-base_url = "https://api.openai.com/v1"
-# API 金鑰，可由 OPENAI_API_KEY 環境變數覆蓋
-api_key = "your-api-key-here"
-# AI 回應隨機性控制 (0.0-2.0)
-temperature = 0.3
-# 傳送給 AI 的內容長度上限
-max_sample_length = 3000
-# API 請求失敗重試次數
-retry_attempts = 3
-# 重試間隔 (毫秒)
-retry_delay_ms = 1000
-
-[formats]
-# 預設輸出格式
-default_output = "srt"
-# 轉換時是否保留樣式
-preserve_styling = false
-# 預設文字編碼
-default_encoding = "utf-8"
-# 編碼檢測信心度閾值 (0.0-1.0)
-encoding_detection_confidence = 0.8
-
-[sync]
-# 音訊同步的最大偏移範圍 (秒)
-max_offset_seconds = 10.0
-# 音訊相關性分析閾值 (0.0-1.0)
-correlation_threshold = 0.8
-# 對話檢測的音訊能量閾值
-dialogue_detection_threshold = 0.6
-# 最小對話片段持續時間 (毫秒)
-min_dialogue_duration_ms = 500
-# 對話片段合併間隔 (毫秒)
-dialogue_merge_gap_ms = 200
-# 是否啟用對話檢測功能
-enable_dialogue_detection = true
-# 音訊處理採樣率 (Hz)
-audio_sample_rate = 44100
-# 是否自動檢測音訊採樣率
-auto_detect_sample_rate = true
-
-[general]
-# 是否啟用檔案備份，可由 SUBX_BACKUP_ENABLED 環境變數覆蓋
-backup_enabled = false
-# 最大並發任務數
-max_concurrent_jobs = 4
-# 任務執行逾時時間 (秒)
-task_timeout_seconds = 300
-# 是否顯示進度條
-enable_progress_bar = true
-# 工作執行緒閒置逾時 (秒)
-worker_idle_timeout_seconds = 60
-
-[parallel]
-# 最大工作執行緒數
-max_workers = 8  # Default: num_cpus::get()
-# 任務佇列大小限制
-task_queue_size = 1000
-# 是否啟用任務優先級排程
-enable_task_priorities = false
-# 是否啟用自動負載平衡
-auto_balance_workers = true
-# 佇列溢出策略 ("Block" | "Drop" | "Expand")
-overflow_strategy = "Block"
-```
+詳細配置選項請參考 [配置指南](docs/configuration-guide.md)。
 
 ## 命令參考
 

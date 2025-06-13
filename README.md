@@ -87,7 +87,7 @@ subx-cli match --copy /path/to/media/folder
 subx-cli match --move /path/to/media/folder
 
 # Combine with recursive and backup options
-subx-cli match --recursive --copy --backup /path/to/media/folder
+subx-cli match --recursive --move --backup /path/to/media/folder
 ```
 
 **Format Conversion**
@@ -152,8 +152,6 @@ subx-cli match --dry-run --copy --recursive /media/collection/
 # Scenario 4: Organize files with backup protection
 subx-cli match --move --backup --recursive /media/collection/
 ```
-subx-cli sync --batch .
-```
 
 ### Folder Structure Example
 ```
@@ -207,84 +205,28 @@ media/
     └── chinese/
 ```
 
-## Configuration Options
+## Configuration
+
+SubX supports comprehensive configuration through environment variables and configuration files.
+
+### Quick Configuration
+```bash
+# Set OpenAI API Key
+export OPENAI_API_KEY="your-api-key-here"
+
+# Optional: Custom OpenAI endpoint
+export OPENAI_BASE_URL="https://api.openai.com/v1"
+
+# Or use config commands
+subx-cli config set ai.api_key "your-api-key-here"
+subx-cli config set ai.model "gpt-4.1-mini"
+```
 
 ### Configuration File Location
 - Linux/macOS: `~/.config/subx/config.toml`
 - Windows: `%APPDATA%\subx\config.toml`
 
-### Configuration Example
-```toml
-[ai]
-# AI service provider, currently supports "openai"
-provider = "openai"
-# AI model to use
-model = "gpt-4.1-mini"
-# API endpoint, can be overridden by OPENAI_BASE_URL environment variable
-base_url = "https://api.openai.com/v1"
-# API key, can be overridden by OPENAI_API_KEY environment variable
-api_key = "your-api-key-here"
-# AI response randomness control (0.0-2.0)
-temperature = 0.3
-# Maximum content length sent to AI
-max_sample_length = 3000
-# Number of retry attempts for API request failures
-retry_attempts = 3
-# Retry interval (milliseconds)
-retry_delay_ms = 1000
-
-[formats]
-# Default output format
-default_output = "srt"
-# Whether to preserve styling during conversion
-preserve_styling = false
-# Default text encoding
-default_encoding = "utf-8"
-# Encoding detection confidence threshold (0.0-1.0)
-encoding_detection_confidence = 0.8
-
-[sync]
-# Maximum offset range for audio sync (seconds)
-max_offset_seconds = 10.0
-# Audio correlation analysis threshold (0.0-1.0)
-correlation_threshold = 0.8
-# Audio energy threshold for dialogue detection
-dialogue_detection_threshold = 0.6
-# Minimum dialogue segment duration (milliseconds)
-min_dialogue_duration_ms = 500
-# Dialogue segment merge gap (milliseconds)
-dialogue_merge_gap_ms = 200
-# Whether to enable dialogue detection feature
-enable_dialogue_detection = true
-# Audio processing sample rate (Hz)
-audio_sample_rate = 44100
-# Whether to auto-detect audio sample rate
-auto_detect_sample_rate = true
-
-[general]
-# Whether to enable file backup, can be overridden by SUBX_BACKUP_ENABLED environment variable
-backup_enabled = false
-# Maximum number of concurrent jobs
-max_concurrent_jobs = 4
-# Task execution timeout (seconds)
-task_timeout_seconds = 300
-# Whether to display progress bar
-enable_progress_bar = true
-# Worker thread idle timeout (seconds)
-worker_idle_timeout_seconds = 60
-
-[parallel]
-# Maximum number of worker threads
-max_workers = 8  # Default: num_cpus::get()
-# Task queue size limit
-task_queue_size = 1000
-# Whether to enable task priority scheduling
-enable_task_priorities = false
-# Whether to enable automatic load balancing
-auto_balance_workers = true
-# Queue overflow strategy ("Block" | "Drop" | "Expand")
-overflow_strategy = "Block"
-```
+For detailed configuration options, see [Configuration Guide](docs/configuration-guide.md).
 
 ## Command Reference
 

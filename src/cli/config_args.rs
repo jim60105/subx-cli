@@ -38,6 +38,47 @@
 //! subx config reset
 //! ```
 
+//! # Advanced Usage Examples
+//!
+//! ## Setting Complex Values
+//! ```bash
+//! # Set AI provider with API key
+//! subx-cli config set ai.provider openai
+//! subx-cli config set ai.api_key "sk-1234567890abcdef"
+//! subx-cli config set ai.base_url "https://api.openai.com/v1"
+//!
+//! # Configure audio processing
+//! subx-cli config set sync.max_offset_seconds 15.0
+//! subx-cli config set sync.correlation_threshold 0.85
+//!
+//! # Set performance options
+//! subx-cli config set parallel.max_workers 4
+//! subx-cli config set general.max_concurrent_jobs 8
+//! ```
+//!
+//! ## Boolean Value Formats
+//! ```bash
+//! # All of these set the value to true
+//! subx-cli config set general.backup_enabled true
+//! subx-cli config set general.backup_enabled 1
+//! subx-cli config set general.backup_enabled yes
+//! subx-cli config set general.backup_enabled on
+//! subx-cli config set general.backup_enabled enabled
+//!
+//! # All of these set the value to false
+//! subx-cli config set general.backup_enabled false
+//! subx-cli config set general.backup_enabled 0
+//! subx-cli config set general.backup_enabled no
+//! subx-cli config set general.backup_enabled off
+//! subx-cli config set general.backup_enabled disabled
+//! ```
+//!
+//! ## Clearing Optional Values
+//! ```bash
+//! # Clear API key (set to None)
+//! subx-cli config set ai.api_key ""
+//! ```
+
 // src/cli/config_args.rs
 use clap::{Args, Subcommand};
 
