@@ -1176,7 +1176,7 @@ impl MatchEngine {
                                 && matches!(f.file_type, MediaFileType::Subtitle)
                         }),
                     ) {
-                        // 重新計算重定位需求（基於當前配置）
+                        // Recalculate relocation requirements based on current configuration
                         let requires_relocation = self.config.relocation_mode
                             != FileRelocationMode::None
                             && subtitle.path.parent() != video.path.parent();
@@ -1230,8 +1230,8 @@ impl MatchEngine {
                 .duration_since(std::time::UNIX_EPOCH)
                 .map(|d| d.as_secs())
                 .unwrap_or(0),
-            ai_model_used: "gpt-4.1-mini".to_string(), // TODO: 從配置服務獲取實際模型
-            // 記錄產生 cache 時的重定位模式與備份設定
+            ai_model_used: "gpt-4.1-mini".to_string(), // TODO: Get actual model from config service
+            // Record relocation mode and backup settings when cache was generated
             original_relocation_mode: format!("{:?}", self.config.relocation_mode),
             original_backup_enabled: self.config.backup_enabled,
             config_hash: self.calculate_config_hash()?,
@@ -1248,7 +1248,7 @@ impl MatchEngine {
 
     /// Get cache file path
     fn get_cache_file_path(&self) -> Result<std::path::PathBuf> {
-        // 首先檢查 XDG_CONFIG_HOME 環境變數（用於測試）
+        // First check XDG_CONFIG_HOME environment variable (used for testing)
         let dir = if let Some(xdg_config) = std::env::var_os("XDG_CONFIG_HOME") {
             std::path::PathBuf::from(xdg_config)
         } else {
@@ -1264,10 +1264,10 @@ impl MatchEngine {
         use std::hash::{Hash, Hasher};
 
         let mut hasher = DefaultHasher::new();
-        // 將影響快取有效性的配置項目加入雜湊
+        // Add configuration items that affect cache validity to the hash
         format!("{:?}", self.config.relocation_mode).hash(&mut hasher);
         self.config.backup_enabled.hash(&mut hasher);
-        // 添加其他相關的配置項目
+        // Add other relevant configuration items
 
         Ok(format!("{:016x}", hasher.finish()))
     }

@@ -235,6 +235,21 @@ impl Default for SyncConfig {
     }
 }
 
+/// General configuration settings for the SubX CLI tool.
+///
+/// This struct contains general settings that control the overall behavior
+/// of the application, including backup policies, processing limits, and
+/// user interface preferences.
+///
+/// # Examples
+///
+/// ```rust
+/// use subx_cli::config::GeneralConfig;
+///
+/// let config = GeneralConfig::default();
+/// assert_eq!(config.max_concurrent_jobs, 4);
+/// assert!(!config.backup_enabled);
+/// ```
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct GeneralConfig {
     /// Enable automatic backup of original files.
@@ -279,6 +294,12 @@ impl Default for GeneralConfig {
 pub struct ParallelConfig {
     /// Maximum number of worker threads.
     pub max_workers: usize,
+    /// Strategy for handling task overflow when queues are full.
+    ///
+    /// Determines the behavior when the task queue reaches capacity.
+    /// - [`OverflowStrategy::Block`] - Block until space is available
+    /// - [`OverflowStrategy::Drop`] - Drop new tasks when full
+    /// - [`OverflowStrategy::Expand`] - Dynamically expand queue size
     pub overflow_strategy: OverflowStrategy,
     /// Task queue size.
     pub task_queue_size: usize,

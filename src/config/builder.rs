@@ -343,7 +343,24 @@ impl TestConfigBuilder {
     pub fn config_mut(&mut self) -> &mut Config {
         &mut self.config
     }
-    /// 設定 AI 基礎 URL 為 mock server，用於整合測試
+    /// Configure AI base URL for mock server integration testing.
+    ///
+    /// Sets up the configuration to use a mock AI server for testing purposes.
+    /// This is primarily used in integration tests to avoid making real API calls.
+    ///
+    /// # Arguments
+    ///
+    /// - `mock_url`: The URL of the mock server to use for AI API calls
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use subx_cli::config::TestConfigBuilder;
+    ///
+    /// let config = TestConfigBuilder::new()
+    ///     .with_mock_ai_server("http://localhost:3000")
+    ///     .build_config();
+    /// ```
     pub fn with_mock_ai_server(mut self, mock_url: &str) -> Self {
         self.config.ai.base_url = mock_url.to_string();
         self.config.ai.api_key = Some("mock-api-key".to_string());
