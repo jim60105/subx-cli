@@ -48,9 +48,6 @@
 | `task_timeout_seconds` | u64 | 300 | **呼叫樹:**<br>• `TaskScheduler::new()` (line 98, 131) → `src/core/parallel/scheduler.rs:98,131`<br>• 設定並行任務的執行逾時時間 | 任務執行逾時設定，用於並行處理調度器的任務執行時間上限 | `subx-cli match`（並行處理模式） | ✅ 使用中 |
 | `enable_progress_bar` | bool | true | **呼叫樹:**<br>• `execute_parallel_match()` (line 482) → `src/commands/match_command.rs:482`<br>• 控制是否顯示進度條 UI | 是否顯示進度條，控制並行處理的 UI 顯示 | `subx-cli match`（並行處理模式） | ✅ 使用中 |
 | `worker_idle_timeout_seconds` | u64 | 60 | **呼叫樹:**<br>• `TaskScheduler::new()` (line 98, 131) → `src/core/parallel/scheduler.rs:98,131`<br>• 設定工作執行緒的閒置逾時時間 | 工作執行緒閒置逾時，用於並行處理調度器的閒置工作執行緒回收 | `subx-cli match`（並行處理模式） | ✅ 使用中 |
-| `temp_dir` | Option<PathBuf> | None | 無實際使用 | 處理用的暫存目錄（未實作） | 無 | ⚠️ 已定義但未使用 |
-| `log_level` | String | "info" | 無實際使用，僅出現在範例和文檔中 | 應用程式輸出的日誌層級（未實作） | 無 | ⚠️ 已定義但未使用 |
-| `cache_dir` | Option<PathBuf> | None | 無實際使用 | 存儲處理數據的快取目錄（未實作） | 無 | ⚠️ 已定義但未使用 |
 
 ### 並行處理配置 (`[parallel]`)
 
