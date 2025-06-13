@@ -347,9 +347,7 @@ impl ConfigService for ProductionConfigService {
             ["general", "max_concurrent_jobs"] => {
                 Ok(config.general.max_concurrent_jobs.to_string())
             }
-            ["general", "log_level"] => Ok(config.general.log_level.clone()),
             ["parallel", "max_workers"] => Ok(config.parallel.max_workers.to_string()),
-            ["parallel", "chunk_size"] => Ok(config.parallel.chunk_size.to_string()),
             _ => Err(SubXError::config(format!(
                 "Unknown configuration key: {}",
                 key

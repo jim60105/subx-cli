@@ -235,33 +235,12 @@ impl Default for SyncConfig {
     }
 }
 
-/// General application configuration.
-///
-/// Contains general runtime options that affect the overall behavior
-/// of the application, including backup settings, job limits, and logging.
-///
-/// # Examples
-///
-/// ```rust
-/// use subx_cli::config::GeneralConfig;
-///
-/// let general = GeneralConfig::default();
-/// assert!(!general.backup_enabled);
-/// assert_eq!(general.max_concurrent_jobs, 4);
-/// assert_eq!(general.log_level, "info");
-/// ```
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct GeneralConfig {
     /// Enable automatic backup of original files.
     pub backup_enabled: bool,
     /// Maximum number of concurrent processing jobs.
     pub max_concurrent_jobs: usize,
-    /// Temporary directory for processing.
-    pub temp_dir: Option<PathBuf>,
-    /// Log level for application output.
-    pub log_level: String,
-    /// Cache directory for storing processed data.
-    pub cache_dir: Option<PathBuf>,
     /// Task timeout in seconds.
     pub task_timeout_seconds: u64,
     /// Enable progress bar display.
@@ -275,9 +254,6 @@ impl Default for GeneralConfig {
         Self {
             backup_enabled: false,
             max_concurrent_jobs: 4,
-            temp_dir: None,
-            log_level: "info".to_string(),
-            cache_dir: None,
             task_timeout_seconds: 300,
             enable_progress_bar: true,
             worker_idle_timeout_seconds: 60,
@@ -298,18 +274,12 @@ impl Default for GeneralConfig {
 /// let parallel = ParallelConfig::default();
 /// assert!(parallel.max_workers > 0);
 /// assert_eq!(parallel.overflow_strategy, OverflowStrategy::Block);
-/// assert!(parallel.enable_work_stealing);
 /// ```
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct ParallelConfig {
     /// Maximum number of worker threads.
     pub max_workers: usize,
-    /// Chunk size for parallel processing.
-    pub chunk_size: usize,
-    /// Overflow strategy when workers are busy.
     pub overflow_strategy: OverflowStrategy,
-    /// Enable work stealing between workers.
-    pub enable_work_stealing: bool,
     /// Task queue size.
     pub task_queue_size: usize,
     /// Enable task priorities.
@@ -322,9 +292,7 @@ impl Default for ParallelConfig {
     fn default() -> Self {
         Self {
             max_workers: num_cpus::get(),
-            chunk_size: 1000,
             overflow_strategy: OverflowStrategy::Block,
-            enable_work_stealing: true,
             task_queue_size: 1000,
             enable_task_priorities: false,
             auto_balance_workers: true,

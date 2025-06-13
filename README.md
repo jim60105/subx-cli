@@ -284,10 +284,6 @@ enable_task_priorities = false
 auto_balance_workers = true
 # Queue overflow strategy ("Block" | "Drop" | "Expand")
 overflow_strategy = "Block"
-# Chunk size for parallel processing (not implemented)
-chunk_size = 1000
-# Whether to enable work stealing (not implemented)
-enable_work_stealing = true
 ```
 
 ## Command Reference

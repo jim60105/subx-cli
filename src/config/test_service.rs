@@ -151,7 +151,6 @@ impl ConfigService for TestConfigService {
                 Ok(config.general.max_concurrent_jobs.to_string())
             }
             ["parallel", "max_workers"] => Ok(config.parallel.max_workers.to_string()),
-            ["parallel", "chunk_size"] => Ok(config.parallel.chunk_size.to_string()),
             _ => Err(SubXError::config(format!(
                 "Unknown configuration key: {}",
                 key

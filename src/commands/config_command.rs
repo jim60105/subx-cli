@@ -58,8 +58,7 @@
 //! ```text
 //! general.enable_progress_bar     # Boolean: Show progress indicators
 //! general.backup_enabled          # Boolean: Automatic file backups
-//! general.log_level              # String: Logging verbosity level
-//! general.timeout                # Integer: Operation timeout in seconds
+//! general.task_timeout_seconds    # Integer: Operation timeout in seconds
 //! ```
 //!
 //! ## AI Configuration

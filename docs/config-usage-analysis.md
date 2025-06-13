@@ -61,8 +61,6 @@
 | `enable_task_priorities` | bool | false | **呼叫樹:**<br>• `ParallelConfig::from_app_config()` (line 84) → `src/core/parallel/config.rs:84`<br>• `TaskScheduler::start_scheduler_loop()` (line 192) → `src/core/parallel/scheduler.rs:192`<br>• 控制優先級排序邏輯 | 啟用任務優先級排程，影響任務執行順序和佇列插入位置 | `subx-cli match`（並行處理模式） | ✅ 使用中 |
 | `auto_balance_workers` | bool | true | **呼叫樹:**<br>• `ParallelConfig::from_app_config()` (line 85) → `src/core/parallel/config.rs:85`<br>• `TaskScheduler::new()` (line 105, 138) → `src/core/parallel/scheduler.rs:105,138`<br>• 決定是否啟用 LoadBalancer | 自動平衡工作負載，啟用負載平衡器來分配任務 | `subx-cli match`（並行處理模式） | ✅ 使用中 |
 | `overflow_strategy` | OverflowStrategy | Block | **呼叫樹:**<br>• `ParallelConfig::from_app_config()` (line 86) → `src/core/parallel/config.rs:86`<br>• `TaskScheduler::submit_task()` 和 `submit_prioritized_task()` 使用<br>• 控制佇列滿時的處理策略（block/drop/expand） | 任務佇列溢出策略，處理佇列滿時的行為（阻塞、丟棄任務或擴展工作執行緒） | `subx-cli match`（並行處理模式） | ✅ 使用中 |
-| `chunk_size` | usize | 1000 | 無實際使用 | 平行處理的區塊大小（未實作） | 無 | ⚠️ 已定義但未使用 |
-| `enable_work_stealing` | bool | true | 無實際使用 | 是否啟用工作竊取（未實作） | 無 | ⚠️ 已定義但未使用 |
 
 ## 狀態說明
 
@@ -75,12 +73,10 @@
 - **AI 配置**: 8/8 項已使用，包含完整的從配置載入到實際 API 呼叫的路徑，包括 provider 選擇和自訂 base_url
 - **格式配置**: 4/4 項已使用，包含編碼檢測、格式轉換流程
 - **同步配置**: 8/8 項已使用，主要在 SyncCommand 和相關引擎中使用，包含音訊處理、對話檢測和自動採樣率檢測
-- **一般配置**: 5/8 項已使用，包含備份、並行任務調度、進度條顯示和逾時設定
-- **並行處理配置**: 5/7 項已使用（task_queue_size, enable_task_priorities, auto_balance_workers, overflow_strategy, max_workers）
+- **一般配置**: 5/5 項已使用，包含備份、並行任務調度、進度條顯示和逾時設定
+- **並行處理配置**: 5/5 項已使用（task_queue_size, enable_task_priorities, auto_balance_workers, overflow_strategy, max_workers）
 
-### 已定義但未使用的配置 (6 項)
-- **一般配置**: temp_dir, log_level, cache_dir - 這些配置項目已定義但在實際程式碼中未使用
-- **並行配置**: chunk_size, enable_work_stealing - 這些配置項目已定義但功能未實作
+### 已定義但未使用的配置 (0 項)
 
 **最後更新**: 2025-06-13 - 基於實際程式碼使用情況完成配置分析
 
