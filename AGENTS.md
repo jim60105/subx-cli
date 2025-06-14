@@ -17,7 +17,7 @@
   * Refrain from parsing `Cargo.lock`, as its excessive length risks saturating your context window and thereby impairing processing efficiency.
   * Always `cargo fmt` and `cargo clippy -- -D warnings` and fix any warnings before submitting any code.
   * Always execute `timeout 30 scripts/quality_check.sh` to check code quality. If the script runs longer than 20 seconds, run with `timeout 30 scripts/quality_check.sh -v` to get more details.
-  * Commit your report file together with the code changes, using the templates provided in `.github/codex/`.
+  * Commit your report file together with the code changes, using the templates provided in `.github/reports/`.
   * Git commit after completing your work, using the conventional commit format for the title and a brief description in the body. Always commit with `--signoff` and `--no-gpg-sign`. Write the commit in English.
   * Use `scripts/check_coverage.sh -T` to check code coverage.
 
@@ -45,6 +45,6 @@ The `bugs` folder contains identified issues, enhancements, and optimization opp
 
 # Work Report Protocol
 
-Development progress for this project is systematically tracked within the `.github/codex` directory. Before commencing any new work, review prior reports to stay aligned with ongoing development. Treat all past reports as immutable references—do not edit or revise them under any circumstance. Upon the completion of each task, you are required to generate a new comprehensive work report. Refer to the naming conventions of existing files to determine an appropriate filename. 
+Development progress for this project is systematically tracked within the `.github/reports` directory. Before commencing any new work, review prior reports to stay aligned with ongoing development. Treat all past reports as immutable references—do not edit or revise them under any circumstance. Upon the completion of each task, you are required to generate a new comprehensive work report. Refer to the naming conventions of existing files to determine an appropriate filename. 
 
 Your report must include a detailed account of the work performed, encompassing all relevant code modifications and corresponding test outcomes.

@@ -5,11 +5,11 @@ tools: ['changes', 'codebase', 'editFiles', 'fetch', 'findTestFiles', 'githubRep
 ---
 * **Additional Key Directives:**
   * Git commit after completing your work, using the conventional commit format for the title and a brief description in the body. Always commit with `--signoff` and `--no-gpg-sign`. Write the commit in English.
-  * Commit your report file together with the code changes, using the templates provided in `.github/codex/`.
+  * Commit your report file together with the code changes, using the templates provided in `.github/reports/`.
 
 # Work Report Protocol
 
-Development progress for this project is systematically tracked within the `.github/codex` directory. Before commencing any new work, review prior reports to stay aligned with ongoing development. Treat all past reports as immutable references—do not edit or revise them under any circumstance. Upon the completion of each task, you are required to generate a new comprehensive work report. Refer to the naming conventions of existing files to determine an appropriate filename. 
+Development progress for this project is systematically tracked within the `.github/reports` directory. Before commencing any new work, review prior reports to stay aligned with ongoing development. Treat all past reports as immutable references—do not edit or revise them under any circumstance. Upon the completion of each task, you are required to generate a new comprehensive work report. Refer to the naming conventions of existing files to determine an appropriate filename. 
 
 Your report must include a detailed account of the work performed, encompassing all relevant code modifications and corresponding test outcomes.
 
