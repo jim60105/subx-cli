@@ -72,14 +72,31 @@ Controls audio-subtitle synchronization functionality.
 
 ```toml
 [sync]
-max_offset_seconds = 10.0                     # Maximum offset range in seconds (f32)
-correlation_threshold = 0.8                   # Correlation analysis threshold (f32, 0.0-1.0)
-dialogue_detection_threshold = 0.6            # Dialogue detection threshold (f32, 0.0-1.0)
-min_dialogue_duration_ms = 500                # Minimum dialogue duration in milliseconds (u32)
-dialogue_merge_gap_ms = 200                   # Dialogue merge gap in milliseconds (u32)
-enable_dialogue_detection = true              # Whether to enable dialogue detection (bool)
-audio_sample_rate = 44100                     # Audio sample rate in Hz (u32)
-auto_detect_sample_rate = true                # Whether to auto-detect sample rate (bool)
+default_method = "whisper"           # 預設同步方法 ("whisper", "vad")
+analysis_window_seconds = 30         # 分析時間窗口：第一句字幕前後的秒數 (u32)
+max_offset_seconds = 60.0            # 最大允許的時間偏移量（秒） (f32)
+
+# Whisper API configuration
+[sync.whisper]
+enabled = true                       # 是否啟用 Whisper API 方法 (bool)
+model = "whisper-1"                  # Whisper 模型名稱 (String)
+language = "auto"                    # 語言設定 ("auto" 為自動檢測) (String)
+temperature = 0.0                    # API 溫度參數 (0.0-1.0) (f32)
+timeout_seconds = 30                 # API 請求超時時間（秒） (u32)
+max_retries = 3                      # 最大重試次數 (u32)
+retry_delay_ms = 1000                # 重試間隔（毫秒） (u64)
+fallback_to_vad = true               # 當 Whisper 失敗時是否回退到 VAD (bool)
+min_confidence_threshold = 0.7       # 最低信心度閾值，低於此值回退到 VAD (f32)
+
+# VAD configuration
+[sync.vad]
+enabled = true                       # 是否啟用本地 VAD 方法 (bool)
+sensitivity = 0.75                   # 語音檢測敏感度 (0.0-1.0) (f32)
+chunk_size = 512                     # 音訊塊大小（樣本數） (usize)
+sample_rate = 16000                  # 處理採樣率（Hz） (u32)
+padding_chunks = 3                   # 語音檢測前後填充塊數 (u32)
+min_speech_duration_ms = 100         # 最小語音持續時間（毫秒） (u32)
+speech_merge_gap_ms = 200            # 語音段合併間隔（毫秒） (u32)
 ```
 
 ## General Configuration (`[general]`)
@@ -160,10 +177,12 @@ export SUBX_FORMATS_DEFAULT_OUTPUT=vtt
 export SUBX_FORMATS_PRESERVE_STYLING=true
 export SUBX_FORMATS_DEFAULT_ENCODING=utf-16
 
-# Sync configuration  
-export SUBX_SYNC_MAX_OFFSET_SECONDS=15.0
-export SUBX_SYNC_CORRELATION_THRESHOLD=0.9
-export SUBX_SYNC_ENABLE_DIALOGUE_DETECTION=false
+# Sync configuration
+export SUBX_SYNC_DEFAULT_METHOD=whisper
+export SUBX_SYNC_ANALYSIS_WINDOW_SECONDS=45
+export SUBX_SYNC_WHISPER_ENABLED=false
+export SUBX_SYNC_WHISPER_MODEL=whisper-1
+export SUBX_SYNC_VAD_SENSITIVITY=0.8
 ```
 
 ## Configuration File Locations
@@ -192,14 +211,29 @@ default_encoding = "utf-8"
 encoding_detection_confidence = 0.8
 
 [sync]
-max_offset_seconds = 10.0
-correlation_threshold = 0.8
-dialogue_detection_threshold = 0.6
-min_dialogue_duration_ms = 500
-dialogue_merge_gap_ms = 200
-enable_dialogue_detection = true
-audio_sample_rate = 44100
-auto_detect_sample_rate = true
+default_method = "whisper"
+analysis_window_seconds = 30
+max_offset_seconds = 60.0
+
+[sync.whisper]
+enabled = true
+model = "whisper-1"
+language = "auto"
+temperature = 0.0
+timeout_seconds = 30
+max_retries = 3
+retry_delay_ms = 1000
+fallback_to_vad = true
+min_confidence_threshold = 0.7
+
+[sync.vad]
+enabled = true
+sensitivity = 0.75
+chunk_size = 512
+sample_rate = 16000
+padding_chunks = 3
+min_speech_duration_ms = 100
+speech_merge_gap_ms = 200
 
 [general]
 backup_enabled = false

@@ -1,3 +1,4 @@
+#![allow(deprecated)]
 //! Test configuration service for isolated testing.
 //!
 //! This module provides a configuration service implementation specifically

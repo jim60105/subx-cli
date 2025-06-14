@@ -1,3 +1,4 @@
+#![allow(deprecated)]
 //! Advanced subtitle synchronization command implementation.
 //!
 //! This module provides sophisticated subtitle timing alignment capabilities,

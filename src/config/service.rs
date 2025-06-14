@@ -1,3 +1,4 @@
+#![allow(deprecated)]
 //! Configuration service system for dependency injection and test isolation.
 //!
 //! This module provides a clean abstraction for configuration management

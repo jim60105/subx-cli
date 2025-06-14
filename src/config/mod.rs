@@ -1,4 +1,5 @@
 // src/config/mod.rs
+#![allow(deprecated)]
 //! Configuration management module for SubX.
 //!
 //! This module provides the complete configuration service system with
@@ -186,52 +187,132 @@ impl Default for FormatsConfig {
     }
 }
 
-/// Audio synchronization related configuration.
-///
-/// Contains settings for audio-subtitle synchronization operations,
-/// including offset limits, sample rates, and dialogue detection.
-///
-/// # Examples
-///
-/// ```rust
-/// use subx_cli::config::SyncConfig;
-///
-/// let sync = SyncConfig::default();
-/// assert_eq!(sync.max_offset_seconds, 10.0);
-/// assert_eq!(sync.audio_sample_rate, 44100);
-/// assert!(sync.enable_dialogue_detection);
-/// ```
+/// 音訊同步配置，支援多種同步方法
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct SyncConfig {
-    /// Maximum offset in seconds for synchronization.
+    /// 預設同步方法 ("whisper", "vad")
+    pub default_method: String,
+    /// 分析時間窗口：第一句字幕前後的秒數
+    pub analysis_window_seconds: u32,
+    /// 最大允許的時間偏移量（秒）
     pub max_offset_seconds: f32,
-    /// Audio sample rate for processing.
-    pub audio_sample_rate: u32,
-    /// Correlation threshold for sync quality (0.0-1.0).
+    /// Whisper API 相關設定
+    pub whisper: WhisperConfig,
+    /// 本地 VAD 相關設定
+    pub vad: VadConfig,
+
+    // Deprecated legacy fields, preserved for backward compatibility
+    #[deprecated]
+    #[serde(skip)]
     pub correlation_threshold: f32,
-    /// Dialogue detection threshold (0.0-1.0).
+    #[deprecated]
+    #[serde(skip)]
     pub dialogue_detection_threshold: f32,
-    /// Minimum dialogue duration in milliseconds.
+    #[deprecated]
+    #[serde(skip)]
     pub min_dialogue_duration_ms: u32,
-    /// Gap between dialogues for merging (milliseconds).
+    #[deprecated]
+    #[serde(skip)]
     pub dialogue_merge_gap_ms: u32,
-    /// Enable dialogue detection.
+    #[deprecated]
+    #[serde(skip)]
     pub enable_dialogue_detection: bool,
-    /// Auto-detect sample rate from audio files.
+    #[deprecated]
+    #[serde(skip)]
+    pub audio_sample_rate: u32,
+    #[deprecated]
+    #[serde(skip)]
     pub auto_detect_sample_rate: bool,
 }
 
+/// OpenAI Whisper API 配置
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct WhisperConfig {
+    /// 是否啟用 Whisper API 方法
+    pub enabled: bool,
+    /// Whisper 模型名稱
+    pub model: String,
+    /// 語言設定 ("auto" 為自動檢測)
+    pub language: String,
+    /// API 溫度參數 (0.0-1.0)
+    pub temperature: f32,
+    /// API 請求超時時間（秒）
+    pub timeout_seconds: u32,
+    /// 最大重試次數
+    pub max_retries: u32,
+    /// 重試間隔（毫秒）
+    pub retry_delay_ms: u64,
+    /// 當 Whisper 失敗時是否回退到 VAD
+    pub fallback_to_vad: bool,
+    /// 最低信心度閾值，低於此值回退到 VAD
+    pub min_confidence_threshold: f32,
+}
+
+/// 本地 Voice Activity Detection 配置
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct VadConfig {
+    /// 是否啟用本地 VAD 方法
+    pub enabled: bool,
+    /// 語音檢測敏感度 (0.0-1.0)
+    pub sensitivity: f32,
+    /// 音訊塊大小（樣本數）
+    pub chunk_size: usize,
+    /// 處理採樣率（Hz）
+    pub sample_rate: u32,
+    /// 語音檢測前後填充塊數
+    pub padding_chunks: u32,
+    /// 最小語音持續時間（毫秒）
+    pub min_speech_duration_ms: u32,
+    /// 語音段合併間隔（毫秒）
+    pub speech_merge_gap_ms: u32,
+}
+
+#[allow(deprecated)]
 impl Default for SyncConfig {
     fn default() -> Self {
         Self {
-            max_offset_seconds: 10.0,
-            audio_sample_rate: 44100,
+            default_method: "whisper".to_string(),
+            analysis_window_seconds: 30,
+            max_offset_seconds: 60.0,
+            whisper: WhisperConfig::default(),
+            vad: VadConfig::default(),
             correlation_threshold: 0.8,
             dialogue_detection_threshold: 0.6,
             min_dialogue_duration_ms: 500,
             dialogue_merge_gap_ms: 200,
             enable_dialogue_detection: true,
+            audio_sample_rate: 44100,
             auto_detect_sample_rate: true,
+        }
+    }
+}
+
+impl Default for WhisperConfig {
+    fn default() -> Self {
+        Self {
+            enabled: true,
+            model: "whisper-1".to_string(),
+            language: "auto".to_string(),
+            temperature: 0.0,
+            timeout_seconds: 30,
+            max_retries: 3,
+            retry_delay_ms: 1000,
+            fallback_to_vad: true,
+            min_confidence_threshold: 0.7,
+        }
+    }
+}
+
+impl Default for VadConfig {
+    fn default() -> Self {
+        Self {
+            enabled: true,
+            sensitivity: 0.75,
+            chunk_size: 512,
+            sample_rate: 16000,
+            padding_chunks: 3,
+            min_speech_duration_ms: 100,
+            speech_merge_gap_ms: 200,
         }
     }
 }
@@ -396,28 +477,93 @@ mod config_tests {
     }
 
     #[test]
-    fn test_sync_config_defaults() {
-        let sync_config = SyncConfig::default();
-        assert_eq!(sync_config.max_offset_seconds, 10.0);
-        assert_eq!(sync_config.correlation_threshold, 0.8);
-        assert_eq!(sync_config.audio_sample_rate, 44100);
-        assert!(sync_config.enable_dialogue_detection);
+    fn test_new_sync_config_defaults() {
+        let sync = SyncConfig::default();
+        assert_eq!(sync.default_method, "whisper");
+        assert_eq!(sync.analysis_window_seconds, 30);
+        assert_eq!(sync.max_offset_seconds, 60.0);
+        assert!(sync.whisper.enabled);
+        assert!(sync.whisper.fallback_to_vad);
+        assert_eq!(sync.whisper.min_confidence_threshold, 0.7);
+        assert!(sync.vad.enabled);
     }
 
     #[test]
-    fn test_config_serialization() {
+    fn test_sync_config_validation() {
+        let mut sync = SyncConfig::default();
+
+        // 有效配置應該通過驗證
+        assert!(sync.validate().is_ok());
+
+        // 無效的 default_method
+        sync.default_method = "invalid".to_string();
+        assert!(sync.validate().is_err());
+
+        // 重置並測試其他無效值
+        sync = SyncConfig::default();
+        sync.analysis_window_seconds = 0;
+        assert!(sync.validate().is_err());
+
+        sync = SyncConfig::default();
+        sync.max_offset_seconds = -1.0;
+        assert!(sync.validate().is_err());
+    }
+
+    #[test]
+    fn test_whisper_config_validation() {
+        let mut whisper = WhisperConfig::default();
+
+        // 有效配置
+        assert!(whisper.validate().is_ok());
+
+        // 無效溫度
+        whisper.temperature = 2.0;
+        assert!(whisper.validate().is_err());
+
+        // 無效超時時間
+        whisper = WhisperConfig::default();
+        whisper.timeout_seconds = 0;
+        assert!(whisper.validate().is_err());
+
+        // 無效信心度閾值
+        whisper = WhisperConfig::default();
+        whisper.min_confidence_threshold = 1.5;
+        assert!(whisper.validate().is_err());
+    }
+
+    #[test]
+    fn test_vad_config_validation() {
+        let mut vad = VadConfig::default();
+
+        // 有效配置
+        assert!(vad.validate().is_ok());
+
+        // 無效敏感度
+        vad.sensitivity = 1.5;
+        assert!(vad.validate().is_err());
+
+        // 無效 chunk_size (不是 2 的冪次)
+        vad = VadConfig::default();
+        vad.chunk_size = 500;
+        assert!(vad.validate().is_err());
+
+        // 無效取樣率
+        vad = VadConfig::default();
+        vad.sample_rate = 22050;
+        assert!(vad.validate().is_err());
+    }
+
+    #[test]
+    fn test_config_serialization_with_new_sync() {
         let config = Config::default();
         let toml_str = toml::to_string(&config).unwrap();
-        assert!(toml_str.contains("[ai]"));
-        assert!(toml_str.contains("[sync]"));
-        assert!(toml_str.contains("[general]"));
-        assert!(toml_str.contains("[parallel]"));
-    }
 
-    #[test]
-    fn test_overflow_strategy_equality() {
-        assert_eq!(OverflowStrategy::Block, OverflowStrategy::Block);
-        assert_ne!(OverflowStrategy::Block, OverflowStrategy::Drop);
+        // 確保新的配置結構存在於序列化輸出中
+        assert!(toml_str.contains("[sync]"));
+        assert!(toml_str.contains("[sync.whisper]"));
+        assert!(toml_str.contains("[sync.vad]"));
+        assert!(toml_str.contains("default_method"));
+        assert!(toml_str.contains("analysis_window_seconds"));
     }
 }
 

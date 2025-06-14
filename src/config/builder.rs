@@ -110,72 +110,45 @@ impl TestConfigBuilder {
 
     // Sync Configuration Methods
 
-    /// Set the sync correlation threshold.
-    ///
-    /// # Arguments
-    ///
-    /// * `threshold` - Correlation threshold (0.0-1.0)
-    pub fn with_sync_threshold(mut self, threshold: f32) -> Self {
-        self.config.sync.correlation_threshold = threshold;
+    /// 設定同步方法
+    pub fn with_sync_method(mut self, method: &str) -> Self {
+        self.config.sync.default_method = method.to_string();
         self
     }
 
-    /// Set the maximum offset for synchronization.
-    ///
-    /// # Arguments
-    ///
-    /// * `offset` - Maximum offset in seconds
-    pub fn with_max_offset(mut self, offset: f32) -> Self {
-        self.config.sync.max_offset_seconds = offset;
+    /// 設定分析時間窗口
+    pub fn with_analysis_window(mut self, seconds: u32) -> Self {
+        self.config.sync.analysis_window_seconds = seconds;
         self
     }
 
-    /// Set the audio sample rate.
-    ///
-    /// # Arguments
-    ///
-    /// * `sample_rate` - Sample rate in Hz
-    pub fn with_audio_sample_rate(mut self, sample_rate: u32) -> Self {
-        self.config.sync.audio_sample_rate = sample_rate;
+    /// 啟用/停用 Whisper API
+    pub fn with_whisper_enabled(mut self, enabled: bool) -> Self {
+        self.config.sync.whisper.enabled = enabled;
         self
     }
 
-    /// Enable or disable dialogue detection.
-    ///
-    /// # Arguments
-    ///
-    /// * `enabled` - Whether to enable dialogue detection
-    pub fn with_dialogue_detection(mut self, enabled: bool) -> Self {
-        self.config.sync.enable_dialogue_detection = enabled;
+    /// 設定 Whisper 模型
+    pub fn with_whisper_model(mut self, model: &str) -> Self {
+        self.config.sync.whisper.model = model.to_string();
         self
     }
 
-    /// Set dialogue detection parameters.
-    ///
-    /// # Arguments
-    ///
-    /// * `threshold` - Detection threshold (0.0-1.0)
-    /// * `min_duration_ms` - Minimum dialogue duration in milliseconds
-    /// * `merge_gap_ms` - Gap for merging dialogue segments in milliseconds
-    pub fn with_dialogue_params(
-        mut self,
-        threshold: f32,
-        min_duration_ms: u64,
-        merge_gap_ms: u64,
-    ) -> Self {
-        self.config.sync.dialogue_detection_threshold = threshold;
-        self.config.sync.min_dialogue_duration_ms = min_duration_ms as u32;
-        self.config.sync.dialogue_merge_gap_ms = merge_gap_ms as u32;
+    /// 啟用/停用本地 VAD
+    pub fn with_vad_enabled(mut self, enabled: bool) -> Self {
+        self.config.sync.vad.enabled = enabled;
         self
     }
 
-    /// Enable or disable auto-detection of sample rate.
-    ///
-    /// # Arguments
-    ///
-    /// * `enabled` - Whether to enable auto-detection
-    pub fn with_auto_detect_sample_rate(mut self, enabled: bool) -> Self {
-        self.config.sync.auto_detect_sample_rate = enabled;
+    /// 設定 VAD 敏感度
+    pub fn with_vad_sensitivity(mut self, sensitivity: f32) -> Self {
+        self.config.sync.vad.sensitivity = sensitivity;
+        self
+    }
+
+    /// 設定 VAD 取樣率
+    pub fn with_vad_sample_rate(mut self, sample_rate: u32) -> Self {
+        self.config.sync.vad.sample_rate = sample_rate;
         self
     }
 
@@ -408,16 +381,20 @@ mod tests {
     #[test]
     fn test_builder_sync_configuration() {
         let config = TestConfigBuilder::new()
-            .with_sync_threshold(0.9)
-            .with_max_offset(60.0)
-            .with_audio_sample_rate(48000)
-            .with_dialogue_detection(false)
+            .with_sync_method("vad")
+            .with_analysis_window(45)
+            .with_whisper_enabled(false)
+            .with_vad_enabled(true)
+            .with_vad_sensitivity(0.8)
+            .with_vad_sample_rate(32000)
             .build_config();
 
-        assert_eq!(config.sync.correlation_threshold, 0.9);
-        assert_eq!(config.sync.max_offset_seconds, 60.0);
-        assert_eq!(config.sync.audio_sample_rate, 48000);
-        assert!(!config.sync.enable_dialogue_detection);
+        assert_eq!(config.sync.default_method, "vad");
+        assert_eq!(config.sync.analysis_window_seconds, 45);
+        assert!(!config.sync.whisper.enabled);
+        assert!(config.sync.vad.enabled);
+        assert_eq!(config.sync.vad.sensitivity, 0.8);
+        assert_eq!(config.sync.vad.sample_rate, 32000);
     }
 
     #[test]
@@ -435,14 +412,20 @@ mod tests {
         let config = TestConfigBuilder::new()
             .with_ai_provider("openai")
             .with_ai_model("gpt-4.1")
-            .with_sync_threshold(0.8)
+            .with_sync_method("whisper")
+            .with_analysis_window(60)
+            .with_whisper_model("whisper-2")
+            .with_vad_sensitivity(0.5)
             .with_max_concurrent_jobs(8)
             .with_task_queue_size(200)
             .build_config();
 
         assert_eq!(config.ai.provider, "openai");
         assert_eq!(config.ai.model, "gpt-4.1");
-        assert_eq!(config.sync.correlation_threshold, 0.8);
+        assert_eq!(config.sync.default_method, "whisper");
+        assert_eq!(config.sync.analysis_window_seconds, 60);
+        assert_eq!(config.sync.whisper.model, "whisper-2");
+        assert_eq!(config.sync.vad.sensitivity, 0.5);
         assert_eq!(config.general.max_concurrent_jobs, 8);
         assert_eq!(config.parallel.task_queue_size, 200);
     }

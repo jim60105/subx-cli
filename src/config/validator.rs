@@ -6,6 +6,7 @@
 
 use crate::Result;
 use crate::config::Config;
+use crate::config::{SyncConfig, VadConfig, WhisperConfig};
 use crate::error::SubXError;
 
 /// Trait defining the validation interface for configuration sections.
@@ -60,18 +61,106 @@ pub struct SyncValidator;
 
 impl ConfigValidator for SyncValidator {
     fn validate(&self, config: &Config) -> Result<()> {
-        // Check max offset seconds
-        if config.sync.max_offset_seconds < 0.0 || config.sync.max_offset_seconds > 300.0 {
+        // Delegate to SyncConfig's own validation logic
+        config.sync.validate()
+    }
+}
+
+impl SyncConfig {
+    /// 驗證同步配置的有效性
+    pub fn validate(&self) -> Result<()> {
+        // 驗證 default_method
+        match self.default_method.as_str() {
+            "whisper" | "vad" => {}
+            _ => {
+                return Err(SubXError::config(
+                    "sync.default_method must be one of: whisper, vad",
+                ));
+            }
+        }
+
+        // 驗證 analysis_window_seconds
+        if self.analysis_window_seconds == 0 || self.analysis_window_seconds > 300 {
             return Err(SubXError::config(
-                "Maximum offset seconds must be between 0.0 and 300.0",
+                "sync.analysis_window_seconds must be between 1 and 300",
             ));
         }
 
-        // Check correlation threshold
-        if config.sync.correlation_threshold < 0.0 || config.sync.correlation_threshold > 1.0 {
+        // 驗證 max_offset_seconds
+        if self.max_offset_seconds <= 0.0 || self.max_offset_seconds > 3600.0 {
             return Err(SubXError::config(
-                "Correlation threshold must be between 0.0 and 1.0",
+                "sync.max_offset_seconds must be between 0.1 and 3600.0",
             ));
+        }
+
+        // 驗證子配置
+        self.whisper.validate()?;
+        self.vad.validate()?;
+
+        Ok(())
+    }
+}
+
+impl WhisperConfig {
+    /// 驗證 Whisper API 配置的有效性
+    pub fn validate(&self) -> Result<()> {
+        // 驗證 temperature
+        if self.temperature < 0.0 || self.temperature > 1.0 {
+            return Err(SubXError::config(
+                "sync.whisper.temperature must be between 0.0 and 1.0",
+            ));
+        }
+
+        // 驗證 timeout_seconds
+        if self.timeout_seconds == 0 || self.timeout_seconds > 300 {
+            return Err(SubXError::config(
+                "sync.whisper.timeout_seconds must be between 1 and 300",
+            ));
+        }
+
+        // 驗證 max_retries
+        if self.max_retries > 10 {
+            return Err(SubXError::config(
+                "sync.whisper.max_retries must be 10 or less",
+            ));
+        }
+
+        // 驗證 min_confidence_threshold
+        if self.min_confidence_threshold < 0.0 || self.min_confidence_threshold > 1.0 {
+            return Err(SubXError::config(
+                "sync.whisper.min_confidence_threshold must be between 0.0 and 1.0",
+            ));
+        }
+
+        Ok(())
+    }
+}
+
+impl VadConfig {
+    /// 驗證本地 VAD 配置的有效性
+    pub fn validate(&self) -> Result<()> {
+        // 驗證 sensitivity
+        if self.sensitivity < 0.0 || self.sensitivity > 1.0 {
+            return Err(SubXError::config(
+                "sync.vad.sensitivity must be between 0.0 and 1.0",
+            ));
+        }
+
+        // 驗證 chunk_size (must be power of 2 and reasonable size)
+        if self.chunk_size < 256 || self.chunk_size > 2048 || !self.chunk_size.is_power_of_two() {
+            return Err(SubXError::config(
+                "sync.vad.chunk_size must be a power of 2 between 256 and 2048",
+            ));
+        }
+
+        // 驗證 sample_rate
+        match self.sample_rate {
+            8000 | 16000 | 32000 | 44100 | 48000 => {}
+            _ => {
+                return Err(SubXError::config(
+                    "sync.vad.sample_rate must be one of: 8000, 16000, 32000, 44100, 48000",
+                ));
+            }
         }
 
         Ok(())

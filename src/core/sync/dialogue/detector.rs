@@ -1,3 +1,4 @@
+#![allow(deprecated)]
 //! Dialogue detection module combining audio analysis and configuration.
 //!
 //! Provides `DialogueDetector` to extract speech segments from audio files
@@ -145,14 +146,14 @@ mod tests {
 
     fn create_test_config() -> SyncConfig {
         SyncConfig {
-            max_offset_seconds: 30.0,
-            audio_sample_rate: 16000,
             correlation_threshold: 0.7,
             dialogue_detection_threshold: 0.01,
             min_dialogue_duration_ms: 500,
             dialogue_merge_gap_ms: 500,
             enable_dialogue_detection: true,
+            audio_sample_rate: 16000,
             auto_detect_sample_rate: true,
+            ..SyncConfig::default()
         }
     }
 
@@ -267,28 +268,28 @@ mod tests {
     fn test_detection_thresholds() {
         // Test strict threshold
         let strict_config = SyncConfig {
-            max_offset_seconds: 5.0,
-            audio_sample_rate: 16000,
             correlation_threshold: 0.8,
             dialogue_detection_threshold: 0.8, // High threshold
             min_dialogue_duration_ms: 1000,
             dialogue_merge_gap_ms: 500,
             enable_dialogue_detection: true,
+            audio_sample_rate: 16000,
             auto_detect_sample_rate: false,
+            ..SyncConfig::default()
         };
 
         let strict_detector = DialogueDetector::new(&strict_config);
 
         // Test lenient threshold
         let lenient_config = SyncConfig {
-            max_offset_seconds: 5.0,
-            audio_sample_rate: 16000,
             correlation_threshold: 0.5,
             dialogue_detection_threshold: 0.1, // Low threshold
             min_dialogue_duration_ms: 100,
             dialogue_merge_gap_ms: 200,
             enable_dialogue_detection: true,
+            audio_sample_rate: 16000,
             auto_detect_sample_rate: false,
+            ..SyncConfig::default()
         };
 
         let lenient_detector = DialogueDetector::new(&lenient_config);
