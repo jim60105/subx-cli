@@ -93,8 +93,6 @@ impl AusAudioAnalyzer {
         })
     }
 
-
-
     /// Audio feature analysis using aus
     pub async fn analyze_audio_features(&self, audio_file: &AudioFile) -> Result<AudioFeatures> {
         // Validate audio file has samples
@@ -209,7 +207,6 @@ mod tests {
         assert!(audio_data.duration > 1.9 && audio_data.duration < 2.1);
         assert!(!audio_data.samples.is_empty());
     }
-
 
     /// Test audio feature analysis
     #[ignore]

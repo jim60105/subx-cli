@@ -92,8 +92,10 @@ tempfile = "3.10"
 # Whisper API 整合所需
 tokio-util = { version = "0.7", features = ["codec"] }
 hound = "3.5"
-voice_activity_detector = { version = "0.2.0", features = ["async"] }
-rubato = "0.14"
+voice_activity_detector = { version = "0.1.1", features = ["async"] }
+ort = "=2.0.0-rc.4"
+ort-sys = "=2.0.0-rc.4"
+rubato = "0.16.2"
 
 # Configuration management dependencies: path resolution and multi-core detection
 dirs = "6.0"
