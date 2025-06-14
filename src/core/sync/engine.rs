@@ -3,15 +3,15 @@
 //! 此模組提供統一的字幕同步功能，整合 OpenAI Whisper API 和本地 VAD
 //! 等多種語音檢測方法，並提供自動方法選擇和回退機制。
 
-use std::path::Path;
-use std::time::{Duration, Instant};
 use serde::{Deserialize, Serialize};
 use serde_json::json;
+use std::path::Path;
+use std::time::{Duration, Instant};
 
-use crate::config::{SyncConfig, ConfigService};
+use crate::config::{ConfigService, SyncConfig};
 use crate::core::formats::{Subtitle, SubtitleEntry};
-use crate::services::whisper::{WhisperSyncDetector, AudioSegmentExtractor};
 use crate::services::vad::VadSyncDetector;
+use crate::services::whisper::{AudioSegmentExtractor, WhisperSyncDetector};
 use crate::{Result, error::SubXError};
 
 /// 統一的同步引擎，支援多種同步方法及自動模式
@@ -28,16 +28,26 @@ impl SyncEngine {
         let whisper_detector = if config.whisper.enabled {
             match Self::create_whisper_detector(&config, config_service).await {
                 Ok(det) => Some(det),
-                Err(e) => { log::warn!("Whisper 初始化失敗: {}", e); None }
+                Err(e) => {
+                    log::warn!("Whisper 初始化失敗: {}", e);
+                    None
+                }
             }
-        } else { None };
+        } else {
+            None
+        };
 
         let vad_detector = if config.vad.enabled {
             match VadSyncDetector::new(config.vad.clone()) {
                 Ok(det) => Some(det),
-                Err(e) => { log::warn!("VAD 初始化失敗: {}", e); None }
+                Err(e) => {
+                    log::warn!("VAD 初始化失敗: {}", e);
+                    None
+                }
             }
-        } else { None };
+        } else {
+            None
+        };
 
         if whisper_detector.is_none() && vad_detector.is_none() {
             return Err(SubXError::config("No synchronization methods available"));
@@ -56,7 +66,9 @@ impl SyncEngine {
         config_service: &dyn ConfigService,
     ) -> Result<WhisperSyncDetector> {
         let full = config_service.get_config()?;
-        let key = full.ai.api_key
+        let key = full
+            .ai
+            .api_key
             .or_else(|| std::env::var("OPENAI_API_KEY").ok())
             .ok_or_else(|| SubXError::config("OpenAI API key not found"))?;
         WhisperSyncDetector::new(key, full.ai.base_url, config.whisper.clone())
@@ -73,9 +85,14 @@ impl SyncEngine {
         let m = method.unwrap_or_else(|| self.determine_default_method());
         let mut res = match m {
             SyncMethod::Auto => self.auto_detect_sync_offset(audio_path, subtitle).await?,
-            SyncMethod::WhisperApi => self.whisper_detect_sync_offset(audio_path, subtitle).await?,
+            SyncMethod::WhisperApi => {
+                self.whisper_detect_sync_offset(audio_path, subtitle)
+                    .await?
+            }
             SyncMethod::LocalVad => self.vad_detect_sync_offset(audio_path, subtitle).await?,
-            SyncMethod::Manual => return Err(SubXError::sync("Manual method requires explicit offset")),
+            SyncMethod::Manual => {
+                return Err(SubXError::sync("Manual method requires explicit offset"));
+            }
         };
         res.processing_duration = start.elapsed();
         Ok(res)
@@ -104,17 +121,31 @@ impl SyncEngine {
     ) -> Result<SyncResult> {
         let start = Instant::now();
         for entry in &mut subtitle.entries {
-            entry.start_time = entry.start_time
+            entry.start_time = entry
+                .start_time
                 .checked_add(Duration::from_secs_f32(offset_seconds.abs()))
-                .or_else(|| if offset_seconds < 0.0 {
-                    entry.start_time.checked_sub(Duration::from_secs_f32(-offset_seconds))
-                } else { None })
+                .or_else(|| {
+                    if offset_seconds < 0.0 {
+                        entry
+                            .start_time
+                            .checked_sub(Duration::from_secs_f32(-offset_seconds))
+                    } else {
+                        None
+                    }
+                })
                 .ok_or_else(|| SubXError::sync("Invalid offset results in negative time"))?;
-            entry.end_time = entry.end_time
+            entry.end_time = entry
+                .end_time
                 .checked_add(Duration::from_secs_f32(offset_seconds.abs()))
-                .or_else(|| if offset_seconds < 0.0 {
-                    entry.end_time.checked_sub(Duration::from_secs_f32(-offset_seconds))
-                } else { None })
+                .or_else(|| {
+                    if offset_seconds < 0.0 {
+                        entry
+                            .end_time
+                            .checked_sub(Duration::from_secs_f32(-offset_seconds))
+                    } else {
+                        None
+                    }
+                })
                 .ok_or_else(|| SubXError::sync("Invalid offset results in negative time"))?;
         }
         Ok(SyncResult {
@@ -144,13 +175,23 @@ impl SyncEngine {
         audio_path: &Path,
         subtitle: &Subtitle,
     ) -> Result<SyncResult> {
-        let det = self.whisper_detector.as_ref()
+        let det = self
+            .whisper_detector
+            .as_ref()
             .ok_or_else(|| SubXError::sync("Whisper detector not available"))?;
-        let mut r = det.detect_sync_offset(audio_path, subtitle, self.config.analysis_window_seconds).await?;
-        if r.confidence < self.config.whisper.min_confidence_threshold && self.config.whisper.fallback_to_vad {
+        let mut r = det
+            .detect_sync_offset(audio_path, subtitle, self.config.analysis_window_seconds)
+            .await?;
+        if r.confidence < self.config.whisper.min_confidence_threshold
+            && self.config.whisper.fallback_to_vad
+        {
             if let Some(vad) = &self.vad_detector {
-                let mut v = vad.detect_sync_offset(audio_path, subtitle, self.config.analysis_window_seconds).await?;
-                v.warnings.push(format!("Whisper confidence below threshold, fallback to VAD"));
+                let mut v = vad
+                    .detect_sync_offset(audio_path, subtitle, self.config.analysis_window_seconds)
+                    .await?;
+                v.warnings.push(format!(
+                    "Whisper confidence below threshold, fallback to VAD"
+                ));
                 return Ok(v);
             }
         }
@@ -162,9 +203,12 @@ impl SyncEngine {
         audio_path: &Path,
         subtitle: &Subtitle,
     ) -> Result<SyncResult> {
-        let det = self.vad_detector.as_ref()
+        let det = self
+            .vad_detector
+            .as_ref()
             .ok_or_else(|| SubXError::sync("VAD detector not available"))?;
-        det.detect_sync_offset(audio_path, subtitle, self.config.analysis_window_seconds).await
+        det.detect_sync_offset(audio_path, subtitle, self.config.analysis_window_seconds)
+            .await
     }
 }
 
@@ -196,6 +240,93 @@ pub struct MethodSelectionStrategy {
     pub min_confidence_threshold: f32,
     pub allow_fallback: bool,
     pub max_attempt_duration: u32,
+}
+
+// 單元測試模組：補充同步引擎核心行為驗證
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::config::{TestConfigBuilder, TestConfigService};
+    use crate::core::formats::{Subtitle, SubtitleEntry, SubtitleFormatType, SubtitleMetadata};
+    use std::time::Duration;
+
+    #[tokio::test]
+    async fn test_sync_engine_creation() {
+        let config = TestConfigBuilder::new()
+            .with_whisper_enabled(false)
+            .with_vad_enabled(true)
+            .build_config();
+        let config_service = TestConfigService::new(config);
+        let result =
+            SyncEngine::new(config_service.get_config().unwrap().sync, &config_service).await;
+        assert!(result.is_ok());
+    }
+
+    #[tokio::test]
+    async fn test_manual_offset_application() {
+        let config = TestConfigBuilder::new().build_config();
+        let config_service = TestConfigService::new(config);
+        let engine = SyncEngine::new(config_service.get_config().unwrap().sync, &config_service)
+            .await
+            .unwrap();
+
+        let mut subtitle = create_test_subtitle();
+        let original_start = subtitle.entries[0].start_time;
+
+        let result = engine.apply_manual_offset(&mut subtitle, 2.5).unwrap();
+        assert_eq!(result.offset_seconds, 2.5);
+        assert_eq!(result.method_used, SyncMethod::Manual);
+        assert_eq!(result.confidence, 1.0);
+
+        let expected_start = original_start + Duration::from_secs_f32(2.5);
+        assert_eq!(subtitle.entries[0].start_time, expected_start);
+    }
+
+    #[tokio::test]
+    async fn test_determine_default_method() {
+        let test_cases = vec![
+            ("whisper", SyncMethod::WhisperApi),
+            ("vad", SyncMethod::LocalVad),
+            ("unknown", SyncMethod::Auto),
+        ];
+
+        for (config_value, expected_method) in test_cases {
+            let config = TestConfigBuilder::new()
+                .with_sync_method(config_value)
+                .build_config();
+            let config_service = TestConfigService::new(config);
+            let engine =
+                SyncEngine::new(config_service.get_config().unwrap().sync, &config_service)
+                    .await
+                    .unwrap();
+            assert_eq!(engine.determine_default_method(), expected_method);
+        }
+    }
+
+    #[tokio::test]
+    async fn test_method_selection_strategy_struct() {
+        let strategy = MethodSelectionStrategy {
+            preferred_methods: vec![SyncMethod::WhisperApi, SyncMethod::LocalVad],
+            min_confidence_threshold: 0.7,
+            allow_fallback: true,
+            max_attempt_duration: 60,
+        };
+        assert_eq!(strategy.preferred_methods.len(), 2);
+        assert!(strategy.allow_fallback);
+    }
+
+    fn create_test_subtitle() -> Subtitle {
+        Subtitle {
+            entries: vec![SubtitleEntry::new(
+                1,
+                Duration::from_secs(10),
+                Duration::from_secs(12),
+                "Test subtitle".to_string(),
+            )],
+            metadata: SubtitleMetadata::default(),
+            format: SubtitleFormatType::Srt,
+        }
+    }
 }
 
 /// 向後兼容性 - 保留舊的 SyncConfig 結構但標記為 deprecated
