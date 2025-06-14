@@ -1,6 +1,6 @@
 //! Audio analyzer based on the aus crate.
 
-use crate::services::audio::{AudioData, AudioEnvelope, AudioTranscoder};
+use crate::services::audio::{AudioData, AudioTranscoder};
 use crate::{Result, error::SubXError};
 use aus::{AudioFile, WindowType, analysis, operations, spectrum};
 use std::path::Path;
@@ -93,68 +93,7 @@ impl AusAudioAnalyzer {
         })
     }
 
-    /// Extract audio energy envelope
-    pub async fn extract_envelope<P: AsRef<Path>>(&self, audio_path: P) -> Result<AudioEnvelope> {
-        let audio_file = self.load_audio_file_with_transcoding(audio_path).await?;
 
-        // Additional safety check (should not be needed due to load_audio_file validation)
-        if audio_file.samples.is_empty() {
-            return Err(SubXError::audio_processing(
-                "Audio file contains no samples for envelope extraction",
-            ));
-        }
-
-        let samples = &audio_file.samples[0];
-        let mut energy_samples = Vec::new();
-        for chunk in samples.chunks(self.hop_size) {
-            let rms_energy = operations::rms(chunk);
-            energy_samples.push(rms_energy as f32);
-        }
-
-        // Ensure duration is correct
-        let duration = if audio_file.duration > 0.0 {
-            audio_file.duration as f32
-        } else {
-            samples.len() as f32 / audio_file.sample_rate as f32
-        };
-
-        Ok(AudioEnvelope {
-            samples: energy_samples,
-            sample_rate: self.sample_rate,
-            duration,
-        })
-    }
-
-    /// Detect dialogue segments (legacy interface compatible)
-    pub fn detect_dialogue(
-        &self,
-        envelope: &AudioEnvelope,
-        threshold: f32,
-    ) -> Vec<crate::services::audio::DialogueSegment> {
-        let mut segments = Vec::new();
-        let mut in_dialogue = false;
-        let mut start = 0.0;
-        let time_per_sample = envelope.duration / envelope.samples.len() as f32;
-
-        for (i, &e) in envelope.samples.iter().enumerate() {
-            let t = i as f32 * time_per_sample;
-            if e > threshold && !in_dialogue {
-                in_dialogue = true;
-                start = t;
-            } else if e <= threshold && in_dialogue {
-                in_dialogue = false;
-                if t - start > 0.5 {
-                    segments.push(crate::services::audio::DialogueSegment {
-                        start_time: start,
-                        end_time: t,
-                        intensity: e,
-                    });
-                }
-            }
-        }
-
-        segments
-    }
 
     /// Audio feature analysis using aus
     pub async fn analyze_audio_features(&self, audio_file: &AudioFile) -> Result<AudioFeatures> {
@@ -271,57 +210,6 @@ mod tests {
         assert!(!audio_data.samples.is_empty());
     }
 
-    /// Test audio energy envelope extraction
-    #[ignore]
-    #[tokio::test]
-    async fn test_extract_envelope_features() {
-        let sample_rate = 44100;
-        let analyzer = AusAudioAnalyzer::new(sample_rate);
-        let temp_dir = TempDir::new().unwrap();
-
-        // Create audio file with varying energy levels
-        let wav_data = create_varying_energy_wav(44100, 2.0);
-        let wav_path = temp_dir.path().join("varying.wav");
-        fs::write(&wav_path, wav_data).unwrap();
-
-        let envelope = analyzer.extract_envelope(&wav_path).await.unwrap();
-
-        assert!(!envelope.samples.is_empty());
-        assert_eq!(envelope.sample_rate, sample_rate);
-        assert!(envelope.duration > 1.9);
-
-        // Verify energy values are within reasonable range
-        for &energy in &envelope.samples {
-            assert!(energy >= 0.0);
-            assert!(energy <= 1.0);
-        }
-    }
-
-    /// Test dialogue detection functionality
-    #[ignore]
-    #[tokio::test]
-    async fn test_detect_dialogue_segments() {
-        let analyzer = AusAudioAnalyzer::new(16000);
-
-        // Create mock audio envelope (containing speech and silence segments)
-        let envelope = AudioEnvelope {
-            samples: vec![
-                0.1, 0.8, 0.9, 0.7, 0.2, // Speech segment
-                0.05, 0.03, 0.02, 0.04, // Silence segment
-                0.6, 0.8, 0.7, 0.9, 0.5, // Speech segment
-            ],
-            sample_rate: 16000,
-            duration: 2.0,
-        };
-
-        let segments = analyzer.detect_dialogue(&envelope, 0.3);
-
-        assert!(!segments.is_empty());
-
-        // Verify detected speech segments
-        let speech_segments: Vec<_> = segments.iter().filter(|s| s.intensity > 0.3).collect();
-        assert!(speech_segments.len() >= 2);
-    }
 
     /// Test audio feature analysis
     #[ignore]
