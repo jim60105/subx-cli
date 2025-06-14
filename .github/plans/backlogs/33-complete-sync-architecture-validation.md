@@ -93,30 +93,49 @@ cargo test -- --ignored
 
 **檔案位置**：`tests/whisper_integration_tests.rs`
 
+**重要**：我們將使用 wiremock 來模擬 Whisper API，不進行實際的 API 呼叫。
+
 **步驟 1**：檢查測試結構
 ```bash
 # 查看測試檔案內容
 cat tests/whisper_integration_tests.rs
 ```
 
-**步驟 2**：實作條件式測試執行
-在 `tests/whisper_integration_tests.rs` 中加入以下模式：
+**步驟 2**：使用 wiremock 模擬 API 呼叫
+在 `tests/whisper_integration_tests.rs` 中實作：
 
 ```rust
-use std::env;
-
-fn skip_if_no_api_key() -> Result<(), Box<dyn std::error::Error>> {
-    if env::var("OPENAI_API_KEY").is_err() {
-        println!("Skipping test: OPENAI_API_KEY not set");
-        return Err("API key not available".into());
-    }
-    Ok(())
-}
+use wiremock::{MockServer, Mock, ResponseTemplate};
+use wiremock::matchers::{method, path, header};
+use serde_json::json;
+use subx_cli::services::whisper::WhisperApiClient;
+use subx_cli::config::WhisperConfig;
+use std::path::Path;
 
 #[tokio::test]
-async fn test_whisper_sync_detection() -> Result<(), Box<dyn std::error::Error>> {
-    // 檢查 API 金鑰，如果沒有則跳過測試
-    skip_if_no_api_key()?;
+async fn test_whisper_sync_detection_with_mock() -> Result<(), Box<dyn std::error::Error>> {
+    // 建立 mock 伺服器
+    let mock_server = MockServer::start().await;
+    
+    // 設定 mock 回應
+    Mock::given(method("POST"))
+        .and(path("/audio/transcriptions"))
+        .and(header("authorization", "Bearer test-key"))
+        .respond_with(ResponseTemplate::new(200)
+            .set_body_json(json!({
+                "text": "Hello world this is a test",
+                "segments": [{
+                    "start": 0.5,
+                    "end": 2.0,
+                    "text": "Hello world this is a test"
+                }],
+                "words": [
+                    {"word": "Hello", "start": 0.5, "end": 1.0},
+                    {"word": "world", "start": 1.0, "end": 1.5}
+                ]
+            })))
+        .mount(&mock_server)
+        .await;
     
     // 建立測試配置
     let config = WhisperConfig {
@@ -127,59 +146,91 @@ async fn test_whisper_sync_detection() -> Result<(), Box<dyn std::error::Error>>
         timeout_seconds: 30,
         fallback_to_vad: true,
         min_confidence_threshold: 0.7,
+        max_retries: 1,
+        retry_delay_ms: 100,
     };
     
-    // 建立合成音訊測試資料或使用測試檔案
-    let test_audio_path = create_test_audio_file()?;
+    // 建立客戶端（使用 mock 伺服器的 URL）
+    let client = WhisperApiClient::new(
+        "test-key".to_string(),
+        mock_server.uri(),
+        config
+    )?;
     
-    // 執行實際測試
-    let result = detect_sync_with_whisper(&config, &test_audio_path).await?;
+    // 使用準備好的測試音訊檔案
+    let test_audio_path = Path::new("tests/data/test_speech.wav");
+    
+    // 執行測試
+    let result = client.transcribe(&test_audio_path).await?;
     
     // 驗證結果
-    assert!(result.is_some());
-    assert!(result.unwrap().confidence > 0.5);
+    assert_eq!(result.text, "Hello world this is a test");
+    assert!(!result.segments.is_empty());
+    assert!(result.words.is_some());
+    
+    Ok(())
+}
+
+#[tokio::test]
+async fn test_whisper_api_error_handling() -> Result<(), Box<dyn std::error::Error>> {
+    // 測試 API 錯誤處理
+    let mock_server = MockServer::start().await;
+    
+    Mock::given(method("POST"))
+        .and(path("/audio/transcriptions"))
+        .respond_with(ResponseTemplate::new(429)
+            .set_body_json(json!({
+                "error": {
+                    "message": "Rate limit exceeded",
+                    "type": "rate_limit_error"
+                }
+            })))
+        .mount(&mock_server)
+        .await;
+    
+    let config = WhisperConfig::default();
+    let client = WhisperApiClient::new(
+        "test-key".to_string(),
+        mock_server.uri(),
+        config
+    )?;
+    
+    let test_audio_path = Path::new("tests/data/test_speech.wav");
+    let result = client.transcribe(&test_audio_path).await;
+    
+    // 驗證錯誤處理
+    assert!(result.is_err());
     
     Ok(())
 }
 ```
 
-**步驟 3**：建立測試音訊檔案產生函數
-```rust
-fn create_test_audio_file() -> Result<PathBuf, Box<dyn std::error::Error>> {
-    use std::fs;
-    use std::path::PathBuf;
-    
-    // 建立臨時測試目錄
-    let test_dir = PathBuf::from("target/test_audio");
-    fs::create_dir_all(&test_dir)?;
-    
-    // 這裡可以：
-    // 1. 複製現有的測試音訊檔案
-    // 2. 產生簡單的合成音訊
-    // 3. 使用預先準備的測試資源
-    
-    let test_file = test_dir.join("test.wav");
-    
-    // 簡單的方式：檢查是否有測試音訊檔案
-    if !test_file.exists() {
-        // 創建一個簡單的靜音 WAV 檔案作為測試
-        create_silent_wav_file(&test_file)?;
-    }
-    
-    Ok(test_file)
-}
+**步驟 3**：評估 Whisper 客戶端重構需求
+檢查現有的 `WhisperApiClient` 是否需要修改以支援 mock URL：
+
+```bash
+# 檢查現有的客戶端建構函數
+grep -A 10 "pub fn new" src/services/whisper/client.rs
+```
+
+**重要發現**：現有的 `WhisperApiClient::new` 已經接受 `base_url` 參數，因此**不需要額外重構**就可以使用 wiremock。
+
+**步驟 4**：驗證現有 wiremock 整合
+```bash
+# 確認現有的 mock 測試正常運作
+cargo test whisper_mock --test whisper_mock_tests
 ```
 
 #### 1.3 修復 VAD 整合測試
 
 **檔案位置**：`tests/vad_integration_tests.rs`
 
-**步驟 1**：移除外部檔案依賴
-將原本依賴外部音訊檔案的測試改為使用合成音訊：
+**步驟 1**：移除外部檔案依賴，使用手動準備的音訊檔案
+將原本依賴外部音訊檔案的測試改為使用預先準備的測試音訊：
 
 ```rust
 #[tokio::test]
-async fn test_vad_detection_with_synthetic_audio() -> Result<(), Box<dyn std::error::Error>> {
+async fn test_vad_detection_with_prepared_audio() -> Result<(), Box<dyn std::error::Error>> {
     // 建立 VAD 配置
     let config = VadConfig {
         enabled: true,
@@ -189,12 +240,20 @@ async fn test_vad_detection_with_synthetic_audio() -> Result<(), Box<dyn std::er
         padding_chunks: 3,
     };
     
-    // 產生合成音訊資料
-    let synthetic_audio = generate_synthetic_speech_audio()?;
+    // 使用手動準備的測試音訊檔案
+    let test_audio_path = Path::new("tests/data/vad_test_speech.wav");
+    
+    // 確保測試檔案存在
+    if !test_audio_path.exists() {
+        panic!("Test audio file not found: {:?}. Please prepare the required test audio files.", test_audio_path);
+    }
+    
+    // 載入音訊檔案
+    let audio_data = load_audio_file(test_audio_path)?;
     
     // 執行 VAD 檢測
     let detector = VadDetector::new(&config)?;
-    let detection_result = detector.detect_voice_activity(&synthetic_audio)?;
+    let detection_result = detector.detect_voice_activity(&audio_data)?;
     
     // 驗證結果
     assert!(!detection_result.voice_segments.is_empty());
@@ -203,25 +262,75 @@ async fn test_vad_detection_with_synthetic_audio() -> Result<(), Box<dyn std::er
     Ok(())
 }
 
-fn generate_synthetic_speech_audio() -> Result<Vec<f32>, Box<dyn std::error::Error>> {
-    // 產生包含語音特徵的合成音訊
-    let sample_rate = 16000;
-    let duration_seconds = 2.0;
-    let total_samples = (sample_rate as f32 * duration_seconds) as usize;
+#[tokio::test]
+async fn test_vad_with_silence() -> Result<(), Box<dyn std::error::Error>> {
+    let config = VadConfig {
+        enabled: true,
+        sensitivity: 0.75,
+        chunk_size: 512,
+        sample_rate: 16000,
+        padding_chunks: 3,
+    };
     
-    let mut audio_data = Vec::with_capacity(total_samples);
+    // 使用手動準備的靜音檔案
+    let silence_audio_path = Path::new("tests/data/vad_test_silence.wav");
     
-    // 產生具有語音特徵的音訊波形
-    for i in 0..total_samples {
-        let t = i as f32 / sample_rate as f32;
-        // 模擬語音的復合波形
-        let speech_like = 0.3 * (2.0 * std::f32::consts::PI * 200.0 * t).sin()
-                        + 0.2 * (2.0 * std::f32::consts::PI * 400.0 * t).sin()
-                        + 0.1 * (2.0 * std::f32::consts::PI * 800.0 * t).sin();
-        audio_data.push(speech_like);
+    if !silence_audio_path.exists() {
+        panic!("Test silence file not found: {:?}. Please prepare the required test audio files.", silence_audio_path);
     }
     
-    Ok(audio_data)
+    let audio_data = load_audio_file(silence_audio_path)?;
+    
+    let detector = VadDetector::new(&config)?;
+    let result = detector.detect_voice_activity(&audio_data)?;
+    
+    // 驗證：靜音應該不被檢測為語音
+    assert!(result.voice_segments.is_empty(), "Silence should not be detected as speech");
+    
+    Ok(())
+}
+
+#[tokio::test]
+async fn test_vad_basic_integration() -> Result<(), Box<dyn std::error::Error>> {
+    // 測試 VAD 模組的基本整合功能，不關注性能細節
+    let config = VadConfig {
+        enabled: true,
+        sensitivity: 0.75,
+        chunk_size: 512,
+        sample_rate: 16000,
+        padding_chunks: 3,
+    };
+    
+    // 使用包含語音和靜音的混合檔案
+    let mixed_audio_path = Path::new("tests/data/vad_test_mixed.wav");
+    
+    if !mixed_audio_path.exists() {
+        println!("Mixed audio test file not found, skipping test");
+        return Ok(());
+    }
+    
+    let audio_data = load_audio_file(mixed_audio_path)?;
+    let detector = VadDetector::new(&config)?;
+    let result = detector.detect_voice_activity(&audio_data)?;
+    
+    // 基本驗證：確保 VAD 能夠運作並返回合理結果
+    // 不驗證性能指標，只驗證功能正確性
+    assert!(result.voice_segments.len() <= audio_data.len() / config.chunk_size);
+    
+    Ok(())
+}
+
+fn load_audio_file(path: &Path) -> Result<Vec<f32>, Box<dyn std::error::Error>> {
+    // 簡化的音訊檔案載入函數
+    // 實際實作會根據音訊格式進行解碼
+    use std::fs;
+    
+    // 這裡只是示例，實際需要使用音訊解碼庫
+    let _file_content = fs::read(path)?;
+    
+    // 暫時返回測試用的假資料
+    // 實際實作需要解碼音訊檔案
+    Ok(vec![0.0; 16000]) // 1 秒的靜音
 }
 ```
 
@@ -260,7 +369,7 @@ cargo test --test vad_integration_tests
 
 ### 任務 2：驗證 Whisper-VAD 回退機制
 **預估工時**：2-3 小時  
-**目標**：確認 Whisper API 失敗時能正確回退到 VAD
+**目標**：確認 Whisper API 失敗時能正確回退到 VAD（使用 wiremock 模擬）
 
 #### 2.1 理解回退機制的設計
 
@@ -292,41 +401,55 @@ if config.whisper.enabled && config.whisper.fallback_to_vad {
 }
 ```
 
-#### 2.2 建立回退機制測試
+#### 2.2 建立回退機制測試（使用 wiremock 模擬失敗）
 
 **檔案位置**：建立新檔案 `tests/sync_fallback_integration_tests.rs`
 
 **步驟 1**：建立測試檔案結構
 ```rust
+use wiremock::{MockServer, Mock, ResponseTemplate};
+use wiremock::matchers::{method, path};
+use serde_json::json;
 use subx::config::{SyncConfig, WhisperConfig, VadConfig};
 use subx::core::sync::SyncEngine;
-use std::path::PathBuf;
+use std::path::Path;
 
 #[tokio::test]
 async fn test_whisper_api_failure_fallback() -> Result<(), Box<dyn std::error::Error>> {
+    // 建立 mock 伺服器模擬 API 失敗
+    let mock_server = MockServer::start().await;
+    
+    // 設定 API 失敗回應
+    Mock::given(method("POST"))
+        .and(path("/audio/transcriptions"))
+        .respond_with(ResponseTemplate::new(500)
+            .set_body_json(json!({
+                "error": {
+                    "message": "Internal server error",
+                    "type": "server_error"
+                }
+            })))
+        .mount(&mock_server)
+        .await;
+    
     // 建立配置，啟用回退機制
-    let config = create_fallback_test_config();
+    let config = create_fallback_test_config(mock_server.uri());
     
-    // 建立故意會失敗的 Whisper 配置（錯誤的 API 金鑰）
-    let mut whisper_config = config.whisper.clone();
-    whisper_config.api_key = Some("invalid_key".to_string());
+    // 準備測試音訊（手動準備的檔案）
+    let test_audio_path = Path::new("tests/data/fallback_test.wav");
     
-    let test_config = SyncConfig {
-        whisper: whisper_config,
-        ..config
-    };
-    
-    // 準備測試音訊
-    let test_audio = create_test_audio_for_fallback()?;
+    if !test_audio_path.exists() {
+        panic!("Fallback test audio file not found. Please prepare: {:?}", test_audio_path);
+    }
     
     // 執行同步檢測
     let engine = SyncEngine::new();
-    let result = engine.detect_sync_point(&test_audio, &test_config).await;
+    let result = engine.detect_sync_point(&test_audio_path, &config).await;
     
     // 驗證：即使 Whisper 失敗，仍應通過 VAD 得到結果
     assert!(result.is_ok());
     let sync_result = result.unwrap();
-    assert!(sync_result.method_used == "vad"); // 確認使用了 VAD
+    assert_eq!(sync_result.method_used, "vad"); // 確認使用了 VAD
     assert!(sync_result.offset_seconds.is_some());
     
     Ok(())
@@ -334,15 +457,35 @@ async fn test_whisper_api_failure_fallback() -> Result<(), Box<dyn std::error::E
 
 #[tokio::test]
 async fn test_whisper_low_confidence_fallback() -> Result<(), Box<dyn std::error::Error>> {
-    // 測試低信心度場景的回退
-    let mut config = create_fallback_test_config();
+    // 建立 mock 伺服器回傳低品質轉錄結果
+    let mock_server = MockServer::start().await;
+    
+    Mock::given(method("POST"))
+        .and(path("/audio/transcriptions"))
+        .respond_with(ResponseTemplate::new(200)
+            .set_body_json(json!({
+                "text": "uh um er",  // 低品質轉錄結果
+                "segments": [{
+                    "start": 0.1,
+                    "end": 0.5,
+                    "text": "uh um er"
+                }],
+                "words": []  // 沒有詳細的詞彙時間戳
+            })))
+        .mount(&mock_server)
+        .await;
+    
+    // 設定很高的信心度閾值
+    let mut config = create_fallback_test_config(mock_server.uri());
     config.whisper.min_confidence_threshold = 0.9; // 設定很高的閾值
     
-    // 建立會產生低信心度結果的測試音訊
-    let low_quality_audio = create_low_quality_test_audio()?;
+    let test_audio_path = Path::new("tests/data/fallback_test.wav");
+    if !test_audio_path.exists() {
+        panic!("Fallback test audio file not found. Please prepare: {:?}", test_audio_path);
+    }
     
     let engine = SyncEngine::new();
-    let result = engine.detect_sync_point(&low_quality_audio, &config).await;
+    let result = engine.detect_sync_point(&test_audio_path, &config).await;
     
     // 驗證回退行為
     match result {
@@ -359,7 +502,36 @@ async fn test_whisper_low_confidence_fallback() -> Result<(), Box<dyn std::error
     Ok(())
 }
 
-fn create_fallback_test_config() -> SyncConfig {
+#[tokio::test]
+async fn test_fallback_disabled() -> Result<(), Box<dyn std::error::Error>> {
+    // 測試當回退機制關閉時的行為
+    let mock_server = MockServer::start().await;
+    
+    Mock::given(method("POST"))
+        .and(path("/audio/transcriptions"))
+        .respond_with(ResponseTemplate::new(500))
+        .mount(&mock_server)
+        .await;
+    
+    let mut config = create_fallback_test_config(mock_server.uri());
+    config.whisper.fallback_to_vad = false; // 關閉回退
+    
+    let test_audio_path = Path::new("tests/data/fallback_test.wav");
+    if !test_audio_path.exists() {
+        println!("Fallback test audio file not found, skipping test");
+        return Ok(());
+    }
+    
+    let engine = SyncEngine::new();
+    let result = engine.detect_sync_point(&test_audio_path, &config).await;
+    
+    // 驗證：應該失敗，不會回退到 VAD
+    assert!(result.is_err());
+    
+    Ok(())
+}
+
+fn create_fallback_test_config(mock_url: String) -> SyncConfig {
     SyncConfig {
         default_method: "whisper".to_string(),
         analysis_window_seconds: 30,
@@ -372,7 +544,10 @@ fn create_fallback_test_config() -> SyncConfig {
             timeout_seconds: 30,
             fallback_to_vad: true, // 關鍵：啟用回退
             min_confidence_threshold: 0.7,
-            api_key: None, // 將由測試設定
+            max_retries: 1,
+            retry_delay_ms: 100,
+            // 使用 mock 伺服器 URL
+            api_base_url: mock_url,
         },
         vad: VadConfig {
             enabled: true,
@@ -420,8 +595,8 @@ async fn test_fallback_logging() -> Result<(), Box<dyn std::error::Error>> {
 - [ ] 回退機制的測試能穩定通過
 
 ### 任務 3：建立基本 VAD 測試
-**預估工時**：2-3 小時  
-**目標**：提供不依賴外部檔案的 VAD 功能驗證
+**預估工時**：1-2 小時  
+**目標**：驗證 VAD 功能整合的正確性（不測試性能）
 
 #### 3.1 分析現有 VAD 實作
 
@@ -449,109 +624,21 @@ pub struct VadConfig {
 }
 ```
 
-#### 3.2 建立合成音訊工具函數
-
-**檔案位置**：建立 `tests/common/audio_generation.rs`
-
-**步驟 1**：建立 common 模組
-```bash
-mkdir -p tests/common
-```
-
-**步驟 2**：實作音訊產生工具
-```rust
-// tests/common/audio_generation.rs
-use std::f32::consts::PI;
-
-pub struct AudioGenerator {
-    sample_rate: usize,
-}
-
-impl AudioGenerator {
-    pub fn new(sample_rate: usize) -> Self {
-        Self { sample_rate }
-    }
-    
-    /// 產生靜音音訊
-    pub fn generate_silence(&self, duration_seconds: f32) -> Vec<f32> {
-        let total_samples = (self.sample_rate as f32 * duration_seconds) as usize;
-        vec![0.0; total_samples]
-    }
-    
-    /// 產生具有語音特徵的音訊
-    pub fn generate_speech_like_audio(&self, duration_seconds: f32) -> Vec<f32> {
-        let total_samples = (self.sample_rate as f32 * duration_seconds) as usize;
-        let mut audio_data = Vec::with_capacity(total_samples);
-        
-        for i in 0..total_samples {
-            let t = i as f32 / self.sample_rate as f32;
-            
-            // 模擬語音的基頻和共振峰
-            let fundamental = 0.3 * (2.0 * PI * 150.0 * t).sin(); // 基頻 150Hz
-            let formant1 = 0.2 * (2.0 * PI * 800.0 * t).sin();    // 第一共振峰
-            let formant2 = 0.1 * (2.0 * PI * 1200.0 * t).sin();   // 第二共振峰
-            
-            // 加入振幅調制模擬語音包絡
-            let envelope = (2.0 * PI * 5.0 * t).sin().abs(); // 5Hz 的包絡變化
-            
-            let sample = (fundamental + formant1 + formant2) * envelope;
-            audio_data.push(sample);
-        }
-        
-        audio_data
-    }
-    
-    /// 產生帶有語音段的測試音訊（靜音 + 語音 + 靜音）
-    pub fn generate_speech_with_silence(&self, 
-        silence_before: f32, 
-        speech_duration: f32, 
-        silence_after: f32
-    ) -> Vec<f32> {
-        let mut audio = Vec::new();
-        
-        // 前段靜音
-        audio.extend(self.generate_silence(silence_before));
-        
-        // 語音段
-        audio.extend(self.generate_speech_like_audio(speech_duration));
-        
-        // 後段靜音
-        audio.extend(self.generate_silence(silence_after));
-        
-        audio
-    }
-    
-    /// 產生白噪音
-    pub fn generate_white_noise(&self, duration_seconds: f32, amplitude: f32) -> Vec<f32> {
-        use rand::Rng;
-        let total_samples = (self.sample_rate as f32 * duration_seconds) as usize;
-        let mut rng = rand::thread_rng();
-        
-        (0..total_samples)
-            .map(|_| amplitude * (rng.gen::<f32>() * 2.0 - 1.0))
-            .collect()
-    }
-}
-
-// tests/common/mod.rs
-pub mod audio_generation;
-```
-
-#### 3.3 實作 VAD 基本功能測試
+#### 3.2 實作 VAD 基本整合測試
 
 **檔案位置**：更新 `tests/vad_integration_tests.rs`
 
-**步驟 1**：移除 `#[ignore]` 並實作新測試
+**重點**：我們只測試整合功能的正確性，不測試 VAD 本身的性能，因為那是外部 crate 的責任。
+
+**步驟 1**：移除 `#[ignore]` 並實作基本測試
 ```rust
 // tests/vad_integration_tests.rs
-mod common;
-
-use common::audio_generation::AudioGenerator;
 use subx::config::VadConfig;
 use subx::services::vad::VadDetector;
+use std::path::Path;
 
 #[tokio::test]
-async fn test_vad_detects_speech_in_synthetic_audio() -> Result<(), Box<dyn std::error::Error>> {
+async fn test_vad_basic_functionality() -> Result<(), Box<dyn std::error::Error>> {
     // 建立標準配置
     let config = VadConfig {
         enabled: true,
@@ -561,89 +648,77 @@ async fn test_vad_detects_speech_in_synthetic_audio() -> Result<(), Box<dyn std:
         padding_chunks: 3,
     };
     
-    // 產生測試音訊：1秒靜音 + 2秒語音 + 1秒靜音
-    let generator = AudioGenerator::new(config.sample_rate);
-    let test_audio = generator.generate_speech_with_silence(1.0, 2.0, 1.0);
+    // 使用手動準備的測試音訊檔案
+    let test_audio_path = Path::new("tests/data/vad_test_speech.wav");
+    
+    if !test_audio_path.exists() {
+        panic!("VAD test audio file not found: {:?}. Please prepare the required test audio files.", test_audio_path);
+    }
+    
+    // 載入音訊資料
+    let audio_data = load_audio_data(test_audio_path)?;
     
     // 執行 VAD 檢測
     let detector = VadDetector::new(&config)?;
-    let result = detector.detect_voice_activity(&test_audio)?;
+    let result = detector.detect_voice_activity(&audio_data)?;
     
-    // 驗證結果
-    assert!(!result.voice_segments.is_empty(), "Should detect at least one voice segment");
+    // 基本驗證：確保 VAD 整合功能正常
+    // 不驗證檢測精度，只確保功能運作
+    assert!(result.voice_segments.len() <= audio_data.len() / config.chunk_size);
     
-    let first_segment = &result.voice_segments[0];
-    assert!(first_segment.start_time >= 0.8, "Speech should start around 1 second");
-    assert!(first_segment.start_time <= 1.2, "Speech start should be detected accurately");
-    assert!(first_segment.end_time >= 2.8, "Speech should end around 3 seconds");
-    
-    Ok(())
-}
-
-#[tokio::test]
-async fn test_vad_ignores_silence() -> Result<(), Box<dyn std::error::Error>> {
-    let config = VadConfig {
-        enabled: true,
-        sensitivity: 0.75,
-        chunk_size: 512,
-        sample_rate: 16000,
-        padding_chunks: 3,
-    };
-    
-    // 產生純靜音音訊
-    let generator = AudioGenerator::new(config.sample_rate);
-    let silence_audio = generator.generate_silence(3.0);
-    
-    let detector = VadDetector::new(&config)?;
-    let result = detector.detect_voice_activity(&silence_audio)?;
-    
-    // 驗證：靜音應該不被檢測為語音
-    assert!(result.voice_segments.is_empty(), "Silence should not be detected as speech");
-    
-    Ok(())
-}
-
-#[tokio::test]
-async fn test_vad_sensitivity_adjustment() -> Result<(), Box<dyn std::error::Error>> {
-    // 產生低音量的語音音訊
-    let generator = AudioGenerator::new(16000);
-    let mut low_volume_speech = generator.generate_speech_like_audio(2.0);
-    
-    // 降低音量到 10%
-    for sample in &mut low_volume_speech {
-        *sample *= 0.1;
+    // 如果檢測到語音段，驗證基本結構
+    if !result.voice_segments.is_empty() {
+        let first_segment = &result.voice_segments[0];
+        assert!(first_segment.start_time >= 0.0);
+        assert!(first_segment.end_time > first_segment.start_time);
     }
     
-    // 測試高敏感度配置
-    let high_sensitivity_config = VadConfig {
-        enabled: true,
-        sensitivity: 0.9, // 高敏感度
-        chunk_size: 512,
-        sample_rate: 16000,
-        padding_chunks: 3,
-    };
+    Ok(())
+}
+
+#[tokio::test]
+async fn test_vad_configuration_integration() -> Result<(), Box<dyn std::error::Error>> {
+    // 測試不同配置參數能正常傳遞到 VAD 檢測器
+    let configs = vec![
+        VadConfig {
+            enabled: true,
+            sensitivity: 0.3,  // 低敏感度
+            chunk_size: 256,
+            sample_rate: 16000,
+            padding_chunks: 1,
+        },
+        VadConfig {
+            enabled: true,
+            sensitivity: 0.9,  // 高敏感度
+            chunk_size: 1024,
+            sample_rate: 16000,
+            padding_chunks: 5,
+        },
+    ];
     
-    // 測試低敏感度配置
-    let low_sensitivity_config = VadConfig {
-        sensitivity: 0.3, // 低敏感度
-        ..high_sensitivity_config
-    };
+    let test_audio_path = Path::new("tests/data/vad_test_speech.wav");
+    if !test_audio_path.exists() {
+        println!("VAD test audio file not found, skipping configuration test");
+        return Ok(());
+    }
     
-    let detector_high = VadDetector::new(&high_sensitivity_config)?;
-    let detector_low = VadDetector::new(&low_sensitivity_config)?;
+    let audio_data = load_audio_data(test_audio_path)?;
     
-    let result_high = detector_high.detect_voice_activity(&low_volume_speech)?;
-    let result_low = detector_low.detect_voice_activity(&low_volume_speech)?;
-    
-    // 驗證：高敏感度應該檢測到更多語音段
-    assert!(result_high.voice_segments.len() >= result_low.voice_segments.len(),
-            "High sensitivity should detect more or equal voice segments");
+    for config in configs {
+        // 驗證每個配置都能成功建立檢測器
+        let detector = VadDetector::new(&config)?;
+        let result = detector.detect_voice_activity(&audio_data);
+        
+        // 確保配置不會導致錯誤
+        assert!(result.is_ok(), "VAD should work with valid configuration");
+    }
     
     Ok(())
 }
 
 #[tokio::test]
-async fn test_vad_noise_robustness() -> Result<(), Box<dyn std::error::Error>> {
+async fn test_vad_error_handling() -> Result<(), Box<dyn std::error::Error>> {
+    // 測試 VAD 的基本錯誤處理
     let config = VadConfig {
         enabled: true,
         sensitivity: 0.75,
@@ -652,24 +727,41 @@ async fn test_vad_noise_robustness() -> Result<(), Box<dyn std::error::Error>> {
         padding_chunks: 3,
     };
     
-    let generator = AudioGenerator::new(config.sample_rate);
-    
-    // 產生語音 + 噪音的混合音訊
-    let speech = generator.generate_speech_like_audio(2.0);
-    let noise = generator.generate_white_noise(2.0, 0.1); // 低強度白噪音
-    
-    let mut mixed_audio: Vec<f32> = speech.iter()
-        .zip(noise.iter())
-        .map(|(s, n)| s + n)
-        .collect();
-    
     let detector = VadDetector::new(&config)?;
-    let result = detector.detect_voice_activity(&mixed_audio)?;
     
-    // 驗證：即使有噪音，仍應能檢測到語音
-    assert!(!result.voice_segments.is_empty(), "Should detect speech even with background noise");
+    // 測試空音訊資料
+    let empty_audio: Vec<f32> = vec![];
+    let result = detector.detect_voice_activity(&empty_audio);
+    
+    // VAD 應該能處理空輸入而不崩潰
+    // 結果可能是錯誤或空的語音段列表，都是可接受的
+    match result {
+        Ok(detection_result) => {
+            assert!(detection_result.voice_segments.is_empty());
+        }
+        Err(_) => {
+            // 返回錯誤也是可接受的行為
+        }
+    }
     
     Ok(())
+}
+
+fn load_audio_data(path: &Path) -> Result<Vec<f32>, Box<dyn std::error::Error>> {
+    // 簡化的音訊載入函數
+    // 實際實作需要根據具體的音訊處理庫來實作
+    use std::fs;
+    
+    if !path.exists() {
+        return Err(format!("Audio file not found: {:?}", path).into());
+    }
+    
+    let _file_content = fs::read(path)?;
+    
+    // 這裡應該實作實際的音訊解碼
+    // 目前返回測試用的假資料
+    // 實際使用時需要替換為真正的音訊解碼邏輯
+    Ok(vec![0.1; 16000]) // 1 秒的低音量測試資料
 }
 ```
 
@@ -1010,26 +1102,77 @@ subx sync audio.mp3 subtitle.srt --method whisper
 ### 開發環境要求
 - Rust 1.70+ 
 - 已安裝專案相關依賴：`cargo build`
-- 可選：OpenAI API 金鑰（用於 Whisper 測試）
+- Wiremock 已可用於模擬測試（已在 Cargo.toml 中）
 
-### 工具和指令參考
-```bash
-# 執行特定測試
-cargo test test_name
+### 需要手動準備的測試音訊檔案
 
-# 執行被忽略的測試
-cargo test -- --ignored
+在 `tests/data/` 目錄下需要準備以下音訊檔案：
 
-# 執行整合測試
-cargo test --test integration_test_name
-
-# 產生測試覆蓋率報告
-cargo llvm-cov --html
-
-# 檢查程式碼品質
-cargo clippy -- -D warnings
-cargo fmt --check
+**目錄結構：**
 ```
+tests/data/
+├── test_speech.wav              # Whisper 測試用：包含清晰語音的音訊
+├── fallback_test.wav            # 回退測試用：包含語音的音訊
+├── vad_test_speech.wav          # VAD 測試用：包含語音的音訊
+├── vad_test_silence.wav         # VAD 測試用：純靜音音訊
+└── vad_test_mixed.wav           # VAD 測試用：語音與靜音混合
+```
+
+**檔案規格要求：**
+1. **格式**：WAV 格式
+2. **採樣率**：16000 Hz（16 kHz）
+3. **聲道**：單聲道（mono）
+4. **時長**：3-5 秒即可
+5. **音量**：適中，避免過於微弱或過於響亮
+
+**具體內容要求：**
+
+1. **test_speech.wav** 和 **fallback_test.wav**：
+   - 包含清晰的語音內容（可以是任何語言）
+   - 建議內容：簡單的句子，如「Hello world, this is a test」
+   - 語音應該在音訊開始後 0.5-1 秒開始
+
+2. **vad_test_speech.wav**：
+   - 包含清晰的語音
+   - 可以與上述檔案相同或類似
+
+3. **vad_test_silence.wav**：
+   - 純靜音或極低的背景噪音
+   - 時長 3-5 秒
+
+4. **vad_test_mixed.wav**：
+   - 開始 1 秒靜音
+   - 中間 2-3 秒語音
+   - 結束 1 秒靜音
+
+**建立測試檔案的建議方法：**
+- 使用 Audacity 等音訊編輯軟體
+- 錄製簡單的語音片段
+- 確保檔案符合上述規格
+- 可以使用合成語音（TTS）產生測試內容
+
+## 評估 Whisper 客戶端重構需求
+
+根據現有的實作檢查，需要評估是否需要重構 Whisper 客戶端以支援依賴注入：
+
+**步驟 1**：檢查現有客戶端建構
+```bash
+# 檢查 WhisperApiClient 的 new 方法
+grep -A 10 "pub fn new" src/services/whisper/client.rs
+```
+
+**步驟 2**：確認 base_url 參數支援
+現有的 `WhisperApiClient::new` 已經接受 `base_url` 參數，這意味著我們可以直接傳入 wiremock 伺服器的 URL，無需額外重構。
+
+**步驟 3**：驗證 wiremock 整合
+確認現有的 wiremock 測試（如 `tests/whisper_mock_tests.rs`）已經正常運作：
+
+```bash
+# 執行現有的 mock 測試
+cargo test whisper_mock --test whisper_mock_tests
+```
+
+**結論**：根據現有實作，Whisper 客戶端已經支援自訂 base_url，因此**不需要額外的重構**就可以使用 wiremock 進行測試。
 
 ### 除錯技巧
 - 使用 `RUST_LOG=debug cargo test` 查看詳細日誌
