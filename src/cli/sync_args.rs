@@ -59,6 +59,8 @@ use std::path::{Path, PathBuf};
 pub struct SyncArgs {
     /// 視訊檔案路徑，用於音訊分析
     #[arg(
+        short = 'v',
+        long = "video",
         value_name = "VIDEO",
         help = "視訊檔案路徑 (自動同步時必需，手動偏移時可選)",
         required_unless_present = "offset"
@@ -66,12 +68,16 @@ pub struct SyncArgs {
     pub video: Option<PathBuf>,
 
     /// 要同步的字幕檔案路徑
-    #[arg(value_name = "SUBTITLE", help = "字幕檔案路徑")]
+    #[arg(
+        short = 's',
+        long = "subtitle",
+        value_name = "SUBTITLE",
+        help = "字幕檔案路徑"
+    )]
     pub subtitle: PathBuf,
 
     /// 手動時間偏移（秒），正值延遲字幕，負值提前字幕
     #[arg(
-        short,
         long,
         value_name = "SECONDS",
         help = "手動偏移秒數 (正值延遲字幕，負值提前字幕)",
@@ -131,7 +137,7 @@ pub struct SyncArgs {
     pub output: Option<PathBuf>,
 
     /// 詳細輸出
-    #[arg(short, long, help = "啟用包含詳細進度資訊的詳細輸出")]
+    #[arg(long, help = "啟用包含詳細進度資訊的詳細輸出")]
     pub verbose: bool,
 
     /// 乾跑模式
