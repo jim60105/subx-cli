@@ -75,6 +75,8 @@ impl WhisperSyncDetector {
                 "segments_count": transcription.segments.len(),
                 "words_count": transcription.words.as_ref().map(|w| w.len()).unwrap_or(0),
             })),
+            processing_duration: Duration::ZERO,
+            warnings: Vec::new(),
         })
     }
 

@@ -19,7 +19,7 @@ use crate::config::{Config, OverflowStrategy};
 /// let config = TestConfigBuilder::new()
 ///     .with_ai_provider("openai")
 ///     .with_ai_model("gpt-4.1")
-///     .with_sync_threshold(0.8)
+///     .with_analysis_window(30)
 ///     .build_config();
 /// ```
 pub struct TestConfigBuilder {

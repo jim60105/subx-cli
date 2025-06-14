@@ -9,7 +9,7 @@ use std::path::Path;
 use std::time::{Duration, Instant};
 
 use crate::config::{ConfigService, SyncConfig};
-use crate::core::formats::{Subtitle, SubtitleEntry};
+use crate::core::formats::Subtitle;
 use crate::services::vad::VadSyncDetector;
 use crate::services::whisper::{AudioSegmentExtractor, WhisperSyncDetector};
 use crate::{Result, error::SubXError};
@@ -91,7 +91,7 @@ impl SyncEngine {
             }
             SyncMethod::LocalVad => self.vad_detect_sync_offset(audio_path, subtitle).await?,
             SyncMethod::Manual => {
-                return Err(SubXError::sync("Manual method requires explicit offset"));
+                return Err(SubXError::config("Manual method requires explicit offset"));
             }
         };
         res.processing_duration = start.elapsed();
@@ -104,13 +104,15 @@ impl SyncEngine {
         subtitle: &Subtitle,
     ) -> Result<SyncResult> {
         // 簡易自動模式：依預設順序嘗試 Whisper API 再 VAD
-        if let Some(_) = self.whisper_detector {
+        if self.whisper_detector.is_some() {
             return self.whisper_detect_sync_offset(audio_path, subtitle).await;
         }
-        if let Some(_) = self.vad_detector {
+        if self.vad_detector.is_some() {
             return self.vad_detect_sync_offset(audio_path, subtitle).await;
         }
-        Err(SubXError::sync("No detector available in auto mode"))
+        Err(SubXError::audio_processing(
+            "No detector available in auto mode",
+        ))
     }
 
     /// 應用手動偏移量
@@ -133,7 +135,9 @@ impl SyncEngine {
                         None
                     }
                 })
-                .ok_or_else(|| SubXError::sync("Invalid offset results in negative time"))?;
+                .ok_or_else(|| {
+                    SubXError::audio_processing("Invalid offset results in negative time")
+                })?;
             entry.end_time = entry
                 .end_time
                 .checked_add(Duration::from_secs_f32(offset_seconds.abs()))
@@ -146,7 +150,9 @@ impl SyncEngine {
                         None
                     }
                 })
-                .ok_or_else(|| SubXError::sync("Invalid offset results in negative time"))?;
+                .ok_or_else(|| {
+                    SubXError::audio_processing("Invalid offset results in negative time")
+                })?;
         }
         Ok(SyncResult {
             offset_seconds,
@@ -178,8 +184,8 @@ impl SyncEngine {
         let det = self
             .whisper_detector
             .as_ref()
-            .ok_or_else(|| SubXError::sync("Whisper detector not available"))?;
-        let mut r = det
+            .ok_or_else(|| SubXError::audio_processing("Whisper detector not available"))?;
+        let r = det
             .detect_sync_offset(audio_path, subtitle, self.config.analysis_window_seconds)
             .await?;
         if r.confidence < self.config.whisper.min_confidence_threshold
@@ -189,9 +195,8 @@ impl SyncEngine {
                 let mut v = vad
                     .detect_sync_offset(audio_path, subtitle, self.config.analysis_window_seconds)
                     .await?;
-                v.warnings.push(format!(
-                    "Whisper confidence below threshold, fallback to VAD"
-                ));
+                v.warnings
+                    .push("Whisper confidence below threshold, fallback to VAD".to_string());
                 return Ok(v);
             }
         }
@@ -206,7 +211,7 @@ impl SyncEngine {
         let det = self
             .vad_detector
             .as_ref()
-            .ok_or_else(|| SubXError::sync("VAD detector not available"))?;
+            .ok_or_else(|| SubXError::audio_processing("VAD detector not available"))?;
         det.detect_sync_offset(audio_path, subtitle, self.config.analysis_window_seconds)
             .await
     }

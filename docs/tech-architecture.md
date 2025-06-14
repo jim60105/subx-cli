@@ -185,27 +185,148 @@ pub struct Subtitle {
 
 #### 3.4 Sync Engine (`src/core/sync/`)
 
-**責任**: 時間軸同步和校正
+**責任**: 多方法音訊字幕同步與智慧方法選擇
+
+SubX v0.6.0 引入了全新的多方法同步引擎，支援三種主要同步方法：
 
 ```rust
-// src/core/sync/mod.rs
+// src/core/sync/engine.rs
 pub struct SyncEngine {
-    audio_analyzer: AudioAnalyzer,
-    correlation_calculator: CorrelationCalculator,
+    config: SyncConfig,
+    whisper_detector: Option<Box<dyn WhisperSyncDetector>>,
+    vad_detector: Option<Box<dyn VadSyncDetector>>,
+}
+
+#[derive(Debug, Clone)]
+pub enum SyncMethod {
+    WhisperAPI,     // OpenAI Whisper API 雲端語音識別
+    LocalVAD,       // 本地 Voice Activity Detection
+    Manual,         // 手動指定偏移量
 }
 
 pub struct SyncResult {
     pub offset_seconds: f64,
     pub confidence: f32,
     pub method_used: SyncMethod,
+    pub processing_time: Duration,
+    pub warnings: Vec<String>,
 }
 ```
 
-**同步算法**:
-1. **Audio Envelope Extraction** - 音訊包絡提取（使用 AUS crate）
-2. **Dialogue Signal Generation** - 對話信號生成
-3. **Cross-Correlation Analysis** - 交叉相關分析
-4. **Optimal Offset Detection** - 最佳偏移檢測
+**方法選擇策略**:
+
+1. **Auto Selection** - 智慧方法選擇
+   - 優先使用 Whisper API（高精度）
+   - 信心度不足時自動回退到 VAD
+   - 基於配置和可用性動態選擇
+
+2. **Forced Method** - 強制使用特定方法
+   - 僅使用指定的方法，不進行回退
+   - 適用於特定場景和效能需求
+
+3. **Hybrid Approach** - 混合方法
+   - 結合多種方法的結果
+   - 基於信心度加權平均
+
+**同步方法詳細說明**:
+
+##### OpenAI Whisper API (`src/services/whisper/`)
+- **高精度語音識別**: 使用 OpenAI 的先進語音模型
+- **多語言支援**: 自動語言檢測或強制指定
+- **雲端處理**: 無需本地計算資源
+- **錯誤處理**: 完整的重試機制和回退策略
+
+```rust
+// src/services/whisper/sync_detector.rs
+pub struct WhisperSyncDetector {
+    client: WhisperClient,
+    config: WhisperConfig,
+}
+
+impl WhisperSyncDetector {
+    pub async fn detect_sync_offset(
+        &self,
+        audio_path: &Path,
+        subtitle: &Subtitle,
+        window_seconds: u32,
+    ) -> Result<SyncResult> {
+        // 1. 提取音訊片段（基於分析窗口）
+        // 2. 調用 Whisper API 進行轉錄
+        // 3. 分析轉錄結果與字幕內容的對應關係
+        // 4. 計算最佳時間偏移量
+    }
+}
+```
+
+##### 本地 VAD (`src/services/vad/`)
+- **語音活動檢測**: 使用信號處理技術檢測語音段
+- **本地處理**: 無需網路連接，保護隱私
+- **可調參數**: 靈敏度、塊大小、採樣率等
+- **高效能**: 適用於大批量處理
+
+```rust
+// src/services/vad/sync_detector.rs
+pub struct VadSyncDetector {
+    detector: VadDetector,
+    config: VadConfig,
+}
+
+// src/services/vad/detector.rs
+pub struct VadDetector {
+    config: VadConfig,
+}
+
+// src/services/vad/audio_processor.rs
+pub struct AudioProcessor {
+    target_sample_rate: u32,
+}
+```
+
+**VAD 處理流程**:
+1. **音訊預處理**: 重採樣、單聲道轉換
+2. **語音檢測**: 使用 voice_activity_detector crate
+3. **時間對應**: 將檢測到的語音段與字幕時間軸對比
+4. **偏移計算**: 分析時間差異並計算最佳偏移
+
+##### 手動偏移
+- **用戶指定**: 直接提供時間偏移量
+- **精確控制**: 適用於已知偏移量的情況
+- **快速處理**: 無需分析，直接應用偏移
+
+**引擎配置系統**:
+
+```rust
+// 配置結構
+pub struct SyncConfig {
+    pub default_method: String,
+    pub analysis_window_seconds: u32,
+    pub max_offset_seconds: f32,
+    pub whisper: WhisperConfig,
+    pub vad: VadConfig,
+}
+
+pub struct WhisperConfig {
+    pub enabled: bool,
+    pub model: String,
+    pub language: String,
+    pub temperature: f32,
+    pub timeout_seconds: u32,
+    pub max_retries: u32,
+    pub retry_delay_ms: u64,
+    pub fallback_to_vad: bool,
+    pub min_confidence_threshold: f32,
+}
+
+pub struct VadConfig {
+    pub enabled: bool,
+    pub sensitivity: f32,
+    pub chunk_size: usize,
+    pub sample_rate: u32,
+    pub padding_chunks: u32,
+    pub min_speech_duration_ms: u32,
+    pub speech_merge_gap_ms: u32,
+}
+```
 
 #### 3.5 Parallel Processing (`src/core/parallel/`)
 

@@ -249,9 +249,9 @@ mod tests {
     }
 
     #[test]
-    fn test_invalid_correlation_threshold() {
+    fn test_invalid_vad_sensitivity() {
         let mut config = Config::default();
-        config.sync.correlation_threshold = 1.5; // Too high
+        config.sync.vad.sensitivity = 1.5; // Too high (should be 0.0-1.0)
         assert!(validate_config(&config).is_err());
     }
 }

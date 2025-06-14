@@ -46,7 +46,7 @@ pub use convert_args::{ConvertArgs, OutputSubtitleFormat};
 pub use detect_encoding_args::DetectEncodingArgs;
 pub use generate_completion_args::GenerateCompletionArgs;
 pub use match_args::MatchArgs;
-pub use sync_args::{SyncArgs, SyncMethod};
+pub use sync_args::{SyncArgs, SyncMethod, SyncMethodArg};
 pub use ui::{
     create_progress_bar, display_ai_usage, display_match_results, print_error, print_success,
     print_warning,
@@ -252,7 +252,7 @@ pub async fn run_with_config(
             crate::commands::convert_command::execute(args, config_service).await?;
         }
         Commands::Sync(args) => {
-            crate::commands::sync_command::execute(&args, config_service).await?;
+            crate::commands::sync_command::execute(args, config_service).await?;
         }
         Commands::Config(args) => {
             crate::commands::config_command::execute(args, config_service).await?;

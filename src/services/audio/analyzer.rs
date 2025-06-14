@@ -2,7 +2,7 @@
 
 use crate::services::audio::{AudioData, AudioTranscoder};
 use crate::{Result, error::SubXError};
-use aus::{AudioFile, WindowType, analysis, operations, spectrum};
+use aus::{AudioFile, WindowType, analysis, spectrum};
 use std::path::Path;
 
 /// Audio analyzer based on aus.

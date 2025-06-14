@@ -1,4 +1,4 @@
-use super::{LocalVadDetector, SpeechSegment, VadResult};
+use super::{LocalVadDetector, VadResult};
 use crate::config::VadConfig;
 use crate::core::formats::{Subtitle, SubtitleEntry};
 use crate::core::sync::{SyncMethod, SyncResult};
@@ -6,7 +6,6 @@ use crate::services::whisper::AudioSegmentExtractor;
 use crate::{Result, error::SubXError};
 use serde_json::json;
 use std::path::Path;
-use std::time::Duration;
 
 pub struct VadSyncDetector {
     vad_detector: LocalVadDetector,
@@ -49,17 +48,17 @@ impl VadSyncDetector {
         Ok(analysis_result)
     }
 
-    fn get_first_subtitle_entry(&self, subtitle: &Subtitle) -> Result<&SubtitleEntry> {
+    fn get_first_subtitle_entry<'a>(&self, subtitle: &'a Subtitle) -> Result<&'a SubtitleEntry> {
         subtitle
             .entries
             .first()
-            .ok_or_else(|| SubXError::sync("No subtitle entries found"))
+            .ok_or_else(move || SubXError::audio_processing("No subtitle entries found"))
     }
 
     fn analyze_vad_result(
         &self,
         vad_result: &VadResult,
-        first_entry: &SubtitleEntry,
+        _first_entry: &SubtitleEntry,
         analysis_window_seconds: u32,
     ) -> Result<SyncResult> {
         // 檢測第一個顯著的語音片段
@@ -81,6 +80,7 @@ impl VadSyncDetector {
             offset_seconds: offset_seconds as f32,
             confidence,
             method_used: SyncMethod::LocalVad,
+            correlation_peak: 0.0,
             additional_info: Some(json!({
                 "speech_segments_count": vad_result.speech_segments.len(),
                 "first_speech_start": first_speech_time,
@@ -96,6 +96,8 @@ impl VadSyncDetector {
                     })
                 }).collect::<Vec<_>>(),
             })),
+            processing_duration: vad_result.processing_duration,
+            warnings: Vec::new(),
         })
     }
 
@@ -113,7 +115,7 @@ impl VadSyncDetector {
             return Ok(first_segment.start_time);
         }
 
-        Err(SubXError::sync(
+        Err(SubXError::audio_processing(
             "No significant speech segments found in audio",
         ))
     }
@@ -123,7 +125,7 @@ impl VadSyncDetector {
             return 0.0;
         }
 
-        let mut confidence = 0.6; // 基礎本地 VAD 信心度
+        let mut confidence: f32 = 0.6; // 基礎本地 VAD 信心度
 
         // 基於語音片段數量調整信心度
         let segments_count = vad_result.speech_segments.len();
@@ -155,6 +157,6 @@ impl VadSyncDetector {
             confidence += 0.05;
         }
 
-        confidence.min(0.95) // 本地 VAD 最高信心度限制為 95%
+        confidence.min(0.95_f32) // 本地 VAD 最高信心度限制為 95%
     }
 }

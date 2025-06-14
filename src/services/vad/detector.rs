@@ -13,9 +13,11 @@ pub struct LocalVadDetector {
 
 impl LocalVadDetector {
     pub fn new(config: VadConfig) -> Result<Self> {
+        // Clone config to avoid moving while initializing audio_processor
+        let cfg_clone = config.clone();
         Ok(Self {
             config,
-            audio_processor: VadAudioProcessor::new(config.sample_rate, 1)?,
+            audio_processor: VadAudioProcessor::new(cfg_clone.sample_rate, 1)?,
         })
     }
 
@@ -30,14 +32,14 @@ impl LocalVadDetector {
             .await?;
 
         // 2. 建立 VAD 實例
-        let mut vad = VoiceActivityDetector::builder()
+        let vad = VoiceActivityDetector::builder()
             .sample_rate(self.config.sample_rate)
             .chunk_size(self.config.chunk_size)
             .build()
             .map_err(|e| SubXError::audio_processing(format!("Failed to create VAD: {}", e)))?;
 
         // 3. 執行語音檢測
-        let speech_segments = self.detect_speech_segments(&mut vad, &audio_data.samples)?;
+        let speech_segments = self.detect_speech_segments(vad, &audio_data.samples)?;
 
         let processing_duration = start_time.elapsed();
 
@@ -50,18 +52,22 @@ impl LocalVadDetector {
 
     fn detect_speech_segments(
         &self,
-        vad: &mut VoiceActivityDetector,
+        vad: VoiceActivityDetector,
         samples: &[i16],
     ) -> Result<Vec<SpeechSegment>> {
         let mut segments = Vec::new();
         let chunk_duration_seconds = self.config.chunk_size as f64 / self.config.sample_rate as f64;
 
         // 使用 label 功能來標識語音和非語音片段
-        let labels: Vec<LabeledAudio<i16>> =
-            samples
-                .iter()
-                .copied()
-                .label(vad, self.config.sensitivity, self.config.padding_chunks);
+        let labels: Vec<LabeledAudio<i16>> = samples
+            .iter()
+            .copied()
+            .label(
+                vad,
+                self.config.sensitivity,
+                self.config.padding_chunks as usize,
+            )
+            .collect();
 
         let mut current_speech_start: Option<f64> = None;
         let mut chunk_index = 0;

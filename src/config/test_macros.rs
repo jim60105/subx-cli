@@ -393,9 +393,7 @@ macro_rules! test_with_ai_config_and_key {
 macro_rules! test_with_sync_config {
     ($threshold:expr, $max_offset:expr, $test:expr) => {
         test_with_config!(
-            $crate::config::TestConfigBuilder::new()
-                .with_sync_threshold($threshold)
-                .with_max_offset($max_offset),
+            $crate::config::TestConfigBuilder::new().with_analysis_window($max_offset as u32),
             $test
         )
     };
@@ -534,9 +532,10 @@ mod tests {
             0.9,
             60.0,
             |config_service: &crate::config::TestConfigService| {
-                let config = config_service.get_config().unwrap();
-                assert_eq!(config.sync.correlation_threshold, 0.9);
-                assert_eq!(config.sync.max_offset_seconds, 60.0);
+                let config = config_service.config();
+                // 測試新的 sync 配置結構
+                assert_eq!(config.sync.analysis_window_seconds, 60);
+                assert_eq!(config.sync.default_method, "whisper");
             }
         );
     }

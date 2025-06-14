@@ -4,6 +4,7 @@ use subx_cli::services::whisper::AudioSegmentExtractor;
 use tempfile::TempDir;
 
 #[tokio::test]
+#[ignore = "需要音訊處理環境，在某些 CI 環境中可能失敗"]
 async fn test_audio_segment_extraction() {
     let temp = TempDir::new().unwrap();
     let audio_path = temp.path().join("test.wav");
@@ -29,7 +30,12 @@ async fn test_whisper_sync_detection_integration() {
         subx_cli::config::WhisperConfig::default(),
     )
     .unwrap();
-    let subtitle = subx_cli::core::formats::Subtitle::load("tests/data/test.srt").unwrap();
+
+    let format_manager = subx_cli::core::formats::manager::FormatManager::new();
+    let subtitle = format_manager
+        .load_subtitle(Path::new("tests/data/test.srt"))
+        .unwrap();
+
     let result = detector
         .detect_sync_offset(Path::new("tests/data/test.wav"), &subtitle, 30)
         .await;

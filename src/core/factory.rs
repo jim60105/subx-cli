@@ -7,10 +7,7 @@
 use crate::{
     Result,
     config::{Config, ConfigService},
-    core::{
-        file_manager::FileManager, matcher::engine::MatchEngine,
-        sync::dialogue::detector::DialogueDetector,
-    },
+    core::{file_manager::FileManager, matcher::engine::MatchEngine},
     error::SubXError,
     services::ai::AIProvider,
 };
@@ -33,9 +30,9 @@ use crate::{
 /// let factory = ComponentFactory::new(config_service.as_ref())?;
 ///
 /// // Create components with proper configuration
-/// let detector = factory.create_dialogue_detector();
 /// let match_engine = factory.create_match_engine()?;
 /// let file_manager = factory.create_file_manager();
+/// let ai_provider = factory.create_ai_provider()?;
 /// # Ok(())
 /// # }
 /// ```
@@ -56,14 +53,6 @@ impl ComponentFactory {
     pub fn new(config_service: &dyn ConfigService) -> Result<Self> {
         let config = config_service.get_config()?;
         Ok(Self { config })
-    }
-
-    /// Create a dialogue detector with sync configuration.
-    ///
-    /// Returns a properly configured DialogueDetector instance using
-    /// the sync configuration section.
-    pub fn create_dialogue_detector(&self) -> DialogueDetector {
-        DialogueDetector::new(&self.config.sync)
     }
 
     /// Create a match engine with AI configuration.
@@ -159,13 +148,10 @@ mod tests {
     }
 
     #[test]
-    fn test_create_dialogue_detector() {
+    fn test_factory_creation() {
         let config_service = TestConfigService::default();
-        let factory = ComponentFactory::new(&config_service).unwrap();
-
-        let detector = factory.create_dialogue_detector();
-        // Basic validation that detector was created with config
-        assert!(detector.config().correlation_threshold > 0.0);
+        let factory = ComponentFactory::new(&config_service);
+        assert!(factory.is_ok());
     }
 
     #[test]

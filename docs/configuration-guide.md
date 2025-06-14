@@ -68,35 +68,81 @@ encoding_detection_confidence = 0.8           # Encoding detection confidence th
 
 ## Sync Configuration (`[sync]`)
 
-Controls audio-subtitle synchronization functionality.
+Controls audio-subtitle synchronization functionality using multiple methods.
+
+### Overview
+
+SubX supports three main synchronization methods:
+
+1. **OpenAI Whisper API** - Cloud-based speech recognition with high accuracy
+2. **Local VAD (Voice Activity Detection)** - On-device speech detection
+3. **Manual Offset** - User-specified time adjustment
+
+### Basic Configuration
 
 ```toml
 [sync]
-default_method = "whisper"           # 預設同步方法 ("whisper", "vad")
-analysis_window_seconds = 30         # 分析時間窗口：第一句字幕前後的秒數 (u32)
-max_offset_seconds = 60.0            # 最大允許的時間偏移量（秒） (f32)
+default_method = "whisper"           # Default sync method ("whisper", "vad", "manual")
+analysis_window_seconds = 30         # Analysis window: seconds before/after first subtitle (u32)
+max_offset_seconds = 60.0            # Maximum allowed time offset in seconds (f32)
 
-# Whisper API configuration
+# OpenAI Whisper API configuration
 [sync.whisper]
-enabled = true                       # 是否啟用 Whisper API 方法 (bool)
-model = "whisper-1"                  # Whisper 模型名稱 (String)
-language = "auto"                    # 語言設定 ("auto" 為自動檢測) (String)
-temperature = 0.0                    # API 溫度參數 (0.0-1.0) (f32)
-timeout_seconds = 30                 # API 請求超時時間（秒） (u32)
-max_retries = 3                      # 最大重試次數 (u32)
-retry_delay_ms = 1000                # 重試間隔（毫秒） (u64)
-fallback_to_vad = true               # 當 Whisper 失敗時是否回退到 VAD (bool)
-min_confidence_threshold = 0.7       # 最低信心度閾值，低於此值回退到 VAD (f32)
+enabled = true                       # Enable Whisper API method (bool)
+model = "whisper-1"                  # Whisper model name (String)
+language = "auto"                    # Language setting ("auto" for auto-detection) (String)
+temperature = 0.0                    # API temperature parameter (0.0-1.0) (f32)
+timeout_seconds = 30                 # API request timeout in seconds (u32)
+max_retries = 3                      # Maximum retry attempts (u32)
+retry_delay_ms = 1000                # Retry interval in milliseconds (u64)
+fallback_to_vad = true               # Fall back to VAD when Whisper fails (bool)
+min_confidence_threshold = 0.7       # Minimum confidence threshold, fall back to VAD if below (f32)
 
-# VAD configuration
+# Local VAD configuration
 [sync.vad]
-enabled = true                       # 是否啟用本地 VAD 方法 (bool)
-sensitivity = 0.75                   # 語音檢測敏感度 (0.0-1.0) (f32)
-chunk_size = 512                     # 音訊塊大小（樣本數） (usize)
-sample_rate = 16000                  # 處理採樣率（Hz） (u32)
-padding_chunks = 3                   # 語音檢測前後填充塊數 (u32)
-min_speech_duration_ms = 100         # 最小語音持續時間（毫秒） (u32)
-speech_merge_gap_ms = 200            # 語音段合併間隔（毫秒） (u32)
+enabled = true                       # Enable local VAD method (bool)
+sensitivity = 0.75                   # Speech detection sensitivity (0.0-1.0) (f32)
+chunk_size = 512                     # Audio chunk size in samples (usize)
+sample_rate = 16000                  # Processing sample rate in Hz (u32)
+padding_chunks = 3                   # Number of padding chunks before/after speech (u32)
+min_speech_duration_ms = 100         # Minimum speech duration in milliseconds (u32)
+speech_merge_gap_ms = 200            # Speech segment merge gap in milliseconds (u32)
+```
+
+### Method Selection Strategy
+
+The sync engine can automatically select the best method based on availability and configuration:
+
+- **Auto Selection**: Tries Whisper first, falls back to VAD if confidence is too low
+- **Forced Method**: Uses only the specified method without fallback
+- **Hybrid Approach**: Combines results from multiple methods for better accuracy
+
+### Advanced Configuration
+
+#### Whisper API Options
+
+```toml
+[sync.whisper]
+# Advanced Whisper settings
+model = "whisper-1"                  # Available models: whisper-1
+language = "zh"                      # Force specific language (overrides auto-detection)
+temperature = 0.2                    # Higher values increase randomness
+timeout_seconds = 60                 # Increase for longer audio files
+max_retries = 5                      # More retries for unstable connections
+retry_delay_ms = 2000                # Longer delay between retries
+```
+
+#### VAD Fine-tuning
+
+```toml
+[sync.vad]
+# Fine-tune VAD for different content types
+sensitivity = 0.8                    # Higher for quiet speech, lower for noisy audio
+chunk_size = 1024                    # Larger chunks for better accuracy, slower processing
+sample_rate = 22050                  # Higher rates for better quality, more processing
+padding_chunks = 5                   # More padding for complex audio transitions
+min_speech_duration_ms = 50          # Lower for rapid speech, higher for careful detection
+speech_merge_gap_ms = 300            # Larger gaps for natural speech pauses
 ```
 
 ## General Configuration (`[general]`)
@@ -177,12 +223,29 @@ export SUBX_FORMATS_DEFAULT_OUTPUT=vtt
 export SUBX_FORMATS_PRESERVE_STYLING=true
 export SUBX_FORMATS_DEFAULT_ENCODING=utf-16
 
-# Sync configuration
+# Sync configuration - Basic settings
 export SUBX_SYNC_DEFAULT_METHOD=whisper
 export SUBX_SYNC_ANALYSIS_WINDOW_SECONDS=45
-export SUBX_SYNC_WHISPER_ENABLED=false
+export SUBX_SYNC_MAX_OFFSET_SECONDS=120.0
+
+# Sync configuration - Whisper API
+export SUBX_SYNC_WHISPER_ENABLED=true
 export SUBX_SYNC_WHISPER_MODEL=whisper-1
+export SUBX_SYNC_WHISPER_LANGUAGE=auto
+export SUBX_SYNC_WHISPER_TEMPERATURE=0.1
+export SUBX_SYNC_WHISPER_TIMEOUT_SECONDS=60
+export SUBX_SYNC_WHISPER_MAX_RETRIES=5
+export SUBX_SYNC_WHISPER_FALLBACK_TO_VAD=true
+export SUBX_SYNC_WHISPER_MIN_CONFIDENCE_THRESHOLD=0.8
+
+# Sync configuration - Local VAD
+export SUBX_SYNC_VAD_ENABLED=true
 export SUBX_SYNC_VAD_SENSITIVITY=0.8
+export SUBX_SYNC_VAD_CHUNK_SIZE=1024
+export SUBX_SYNC_VAD_SAMPLE_RATE=22050
+export SUBX_SYNC_VAD_PADDING_CHUNKS=5
+export SUBX_SYNC_VAD_MIN_SPEECH_DURATION_MS=100
+export SUBX_SYNC_VAD_SPEECH_MERGE_GAP_MS=300
 ```
 
 ## Configuration File Locations

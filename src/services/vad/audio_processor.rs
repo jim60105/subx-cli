@@ -47,8 +47,9 @@ impl VadAudioProcessor {
     }
 
     fn load_wav_file(&self, path: &Path) -> Result<ProcessedAudioData> {
-        let file = File::open(path)
-            .map_err(|e| SubXError::io(format!("Failed to open audio file: {}", e)))?;
+        let file = File::open(path).map_err(|e| {
+            SubXError::audio_processing(format!("Failed to open audio file: {}", e))
+        })?;
 
         let reader = WavReader::new(BufReader::new(file))
             .map_err(|e| SubXError::audio_processing(format!("Failed to read WAV file: {}", e)))?;
@@ -58,47 +59,42 @@ impl VadAudioProcessor {
         let channels = spec.channels;
 
         // 讀取所有樣本並轉換為 i16
-        let samples: Result<Vec<i16>> = match spec.sample_format {
-            SampleFormat::Int => {
-                match spec.bits_per_sample {
-                    16 => reader
-                        .into_samples::<i16>()
-                        .collect::<Result<Vec<_>, _>>()
-                        .map_err(|e| {
-                            SubXError::audio_processing(format!("Failed to read samples: {}", e))
-                        }),
-                    32 => {
-                        // 轉換 i32 到 i16
-                        let i32_samples: Vec<i32> = reader
-                            .into_samples::<i32>()
-                            .collect::<Result<Vec<_>, _>>()
-                            .map_err(|e| {
-                                SubXError::audio_processing(format!(
-                                    "Failed to read i32 samples: {}",
-                                    e
-                                ))
-                            })?;
-                        Ok(i32_samples.iter().map(|&s| (s >> 16) as i16).collect())
-                    }
-                    _ => Err(SubXError::audio_processing(format!(
+        let samples: Vec<i16> = match spec.sample_format {
+            SampleFormat::Int => match spec.bits_per_sample {
+                16 => {
+                    let samples: std::result::Result<Vec<i16>, hound::Error> =
+                        reader.into_samples::<i16>().collect();
+                    samples.map_err(|e| {
+                        SubXError::audio_processing(format!("Failed to read samples: {}", e))
+                    })?
+                }
+                32 => {
+                    let samples: std::result::Result<Vec<i32>, hound::Error> =
+                        reader.into_samples::<i32>().collect();
+                    let i32_samples = samples.map_err(|e| {
+                        SubXError::audio_processing(format!("Failed to read i32 samples: {}", e))
+                    })?;
+                    i32_samples.iter().map(|&s| (s >> 16) as i16).collect()
+                }
+                _ => {
+                    return Err(SubXError::audio_processing(format!(
                         "Unsupported bit depth: {}",
                         spec.bits_per_sample
-                    ))),
+                    )));
                 }
-            }
+            },
             SampleFormat::Float => {
-                // 轉換 f32 到 i16
-                let f32_samples: Vec<f32> = reader
-                    .into_samples::<f32>()
-                    .collect::<Result<Vec<_>, _>>()
-                    .map_err(|e| {
-                        SubXError::audio_processing(format!("Failed to read f32 samples: {}", e))
-                    })?;
-                Ok(f32_samples.iter().map(|&s| (s * 32767.0) as i16).collect())
+                let samples: std::result::Result<Vec<f32>, hound::Error> =
+                    reader.into_samples::<f32>().collect();
+                let f32_samples = samples.map_err(|e| {
+                    SubXError::audio_processing(format!("Failed to read f32 samples: {}", e))
+                })?;
+                f32_samples.iter().map(|&s| (s * 32767.0) as i16).collect()
             }
-        }?;
+        };
 
-        let duration_seconds = samples.len() as f64 / (sample_rate as f64 * channels as f64);
+        let samples_len = samples.len();
+        let duration_seconds = samples_len as f64 / (sample_rate as f64 * channels as f64);
 
         Ok(ProcessedAudioData {
             samples,
@@ -106,14 +102,18 @@ impl VadAudioProcessor {
                 sample_rate,
                 channels,
                 duration_seconds,
-                total_samples: samples.len(),
+                total_samples: samples_len,
             },
         })
     }
 
     fn resample_audio(&self, audio_data: &ProcessedAudioData) -> Result<ProcessedAudioData> {
         if audio_data.info.sample_rate == self.target_sample_rate {
-            return Ok(audio_data.clone());
+            // Cloning via struct initializer to own data
+            return Ok(ProcessedAudioData {
+                samples: audio_data.samples.clone(),
+                info: audio_data.info.clone(),
+            });
         }
 
         // 設定重取樣參數
@@ -177,8 +177,9 @@ impl VadAudioProcessor {
             }
         }
 
-        let duration_seconds = resampled_samples.len() as f64
-            / (self.target_sample_rate as f64 * audio_data.info.channels as f64);
+        let samples_len = resampled_samples.len();
+        let duration_seconds =
+            samples_len as f64 / (self.target_sample_rate as f64 * audio_data.info.channels as f64);
 
         Ok(ProcessedAudioData {
             samples: resampled_samples,
@@ -186,14 +187,17 @@ impl VadAudioProcessor {
                 sample_rate: self.target_sample_rate,
                 channels: audio_data.info.channels,
                 duration_seconds,
-                total_samples: resampled_samples.len(),
+                total_samples: samples_len,
             },
         })
     }
 
     fn convert_to_mono(&self, audio_data: &ProcessedAudioData) -> Result<ProcessedAudioData> {
         if audio_data.info.channels == 1 {
-            return Ok(audio_data.clone());
+            return Ok(ProcessedAudioData {
+                samples: audio_data.samples.clone(),
+                info: audio_data.info.clone(),
+            });
         }
 
         let channels = audio_data.info.channels as usize;
@@ -206,7 +210,8 @@ impl VadAudioProcessor {
             mono_samples.push(average);
         }
 
-        let duration_seconds = mono_samples.len() as f64 / audio_data.info.sample_rate as f64;
+        let samples_len = mono_samples.len();
+        let duration_seconds = samples_len as f64 / audio_data.info.sample_rate as f64;
 
         Ok(ProcessedAudioData {
             samples: mono_samples,
@@ -214,7 +219,7 @@ impl VadAudioProcessor {
                 sample_rate: audio_data.info.sample_rate,
                 channels: 1,
                 duration_seconds,
-                total_samples: mono_samples.len(),
+                total_samples: samples_len,
             },
         })
     }

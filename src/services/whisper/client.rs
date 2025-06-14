@@ -84,7 +84,7 @@ impl WhisperApiClient {
 
         let response = self
             .client
-            .post(&format!("{}/audio/transcriptions", self.base_url))
+            .post(format!("{}/audio/transcriptions", self.base_url))
             .header("Authorization", format!("Bearer {}", self.api_key))
             .multipart(form)
             .send()

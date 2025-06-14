@@ -20,7 +20,7 @@ async fn test_sync_engine_performance_comparison() {
         .build_config();
 
     let config_service = TestConfigService::new(config);
-    let engine = SyncEngine::new(config_service.get_config().unwrap().sync, &config_service)
+    let engine = SyncEngine::new(config_service.config().sync.clone(), &config_service)
         .await
         .unwrap();
 

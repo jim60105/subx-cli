@@ -67,7 +67,7 @@ mod tests {
         let extractor = AudioSegmentExtractor::new().unwrap();
         // 使用不存在的檔案會錯誤處理
         let err = extractor
-            .extract_segment(&"no.wav".into(), Duration::from_secs(0), 1)
+            .extract_segment(&std::path::Path::new("no.wav"), Duration::from_secs(0), 1)
             .await;
         assert!(err.is_err());
     }

@@ -98,6 +98,30 @@ impl FormatManager {
         let detector = crate::core::formats::encoding::EncodingDetector::with_defaults();
         detector.detect_file_encoding(file_path)
     }
+
+    /// Load subtitle from file with encoding detection and parsing
+    pub fn load_subtitle(&self, file_path: &std::path::Path) -> crate::Result<Subtitle> {
+        let content =
+            self.read_subtitle_with_encoding_detection(file_path.to_str().ok_or_else(|| {
+                crate::error::SubXError::subtitle_format("", "Invalid file path encoding")
+            })?)?;
+        self.parse_auto(&content)
+    }
+
+    /// Save subtitle to file in the same format as extension
+    pub fn save_subtitle(
+        &self,
+        subtitle: &Subtitle,
+        file_path: &std::path::Path,
+    ) -> crate::Result<()> {
+        let ext = file_path.extension().and_then(|s| s.to_str()).unwrap_or("");
+        let fmt = self.get_format_by_extension(ext).ok_or_else(|| {
+            crate::error::SubXError::subtitle_format(ext, "Unsupported subtitle format for saving")
+        })?;
+        let out = fmt.serialize(subtitle)?;
+        std::fs::write(file_path, out)?;
+        Ok(())
+    }
 }
 
 #[cfg(test)]

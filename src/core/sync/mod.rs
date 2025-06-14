@@ -11,5 +11,5 @@ pub mod engine;
 pub use engine::{MethodSelectionStrategy, SyncEngine, SyncMethod, SyncResult};
 
 // 向後兼容性匯出（但標記為 deprecated）
-#[deprecated(note = "Use new SyncEngine with multi-method support")]
+#[allow(deprecated)]
 pub use engine::OldSyncConfig;
