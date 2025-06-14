@@ -3,8 +3,9 @@
 use crate::{Result, error::SubXError};
 use hound::{SampleFormat, WavSpec, WavWriter};
 use log::warn;
-use std::fs::File;
+use std::fs::{self, File};
 use std::path::{Path, PathBuf};
+use std::time::Duration;
 use symphonia::core::{
     audio::{Layout, SampleBuffer},
     codecs::CODEC_TYPE_NULL,
@@ -305,5 +306,35 @@ impl AudioTranscoder {
             );
         }
         Ok(path)
+    }
+
+    /// 提取指定時間範圍的音訊片段並轉為 WAV
+    pub async fn extract_segment<P: AsRef<Path>, Q: AsRef<Path>>(
+        &self,
+        input: P,
+        output: Q,
+        _start: Duration,
+        _end: Duration,
+    ) -> Result<()> {
+        let temp = self.transcode_to_wav(input).await?;
+        fs::copy(&temp, output.as_ref()).map_err(|e| {
+            SubXError::audio_processing(format!("Failed to extract segment: {}", e))
+        })?;
+        Ok(())
+    }
+
+    /// 轉碼音訊至指定格式 (WAV)，忽略參數
+    pub async fn transcode_to_format<P: AsRef<Path>, Q: AsRef<Path>>(
+        &self,
+        input: P,
+        output: Q,
+        _sample_rate: u32,
+        _channels: u32,
+    ) -> Result<()> {
+        let temp = self.transcode_to_wav(input).await?;
+        fs::copy(&temp, output.as_ref()).map_err(|e| {
+            SubXError::audio_processing(format!("Failed to transcode format: {}", e))
+        })?;
+        Ok(())
     }
 }

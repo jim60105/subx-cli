@@ -13,6 +13,7 @@
 use crate::Result;
 use crate::core::formats::Subtitle;
 use crate::services::audio::{AudioAnalyzer, AudioEnvelope};
+use serde_json;
 use std::path::Path;
 
 /// Synchronization engine for aligning subtitles with audio tracks.
@@ -189,6 +190,7 @@ mod tests {
             confidence: 0.85,
             method_used: SyncMethod::AudioCorrelation,
             correlation_peak: 0.92,
+            additional_info: None,
         };
 
         assert_eq!(result.offset_seconds, 2.5);
@@ -370,6 +372,8 @@ pub struct SyncResult {
     pub method_used: SyncMethod,
     /// Peak correlation value found during analysis
     pub correlation_peak: f32,
+    /// 附加資訊，例如轉錄文字與時間戳
+    pub additional_info: Option<serde_json::Value>,
 }
 
 /// Available methods for synchronizing subtitles with audio.
@@ -384,6 +388,8 @@ pub enum SyncMethod {
     ManualOffset,
     /// Pattern matching between subtitle and audio timing
     PatternMatching,
+    /// Synchronization using OpenAI Whisper API transcription
+    WhisperApi,
 }
 
 impl SyncEngine {
@@ -476,6 +482,7 @@ impl SyncEngine {
             confidence,
             method_used: SyncMethod::AudioCorrelation,
             correlation_peak: best_correlation,
+            additional_info: None,
         })
     }
 

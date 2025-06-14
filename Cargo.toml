@@ -53,7 +53,7 @@ toml = "0.8"
 config = "0.15"
 
 # HTTP client
-reqwest = { version = "0.12.20", features = ["json", "rustls-tls"] }
+reqwest = { version = "0.12.20", features = ["json", "multipart", "stream", "rustls-tls"] }
 
 # File scanning
 walkdir = "2.3"
@@ -88,6 +88,9 @@ symphonia = { version = "0.5", features = ["all-codecs", "all-formats"] }
  # Audio processing system migration to aus crate
 aus = "0.1.8"
 tempfile = "3.10"
+
+# Whisper API 整合所需
+tokio-util = { version = "0.7", features = ["codec"] }
 hound = "3.5"
 
 # Configuration management dependencies: path resolution and multi-core detection

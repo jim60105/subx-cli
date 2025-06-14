@@ -69,6 +69,15 @@ pub enum SubXError {
     #[error("AI service error: {0}")]
     AiService(String),
 
+    /// API 請求錯誤，指定來源
+    #[error("API error [{source:?}]: {message}")]
+    Api {
+        /// 錯誤訊息
+        message: String,
+        /// API 錯誤來源
+        source: ApiErrorSource,
+    },
+
     /// Audio processing error during analysis or format conversion.
     ///
     /// Provides a message describing the audio processing failure.
@@ -333,6 +342,7 @@ impl SubXError {
         match self {
             SubXError::Io(_) => 1,
             SubXError::Config { .. } => 2,
+            SubXError::Api { .. } => 3,
             SubXError::AiService(_) => 3,
             SubXError::SubtitleFormat { .. } => 4,
             SubXError::AudioProcessing { .. } => 5,
@@ -356,6 +366,10 @@ impl SubXError {
             SubXError::Config { message } => format!(
                 "Configuration error: {}\nHint: run 'subx-cli config --help' for details",
                 message
+            ),
+            SubXError::Api { message, source } => format!(
+                "API error ({:?}): {}\nHint: check network connection and API key settings",
+                source, message
             ),
             SubXError::AiService(msg) => format!(
                 "AI service error: {}\nHint: check network connection and API key settings",
@@ -383,6 +397,35 @@ impl SubXError {
             }
         }
     }
+}
+
+/// Whisper API 和音訊處理相關錯誤協助函式
+impl SubXError {
+    /// 建立 Whisper API 錯誤
+    pub fn whisper_api<T: Into<String>>(message: T) -> Self {
+        Self::Api {
+            message: message.into(),
+            source: ApiErrorSource::Whisper,
+        }
+    }
+
+    /// 建立音訊擷取/轉碼錯誤
+    pub fn audio_extraction<T: Into<String>>(message: T) -> Self {
+        Self::AudioProcessing {
+            message: message.into(),
+        }
+    }
+}
+
+/// API 錯誤來源
+#[derive(Debug, thiserror::Error)]
+pub enum ApiErrorSource {
+    /// OpenAI Whisper API
+    #[error("OpenAI")]
+    OpenAI,
+    /// Whisper API
+    #[error("Whisper")]
+    Whisper,
 }
 
 // aus error conversion
