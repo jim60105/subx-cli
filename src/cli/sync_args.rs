@@ -35,6 +35,7 @@
 //! ```
 
 // src/cli/sync_args.rs
+use crate::error::{SubXError, SubXResult};
 use clap::Args;
 use std::path::PathBuf;
 
@@ -62,7 +63,7 @@ use std::path::PathBuf;
 ///
 /// // Automatic synchronization
 /// let auto_args = SyncArgs {
-///     video: PathBuf::from("movie.mp4"),
+///     video: Some(PathBuf::from("movie.mp4")),
 ///     subtitle: PathBuf::from("movie.srt"),
 ///     offset: None,
 ///     batch: false,
@@ -72,7 +73,7 @@ use std::path::PathBuf;
 ///
 /// // Manual synchronization with 2-second delay
 /// let manual_args = SyncArgs {
-///     video: PathBuf::from("movie.mp4"),
+///     video: Some(PathBuf::from("movie.mp4")),
 ///     subtitle: PathBuf::from("movie.srt"),
 ///     offset: Some(2.0),
 ///     batch: false,
@@ -82,7 +83,7 @@ use std::path::PathBuf;
 /// ```
 #[derive(Args, Debug)]
 pub struct SyncArgs {
-    /// Video file path for audio analysis.
+    /// Video file path for audio analysis (required for automatic sync).
     ///
     /// The video file from which audio will be extracted and analyzed
     /// for speech pattern detection. Supports common video formats:
@@ -106,7 +107,8 @@ pub struct SyncArgs {
     /// # High-definition video
     /// subx sync "./Movies/Film (2023) [1080p].mkv" subtitle.srt
     /// ```
-    pub video: PathBuf,
+    #[arg(required_unless_present = "offset")]
+    pub video: Option<PathBuf>,
 
     /// Subtitle file path to be synchronized.
     ///
@@ -288,7 +290,7 @@ pub struct SyncArgs {
 ///
 /// // Auto sync (no offset specified)
 /// let auto_args = SyncArgs {
-///     video: PathBuf::from("video.mp4"),
+///     video: Some(PathBuf::from("video.mp4")),
 ///     subtitle: PathBuf::from("subtitle.srt"),
 ///     offset: None,
 ///     batch: false,
@@ -299,7 +301,7 @@ pub struct SyncArgs {
 ///
 /// // Manual sync (offset specified)
 /// let manual_args = SyncArgs {
-///     video: PathBuf::from("video.mp4"),
+///     video: Some(PathBuf::from("video.mp4")),
 ///     subtitle: PathBuf::from("subtitle.srt"),
 ///     offset: Some(2.5),
 ///     batch: false,
@@ -348,7 +350,7 @@ impl SyncArgs {
     /// use std::path::PathBuf;
     ///
     /// let args = SyncArgs {
-    ///     video: PathBuf::from("video.mp4"),
+    ///     video: Some(PathBuf::from("video.mp4")),
     ///     subtitle: PathBuf::from("subtitle.srt"),
     ///     offset: Some(1.5),
     ///     batch: false,
@@ -368,6 +370,31 @@ impl SyncArgs {
             SyncMethod::Auto
         }
     }
+
+    /// Validate SyncArgs combinations for manual or automatic modes.
+    pub fn validate(&self) -> SubXResult<()> {
+        match (self.offset.is_some(), self.video.is_some()) {
+            // Manual mode: offset provided, video optional
+            (true, _) => Ok(()),
+            // Automatic mode: offset absent, video required
+            (false, true) => Ok(()),
+            // Automatic mode without video: invalid
+            (false, false) => Err(SubXError::CommandExecution(
+                "視頻檔案在自動同步模式下是必填的。\n\n\
+使用方式:\n\
+• 自動同步: subx-cli sync <video> <subtitle>\n\
+• 手動同步: subx-cli sync --offset <seconds> <subtitle>\n\n\
+需要幫助嗎？執行: subx-cli sync --help"
+                    .to_string(),
+            )),
+        }
+    }
+
+    /// Returns true if video file is required (automatic sync).
+    #[allow(dead_code)]
+    pub fn requires_video(&self) -> bool {
+        self.offset.is_none()
+    }
 }
 
 #[cfg(test)]
@@ -377,7 +404,7 @@ mod tests {
     #[test]
     fn test_sync_method_selection_manual() {
         let args = SyncArgs {
-            video: PathBuf::from("video.mp4"),
+            video: Some(PathBuf::from("video.mp4")),
             subtitle: PathBuf::from("subtitle.srt"),
             offset: Some(2.5),
             batch: false,
@@ -390,7 +417,7 @@ mod tests {
     #[test]
     fn test_sync_method_selection_auto() {
         let args = SyncArgs {
-            video: PathBuf::from("video.mp4"),
+            video: Some(PathBuf::from("video.mp4")),
             subtitle: PathBuf::from("subtitle.srt"),
             offset: None,
             batch: false,

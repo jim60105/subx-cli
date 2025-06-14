@@ -105,14 +105,17 @@ subx-cli convert --keep-original subtitle.vtt --format srt
 
 **時間軸校正**
 ```bash
-# 自動檢測偏移
+# 自動同步（需要視頻檔案）
 subx-cli sync video.mp4 subtitle.srt
 
-# 手動指定偏移
-subx-cli sync --offset -2.5 video.mp4 subtitle.srt
+# 手動同步（僅需字幕檔案）
+subx-cli sync --offset 2.5 subtitle.srt
 
-# 批量同步整個資料夾
+# 批量處理模式（需要視頻資料夾）
 subx-cli sync --batch /path/to/media/folder
+
+# 向後相容（舊格式仍然支援）
+subx-cli sync video.mp4 subtitle.srt --offset 2.5
 ```
 
 **快取管理**
@@ -335,8 +338,9 @@ A: 確保檔案名包含足夠的識別資訊（如劇名、季數、集數）�
 
 ### Q: 時間軸同步失敗？
 
-A: 確保影片檔案可存取，並檢查檔案格式是否支援。如果自動同步不理想，可以嘗試：
-- 手動指定偏移量：`subx-cli sync --offset <seconds> video.mp4 subtitle.srt`
+- A: 確保影片檔案可存取，並檢查檔案格式是否支援。如果自動同步不理想，可以嘗試：
+- 手動指定偏移量：`subx-cli sync --offset <seconds> subtitle.srt`
+- 向後相容：`subx-cli sync --offset <seconds> video.mp4 subtitle.srt`
 - 調整同步配置：`subx-cli config set sync.correlation_threshold 0.6`
 - 啟用對話檢測：`subx-cli config set sync.enable_dialogue_detection true`
 

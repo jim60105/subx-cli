@@ -105,14 +105,17 @@ subx-cli convert --keep-original subtitle.vtt --format srt
 
 **Timeline Correction**
 ```bash
-# Auto-detect offset
+# Automatic synchronization (requires video file)
 subx-cli sync video.mp4 subtitle.srt
 
-# Manually specify offset
-subx-cli sync --offset -2.5 video.mp4 subtitle.srt
+# Manual synchronization (only subtitle file required)
+subx-cli sync --offset 2.5 subtitle.srt
 
-# Batch sync entire folder
+# Batch processing mode (video directory required)
 subx-cli sync --batch /path/to/media/folder
+
+# Backward compatibility (legacy format still supported)
+subx-cli sync video.mp4 subtitle.srt --offset 2.5
 ```
 
 **Cache Management**
