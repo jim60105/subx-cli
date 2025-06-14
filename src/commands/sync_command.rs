@@ -332,7 +332,7 @@ async fn execute_sync_logic(
     app_config: crate::config::Config,
     sync_engine: SyncEngine,
 ) -> Result<()> {
-    // 驗證參數組合
+    // Validate parameter combination
     args.validate()?;
 
     match args.sync_method() {
@@ -345,15 +345,15 @@ async fn execute_sync_logic(
 async fn execute_manual_sync(args: &SyncArgs, sync_engine: &SyncEngine) -> Result<()> {
     let manual_offset = args.offset.expect("Manual sync requires offset");
 
-    println!("🔧 執行手動時間軸調整...");
-    println!("📝 字幕檔案: {}", args.subtitle.display());
-    println!("⏱️  偏移量: {}s", manual_offset);
+    println!("🔧 Executing manual timeline adjustment...");
+    println!("📝 Subtitle file: {}", args.subtitle.display());
+    println!("⏱️  Offset: {}s", manual_offset);
 
     let mut subtitle = load_subtitle(&args.subtitle).await?;
     sync_engine.apply_sync_offset(&mut subtitle, manual_offset as f32)?;
     save_subtitle(&subtitle, &args.subtitle).await?;
 
-    println!("✅ 手動偏移套用完成: {}s", manual_offset);
+    println!("✅ Manual offset applied successfully: {}s", manual_offset);
     Ok(())
 }
 
@@ -365,17 +365,17 @@ async fn execute_automatic_sync(
 ) -> Result<()> {
     let video_path = args.video.as_ref().expect("Auto sync requires video file");
 
-    println!("🎵 執行自動音訊分析同步...");
-    println!("🎬 視頻檔案: {}", video_path.display());
-    println!("📝 字幕檔案: {}", args.subtitle.display());
+    println!("🎵 Executing automatic audio analysis sync...");
+    println!("🎬 Video file: {}", video_path.display());
+    println!("📝 Subtitle file: {}", args.subtitle.display());
 
     // Dialogue detection (auto mode only)
     if app_config.sync.enable_dialogue_detection {
         let detector = DialogueDetector::new(&app_config.sync);
         let segs = detector.detect_dialogue(video_path).await?;
-        println!("🎤 檢測到 {} 個對話片段", segs.len());
+        println!("🎤 Detected {} dialogue segments", segs.len());
         println!(
-            "🗣️  語音比例: {:.1}%",
+            "🗣️  Speech ratio: {:.1}%",
             detector.get_speech_ratio(&segs) * 100.0
         );
     }
@@ -395,20 +395,23 @@ async fn execute_batch_sync(args: &SyncArgs, sync_engine: &SyncEngine) -> Result
         .expect("Batch sync requires video directory");
     let media_pairs = discover_media_pairs(video_path).await?;
 
-    println!("📁 批量處理模式: 找到 {} 個媒體檔案對", media_pairs.len());
+    println!(
+        "📁 Batch processing mode: found {} media file pairs",
+        media_pairs.len()
+    );
 
     for (video_file, subtitle_file) in media_pairs {
         match sync_single_pair(sync_engine, &video_file, &subtitle_file).await {
             Ok(result) => {
                 println!(
-                    "✅ {} - 偏移: {:.2}s (信心度: {:.2})",
+                    "✅ {} - Offset: {:.2}s (Confidence: {:.2})",
                     subtitle_file.display(),
                     result.offset_seconds,
                     result.confidence
                 );
             }
             Err(e) => {
-                println!("❌ {} - 錯誤: {}", subtitle_file.display(), e);
+                println!("❌ {} - Error: {}", subtitle_file.display(), e);
             }
         }
     }
@@ -428,11 +431,14 @@ async fn execute_single_sync(
         sync_engine.apply_sync_offset(&mut updated, result.offset_seconds)?;
         save_subtitle(&updated, &args.subtitle).await?;
         println!(
-            "✅ 同步完成 - 偏移: {:.2}s (信心度: {:.2})",
+            "✅ Sync completed - Offset: {:.2}s (Confidence: {:.2})",
             result.offset_seconds, result.confidence
         );
     } else {
-        println!("⚠ 信心度較低 ({:.2})，建議手動調整", result.confidence);
+        println!(
+            "⚠ Low confidence ({:.2}), manual adjustment recommended",
+            result.confidence
+        );
     }
     Ok(())
 }

@@ -1,4 +1,4 @@
-//! 音訊轉碼服務：基於 Symphonia 的多格式轉 WAV 機制。
+//! Audio transcoding service: Multi-format to WAV conversion based on Symphonia.
 
 use crate::{Result, error::SubXError};
 use hound::{SampleFormat, WavSpec, WavWriter};
@@ -13,30 +13,30 @@ use symphonia::core::{
 use symphonia::core::{codecs::CodecRegistry, probe::Probe};
 use symphonia::default::{get_codecs, get_probe};
 use tempfile::TempDir;
-/// 音訊轉碼器：檢測檔案格式並將非 WAV 檔案轉為 WAV。
+/// Audio transcoder: Detects file format and converts non-WAV files to WAV.
 pub struct AudioTranscoder {
-    /// 臨時目錄，用於存放轉碼結果
+    /// Temporary directory for storing transcoding results
     temp_dir: TempDir,
     probe: &'static Probe,
     codecs: &'static CodecRegistry,
 }
 
-/// 音訊轉碼統計資訊
+/// Audio transcoding statistics
 pub struct TranscodeStats {
-    /// 處理的封包總數
+    /// Total number of packets processed
     pub total_packets: u64,
-    /// 成功解碼的封包數
+    /// Number of successfully decoded packets
     pub decoded_packets: u64,
-    /// 因 DecodeError 跳過的封包數
+    /// Number of packets skipped due to DecodeError
     pub skipped_decode_errors: u64,
-    /// 因 IoError 跳過的封包數
+    /// Number of packets skipped due to IoError
     pub skipped_io_errors: u64,
-    /// 因需要重置而記錄的次數
+    /// Number of times reset was required
     pub reset_required_count: u64,
 }
 
 impl TranscodeStats {
-    /// 建立新的統計資訊
+    /// Create new statistics
     pub fn new() -> Self {
         Self {
             total_packets: 0,
@@ -47,7 +47,7 @@ impl TranscodeStats {
         }
     }
 
-    /// 計算解碼成功率
+    /// Calculate decoding success rate
     pub fn success_rate(&self) -> f64 {
         if self.total_packets == 0 {
             0.0
@@ -118,7 +118,7 @@ mod tests {
 }
 
 impl AudioTranscoder {
-    /// 建立新的 AudioTranscoder 實例，並初始化暫存資料夾。
+    /// Create a new AudioTranscoder instance and initialize temporary directory.
     pub fn new() -> Result<Self> {
         let temp_dir = TempDir::new().map_err(|e| {
             SubXError::audio_processing(format!("Failed to create temp dir: {}", e))
@@ -132,7 +132,7 @@ impl AudioTranscoder {
         })
     }
 
-    /// 檢查指定路徑的音訊檔案是否需要轉碼（基於副檔名判斷）。
+    /// Check if the audio file at the specified path needs transcoding (based on file extension).
     pub fn needs_transcoding<P: AsRef<Path>>(&self, audio_path: P) -> Result<bool> {
         if let Some(ext) = audio_path.as_ref().extension().and_then(|s| s.to_str()) {
             let ext_lc = ext.to_lowercase();
@@ -144,7 +144,7 @@ impl AudioTranscoder {
         }
     }
 
-    /// 主動清理臨時目錄
+    /// Actively clean up temporary directory
     pub fn cleanup(self) -> Result<()> {
         self.temp_dir
             .close()
@@ -154,7 +154,7 @@ impl AudioTranscoder {
 }
 
 impl AudioTranscoder {
-    /// 帶配置的音訊轉碼方法，可指定最小成功率
+    /// Audio transcoding method with configuration, allowing specification of minimum success rate
     pub async fn transcode_to_wav_with_config<P: AsRef<Path>>(
         &self,
         input_path: P,
@@ -295,7 +295,7 @@ impl AudioTranscoder {
         Ok((wav_path, stats))
     }
 
-    /// 將輸入音訊檔案轉碼為 WAV，並儲存於臨時目錄中（向後相容）。
+    /// Transcode input audio file to WAV and save to temporary directory (backward compatibility).
     pub async fn transcode_to_wav<P: AsRef<Path>>(&self, input_path: P) -> Result<PathBuf> {
         let (path, stats) = self.transcode_to_wav_with_config(input_path, None).await?;
         if stats.success_rate() < 0.8 {

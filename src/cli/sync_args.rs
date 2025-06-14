@@ -380,11 +380,11 @@ impl SyncArgs {
             (false, true) => Ok(()),
             // Automatic mode without video: invalid
             (false, false) => Err(SubXError::CommandExecution(
-                "視頻檔案在自動同步模式下是必填的。\n\n\
-使用方式:\n\
-• 自動同步: subx-cli sync <video> <subtitle>\n\
-• 手動同步: subx-cli sync --offset <seconds> <subtitle>\n\n\
-需要幫助嗎？執行: subx-cli sync --help"
+                "Video file is required in automatic sync mode.\n\n\
+Usage:\n\
+• Automatic sync: subx-cli sync <video> <subtitle>\n\
+• Manual sync: subx-cli sync --offset <seconds> <subtitle>\n\n\
+Need help? Run: subx-cli sync --help"
                     .to_string(),
             )),
         }
