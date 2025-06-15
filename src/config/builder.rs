@@ -19,7 +19,7 @@ use crate::config::{Config, OverflowStrategy};
 /// let config = TestConfigBuilder::new()
 ///     .with_ai_provider("openai")
 ///     .with_ai_model("gpt-4.1")
-///     .with_analysis_window(30)
+///     .with_vad_enabled(true)
 ///     .build_config();
 /// ```
 pub struct TestConfigBuilder {
@@ -113,24 +113,6 @@ impl TestConfigBuilder {
     /// 設定同步方法
     pub fn with_sync_method(mut self, method: &str) -> Self {
         self.config.sync.default_method = method.to_string();
-        self
-    }
-
-    /// 設定分析時間窗口
-    pub fn with_analysis_window(mut self, seconds: u32) -> Self {
-        self.config.sync.analysis_window_seconds = seconds;
-        self
-    }
-
-    /// 啟用/停用 Whisper API
-    pub fn with_whisper_enabled(mut self, enabled: bool) -> Self {
-        self.config.sync.whisper.enabled = enabled;
-        self
-    }
-
-    /// 設定 Whisper 模型
-    pub fn with_whisper_model(mut self, model: &str) -> Self {
-        self.config.sync.whisper.model = model.to_string();
         self
     }
 
@@ -382,16 +364,12 @@ mod tests {
     fn test_builder_sync_configuration() {
         let config = TestConfigBuilder::new()
             .with_sync_method("vad")
-            .with_analysis_window(45)
-            .with_whisper_enabled(false)
             .with_vad_enabled(true)
             .with_vad_sensitivity(0.8)
             .with_vad_sample_rate(32000)
             .build_config();
 
         assert_eq!(config.sync.default_method, "vad");
-        assert_eq!(config.sync.analysis_window_seconds, 45);
-        assert!(!config.sync.whisper.enabled);
         assert!(config.sync.vad.enabled);
         assert_eq!(config.sync.vad.sensitivity, 0.8);
         assert_eq!(config.sync.vad.sample_rate, 32000);
@@ -412,9 +390,7 @@ mod tests {
         let config = TestConfigBuilder::new()
             .with_ai_provider("openai")
             .with_ai_model("gpt-4.1")
-            .with_sync_method("whisper")
-            .with_analysis_window(60)
-            .with_whisper_model("whisper-2")
+            .with_sync_method("vad")
             .with_vad_sensitivity(0.5)
             .with_max_concurrent_jobs(8)
             .with_task_queue_size(200)
@@ -422,9 +398,7 @@ mod tests {
 
         assert_eq!(config.ai.provider, "openai");
         assert_eq!(config.ai.model, "gpt-4.1");
-        assert_eq!(config.sync.default_method, "whisper");
-        assert_eq!(config.sync.analysis_window_seconds, 60);
-        assert_eq!(config.sync.whisper.model, "whisper-2");
+        assert_eq!(config.sync.default_method, "vad");
         assert_eq!(config.sync.vad.sensitivity, 0.5);
         assert_eq!(config.general.max_concurrent_jobs, 8);
         assert_eq!(config.parallel.task_queue_size, 200);

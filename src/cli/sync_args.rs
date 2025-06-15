@@ -7,45 +7,22 @@
 //!
 //! ## OpenAI Whisper API
 //! 雲端轉錄服務，提供高精度語音檢測：
-//! - **雲端處理**: 使用 OpenAI 的先進語音識別模型
-//! - **高精度**: 適合對精度要求較高的場景
-//! - **智能回退**: API 失敗時自動回退到本地 VAD
-//! - **多語言支援**: 支援自動語言檢測
-//!
-//! ## 本地 VAD (Voice Activity Detection)
-//! 本地語音活動檢測，提供隱私保護的同步方法：
-//! - **隱私保護**: 音訊不會上傳到外部服務
-//! - **快速處理**: 本地運算，處理速度快
-//! - **無需網路**: 可在離線環境使用
-//! - **可調參數**: 支援敏感度等參數調整
-//!
-//! ## 手動偏移
-//! 直接應用指定的時間偏移量：
-//! - **精確控制**: 當你知道確切的偏移量時使用
-//! - **快速應用**: 無需分析，立即套用
-//! - **批次處理**: 適合對多個檔案套用相同偏移量
-//!
-//! # 使用範例
-//!
-//! ```bash
-//! # 預設 Whisper 方法（含回退機制）
-//! subx sync video.mp4 subtitle.srt
-//!
-//! # 指定使用 Whisper API
-//! subx sync --method whisper video.mp4 subtitle.srt
-//!
-//! # 使用本地 VAD
-//! subx sync --method vad video.mp4 subtitle.srt
-//!
-//! # 手動偏移
-//! subx sync --offset 2.5 video.mp4 subtitle.srt
-//!
-//! # 自訂 Whisper 參數
-//! subx sync --method whisper --whisper-model whisper-1 --whisper-language zh video.mp4 subtitle.srt
-//!
-//! # 自訂 VAD 參數
-//! subx sync --method vad --vad-sensitivity 0.8 video.mp4 subtitle.srt
-//! ```
+#[derive(Debug, Clone, ValueEnum, PartialEq)]
+pub enum SyncMethodArg {
+    /// 僅使用本地語音活動檢測
+    Vad,
+    /// 套用手動偏移（需搭配 --offset）
+    Manual,
+}
+
+impl From<SyncMethodArg> for crate::core::sync::SyncMethod {
+    fn from(arg: SyncMethodArg) -> Self {
+        match arg {
+            SyncMethodArg::Vad => Self::LocalVad,
+            SyncMethodArg::Manual => Self::Manual,
+        }
+    }
+}
 
 use crate::error::{SubXError, SubXResult};
 use clap::{Args, ValueEnum};
@@ -81,7 +58,7 @@ pub struct SyncArgs {
         long,
         value_name = "SECONDS",
         help = "手動偏移秒數 (正值延遲字幕，負值提前字幕)",
-        conflicts_with_all = ["method", "window", "whisper_model", "whisper_language", "vad_sensitivity"]
+        conflicts_with_all = ["method", "window", "vad_sensitivity"]
     )]
     pub offset: Option<f32>,
 
@@ -98,19 +75,6 @@ pub struct SyncArgs {
         help = "分析第一句字幕周圍的時間窗口（秒）"
     )]
     pub window: u32,
-
-    // === Whisper API 選項 ===
-    /// Whisper 模型
-    #[arg(long, value_name = "MODEL", help = "Whisper 模型選擇")]
-    pub whisper_model: Option<String>,
-
-    /// Whisper 語言
-    #[arg(long, value_name = "LANG", help = "Whisper 轉錄語言")]
-    pub whisper_language: Option<String>,
-
-    /// Whisper 溫度參數
-    #[arg(long, value_name = "TEMP", help = "Whisper API 溫度參數 (0.0-1.0)")]
-    pub whisper_temperature: Option<f32>,
 
     // === VAD 選項 ===
     /// VAD 敏感度
@@ -164,27 +128,6 @@ pub struct SyncArgs {
     pub threshold: Option<f32>,
 }
 
-/// 同步方法枚舉
-#[derive(ValueEnum, Clone, Debug, PartialEq)]
-pub enum SyncMethodArg {
-    /// 使用 OpenAI Whisper API 配合智能 VAD 回退
-    Whisper,
-    /// 僅使用本地語音活動檢測
-    Vad,
-    /// 套用手動偏移（需搭配 --offset）
-    Manual,
-}
-
-impl From<SyncMethodArg> for crate::core::sync::SyncMethod {
-    fn from(arg: SyncMethodArg) -> Self {
-        match arg {
-            SyncMethodArg::Whisper => Self::WhisperApi,
-            SyncMethodArg::Vad => Self::LocalVad,
-            SyncMethodArg::Manual => Self::Manual,
-        }
-    }
-}
-
 /// 同步方法枚舉（向後兼容）
 #[derive(Debug, Clone, PartialEq)]
 pub enum SyncMethod {
@@ -212,17 +155,6 @@ impl SyncArgs {
 • 手動同步: subx sync --offset <seconds> <subtitle>\n\n\
 需要幫助？執行: subx sync --help"
                 .to_string());
-        }
-
-        // 檢查 Whisper 參數僅在 Whisper 方法時使用
-        if self.whisper_model.is_some()
-            || self.whisper_language.is_some()
-            || self.whisper_temperature.is_some()
-        {
-            match &self.method {
-                Some(SyncMethodArg::Whisper) | None => {}
-                _ => return Err("Whisper 選項只能與 --method whisper 一起使用。".to_string()),
-            }
         }
 
         // 檢查 VAD 參數僅在 VAD 方法時使用
@@ -325,9 +257,6 @@ mod tests {
             offset: Some(2.5),
             method: None,
             window: 30,
-            whisper_model: None,
-            whisper_language: None,
-            whisper_temperature: None,
             vad_sensitivity: None,
             vad_chunk_size: None,
             output: None,
@@ -351,9 +280,6 @@ mod tests {
             offset: None,
             method: None,
             window: 30,
-            whisper_model: None,
-            whisper_language: None,
-            whisper_temperature: None,
             vad_sensitivity: None,
             vad_chunk_size: None,
             output: None,
@@ -371,10 +297,6 @@ mod tests {
 
     #[test]
     fn test_method_arg_conversion() {
-        assert_eq!(
-            crate::core::sync::SyncMethod::from(SyncMethodArg::Whisper),
-            crate::core::sync::SyncMethod::WhisperApi
-        );
         assert_eq!(
             crate::core::sync::SyncMethod::from(SyncMethodArg::Vad),
             crate::core::sync::SyncMethod::LocalVad

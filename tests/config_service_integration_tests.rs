@@ -58,7 +58,7 @@ fn test_config_builder_comprehensive() {
         .with_ai_model("gpt-4.1")
         .with_ai_api_key("test-key")
         .with_max_sample_length(5000)
-        .with_analysis_window(30)
+        .with_vad_enabled(true)
         // .with_max_offset removed
         .with_max_concurrent_jobs(8)
         .with_task_queue_size(200)
@@ -68,8 +68,8 @@ fn test_config_builder_comprehensive() {
     assert_eq!(config.ai.model, "gpt-4.1");
     assert_eq!(config.ai.api_key, Some("test-key".to_string()));
     assert_eq!(config.ai.max_sample_length, 5000);
-    assert_eq!(config.sync.analysis_window_seconds, 30);
-    assert_eq!(config.sync.default_method, "whisper");
+    assert!(config.sync.vad.enabled);
+    assert_eq!(config.sync.default_method, "auto");
     assert_eq!(config.general.max_concurrent_jobs, 8);
     assert_eq!(config.parallel.task_queue_size, 200);
 }
@@ -138,12 +138,12 @@ fn test_config_service_isolation() {
 fn test_config_builder_service_creation() {
     let service = TestConfigBuilder::new()
         .with_ai_provider("builder_test")
-        .with_analysis_window(30)
+        .with_vad_enabled(true)
         .build_service();
 
     let config = service.get_config().expect("Failed to get config");
     assert_eq!(config.ai.provider, "builder_test");
-    assert_eq!(config.sync.analysis_window_seconds, 30);
+    assert!(config.sync.vad.enabled);
 }
 
 // Test using the new macros (temporarily disabled due to scope issues)

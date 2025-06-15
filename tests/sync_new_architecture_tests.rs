@@ -7,15 +7,15 @@ use subx_cli::core::sync::SyncMethod;
 
 /// 測試新同步架構的完整整合功能
 ///
-/// 這個測試套件驗證 Backlog 32 中定義的所有新功能：
+/// 這個測試套件驗證移除 Whisper 後的同步功能：
 /// - 新的 CLI 參數結構  
-/// - 多方法同步引擎
+/// - VAD 同步引擎
 /// - 方法選擇策略
 /// - 批次處理
-/// - 錯誤處理和回退機制
+/// - 錯誤處理機制
 
 #[test]
-fn test_sync_args_with_whisper_method() {
+fn test_sync_args_with_vad_method() {
     let temp_dir = TempDir::new().unwrap();
     let video_path = temp_dir.path().join("test.mp4");
     let subtitle_path = temp_dir.path().join("test.srt");
@@ -29,13 +29,10 @@ fn test_sync_args_with_whisper_method() {
         video: Some(video_path.clone()),
         subtitle: subtitle_path.clone(),
         offset: None,
-        method: Some(SyncMethodArg::Whisper),
+        method: Some(SyncMethodArg::Vad),
         window: 45,
-        whisper_model: Some("whisper-1".to_string()),
-        whisper_language: Some("auto".to_string()),
-        whisper_temperature: Some(0.1),
-        vad_sensitivity: None,
-        vad_chunk_size: None,
+        vad_sensitivity: Some(0.8),
+        vad_chunk_size: Some(1024),
         output: None,
         verbose: false,
         dry_run: false,
@@ -46,15 +43,14 @@ fn test_sync_args_with_whisper_method() {
     };
 
     // 驗證參數解析正確
-    assert_eq!(args.method, Some(SyncMethodArg::Whisper));
+    assert_eq!(args.method, Some(SyncMethodArg::Vad));
     assert_eq!(args.window, 45);
-    assert_eq!(args.whisper_model, Some("whisper-1".to_string()));
-    assert_eq!(args.whisper_language, Some("auto".to_string()));
-    assert_eq!(args.whisper_temperature, Some(0.1));
+    assert_eq!(args.vad_sensitivity, Some(0.8));
+    assert_eq!(args.vad_chunk_size, Some(1024));
 }
 
 #[test]
-fn test_sync_args_with_vad_method() {
+fn test_sync_args_with_vad_default_settings() {
     let temp_dir = TempDir::new().unwrap();
     let video_path = temp_dir.path().join("test.mp4");
     let subtitle_path = temp_dir.path().join("test.srt");
@@ -69,11 +65,8 @@ fn test_sync_args_with_vad_method() {
         offset: None,
         method: Some(SyncMethodArg::Vad),
         window: 30,
-        whisper_model: None,
-        whisper_language: None,
-        whisper_temperature: None,
-        vad_sensitivity: Some(0.8),
-        vad_chunk_size: Some(1024),
+        vad_sensitivity: None,
+        vad_chunk_size: None,
         output: None,
         verbose: false,
         dry_run: false,
@@ -85,8 +78,8 @@ fn test_sync_args_with_vad_method() {
 
     // 驗證 VAD 參數正確設置
     assert_eq!(args.method, Some(SyncMethodArg::Vad));
-    assert_eq!(args.vad_sensitivity, Some(0.8));
-    assert_eq!(args.vad_chunk_size, Some(1024));
+    assert_eq!(args.vad_sensitivity, None); // 使用預設值
+    assert_eq!(args.vad_chunk_size, None); // 使用預設值
 }
 
 #[test]
@@ -102,9 +95,6 @@ fn test_sync_args_with_manual_offset() {
         offset: Some(2.5),
         method: Some(SyncMethodArg::Manual),
         window: 30,
-        whisper_model: None,
-        whisper_language: None,
-        whisper_temperature: None,
         vad_sensitivity: None,
         vad_chunk_size: None,
         output: None,
@@ -136,11 +126,8 @@ fn test_sync_args_batch_mode() {
         video: Some(input_dir.clone()),
         subtitle: input_dir.clone(),
         offset: None,
-        method: Some(SyncMethodArg::Whisper), // 使用 Whisper 而不是 Auto
+        method: Some(SyncMethodArg::Vad), // 使用 Vad 而不是 Auto
         window: 30,
-        whisper_model: None,
-        whisper_language: None,
-        whisper_temperature: None,
         vad_sensitivity: None,
         vad_chunk_size: None,
         output: Some(output_dir.clone()),
@@ -154,7 +141,7 @@ fn test_sync_args_batch_mode() {
 
     // 驗證批次模式設置
     assert!(args.batch);
-    assert_eq!(args.method, Some(SyncMethodArg::Whisper));
+    assert_eq!(args.method, Some(SyncMethodArg::Vad));
 }
 
 #[test]
@@ -171,9 +158,6 @@ fn test_sync_args_validation() {
         offset: None, // 缺少 offset
         method: Some(SyncMethodArg::Manual),
         window: 30,
-        whisper_model: None,
-        whisper_language: None,
-        whisper_temperature: None,
         vad_sensitivity: None,
         vad_chunk_size: None,
         output: None,
@@ -212,10 +196,6 @@ fn test_sync_args_validation() {
 #[test]
 fn test_sync_method_conversion() {
     // 測試 CLI 枚舉到核心枚舉的轉換
-    let whisper_arg = SyncMethodArg::Whisper;
-    let whisper_method: SyncMethod = whisper_arg.into();
-    assert_eq!(whisper_method, SyncMethod::WhisperApi);
-
     let vad_arg = SyncMethodArg::Vad;
     let vad_method: SyncMethod = vad_arg.into();
     assert_eq!(vad_method, SyncMethod::LocalVad);

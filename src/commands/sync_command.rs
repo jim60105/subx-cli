@@ -16,7 +16,7 @@ pub async fn execute(args: SyncArgs, config_service: &dyn ConfigService) -> Resu
     let config = config_service.get_config()?;
 
     // 建立同步引擎
-    let sync_engine = SyncEngine::new(config.sync.clone(), config_service).await?;
+    let sync_engine = SyncEngine::new(config.sync.clone())?;
 
     // 載入字幕檔案
     let format_manager = FormatManager::new();
@@ -128,7 +128,6 @@ fn determine_sync_method(args: &SyncArgs, default_method: &str) -> Result<SyncMe
 
     // 否則使用配置檔案中的預設方法
     match default_method {
-        "whisper" => Ok(SyncMethod::WhisperApi),
         "vad" => Ok(SyncMethod::LocalVad),
         "auto" => Ok(SyncMethod::Auto),
         _ => Ok(SyncMethod::Auto),
@@ -136,22 +135,6 @@ fn determine_sync_method(args: &SyncArgs, default_method: &str) -> Result<SyncMe
 }
 
 fn apply_cli_overrides(config: &mut crate::config::SyncConfig, args: &SyncArgs) -> Result<()> {
-    // 更新分析時間窗口
-    if args.window != 30 {
-        config.analysis_window_seconds = args.window;
-    }
-
-    // 應用 Whisper 特定覆蓋
-    if let Some(ref model) = args.whisper_model {
-        config.whisper.model = model.clone();
-    }
-    if let Some(ref language) = args.whisper_language {
-        config.whisper.language = language.clone();
-    }
-    if let Some(temperature) = args.whisper_temperature {
-        config.whisper.temperature = temperature;
-    }
-
     // 應用 VAD 特定覆蓋
     if let Some(sensitivity) = args.vad_sensitivity {
         config.vad.sensitivity = sensitivity;

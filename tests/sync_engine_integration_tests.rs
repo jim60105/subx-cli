@@ -15,14 +15,11 @@ async fn test_sync_engine_with_vad_only() {
     create_test_audio(&audio_path);
 
     let config = TestConfigBuilder::new()
-        .with_whisper_enabled(false)
         .with_vad_enabled(true)
         .build_config();
 
     let config_service = TestConfigService::new(config);
-    let engine = SyncEngine::new(config_service.config().sync.clone(), &config_service)
-        .await
-        .unwrap();
+    let engine = SyncEngine::new(config_service.config().sync.clone()).unwrap();
 
     let result = engine
         .detect_sync_offset(&audio_path, &subtitle, Some(SyncMethod::LocalVad))
@@ -42,14 +39,11 @@ async fn test_auto_method_selection_fallback() {
     create_test_audio(&audio_path);
 
     let config = TestConfigBuilder::new()
-        .with_whisper_enabled(false)
         .with_vad_enabled(true)
         .build_config();
 
     let config_service = TestConfigService::new(config);
-    let engine = SyncEngine::new(config_service.config().sync.clone(), &config_service)
-        .await
-        .unwrap();
+    let engine = SyncEngine::new(config_service.config().sync.clone()).unwrap();
 
     // 自动选择方法时传入 None，并测试回退到本地 VAD
     let result = engine
@@ -63,19 +57,18 @@ async fn test_auto_method_selection_fallback() {
 #[tokio::test]
 async fn test_no_methods_available_error() {
     let config = TestConfigBuilder::new()
-        .with_whisper_enabled(false)
         .with_vad_enabled(false)
         .build_config();
 
     let config_service = TestConfigService::new(config);
-    let result = SyncEngine::new(config_service.config().sync.clone(), &config_service).await;
+    let result = SyncEngine::new(config_service.config().sync.clone());
 
     assert!(result.is_err());
     if let Err(error) = result {
         assert!(
             error
                 .to_string()
-                .contains("No synchronization methods available")
+                .contains("VAD detector is required but not available")
         );
     }
 }

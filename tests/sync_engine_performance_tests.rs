@@ -15,14 +15,11 @@ async fn test_sync_engine_performance_comparison() {
     create_large_test_audio(&audio_path, 300);
 
     let config = TestConfigBuilder::new()
-        .with_whisper_enabled(false)
         .with_vad_enabled(true)
         .build_config();
 
     let config_service = TestConfigService::new(config);
-    let engine = SyncEngine::new(config_service.config().sync.clone(), &config_service)
-        .await
-        .unwrap();
+    let engine = SyncEngine::new(config_service.config().sync.clone()).unwrap();
 
     let start_time = Instant::now();
     let result = engine

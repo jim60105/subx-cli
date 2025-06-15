@@ -2,21 +2,18 @@ use super::{LocalVadDetector, VadResult};
 use crate::config::VadConfig;
 use crate::core::formats::{Subtitle, SubtitleEntry};
 use crate::core::sync::{SyncMethod, SyncResult};
-use crate::services::whisper::AudioSegmentExtractor;
 use crate::{Result, error::SubXError};
 use serde_json::json;
 use std::path::Path;
 
 pub struct VadSyncDetector {
     vad_detector: LocalVadDetector,
-    audio_extractor: AudioSegmentExtractor,
 }
 
 impl VadSyncDetector {
     pub fn new(config: VadConfig) -> Result<Self> {
         Ok(Self {
             vad_detector: LocalVadDetector::new(config)?,
-            audio_extractor: AudioSegmentExtractor::new()?,
         })
     }
 
@@ -24,26 +21,16 @@ impl VadSyncDetector {
         &self,
         audio_path: &Path,
         subtitle: &Subtitle,
-        analysis_window_seconds: u32,
+        _analysis_window_seconds: u32, // 忽略此參數，處理完整檔案
     ) -> Result<SyncResult> {
-        // 1. 獲取第一句字幕
+        // 1. 獲取第一句字幕的預期開始時間
         let first_entry = self.get_first_subtitle_entry(subtitle)?;
 
-        // 2. 提取音訊片段
-        let audio_segment_path = self
-            .audio_extractor
-            .extract_segment(audio_path, first_entry.start_time, analysis_window_seconds)
-            .await?;
+        // 2. 直接對完整音訊檔案進行 VAD 分析
+        let vad_result = self.vad_detector.detect_speech(audio_path).await?;
 
-        // 3. 使用 VAD 檢測語音活動
-        let vad_result = self.vad_detector.detect_speech(&audio_segment_path).await?;
-
-        // 4. 分析檢測結果
-        let analysis_result =
-            self.analyze_vad_result(&vad_result, first_entry, analysis_window_seconds)?;
-
-        // 5. 清理臨時檔案
-        let _ = tokio::fs::remove_file(&audio_segment_path).await;
+        // 3. 分析結果：比較第一個語音片段與第一句字幕的時間差
+        let analysis_result = self.analyze_vad_result(&vad_result, first_entry)?;
 
         Ok(analysis_result)
     }
@@ -58,20 +45,14 @@ impl VadSyncDetector {
     fn analyze_vad_result(
         &self,
         vad_result: &VadResult,
-        _first_entry: &SubtitleEntry,
-        analysis_window_seconds: u32,
+        first_entry: &SubtitleEntry,
     ) -> Result<SyncResult> {
         // 檢測第一個顯著的語音片段
         let first_speech_time = self.find_first_significant_speech(vad_result)?;
 
-        // 計算偏移量
-        // 由於我們提取的音訊片段是以第一句字幕為中心的指定秒數片段
-        // 所以需要計算相對於片段開始的實際時間
-        let half_window = analysis_window_seconds as f64 / 2.0;
-        let expected_position_in_segment = half_window;
-        let actual_position_in_segment = first_speech_time;
-
-        let offset_seconds = actual_position_in_segment - expected_position_in_segment;
+        // 計算偏移量：實際語音開始時間 - 預期字幕開始時間
+        let expected_start = first_entry.start_time.as_secs_f64();
+        let offset_seconds = first_speech_time - expected_start;
 
         // 計算信心度
         let confidence = self.calculate_confidence(vad_result);
@@ -84,7 +65,7 @@ impl VadSyncDetector {
             additional_info: Some(json!({
                 "speech_segments_count": vad_result.speech_segments.len(),
                 "first_speech_start": first_speech_time,
-                "expected_speech_start": expected_position_in_segment,
+                "expected_subtitle_start": expected_start,
                 "processing_time_ms": vad_result.processing_duration.as_millis(),
                 "audio_duration": vad_result.audio_info.duration_seconds,
                 "detected_segments": vad_result.speech_segments.iter().map(|s| {

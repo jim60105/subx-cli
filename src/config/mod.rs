@@ -187,17 +187,13 @@ impl Default for FormatsConfig {
     }
 }
 
-/// 音訊同步配置，支援多種同步方法
+/// 音訊同步配置，支援 VAD 語音檢測
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct SyncConfig {
-    /// 預設同步方法 ("whisper", "vad")
+    /// 預設同步方法 ("vad", "auto")  
     pub default_method: String,
-    /// 分析時間窗口：第一句字幕前後的秒數
-    pub analysis_window_seconds: u32,
     /// 最大允許的時間偏移量（秒）
     pub max_offset_seconds: f32,
-    /// Whisper API 相關設定
-    pub whisper: WhisperConfig,
     /// 本地 VAD 相關設定
     pub vad: VadConfig,
 
@@ -225,29 +221,6 @@ pub struct SyncConfig {
     pub auto_detect_sample_rate: bool,
 }
 
-/// OpenAI Whisper API 配置
-#[derive(Debug, Serialize, Deserialize, Clone)]
-pub struct WhisperConfig {
-    /// 是否啟用 Whisper API 方法
-    pub enabled: bool,
-    /// Whisper 模型名稱
-    pub model: String,
-    /// 語言設定 ("auto" 為自動檢測)
-    pub language: String,
-    /// API 溫度參數 (0.0-1.0)
-    pub temperature: f32,
-    /// API 請求超時時間（秒）
-    pub timeout_seconds: u32,
-    /// 最大重試次數
-    pub max_retries: u32,
-    /// 重試間隔（毫秒）
-    pub retry_delay_ms: u64,
-    /// 當 Whisper 失敗時是否回退到 VAD
-    pub fallback_to_vad: bool,
-    /// 最低信心度閾值，低於此值回退到 VAD
-    pub min_confidence_threshold: f32,
-}
-
 /// 本地 Voice Activity Detection 配置
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct VadConfig {
@@ -271,10 +244,8 @@ pub struct VadConfig {
 impl Default for SyncConfig {
     fn default() -> Self {
         Self {
-            default_method: "whisper".to_string(),
-            analysis_window_seconds: 30,
+            default_method: "auto".to_string(),
             max_offset_seconds: 60.0,
-            whisper: WhisperConfig::default(),
             vad: VadConfig::default(),
             correlation_threshold: 0.8,
             dialogue_detection_threshold: 0.6,
@@ -283,22 +254,6 @@ impl Default for SyncConfig {
             enable_dialogue_detection: true,
             audio_sample_rate: 44100,
             auto_detect_sample_rate: true,
-        }
-    }
-}
-
-impl Default for WhisperConfig {
-    fn default() -> Self {
-        Self {
-            enabled: true,
-            model: "whisper-1".to_string(),
-            language: "auto".to_string(),
-            temperature: 0.0,
-            timeout_seconds: 30,
-            max_retries: 3,
-            retry_delay_ms: 1000,
-            fallback_to_vad: true,
-            min_confidence_threshold: 0.7,
         }
     }
 }
@@ -479,12 +434,8 @@ mod config_tests {
     #[test]
     fn test_new_sync_config_defaults() {
         let sync = SyncConfig::default();
-        assert_eq!(sync.default_method, "whisper");
-        assert_eq!(sync.analysis_window_seconds, 30);
+        assert_eq!(sync.default_method, "auto");
         assert_eq!(sync.max_offset_seconds, 60.0);
-        assert!(sync.whisper.enabled);
-        assert!(sync.whisper.fallback_to_vad);
-        assert_eq!(sync.whisper.min_confidence_threshold, 0.7);
         assert!(sync.vad.enabled);
     }
 
@@ -501,34 +452,8 @@ mod config_tests {
 
         // 重置並測試其他無效值
         sync = SyncConfig::default();
-        sync.analysis_window_seconds = 0;
-        assert!(sync.validate().is_err());
-
-        sync = SyncConfig::default();
         sync.max_offset_seconds = -1.0;
         assert!(sync.validate().is_err());
-    }
-
-    #[test]
-    fn test_whisper_config_validation() {
-        let mut whisper = WhisperConfig::default();
-
-        // 有效配置
-        assert!(whisper.validate().is_ok());
-
-        // 無效溫度
-        whisper.temperature = 2.0;
-        assert!(whisper.validate().is_err());
-
-        // 無效超時時間
-        whisper = WhisperConfig::default();
-        whisper.timeout_seconds = 0;
-        assert!(whisper.validate().is_err());
-
-        // 無效信心度閾值
-        whisper = WhisperConfig::default();
-        whisper.min_confidence_threshold = 1.5;
-        assert!(whisper.validate().is_err());
     }
 
     #[test]
@@ -560,10 +485,11 @@ mod config_tests {
 
         // 確保新的配置結構存在於序列化輸出中
         assert!(toml_str.contains("[sync]"));
-        assert!(toml_str.contains("[sync.whisper]"));
         assert!(toml_str.contains("[sync.vad]"));
         assert!(toml_str.contains("default_method"));
-        assert!(toml_str.contains("analysis_window_seconds"));
+        // Whisper 相關欄位已移除，不應該出現在序列化輸出中
+        assert!(!toml_str.contains("[sync.whisper]"));
+        assert!(!toml_str.contains("analysis_window_seconds"));
     }
 }
 

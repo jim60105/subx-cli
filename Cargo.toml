@@ -53,7 +53,7 @@ toml = "0.8"
 config = "0.15"
 
 # HTTP client
-reqwest = { version = "0.12.20", features = ["json", "multipart", "stream", "rustls-tls"] }
+reqwest = { version = "0.12.20", features = ["json", "stream", "rustls-tls"] }
 
 # File scanning
 walkdir = "2.3"

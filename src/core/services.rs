@@ -4,10 +4,7 @@
 //! the lifecycle of services and components, enabling clean dependency
 //! injection throughout the application.
 
-use crate::{
-    Result, config::ConfigService, core::ComponentFactory, error::SubXError,
-    services::whisper::WhisperSyncDetector,
-};
+use crate::{Result, config::ConfigService, core::ComponentFactory};
 use std::sync::Arc;
 
 /// Service container for dependency injection and service management.
@@ -54,23 +51,6 @@ impl SyncServiceFactory {
     /// 建立新的同步服務工廠
     pub fn new(config_service: Box<dyn ConfigService>) -> Self {
         Self { config_service }
-    }
-
-    /// 建立 Whisper 同步檢測器
-    pub fn create_whisper_detector(&self) -> Result<WhisperSyncDetector> {
-        let config = self.config_service.get_config()?;
-        if !config.sync.whisper.enabled {
-            return Err(SubXError::config(
-                "Whisper API is not enabled in configuration",
-            ));
-        }
-        let api_key = config
-            .ai
-            .api_key
-            .clone()
-            .or_else(|| std::env::var("OPENAI_API_KEY").ok())
-            .ok_or_else(|| SubXError::config("OpenAI API key not found"))?;
-        WhisperSyncDetector::new(api_key, config.ai.base_url, config.sync.whisper)
     }
 }
 

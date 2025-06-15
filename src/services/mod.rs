@@ -102,7 +102,6 @@
 
 pub mod ai;
 pub mod audio;
-pub mod whisper;
 
-// 新增 VAD 服務模組
+// VAD 服務模組
 pub mod vad;
