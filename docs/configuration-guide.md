@@ -68,35 +68,20 @@ encoding_detection_confidence = 0.8           # Encoding detection confidence th
 
 ## Sync Configuration (`[sync]`)
 
-Controls audio-subtitle synchronization functionality using multiple methods.
+Controls audio-subtitle synchronization functionality using local VAD processing.
 
 ### Overview
 
-SubX supports three main synchronization methods:
+SubX supports two main synchronization methods:
 
-1. **OpenAI Whisper API** - Cloud-based speech recognition with high accuracy
-2. **Local VAD (Voice Activity Detection)** - On-device speech detection
-3. **Manual Offset** - User-specified time adjustment
+1. **Local VAD (Voice Activity Detection)** - Privacy-focused on-device speech detection with full audio file processing
+2. **Manual Offset** - User-specified time adjustment for precise control
 
 ### Basic Configuration
 
 ```toml
 [sync]
-default_method = "whisper"           # Default sync method ("whisper", "vad", "manual")
-analysis_window_seconds = 30         # Analysis window: seconds before/after first subtitle (u32)
 max_offset_seconds = 60.0            # Maximum allowed time offset in seconds (f32)
-
-# OpenAI Whisper API configuration
-[sync.whisper]
-enabled = true                       # Enable Whisper API method (bool)
-model = "whisper-1"                  # Whisper model name (String)
-language = "auto"                    # Language setting ("auto" for auto-detection) (String)
-temperature = 0.0                    # API temperature parameter (0.0-1.0) (f32)
-timeout_seconds = 30                 # API request timeout in seconds (u32)
-max_retries = 3                      # Maximum retry attempts (u32)
-retry_delay_ms = 1000                # Retry interval in milliseconds (u64)
-fallback_to_vad = true               # Fall back to VAD when Whisper fails (bool)
-min_confidence_threshold = 0.7       # Minimum confidence threshold, fall back to VAD if below (f32)
 
 # Local VAD configuration
 [sync.vad]
@@ -104,45 +89,35 @@ enabled = true                       # Enable local VAD method (bool)
 sensitivity = 0.75                   # Speech detection sensitivity (0.0-1.0) (f32)
 chunk_size = 512                     # Audio chunk size in samples (usize)
 sample_rate = 16000                  # Processing sample rate in Hz (u32)
-padding_chunks = 3                   # Number of padding chunks before/after speech (u32)
+padding_chunks = 3                   # Padding chunks before and after speech detection (u32)
 min_speech_duration_ms = 100         # Minimum speech duration in milliseconds (u32)
 speech_merge_gap_ms = 200            # Speech segment merge gap in milliseconds (u32)
 ```
 
-### Method Selection Strategy
+### VAD Processing Architecture
 
-The sync engine can automatically select the best method based on availability and configuration:
+The sync engine uses optimized local VAD processing for reliable speech detection:
 
-- **Auto Selection**: Tries Whisper first, falls back to VAD if confidence is too low
-- **Forced Method**: Uses only the specified method without fallback
-- **Hybrid Approach**: Combines results from multiple methods for better accuracy
+- **VAD Processing**: Uses Voice Activity Detection with optimized parameters for local processing
+- **Manual Offset**: Applies user-specified time adjustments directly without analysis
 
 ### Advanced Configuration
-
-#### Whisper API Options
-
-```toml
-[sync.whisper]
-# Advanced Whisper settings
-model = "whisper-1"                  # Available models: whisper-1
-language = "zh"                      # Force specific language (overrides auto-detection)
-temperature = 0.2                    # Higher values increase randomness
-timeout_seconds = 60                 # Increase for longer audio files
-max_retries = 5                      # More retries for unstable connections
-retry_delay_ms = 2000                # Longer delay between retries
-```
 
 #### VAD Fine-tuning
 
 ```toml
 [sync.vad]
-# Fine-tune VAD for different content types
-sensitivity = 0.8                    # Higher for quiet speech, lower for noisy audio
-chunk_size = 1024                    # Larger chunks for better accuracy, slower processing
-sample_rate = 22050                  # Higher rates for better quality, more processing
-padding_chunks = 5                   # More padding for complex audio transitions
-min_speech_duration_ms = 50          # Lower for rapid speech, higher for careful detection
-speech_merge_gap_ms = 300            # Larger gaps for natural speech pauses
+# For quiet speech or background noise
+sensitivity = 0.8              # Higher sensitivity for difficult audio
+chunk_size = 1024             # Larger chunks for better accuracy
+sample_rate = 22050           # Higher sample rate for quality
+padding_chunks = 5            # More padding for complex transitions
+
+# For clear speech with minimal noise
+sensitivity = 0.6             # Lower sensitivity to avoid false positives
+chunk_size = 256              # Smaller chunks for faster processing
+min_speech_duration_ms = 50   # Shorter minimum for rapid speech
+speech_merge_gap_ms = 300     # Larger gaps for natural pauses
 ```
 
 ## General Configuration (`[general]`)
@@ -224,19 +199,7 @@ export SUBX_FORMATS_PRESERVE_STYLING=true
 export SUBX_FORMATS_DEFAULT_ENCODING=utf-16
 
 # Sync configuration - Basic settings
-export SUBX_SYNC_DEFAULT_METHOD=whisper
-export SUBX_SYNC_ANALYSIS_WINDOW_SECONDS=45
 export SUBX_SYNC_MAX_OFFSET_SECONDS=120.0
-
-# Sync configuration - Whisper API
-export SUBX_SYNC_WHISPER_ENABLED=true
-export SUBX_SYNC_WHISPER_MODEL=whisper-1
-export SUBX_SYNC_WHISPER_LANGUAGE=auto
-export SUBX_SYNC_WHISPER_TEMPERATURE=0.1
-export SUBX_SYNC_WHISPER_TIMEOUT_SECONDS=60
-export SUBX_SYNC_WHISPER_MAX_RETRIES=5
-export SUBX_SYNC_WHISPER_FALLBACK_TO_VAD=true
-export SUBX_SYNC_WHISPER_MIN_CONFIDENCE_THRESHOLD=0.8
 
 # Sync configuration - Local VAD
 export SUBX_SYNC_VAD_ENABLED=true
@@ -274,20 +237,7 @@ default_encoding = "utf-8"
 encoding_detection_confidence = 0.8
 
 [sync]
-default_method = "whisper"
-analysis_window_seconds = 30
 max_offset_seconds = 60.0
-
-[sync.whisper]
-enabled = true
-model = "whisper-1"
-language = "auto"
-temperature = 0.0
-timeout_seconds = 30
-max_retries = 3
-retry_delay_ms = 1000
-fallback_to_vad = true
-min_confidence_threshold = 0.7
 
 [sync.vad]
 enabled = true

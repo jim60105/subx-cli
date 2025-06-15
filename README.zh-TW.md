@@ -16,8 +16,8 @@ AI 智慧字幕處理工具，自動匹配、重命名及轉換字幕檔案。
 - 🤖 **AI 智慧匹配** - 使用 AI 技術自動識別影片與字幕的對應關係並重命名
 - 📁 **檔案整理** - 自動複製或移動匹配的字幕檔案到影片資料夾
 - 🔄 **格式轉換** - 支援 SRT、ASS、VTT、SUB 等主流字幕格式互轉
-- 🔊 **音訊轉碼** - 自動將多種音訊容器格式 (MP4、MKV、WebM、OGG) 轉為 WAV 以進行同步分析
-- ⏰ **時間軸校正** - 自動檢測並修正字幕時間偏移問題
+- 🔊 **音訊處理** - 使用先進的語音活動檢測技術直接處理多種音訊格式
+- ⏰ **時間軸校正** - 採用隱私保護的本地 VAD 技術自動檢測並修正字幕時間偏移問題
 - 🏃 **批次處理** - 一次處理整個資料夾的媒體檔案
 - 🔍 **Dry-run 模式** - 預覽操作結果，安全可靠
 - 📦 **快取管理** - 重複使用 Dry-run 運行時的分析結果
@@ -53,18 +53,16 @@ sudo cp target/release/subx-cli /usr/local/bin/
 
 ## 快速開始
 
-### 1. 配置 API 金鑰
+### 1. 配置設定
 ```bash
-# 設定 OpenAI API Key (用於 AI 匹配功能)
+# 設定 OpenAI API Key (僅用於 AI 匹配功能)
 export OPENAI_API_KEY="your-api-key-here"
 
-# 可選：設定自訂 OpenAI Base URL (用於 OpenAI API 或私有部署)
-export OPENAI_BASE_URL="https://api.openai.com/v1"
+# 配置 VAD 設定
+subx-cli config set sync.vad.sensitivity 0.8
+subx-cli config set sync.vad.enabled true
 
-# 或通過配置檔案指令設定
-subx-cli config set ai.api_key "your-api-key-here"
-subx-cli config set ai.base_url "https://api.openai.com/v1"
-subx-cli config set ai.model "gpt-4.1-mini"
+# 啟用一般備份功能
 subx-cli config set general.backup_enabled true
 ```
 
@@ -104,18 +102,19 @@ subx-cli convert --keep-original subtitle.vtt --format srt
 ```
 
 **時間軸校正**
+
 ```bash
-# 自動同步（需要視頻檔案）
+# 自動 VAD 同步（需要音訊/視頻檔案）
 subx-cli sync video.mp4 subtitle.srt
 
 # 手動同步（僅需字幕檔案）
 subx-cli sync --offset 2.5 subtitle.srt
 
-# 批量處理模式（需要視頻資料夾）
-subx-cli sync --batch /path/to/media/folder
+# 明確指定 VAD 方法並自訂靈敏度
+subx-cli sync --vad-sensitivity 0.8 video.mp4 subtitle.srt
 
-# 向後相容（舊格式仍然支援）
-subx-cli sync video.mp4 subtitle.srt --offset 2.5
+# 批量處理模式（處理整個資料夾）
+subx-cli sync --batch /path/to/media/folder
 ```
 
 **快取管理**
@@ -338,11 +337,12 @@ A: 確保檔案名包含足夠的識別資訊（如劇名、季數、集數）�
 
 ### Q: 時間軸同步失敗？
 
-- A: 確保影片檔案可存取，並檢查檔案格式是否支援。如果自動同步不理想，可以嘗試：
-- 手動指定偏移量：`subx-cli sync --offset <seconds> subtitle.srt`
-- 向後相容：`subx-cli sync --offset <seconds> video.mp4 subtitle.srt`
-- 調整同步配置：`subx-cli config set sync.correlation_threshold 0.6`
-- 啟用對話檢測：`subx-cli config set sync.enable_dialogue_detection true`
+A: 確保音訊/視頻檔案可存取，並檢查檔案格式是否支援。如果 VAD 同步不理想，可以嘗試：
+- 調整 VAD 靈敏度：`subx-cli config set sync.vad.sensitivity 0.8`（較高值適用於安靜音訊）
+- 針對困難案例使用手動偏移：`subx-cli sync --offset <seconds> subtitle.srt`
+- 檢查 VAD 配置：`subx-cli config set sync.vad.enabled true`
+- 針對非常嘈雜的音訊：`subx-cli config set sync.vad.min_speech_duration_ms 200`
+- 針對快速語音：`subx-cli config set sync.vad.speech_merge_gap_ms 100`
 
 ### Q: 處理大量檔案時性能不佳？
 

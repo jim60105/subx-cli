@@ -13,6 +13,12 @@ AI subtitle processing CLI tool, which automatically matches, renames, and conve
 
 ## Features
 
+AI subtitle processing CLI tool, which automatically matches, renames, and converts subtitle files.
+
+</div>
+
+## Features
+
 - 🤖 **AI Smart Matching** - Uses AI technology to automatically identify video-subtitle correspondence and rename files
 - 📁 **File Organization** - Automatically copy or move matched subtitle files to video folders for seamless playback
 - 🔄 **Format Conversion** - Supports conversion between mainstream subtitle formats like SRT, ASS, VTT, SUB
@@ -53,18 +59,16 @@ sudo cp target/release/subx-cli /usr/local/bin/
 
 ## Quick Start
 
-### 1. Configure API Keys
+### 1. Configure Settings
 ```bash
-# Set OpenAI API Key (for AI matching functionality)
+# Set OpenAI API Key (for AI matching functionality only)
 export OPENAI_API_KEY="your-api-key-here"
 
-# Optional: Set custom OpenAI Base URL (for OpenAI API or private deployment)
-export OPENAI_BASE_URL="https://api.openai.com/v1"
+# Configure VAD settings
+subx-cli config set sync.vad.sensitivity 0.8
+subx-cli config set sync.vad.enabled true
 
-# Or set through configuration commands
-subx-cli config set ai.api_key "your-api-key-here"
-subx-cli config set ai.base_url "https://api.openai.com/v1"
-subx-cli config set ai.model "gpt-4.1-mini"
+# Enable general backup feature
 subx-cli config set general.backup_enabled true
 ```
 
@@ -104,18 +108,19 @@ subx-cli convert --keep-original subtitle.vtt --format srt
 ```
 
 **Timeline Correction**
+
 ```bash
-# Automatic synchronization (requires video file)
+# Automatic VAD synchronization (requires audio/video file)
 subx-cli sync video.mp4 subtitle.srt
 
-# Manual synchronization (only subtitle file required)
+# Manual synchronization (only subtitle file required)  
 subx-cli sync --offset 2.5 subtitle.srt
 
-# Batch processing mode (video directory required)
-subx-cli sync --batch /path/to/media/folder
+# VAD with custom sensitivity
+subx-cli sync --vad-sensitivity 0.8 video.mp4 subtitle.srt
 
-# Backward compatibility (legacy format still supported)
-subx-cli sync video.mp4 subtitle.srt --offset 2.5
+# Batch processing mode (processes entire directories)
+subx-cli sync --batch /path/to/media/folder
 ```
 
 **Cache Management**
@@ -342,10 +347,12 @@ A: Ensure filenames contain sufficient identifying information (like show name, 
 
 ### Q: Timeline sync fails?
 
-A: Ensure video files are accessible and check if file formats are supported. If automatic sync isn't ideal, you can try:
-- Manually specify offset: `subx-cli sync --offset <seconds> video.mp4 subtitle.srt`
-- Adjust sync configuration: `subx-cli config set sync.correlation_threshold 0.6`
-- Enable dialogue detection: `subx-cli config set sync.enable_dialogue_detection true`
+A: Ensure the audio/video file is accessible and check if the file format is supported. If VAD sync doesn't work well, try:
+- Adjust VAD sensitivity: `subx-cli config set sync.vad.sensitivity 0.8` (higher for quiet audio)
+- Use manual offset for difficult cases: `subx-cli sync --offset <seconds> subtitle.srt`
+- Check VAD configuration: `subx-cli config set sync.vad.enabled true`
+- For very noisy audio: `subx-cli config set sync.vad.min_speech_duration_ms 200`
+- For rapid speech: `subx-cli config set sync.vad.speech_merge_gap_ms 100`
 
 ### Q: Poor performance when processing large numbers of files?
 

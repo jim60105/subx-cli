@@ -7,7 +7,7 @@
 //! # Key Components
 //!
 //! - [`VadAudioProcessor`] - Audio processing and format conversion
-//! - [`VadDetector`] - Core VAD detection functionality  
+//! - [`LocalVadDetector`] - Core VAD detection functionality  
 //! - [`VadSyncDetector`] - Subtitle synchronization using VAD
 //!
 //! # Features

@@ -1,25 +1,30 @@
-//! Refactored synchronization module.
+//! 重構後的同步模組，專注於 VAD 語音檢測
 //!
-//! Provides unified subtitle synchronization functionality with multiple
-//! voice detection methods, including:
-//! - OpenAI Whisper API cloud transcription
-//! - Local Voice Activity Detection (VAD)
-//! - Automatic method selection and fallback mechanisms
+//! 提供統一的字幕同步功能，使用本地 VAD (Voice Activity Detection)
+//! 進行語音檢測和同步偏移計算。
 //!
-//! # Key Components
+//! # 核心組件
 //!
-//! - [`SyncEngine`] - Main synchronization engine with method abstraction
-//! - [`SyncMethod`] - Enumeration of available synchronization methods
-//! - [`SyncResult`] - Results structure with timing and confidence data
+//! - [`SyncEngine`] - 基於 VAD 的同步引擎
+//! - [`SyncMethod`] - 同步方法枚舉（VAD 和手動）
+//! - [`SyncResult`] - 同步結果結構，包含偏移量和信心度
 //!
-//! # Usage
+//! # 用法
 //!
-//! ```rust
+//! ```no_run
 //! use subx_cli::core::sync::{SyncEngine, SyncMethod};
 //! use subx_cli::config::SyncConfig;
+//! use std::path::Path;
+//! use subx_cli::core::formats::{Subtitle, SubtitleFormatType, SubtitleMetadata};
 //!
+//! # async fn example() -> Result<(), Box<dyn std::error::Error>> {
 //! let engine = SyncEngine::new(SyncConfig::default())?;
+//! let video_path = Path::new("video.mp4");
+//! let metadata = SubtitleMetadata::new(SubtitleFormatType::Srt);
+//! let subtitle = Subtitle::new(SubtitleFormatType::Srt, metadata);
 //! let result = engine.detect_sync_offset(video_path, &subtitle, Some(SyncMethod::LocalVad)).await?;
+//! # Ok(())
+//! # }
 //! ```
 
 pub mod engine;
