@@ -154,7 +154,7 @@ mod tests {
 
     #[test]
     fn test_detect_encoding_args_file_paths() {
-        let cli = Cli::try_parse_from(&["subx-cli", "detect-encoding", "a.srt", "b.ass"]).unwrap();
+        let cli = Cli::try_parse_from(["subx-cli", "detect-encoding", "a.srt", "b.ass"]).unwrap();
         let args = match cli.command {
             Commands::DetectEncoding(a) => a,
             _ => panic!("Expected DetectEncoding command"),
@@ -169,7 +169,7 @@ mod tests {
 
     #[test]
     fn test_detect_encoding_args_input_paths() {
-        let cli = Cli::try_parse_from(&[
+        let cli = Cli::try_parse_from([
             "subx-cli",
             "detect-encoding",
             "-i",
@@ -195,7 +195,7 @@ mod tests {
 
     #[test]
     fn test_detect_encoding_args_conflict_file_and_input() {
-        let res = Cli::try_parse_from(&["subx-cli", "detect-encoding", "file.srt", "-i", "dir"]);
+        let res = Cli::try_parse_from(["subx-cli", "detect-encoding", "file.srt", "-i", "dir"]);
         assert!(res.is_err());
     }
 }

@@ -5,10 +5,90 @@
 //! automatic method selection, and manual offset adjustment.
 
 use crate::cli::SyncArgs;
+use crate::cli::SyncMode;
+use crate::config::Config;
 use crate::config::ConfigService;
 use crate::core::formats::manager::FormatManager;
 use crate::core::sync::{SyncEngine, SyncMethod, SyncResult};
 use crate::{Result, error::SubXError};
+
+/// Internal helper to perform a single video-subtitle synchronization.
+async fn run_single(
+    args: &SyncArgs,
+    config: &Config,
+    sync_engine: &SyncEngine,
+    format_manager: &FormatManager,
+) -> Result<()> {
+    if args.verbose {
+        println!("🎬 Loading subtitle file: {}", args.subtitle.display());
+        println!("📄 Subtitle entries count: {}", {
+            let s = format_manager.load_subtitle(&args.subtitle)?;
+            s.entries.len()
+        });
+    }
+    let mut subtitle = format_manager.load_subtitle(&args.subtitle)?;
+    let sync_result = if let Some(offset) = args.offset {
+        if args.verbose {
+            println!("⚙️  Using manual offset: {:.3}s", offset);
+        }
+        sync_engine.apply_manual_offset(&mut subtitle, offset)?;
+        SyncResult {
+            offset_seconds: offset,
+            confidence: 1.0,
+            method_used: crate::core::sync::SyncMethod::Manual,
+            correlation_peak: 0.0,
+            processing_duration: std::time::Duration::ZERO,
+            warnings: Vec::new(),
+            additional_info: None,
+        }
+    } else {
+        let method = determine_sync_method(args, &config.sync.default_method)?;
+        if args.verbose {
+            println!("🔍 Starting sync analysis...");
+            println!("   Method: {:?}", method);
+            println!("   Analysis window: {}s", args.window);
+            println!("   Video file: {}", args.video.as_ref().unwrap().display());
+        }
+        let mut sync_cfg = config.sync.clone();
+        apply_cli_overrides(&mut sync_cfg, args)?;
+        let result = sync_engine
+            .detect_sync_offset(
+                args.video.as_ref().unwrap().as_path(),
+                &subtitle,
+                Some(method),
+            )
+            .await?;
+        if args.verbose {
+            println!("✅ Analysis completed:");
+            println!("   Detected offset: {:.3}s", result.offset_seconds);
+            println!("   Confidence: {:.1}%", result.confidence * 100.0);
+            println!("   Processing time: {:?}", result.processing_duration);
+        }
+        if !args.dry_run {
+            sync_engine.apply_manual_offset(&mut subtitle, result.offset_seconds)?;
+        }
+        result
+    };
+    display_sync_result(&sync_result, args.verbose);
+    if !args.dry_run {
+        let out = args.get_output_path();
+        if out.exists() && !args.force {
+            return Err(SubXError::CommandExecution(format!(
+                "Output file already exists: {}. Use --force to overwrite.",
+                out.display()
+            )));
+        }
+        format_manager.save_subtitle(&subtitle, &out)?;
+        if args.verbose {
+            println!("💾 Synchronized subtitle saved to: {}", out.display());
+        } else {
+            println!("Synchronized subtitle saved to: {}", out.display());
+        }
+    } else {
+        println!("🔍 Dry run mode - file not saved");
+    }
+    Ok(())
+}
 
 /// Execute the sync command with the provided arguments.
 ///
@@ -32,112 +112,128 @@ use crate::{Result, error::SubXError};
 /// - Video file is required but not provided for automatic sync
 /// - Output file already exists and force flag is not set
 /// - Synchronization detection fails
+///
+/// Execute the sync command with the provided arguments.
+///
+/// Handles both single and batch synchronization modes.
 pub async fn execute(args: SyncArgs, config_service: &dyn ConfigService) -> Result<()> {
-    // Use built-in validation method
+    // Validate arguments and prepare resources
     if let Err(msg) = args.validate() {
         return Err(SubXError::CommandExecution(msg));
     }
-
     let config = config_service.get_config()?;
-
-    // Create sync engine
     let sync_engine = SyncEngine::new(config.sync.clone())?;
-
-    // Load subtitle file
     let format_manager = FormatManager::new();
-    let mut subtitle = format_manager.load_subtitle(&args.subtitle)?;
 
-    if args.verbose {
-        println!("🎬 Loading subtitle file: {}", args.subtitle.display());
-        println!("📄 Subtitle entries count: {}", subtitle.entries.len());
+    // Batch mode: multiple video-subtitle pairs
+    if let Ok(SyncMode::Batch(handler)) = args.get_sync_mode() {
+        let paths = handler
+            .collect_files()
+            .map_err(|e| SubXError::CommandExecution(e.to_string()))?;
+        for path in &paths {
+            if let Some(ext) = path.extension().and_then(|s| s.to_str()) {
+                let ext = ext.to_lowercase();
+                if ["mp4", "mkv", "avi", "mov"].contains(&ext.as_str()) {
+                    let stem = path
+                        .file_stem()
+                        .map(|s| s.to_string_lossy().to_string())
+                        .unwrap_or_default();
+                    if let Some(sub_path) = paths.iter().find(|p| {
+                        p.file_stem()
+                            .map(|s| s.to_string_lossy() == stem)
+                            .unwrap_or(false)
+                            && p.extension()
+                                .and_then(|s| s.to_str())
+                                .map(|e| {
+                                    matches!(
+                                        e.to_lowercase().as_str(),
+                                        "srt" | "ass" | "vtt" | "sub"
+                                    )
+                                })
+                                .unwrap_or(false)
+                    }) {
+                        let mut single_args = args.clone();
+                        single_args.input_paths.clear();
+                        single_args.batch = false;
+                        single_args.recursive = false;
+                        single_args.video = Some(path.clone());
+                        single_args.subtitle = sub_path.clone();
+                        run_single(&single_args, &config, &sync_engine, &format_manager).await?;
+                    } else {
+                        eprintln!("✗ Skip sync for {}: no matching subtitle", path.display());
+                    }
+                }
+            }
+        }
+        return Ok(());
     }
 
-    let sync_result = if let Some(manual_offset) = args.offset {
-        // Manual offset mode
-        if args.verbose {
-            println!("⚙️  Using manual offset: {:.3}s", manual_offset);
+    // Single mode or error
+    match args.get_sync_mode() {
+        Ok(SyncMode::Single { .. }) => {
+            run_single(&args, &config, &sync_engine, &format_manager).await?;
+            Ok(())
         }
-
-        sync_engine.apply_manual_offset(&mut subtitle, manual_offset)?;
-
-        // Create manual offset result
-        SyncResult {
-            offset_seconds: manual_offset,
-            confidence: 1.0,
-            method_used: crate::core::sync::SyncMethod::Manual,
-            correlation_peak: 0.0,
-            processing_duration: std::time::Duration::ZERO,
-            warnings: Vec::new(),
-            additional_info: None,
-        }
-    } else {
-        // Automatic sync mode
-        let method = determine_sync_method(&args, &config.sync.default_method)?;
-        let video_path = args
-            .video
-            .as_ref()
-            .ok_or_else(|| SubXError::config("Video path required for automatic sync"))?;
-
-        if args.verbose {
-            println!("🔍 Starting sync analysis...");
-            println!("   Method: {:?}", method);
-            println!("   Analysis window: {}s", args.window);
-            println!("   Video file: {}", video_path.display());
-        }
-
-        // Apply CLI configuration overrides
-        let mut sync_config = config.sync.clone();
-        apply_cli_overrides(&mut sync_config, &args)?;
-
-        let result = sync_engine
-            .detect_sync_offset(video_path.as_path(), &subtitle, Some(method))
-            .await?;
-
-        if args.verbose {
-            println!("✅ Analysis completed:");
-            println!("   Detected offset: {:.3}s", result.offset_seconds);
-            println!("   Confidence: {:.1}%", result.confidence * 100.0);
-            println!("   Processing time: {:?}", result.processing_duration);
-        }
-
-        // Apply detected offset
-        if !args.dry_run {
-            sync_engine.apply_manual_offset(&mut subtitle, result.offset_seconds)?;
-        }
-
-        result
-    };
-
-    // Display results
-    display_sync_result(&sync_result, args.verbose);
-
-    // Save results (unless dry run)
-    if !args.dry_run {
-        let output_path = args.get_output_path();
-
-        // Check if file exists and no force flag
-        if output_path.exists() && !args.force {
-            return Err(SubXError::CommandExecution(format!(
-                "Output file already exists: {}. Use --force to overwrite.",
-                output_path.display()
-            )));
-        }
-
-        format_manager.save_subtitle(&subtitle, &output_path)?;
-
-        if args.verbose {
-            println!(
-                "💾 Synchronized subtitle saved to: {}",
-                output_path.display()
-            );
-        } else {
-            println!("Synchronized subtitle saved to: {}", output_path.display());
-        }
-    } else {
-        println!("🔍 Dry run mode - file not saved");
+        Err(err) => Err(err),
+        _ => unreachable!(),
     }
+}
 
-    Ok(())
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::config::TestConfigService;
+    use std::fs;
+    use std::path::PathBuf;
+    use std::sync::Arc;
+    use tempfile::TempDir;
+
+    #[tokio::test]
+    async fn test_sync_batch_processing() -> Result<()> {
+        // Prepare test configuration
+        let config_service = Arc::new(TestConfigService::with_sync_settings(0.5, 30.0));
+
+        // Create temporary directory with video and subtitle pairs
+        let tmp = TempDir::new().unwrap();
+        let video1 = tmp.path().join("movie1.mp4");
+        let sub1 = tmp.path().join("movie1.srt");
+        fs::write(&video1, b"").unwrap();
+        fs::write(&sub1, b"1\n00:00:01,000 --> 00:00:02,000\nTest1\n\n").unwrap();
+        let video2 = tmp.path().join("clip.mkv");
+        let sub2 = tmp.path().join("clip.srt");
+        fs::write(&video2, b"").unwrap();
+        fs::write(&sub2, b"1\n00:00:01,000 --> 00:00:02,000\nTest2\n\n").unwrap();
+
+        // Execute batch sync
+        let args = SyncArgs {
+            video: None,
+            subtitle: PathBuf::new(),
+            input_paths: vec![tmp.path().to_path_buf()],
+            recursive: false,
+            offset: None,
+            method: None,
+            window: 30,
+            vad_sensitivity: None,
+            vad_chunk_size: None,
+            output: None,
+            verbose: false,
+            dry_run: false,
+            force: true,
+            batch: true,
+            #[allow(deprecated)]
+            range: None,
+            #[allow(deprecated)]
+            threshold: None,
+        };
+        execute(args, config_service.as_ref()).await?;
+
+        // Verify synchronized subtitle files exist
+        let out1 = tmp.path().join("movie1_synced.srt");
+        let out2 = tmp.path().join("clip_synced.srt");
+        assert!(out1.exists(), "Expected output file: {}", out1.display());
+        assert!(out2.exists(), "Expected output file: {}", out2.display());
+        Ok(())
+    }
 }
 
 /// Maintain consistency with other commands

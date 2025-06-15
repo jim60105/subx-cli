@@ -424,7 +424,9 @@ mod tests {
         .unwrap();
 
         let args = ConvertArgs {
-            input: input_file.clone(),
+            input: Some(input_file.clone()),
+            input_paths: Vec::new(),
+            recursive: false,
             format: Some(OutputSubtitleFormat::Vtt),
             output: Some(output_file.clone()),
             keep_original: true,

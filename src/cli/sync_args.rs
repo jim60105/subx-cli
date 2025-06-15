@@ -46,7 +46,7 @@ use std::path::{Path, PathBuf};
 /// Provides comprehensive subtitle-audio synchronization functionality including
 /// OpenAI Whisper API, local VAD detection, and manual offset methods.
 /// Supports method selection, parameter customization, and intelligent fallback mechanisms.
-#[derive(Args, Debug)]
+#[derive(Args, Debug, Clone)]
 pub struct SyncArgs {
     /// Video file path for audio analysis.
     #[arg(
@@ -341,7 +341,7 @@ mod tests {
 
     #[test]
     fn test_sync_args_batch_input() {
-        let cli = Cli::try_parse_from(&["subx-cli", "sync", "-i", "dir", "--batch", "--recursive"])
+        let cli = Cli::try_parse_from(["subx-cli", "sync", "-i", "dir", "--batch", "--recursive"])
             .unwrap();
         let args = match cli.command {
             Commands::Sync(a) => a,
@@ -355,7 +355,7 @@ mod tests {
     #[test]
     fn test_sync_args_invalid_combinations() {
         // offset and batch without subtitle/video should error
-        let res = Cli::try_parse_from(&["subx-cli", "sync", "--offset", "1.0", "--batch"]);
+        let res = Cli::try_parse_from(["subx-cli", "sync", "--offset", "1.0", "--batch"]);
         assert!(res.is_err());
     }
 

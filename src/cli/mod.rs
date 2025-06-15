@@ -48,7 +48,7 @@ pub use detect_encoding_args::DetectEncodingArgs;
 pub use generate_completion_args::GenerateCompletionArgs;
 pub use input_handler::InputPathHandler;
 pub use match_args::MatchArgs;
-pub use sync_args::{SyncArgs, SyncMethod, SyncMethodArg};
+pub use sync_args::{SyncArgs, SyncMethod, SyncMethodArg, SyncMode};
 pub use ui::{
     create_progress_bar, display_ai_usage, display_match_results, print_error, print_success,
     print_warning,
