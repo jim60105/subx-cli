@@ -1,0 +1,227 @@
+1
+00:00:09,797 --> 00:00:12,093
+Files scattered everywhere
+
+2
+00:00:12,630 --> 00:00:14,469
+no rhyme or reason
+
+3
+00:00:14,614 --> 00:00:16,950
+video here, subtitles there
+
+4
+00:00:17,030 --> 00:00:19,173
+it's chaos season
+
+5
+00:00:19,805 --> 00:00:21,046
+But there's a tool
+
+6
+00:00:21,213 --> 00:00:24,029
+that's going to change the game
+
+7
+00:00:24,840 --> 00:00:26,000
+SubX is here
+
+8
+00:00:26,111 --> 00:00:29,080
+it knows each file by name
+
+9
+00:00:29,463 --> 00:00:31,679
+AI scanning through the mess, 
+
+10
+00:00:31,943 --> 00:00:34,079
+smart matching nothing less
+
+11
+00:00:34,336 --> 00:00:36,616
+finding pairs in the digital maze
+
+12
+00:00:36,728 --> 00:00:38,836
+organizing all your days
+
+13
+00:00:38,944 --> 00:00:40,064
+SubX, SubX
+
+14
+00:00:40,344 --> 00:00:43,615
+making sense of all the noise
+
+15
+00:00:44,118 --> 00:00:46,522
+auto-matching batch processing
+
+16
+00:00:46,552 --> 00:00:48,592
+it's your choice
+
+17
+00:00:48,720 --> 00:00:52,600
+from SRT to ASS, VTT to SUB
+
+18
+00:00:52,847 --> 00:00:55,115
+converting formats
+
+19
+00:00:55,151 --> 00:00:56,899
+that's the rub
+
+20
+00:00:58,616 --> 00:00:59,954
+SubX, SubX
+
+21
+00:01:00,016 --> 00:01:03,735
+timeline sync is crystal clear
+
+22
+00:01:03,816 --> 00:01:05,392
+No more hunting files
+
+23
+00:01:05,444 --> 00:01:06,664
+the future's here
+
+24
+00:01:10,957 --> 00:01:12,805
+Dry-run mode to show you
+
+25
+00:01:12,813 --> 00:01:13,953
+what it'll do
+
+26
+00:01:15,877 --> 00:01:18,689
+Preview first, then execute when you're through
+
+27
+00:01:20,761 --> 00:01:24,055
+Cache remembers what it learned before
+
+28
+00:01:25,386 --> 00:01:28,256
+Efficiency knocking at your door
+
+29
+00:01:28,709 --> 00:01:30,679
+Folders full of media files
+
+30
+00:01:30,743 --> 00:01:33,087
+Process them for miles and miles
+
+31
+00:01:33,280 --> 00:01:35,418
+Copy, move, rename with grace
+
+32
+00:01:35,533 --> 00:01:37,754
+Everything falls into place
+
+33
+00:01:37,812 --> 00:01:38,760
+SubX, SubX,
+
+34
+00:01:39,260 --> 00:01:42,336
+making sense of all the noise
+
+35
+00:01:42,854 --> 00:01:44,718
+Auto-matching, batch processing 
+
+36
+00:01:45,079 --> 00:01:46,879
+is your choice, 
+
+37
+00:01:47,439 --> 00:01:51,859
+from SRT to ASS, VTT to SUB
+
+38
+00:01:51,984 --> 00:01:53,535
+converting formats
+
+39
+00:01:53,647 --> 00:01:56,411
+that's the rub
+
+40
+00:01:57,208 --> 00:01:58,528
+SubX, SubX,
+
+41
+00:01:58,736 --> 00:02:02,168
+timeline sync is crystal clear
+
+42
+00:02:02,528 --> 00:02:04,264
+No more hunting files
+
+43
+00:02:04,256 --> 00:02:05,196
+the future's here
+
+44
+00:02:05,262 --> 00:02:07,895
+Command line power in your hands
+
+45
+00:02:09,863 --> 00:02:13,767
+Automated workflows, no more manual plans
+
+46
+00:02:14,423 --> 00:02:17,887
+When subtitles drift and timing's wrong
+
+47
+00:02:19,767 --> 00:02:22,775
+SubX corrects it, keeps you strong
+
+48
+00:02:43,800 --> 00:02:47,109
+SubX, SubX, subtitles synchronized
+
+49
+00:02:29,283 --> 00:02:32,342
+Smart technology that money can't buy
+
+50
+00:02:34,372 --> 00:02:37,260
+File organization, seamless flow
+
+51
+00:02:38,607 --> 00:02:41,856
+Let the AI magic show
+
+52
+00:02:24,204 --> 00:02:27,500
+SubX, SubX, revolution in your CLI
+
+53
+00:02:48,463 --> 00:02:51,902
+Your media library, now organized
+
+54
+00:02:52,172 --> 00:02:54,313
+One command, and watch it go
+
+55
+00:02:54,413 --> 00:02:56,413
+SubX working, head to toe
+
+56
+00:02:56,573 --> 00:02:58,882
+The subtitle chaos, now controlled
+
+57
+00:02:59,192 --> 00:03:01,692
+Digital harmony, story told
