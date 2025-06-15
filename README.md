@@ -68,8 +68,15 @@ export OPENAI_API_KEY="your-api-key-here"
 subx-cli config set sync.vad.sensitivity 0.8
 subx-cli config set sync.vad.enabled true
 
+# Configure sync method (auto, vad)
+subx-cli config set sync.default_method auto
+
 # Enable general backup feature
 subx-cli config set general.backup_enabled true
+
+# Configure parallel processing
+subx-cli config set parallel.max_workers 8
+subx-cli config set parallel.task_queue_size 1000
 ```
 
 ### 2. Basic Usage
@@ -229,6 +236,9 @@ export OPENAI_BASE_URL="https://api.openai.com/v1"
 # Or use config commands
 subx-cli config set ai.api_key "your-api-key-here"
 subx-cli config set ai.model "gpt-4.1-mini"
+subx-cli config set ai.base_url "https://api.openai.com/v1"
+subx-cli config set ai.temperature 0.3
+subx-cli config set ai.retry_attempts 3
 ```
 
 ### Configuration File Location
@@ -278,7 +288,7 @@ Options:
   --encoding <ENC>      Specify text encoding (default: utf-8)
 
 Configuration Support:
-  - Format Settings: Default output format, style preservation, encoding detection, etc.
+  - Format Settings: Default output format, style preservation, encoding detection confidence, default encoding, etc.
 ```
 
 ### `subx-cli detect-encoding` - File Encoding Detection
@@ -288,7 +298,7 @@ Options:
   -v, --verbose          Show detailed sample text
 
 Configuration Support:
-  - Format Settings: Encoding detection confidence threshold, default encoding, etc.
+  - Format Settings: Encoding detection confidence threshold, default encoding fallback, etc.
 ```
 
 ### `subx-cli sync` - Timeline Correction
@@ -305,8 +315,8 @@ Audio Format Support:
   - MP4, MKV/WebM, OGG, WAV containers (automatically transcoded to WAV for analysis)
 
 Configuration Support:
-  - Sync Settings: Maximum offset range, correlation threshold, dialogue detection, etc.
-  - Audio Processing: Sample rate, dialogue detection threshold, segment merging, etc.
+  - Sync Settings: Default sync method, maximum offset range, correlation threshold, etc.
+  - VAD Processing: Sensitivity, chunk size, sample rate, padding chunks, min speech duration, speech merge gap, etc.
 ```
 
 ### `subx-cli config` - Configuration Management
@@ -353,19 +363,37 @@ A: Ensure the audio/video file is accessible and check if the file format is sup
 - Check VAD configuration: `subx-cli config set sync.vad.enabled true`
 - For very noisy audio: `subx-cli config set sync.vad.min_speech_duration_ms 200`
 - For rapid speech: `subx-cli config set sync.vad.speech_merge_gap_ms 100`
+- Adjust audio processing parameters:
+  - `subx-cli config set sync.vad.chunk_size 512`
+  - `subx-cli config set sync.vad.sample_rate 16000`
+  - `subx-cli config set sync.vad.padding_chunks 3`
 
 ### Q: Poor performance when processing large numbers of files?
 
 A: You can adjust parallel processing configuration:
 ```bash
 subx-cli config set general.max_concurrent_jobs 8     # Increase concurrency
-subx-cli config set parallel.task_queue_size 200     # Increase queue size
+subx-cli config set parallel.task_queue_size 2000    # Increase queue size
 subx-cli config set parallel.auto_balance_workers true # Enable load balancing
+subx-cli config set parallel.enable_task_priorities true # Enable task priorities
+subx-cli config set parallel.max_workers 16          # Increase max workers
 ```
 
 ### Q: Inaccurate encoding detection?
 
-A: Adjust detection confidence threshold: `subx-cli config set formats.encoding_detection_confidence 0.8`
+A: Adjust detection confidence threshold and default encoding:
+```bash
+subx-cli config set formats.encoding_detection_confidence 0.8
+subx-cli config set formats.default_encoding "utf-8"
+```
+
+### Q: Format conversion issues or styling problems?
+
+A: Configure format conversion settings:
+```bash
+subx-cli config set formats.default_output "srt"      # Set default output format
+subx-cli config set formats.preserve_styling true     # Preserve styling during conversion
+```
 
 ### Q: Cache files taking up too much space?
 
