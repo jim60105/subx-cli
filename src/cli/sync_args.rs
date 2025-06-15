@@ -36,6 +36,7 @@ impl From<SyncMethodArg> for crate::core::sync::SyncMethod {
     }
 }
 
+use crate::cli::InputPathHandler;
 use crate::error::{SubXError, SubXResult};
 use clap::{Args, ValueEnum};
 use std::path::{Path, PathBuf};
@@ -65,6 +66,13 @@ pub struct SyncArgs {
         help = "Subtitle file path"
     )]
     pub subtitle: PathBuf,
+    /// 指定要處理的檔案或目錄路徑（新增參數），可以多次使用
+    #[arg(short = 'i', long = "input", value_name = "PATH")]
+    pub input_paths: Vec<PathBuf>,
+
+    /// 遞迴處理子目錄（新增參數）
+    #[arg(short, long)]
+    pub recursive: bool,
 
     /// Manual time offset in seconds (positive delays subtitles, negative advances them).
     #[arg(
@@ -235,6 +243,40 @@ Need help? Run: subx sync --help"
     pub fn requires_video(&self) -> bool {
         self.offset.is_none()
     }
+
+    /// 取得同步模式：單檔或批次
+    pub fn get_sync_mode(&self) -> Result<SyncMode, SubXError> {
+        if !self.input_paths.is_empty() || self.batch {
+            let paths = if !self.input_paths.is_empty() {
+                self.input_paths.clone()
+            } else if let Some(video) = &self.video {
+                vec![video.clone()]
+            } else {
+                return Err(SubXError::NoInputSpecified);
+            };
+
+            let handler = InputPathHandler::from_args(&paths, self.recursive)?
+                .with_extensions(&["mp4", "mkv", "avi", "mov", "srt", "ass", "vtt", "sub"]);
+
+            Ok(SyncMode::Batch(handler))
+        } else if let (Some(video), Some(subtitle)) = (&self.video, &self.subtitle) {
+            Ok(SyncMode::Single {
+                video: video.clone(),
+                subtitle: subtitle.clone(),
+            })
+        } else {
+            Err(SubXError::InvalidSyncConfiguration)
+        }
+    }
+}
+
+/// 同步模式：單檔或批次
+#[derive(Debug)]
+pub enum SyncMode {
+    /// 單檔同步模式，指定影片與字幕檔案
+    Single { video: PathBuf, subtitle: PathBuf },
+    /// 批次同步模式，使用 InputPathHandler 處理多個路徑
+    Batch(InputPathHandler),
 }
 
 // Helper functions

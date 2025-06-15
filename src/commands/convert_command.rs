@@ -213,6 +213,12 @@ pub async fn execute(args: ConvertArgs, config_service: &dyn ConfigService) -> c
     };
     let converter = FormatConverter::new(config);
 
+    // Determine input path, unwrap required parameter
+    let input = args
+        .input
+        .clone()
+        .ok_or_else(|| SubXError::CommandExecution("No input path specified".to_string()))?;
+
     // Determine output format from arguments or configuration defaults
     let default_output = match app_config.formats.default_output.as_str() {
         "srt" => OutputSubtitleFormat::Srt,
@@ -290,15 +296,16 @@ async fn execute_conversion_logic(
     converter: FormatConverter,
     output_format: OutputSubtitleFormat,
 ) -> crate::Result<()> {
-    if args.input.is_file() {
+    if input.is_file() {
         // Single file conversion with automatic output path generation
         let format_str = output_format.to_string();
         let output_path = args
             .output
-            .unwrap_or_else(|| args.input.with_extension(format_str.clone()));
+            .clone()
+            .unwrap_or_else(|| input.with_extension(format_str.clone()));
         let mut file_manager = FileManager::new();
         match converter
-            .convert_file(&args.input, &output_path, &format_str)
+            .convert_file(&input, &output_path, &format_str)
             .await
         {
             Ok(result) => {
@@ -306,16 +313,12 @@ async fn execute_conversion_logic(
                     file_manager.record_creation(&output_path);
                     println!(
                         "✓ Conversion completed: {} -> {}",
-                        args.input.display(),
+                        input.display(),
                         output_path.display()
                     );
                     if !args.keep_original {
-                        if let Err(e) = file_manager.remove_file(&args.input) {
-                            eprintln!(
-                                "⚠️  Cannot remove original file {}: {}",
-                                args.input.display(),
-                                e
-                            );
+                        if let Err(e) = file_manager.remove_file(&input) {
+                            eprintln!("⚠️  Cannot remove original file {}: {}", input.display(), e);
                         }
                     }
                 } else {
@@ -336,9 +339,7 @@ async fn execute_conversion_logic(
     } else {
         // Batch conversion
         let format_str = output_format.to_string();
-        let results = converter
-            .convert_batch(&args.input, &format_str, true)
-            .await?;
+        let results = converter.convert_batch(&input, &format_str, true).await?;
         let success_count = results.iter().filter(|r| r.success).count();
         let total_count = results.len();
         println!(

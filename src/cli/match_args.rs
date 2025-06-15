@@ -55,10 +55,6 @@ pub struct MatchArgs {
     #[arg(short = 'i', long = "input", value_name = "PATH")]
     pub input_paths: Vec<PathBuf>,
 
-    /// 遞迴處理子目錄（新增參數）
-    #[arg(short, long)]
-    pub recursive: bool,
-
     /// Enable dry-run mode to preview operations without making changes.
     ///
     /// When enabled, the command will analyze files and show what operations

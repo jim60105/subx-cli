@@ -27,6 +27,8 @@
 
 #![allow(clippy::needless_borrows_for_generic_args)]
 // src/cli/convert_args.rs
+use crate::cli::InputPathHandler;
+use crate::error::SubXError;
 use clap::{Args, ValueEnum};
 use std::path::PathBuf;
 
@@ -58,7 +60,15 @@ pub struct ConvertArgs {
     /// For single file conversion, specify the exact file path.
     /// For batch processing, specify a directory path and all
     /// supported subtitle files will be processed.
-    pub input: PathBuf,
+    pub input: Option<PathBuf>,
+
+    /// 指定要處理的檔案或目錄路徑（新增參數），可以多次使用
+    #[arg(short = 'i', long = "input", value_name = "PATH")]
+    pub input_paths: Vec<PathBuf>,
+
+    /// 遞迴處理子目錄（新增參數）
+    #[arg(short, long)]
+    pub recursive: bool,
 
     /// Target output format for converted subtitles.
     ///
@@ -116,6 +126,25 @@ pub struct ConvertArgs {
     /// ```
     #[arg(long, default_value = "utf-8")]
     pub encoding: String,
+}
+
+impl ConvertArgs {
+    /// 取得所有輸入路徑
+    pub fn get_input_handler(&self) -> Result<InputPathHandler, SubXError> {
+        if !self.input_paths.is_empty() {
+            Ok(
+                InputPathHandler::from_args(&self.input_paths, self.recursive)?
+                    .with_extensions(&["srt", "ass", "vtt", "sub", "ssa"]),
+            )
+        } else if let Some(input) = &self.input {
+            Ok(
+                InputPathHandler::from_args(&[input.clone()], self.recursive)?
+                    .with_extensions(&["srt", "ass", "vtt", "sub", "ssa"]),
+            )
+        } else {
+            Err(SubXError::NoInputSpecified)
+        }
+    }
 }
 
 /// Supported output subtitle formats for conversion operations.
@@ -240,7 +269,6 @@ impl std::fmt::Display for OutputSubtitleFormat {
         write!(f, "{}", self.as_str())
     }
 }
-
 // Test parameter parsing behavior
 #[cfg(test)]
 mod tests {
@@ -256,7 +284,9 @@ mod tests {
             Commands::Convert(c) => c,
             _ => panic!("Expected Convert command"),
         };
-        assert_eq!(args.input, PathBuf::from("in_path"));
+        assert_eq!(args.input, Some(PathBuf::from("in_path")));
+        assert!(args.input_paths.is_empty());
+        assert!(!args.recursive);
         assert_eq!(args.format, None);
         assert_eq!(args.output, None);
         assert!(!args.keep_original);
@@ -282,7 +312,9 @@ mod tests {
             Commands::Convert(c) => c,
             _ => panic!("Expected Convert command"),
         };
-        assert_eq!(args.input, PathBuf::from("in"));
+        assert_eq!(args.input, Some(PathBuf::from("in")));
+        assert!(args.input_paths.is_empty());
+        assert!(!args.recursive);
         assert_eq!(args.format.unwrap(), OutputSubtitleFormat::Vtt);
         assert_eq!(args.output, Some(PathBuf::from("out")));
         assert!(args.keep_original);
