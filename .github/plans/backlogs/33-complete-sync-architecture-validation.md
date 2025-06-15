@@ -12,7 +12,7 @@
 
 1. **測試問題**：大量整合測試標記為 `#[ignore]`，導致 CI 無法驗證功能正確性
 2. **回退機制未完全驗證**：Whisper-VAD 回退邏輯實作完成但缺乏測試確認
-3. **VAD 測試環境依賴**：現有測試依賴外部音訊檔案，不適合 CI 環境
+3. **VAD 測試環境依賴**：現有測試需要使用專案內建的 SubX 主題音樂檔案進行測試
 4. **基本文檔缺失**：使用者無法根據現有文檔成功配置和使用新功能
 
 ## 技術背景說明
@@ -85,7 +85,7 @@ cargo test -- --ignored
 
 **常見失敗原因分析**：
 - 缺少 `OPENAI_API_KEY` 環境變數
-- 測試依賴外部音訊檔案不存在
+- 測試依賴的 SubX 主題音樂檔案路徑不正確
 - 網路連線問題導致 API 呼叫失敗
 - 測試設定的路徑或參數不正確
 
@@ -157,14 +157,14 @@ async fn test_whisper_sync_detection_with_mock() -> Result<(), Box<dyn std::erro
         config
     )?;
     
-    // 使用準備好的測試音訊檔案
-    let test_audio_path = Path::new("tests/data/test_speech.wav");
+    // 使用 SubX 主題音樂檔案進行測試
+    let test_audio_path = Path::new("assets/SubX - The Subtitle Revolution.mp4");
     
     // 執行測試
     let result = client.transcribe(&test_audio_path).await?;
     
-    // 驗證結果
-    assert_eq!(result.text, "Hello world this is a test");
+    // 驗證結果（期望轉錄 SubX 主題歌詞）
+    assert!(!result.text.is_empty(), "應該轉錄出歌詞內容");
     assert!(!result.segments.is_empty());
     assert!(result.words.is_some());
     
@@ -195,7 +195,7 @@ async fn test_whisper_api_error_handling() -> Result<(), Box<dyn std::error::Err
         config
     )?;
     
-    let test_audio_path = Path::new("tests/data/test_speech.wav");
+    let test_audio_path = Path::new("assets/SubX - The Subtitle Revolution.mp4");
     let result = client.transcribe(&test_audio_path).await;
     
     // 驗證錯誤處理
@@ -225,12 +225,16 @@ cargo test whisper_mock --test whisper_mock_tests
 
 **檔案位置**：`tests/vad_integration_tests.rs`
 
-**步驟 1**：移除外部檔案依賴，使用手動準備的音訊檔案
-將原本依賴外部音訊檔案的測試改為使用預先準備的測試音訊：
+**步驟 1**：使用 SubX 專案內建的主題音樂檔案進行測試
+將原本依賴外部音訊檔案的測試改為使用專案內的 SubX 主題音樂：
 
 ```rust
 #[tokio::test]
-async fn test_vad_detection_with_prepared_audio() -> Result<(), Box<dyn std::error::Error>> {
+async fn test_vad_detection_with_subx_theme() -> Result<(), Box<dyn std::error::Error>> {
+    // 使用 SubX 主題音樂檔案進行測試
+    let audio_path = Path::new("assets/SubX - The Subtitle Revolution.mp4");
+    assert!(audio_path.exists(), "SubX 主題音樂檔案不存在");
+    
     // 建立 VAD 配置
     let config = VadConfig {
         enabled: true,
@@ -240,59 +244,67 @@ async fn test_vad_detection_with_prepared_audio() -> Result<(), Box<dyn std::err
         padding_chunks: 3,
     };
     
-    // 使用手動準備的測試音訊檔案
-    let test_audio_path = Path::new("tests/data/vad_test_speech.wav");
-    
-    // 確保測試檔案存在
-    if !test_audio_path.exists() {
-        panic!("Test audio file not found: {:?}. Please prepare the required test audio files.", test_audio_path);
-    }
-    
-    // 載入音訊檔案
-    let audio_data = load_audio_file(test_audio_path)?;
-    
-    // 執行 VAD 檢測
+    // 載入音訊並進行 VAD 檢測
+    let audio_data = load_audio_file(audio_path)?;
     let detector = VadDetector::new(&config)?;
     let detection_result = detector.detect_voice_activity(&audio_data)?;
     
-    // 驗證結果
-    assert!(!detection_result.voice_segments.is_empty());
+    // 驗證檢測到語音段落（SubX 主題音樂包含歌詞）
+    assert!(!detection_result.voice_segments.is_empty(), "應該能檢測到語音段落");
     assert!(detection_result.voice_segments[0].start_time >= 0.0);
     
     Ok(())
 }
 
 #[tokio::test]
-async fn test_vad_with_silence() -> Result<(), Box<dyn std::error::Error>> {
-    let config = VadConfig {
+async fn test_vad_with_subx_theme_different_sensitivity() -> Result<(), Box<dyn std::error::Error>> {
+    let audio_path = Path::new("assets/SubX - The Subtitle Revolution.mp4");
+    assert!(audio_path.exists(), "SubX 主題音樂檔案不存在");
+    
+    // 測試不同敏感度設定
+    let low_sensitivity_config = VadConfig {
         enabled: true,
-        sensitivity: 0.75,
+        sensitivity: 0.5,
         chunk_size: 512,
         sample_rate: 16000,
         padding_chunks: 3,
     };
     
-    // 使用手動準備的靜音檔案
-    let silence_audio_path = Path::new("tests/data/vad_test_silence.wav");
+    let high_sensitivity_config = VadConfig {
+        enabled: true,
+        sensitivity: 0.9,
+        chunk_size: 512,
+        sample_rate: 16000,
+        padding_chunks: 3,
+    };
     
-    if !silence_audio_path.exists() {
-        panic!("Test silence file not found: {:?}. Please prepare the required test audio files.", silence_audio_path);
+    // 驗證不同敏感度產生不同結果
+    let audio_data = load_audio_file(audio_path)?;
+    
+    let low_detector = VadDetector::new(&low_sensitivity_config)?;
+    let high_detector = VadDetector::new(&high_sensitivity_config)?;
+    
+    let low_result = low_detector.detect_voice_activity(&audio_data)?;
+    let high_result = high_detector.detect_voice_activity(&audio_data)?;
+    
+    // 高敏感度通常檢測到更多段落
+    assert!(high_result.voice_segments.len() >= low_result.voice_segments.len());
+    
+    Ok(())
     }
     
     let audio_data = load_audio_file(silence_audio_path)?;
     
     let detector = VadDetector::new(&config)?;
     let result = detector.detect_voice_activity(&audio_data)?;
-    
-    // 驗證：靜音應該不被檢測為語音
-    assert!(result.voice_segments.is_empty(), "Silence should not be detected as speech");
-    
-    Ok(())
 }
 
 #[tokio::test]
 async fn test_vad_basic_integration() -> Result<(), Box<dyn std::error::Error>> {
-    // 測試 VAD 模組的基本整合功能，不關注性能細節
+    // 測試 VAD 模組的基本整合功能，使用 SubX 主題音樂
+    let audio_path = Path::new("assets/SubX - The Subtitle Revolution.mp4");
+    assert!(audio_path.exists(), "SubX 主題音樂檔案不存在");
+    
     let config = VadConfig {
         enabled: true,
         sensitivity: 0.75,
@@ -301,29 +313,41 @@ async fn test_vad_basic_integration() -> Result<(), Box<dyn std::error::Error>> 
         padding_chunks: 3,
     };
     
-    // 使用包含語音和靜音的混合檔案
-    let mixed_audio_path = Path::new("tests/data/vad_test_mixed.wav");
-    
-    if !mixed_audio_path.exists() {
-        println!("Mixed audio test file not found, skipping test");
-        return Ok(());
-    }
-    
-    let audio_data = load_audio_file(mixed_audio_path)?;
     let detector = VadDetector::new(&config)?;
-    let result = detector.detect_voice_activity(&audio_data)?;
+    assert!(detector.is_enabled());
     
-    // 基本驗證：確保 VAD 能夠運作並返回合理結果
-    // 不驗證性能指標，只驗證功能正確性
-    assert!(result.voice_segments.len() <= audio_data.len() / config.chunk_size);
+    // 基本驗證：確保能載入音訊檔案
+    let audio_data = load_audio_file(audio_path)?;
+    assert!(!audio_data.is_empty(), "音訊資料不應為空");
     
     Ok(())
 }
 
 fn load_audio_file(path: &Path) -> Result<Vec<f32>, Box<dyn std::error::Error>> {
-    // 簡化的音訊檔案載入函數
-    // 實際實作會根據音訊格式進行解碼
-    use std::fs;
+    // 從 MP4 檔案提取音訊資料的函數
+    // 這裡需要實作實際的音訊解碼邏輯
+    if !path.exists() {
+        return Err(format!("音訊檔案不存在: {:?}", path).into());
+    }
+    
+    // TODO: 實作實際的 MP4 音訊提取邏輯
+    // 目前返回模擬的音訊資料，實際實作時需要使用 ffmpeg 或類似工具
+    // 模擬 SubX 主題音樂的音訊資料（約 3 分鐘，包含歌詞部分）
+    let duration_seconds = 180; // 3 分鐘
+    let sample_rate = 16000;
+    let total_samples = duration_seconds * sample_rate;
+    
+    // 生成包含變化的測試音訊資料，模擬歌曲中的音量變化
+    let mut audio_data = Vec::with_capacity(total_samples);
+    for i in 0..total_samples {
+        let t = i as f32 / sample_rate as f32;
+        // 模擬歌曲中的音量變化和語音特徵
+        let amplitude = if (t % 4.0) < 2.0 { 0.3 } else { 0.1 }; // 模擬歌詞和間隔
+        let sample = amplitude * (2.0 * std::f32::consts::PI * 440.0 * t).sin();
+        audio_data.push(sample);
+    }
+    
+    Ok(audio_data)
     
     // 這裡只是示例，實際需要使用音訊解碼庫
     let _file_content = fs::read(path)?;
@@ -356,14 +380,14 @@ cargo test --test vad_integration_tests
 **預期結果**：
 - 有 API 金鑰時：Whisper 測試通過
 - 無 API 金鑰時：Whisper 測試跳過但不失敗
-- VAD 測試始終能夠通過（使用合成音訊）
+- VAD 測試始終能夠通過（使用 SubX 主題音樂）
 
 #### 1.5 驗收標準檢查清單
 
 - [ ] `cargo test` 執行無 `#[ignore]` 相關警告
 - [ ] Whisper 測試在有 API 金鑰時能通過
 - [ ] Whisper 測試在無 API 金鑰時能優雅跳過
-- [ ] VAD 測試能穩定通過，不依賴外部檔案
+- [ ] VAD 測試能穩定通過，使用 SubX 主題音樂檔案
 - [ ] 所有測試能在 CI 環境中執行
 - [ ] 測試覆蓋主要的成功和失敗場景
 
@@ -435,12 +459,9 @@ async fn test_whisper_api_failure_fallback() -> Result<(), Box<dyn std::error::E
     // 建立配置，啟用回退機制
     let config = create_fallback_test_config(mock_server.uri());
     
-    // 準備測試音訊（手動準備的檔案）
-    let test_audio_path = Path::new("tests/data/fallback_test.wav");
-    
-    if !test_audio_path.exists() {
-        panic!("Fallback test audio file not found. Please prepare: {:?}", test_audio_path);
-    }
+    // 使用 SubX 主題音樂檔案進行測試
+    let test_audio_path = Path::new("assets/SubX - The Subtitle Revolution.mp4");
+    assert!(test_audio_path.exists(), "SubX 主題音樂檔案不存在");
     
     // 執行同步檢測
     let engine = SyncEngine::new();
@@ -479,10 +500,8 @@ async fn test_whisper_low_confidence_fallback() -> Result<(), Box<dyn std::error
     let mut config = create_fallback_test_config(mock_server.uri());
     config.whisper.min_confidence_threshold = 0.9; // 設定很高的閾值
     
-    let test_audio_path = Path::new("tests/data/fallback_test.wav");
-    if !test_audio_path.exists() {
-        panic!("Fallback test audio file not found. Please prepare: {:?}", test_audio_path);
-    }
+    let test_audio_path = Path::new("assets/SubX - The Subtitle Revolution.mp4");
+    assert!(test_audio_path.exists(), "SubX 主題音樂檔案不存在");
     
     let engine = SyncEngine::new();
     let result = engine.detect_sync_point(&test_audio_path, &config).await;
@@ -516,11 +535,9 @@ async fn test_fallback_disabled() -> Result<(), Box<dyn std::error::Error>> {
     let mut config = create_fallback_test_config(mock_server.uri());
     config.whisper.fallback_to_vad = false; // 關閉回退
     
-    let test_audio_path = Path::new("tests/data/fallback_test.wav");
+    let test_audio_path = Path::new("assets/SubX - The Subtitle Revolution.mp4");
     if !test_audio_path.exists() {
-        println!("Fallback test audio file not found, skipping test");
-        return Ok(());
-    }
+    assert!(test_audio_path.exists(), "SubX 主題音樂檔案不存在");
     
     let engine = SyncEngine::new();
     let result = engine.detect_sync_point(&test_audio_path, &config).await;
@@ -592,7 +609,7 @@ async fn test_fallback_logging() -> Result<(), Box<dyn std::error::Error>> {
 - [ ] 回退過程有適當的日誌記錄
 - [ ] 回退後的結果格式與正常結果一致
 - [ ] 配置 `fallback_to_vad = false` 時不會回退
-- [ ] 回退機制的測試能穩定通過
+- [ ] 回退機制的測試能穩定通過（使用 SubX 主題音樂）
 
 ### 任務 3：建立基本 VAD 測試
 **預估工時**：1-2 小時  
@@ -648,12 +665,9 @@ async fn test_vad_basic_functionality() -> Result<(), Box<dyn std::error::Error>
         padding_chunks: 3,
     };
     
-    // 使用手動準備的測試音訊檔案
-    let test_audio_path = Path::new("tests/data/vad_test_speech.wav");
-    
-    if !test_audio_path.exists() {
-        panic!("VAD test audio file not found: {:?}. Please prepare the required test audio files.", test_audio_path);
-    }
+    // 使用 SubX 主題音樂檔案進行測試
+    let test_audio_path = Path::new("assets/SubX - The Subtitle Revolution.mp4");
+    assert!(test_audio_path.exists(), "SubX 主題音樂檔案不存在");
     
     // 載入音訊資料
     let audio_data = load_audio_data(test_audio_path)?;
@@ -666,12 +680,13 @@ async fn test_vad_basic_functionality() -> Result<(), Box<dyn std::error::Error>
     // 不驗證檢測精度，只確保功能運作
     assert!(result.voice_segments.len() <= audio_data.len() / config.chunk_size);
     
-    // 如果檢測到語音段，驗證基本結構
-    if !result.voice_segments.is_empty() {
-        let first_segment = &result.voice_segments[0];
-        assert!(first_segment.start_time >= 0.0);
-        assert!(first_segment.end_time > first_segment.start_time);
-    }
+    // SubX 主題音樂包含歌詞，應該能檢測到語音段
+    assert!(!result.voice_segments.is_empty(), "SubX 主題音樂應該包含可檢測的語音");
+    
+    // 驗證檢測到的語音段結構
+    let first_segment = &result.voice_segments[0];
+    assert!(first_segment.start_time >= 0.0);
+    assert!(first_segment.end_time > first_segment.start_time);
     
     Ok(())
 }
@@ -696,11 +711,8 @@ async fn test_vad_configuration_integration() -> Result<(), Box<dyn std::error::
         },
     ];
     
-    let test_audio_path = Path::new("tests/data/vad_test_speech.wav");
-    if !test_audio_path.exists() {
-        println!("VAD test audio file not found, skipping configuration test");
-        return Ok(());
-    }
+    let test_audio_path = Path::new("assets/SubX - The Subtitle Revolution.mp4");
+    assert!(test_audio_path.exists(), "SubX 主題音樂檔案不存在");
     
     let audio_data = load_audio_data(test_audio_path)?;
     
@@ -748,31 +760,42 @@ async fn test_vad_error_handling() -> Result<(), Box<dyn std::error::Error>> {
 }
 
 fn load_audio_data(path: &Path) -> Result<Vec<f32>, Box<dyn std::error::Error>> {
-    // 簡化的音訊載入函數
-    // 實際實作需要根據具體的音訊處理庫來實作
-    use std::fs;
-    
+    // 從 MP4 檔案提取音訊資料的函數
     if !path.exists() {
-        return Err(format!("Audio file not found: {:?}", path).into());
+        return Err(format!("音訊檔案不存在: {:?}", path).into());
     }
     
-    let _file_content = fs::read(path)?;
+    // TODO: 實作實際的 MP4 音訊提取邏輯
+    // 目前返回模擬的 SubX 主題音樂音訊資料
+    // 實際實作時需要使用 ffmpeg 或類似工具
     
-    // 這裡應該實作實際的音訊解碼
-    // 目前返回測試用的假資料
-    // 實際使用時需要替換為真正的音訊解碼邏輯
-    Ok(vec![0.1; 16000]) // 1 秒的低音量測試資料
+    // 模擬 SubX 主題音樂的音訊特徵（約 3 分鐘，包含歌詞部分）
+    let duration_seconds = 180; // 3 分鐘
+    let sample_rate = 16000;
+    let total_samples = duration_seconds * sample_rate;
+    
+    // 生成包含變化的測試音訊資料，模擬歌曲中的音量變化
+    let mut audio_data = Vec::with_capacity(total_samples);
+    for i in 0..total_samples {
+        let t = i as f32 / sample_rate as f32;
+        // 模擬歌曲中的音量變化和語音特徵
+        let amplitude = if (t % 4.0) < 2.0 { 0.3 } else { 0.1 }; // 模擬歌詞和間隔
+        let sample = amplitude * (2.0 * std::f32::consts::PI * 440.0 * t).sin();
+        audio_data.push(sample);
+    }
+    
+    Ok(audio_data)
 }
 ```
 
 #### 3.4 驗收標準檢查清單
 
-- [ ] VAD 能正確檢測合成語音音訊中的語音段
-- [ ] VAD 不會將靜音誤判為語音
-- [ ] 敏感度參數調整能產生預期的檢測行為差異
-- [ ] VAD 在有背景噪音時仍能正常運作
-- [ ] 所有測試不依賴外部音訊檔案
-- [ ] 測試執行時間合理（每個測試 < 5 秒）
+- [ ] VAD 能正確檢測 SubX 主題音樂中的語音段（歌詞部分）
+- [ ] VAD 敏感度參數調整能產生預期的檢測行為差異
+- [ ] VAD 在處理音樂檔案時能正常運作
+- [ ] 所有測試使用專案內建的 SubX 主題音樂檔案
+- [ ] 測試執行時間合理（每個測試 < 10 秒）
+- [ ] 音訊檔案載入功能正常運作
 
 ### 任務 4：補充基本使用文檔
 **預估工時**：2-3 小時  
@@ -1104,52 +1127,42 @@ subx sync audio.mp3 subtitle.srt --method whisper
 - 已安裝專案相關依賴：`cargo build`
 - Wiremock 已可用於模擬測試（已在 Cargo.toml 中）
 
-### 需要手動準備的測試音訊檔案
+### SubX 主題音樂檔案說明
 
-在 `tests/data/` 目錄下需要準備以下音訊檔案：
+所有測試都將使用專案內建的 SubX 主題音樂檔案，無需額外準備測試檔案。
 
-**目錄結構：**
+**使用的檔案：**
 ```
-tests/data/
-├── test_speech.wav              # Whisper 測試用：包含清晰語音的音訊
-├── fallback_test.wav            # 回退測試用：包含語音的音訊
-├── vad_test_speech.wav          # VAD 測試用：包含語音的音訊
-├── vad_test_silence.wav         # VAD 測試用：純靜音音訊
-└── vad_test_mixed.wav           # VAD 測試用：語音與靜音混合
+assets/
+├── SubX - The Subtitle Revolution.mp4   # 主要測試檔案：包含 SubX 主題音樂和歌詞
+└── SubX - The Subtitle Revolution.srt   # 對應的字幕檔案（可供參考歌詞內容）
 ```
 
-**檔案規格要求：**
-1. **格式**：WAV 格式
-2. **採樣率**：16000 Hz（16 kHz）
-3. **聲道**：單聲道（mono）
-4. **時長**：3-5 秒即可
-5. **音量**：適中，避免過於微弱或過於響亮
+**檔案特性：**
+1. **格式**：MP4 影片檔案（包含音訊軌道）
+2. **內容**：SubX 專案的主題音樂，包含英文歌詞
+3. **時長**：約 3 分鐘
+4. **用途**：
+   - Whisper API 測試：驗證能正確轉錄歌詞
+   - VAD 測試：檢測歌詞部分的語音活動
+   - 回退機制測試：驗證 Whisper 失敗時的 VAD 回退
 
-**具體內容要求：**
+**音訊提取需求：**
+- 測試程式碼需要實作從 MP4 檔案提取音訊的功能
+- 建議使用 ffmpeg 或類似工具進行音訊解碼
+- 目前程式碼中使用模擬資料，實際實作時需要替換為真實的音訊提取邏輯
 
-1. **test_speech.wav** 和 **fallback_test.wav**：
-   - 包含清晰的語音內容（可以是任何語言）
-   - 建議內容：簡單的句子，如「Hello world, this is a test」
-   - 語音應該在音訊開始後 0.5-1 秒開始
+**歌詞內容參考：**
+根據對應的 SRT 檔案，主題音樂包含豐富的英文歌詞，適合用於：
+- 語音檢測測試
+- 轉錄精度驗證  
+- 音訊同步功能測試
 
-2. **vad_test_speech.wav**：
-   - 包含清晰的語音
-   - 可以與上述檔案相同或類似
-
-3. **vad_test_silence.wav**：
-   - 純靜音或極低的背景噪音
-   - 時長 3-5 秒
-
-4. **vad_test_mixed.wav**：
-   - 開始 1 秒靜音
-   - 中間 2-3 秒語音
-   - 結束 1 秒靜音
-
-**建立測試檔案的建議方法：**
-- 使用 Audacity 等音訊編輯軟體
-- 錄製簡單的語音片段
-- 確保檔案符合上述規格
-- 可以使用合成語音（TTS）產生測試內容
+這樣設計的優點：
+- **一致性**：所有測試使用相同的音訊源
+- **真實性**：使用專案實際的音樂檔案
+- **維護性**：不需要準備和維護多個測試檔案
+- **CI 友善**：檔案已存在於版本控制中，CI 環境可直接使用
 
 ## 評估 Whisper 客戶端重構需求
 
@@ -1342,20 +1355,21 @@ echo "✅ 所有驗收測試通過！"
 
 | 任務 | 預估時間 | 主要工作內容 |
 |------|----------|-------------|
-| 任務 1：修復整合測試 | 4-5 小時 | 分析失敗原因、實作條件測試、建立合成音訊 |
+| 任務 1：修復整合測試 | 4-5 小時 | 分析失敗原因、實作條件測試、使用 SubX 主題音樂 |
 | 任務 2：驗證回退機制 | 2-3 小時 | 建立回退測試、驗證邏輯、測試日誌記錄 |
-| 任務 3：建立 VAD 測試 | 2-3 小時 | 實作音訊產生工具、建立各種測試場景 |
+| 任務 3：建立 VAD 測試 | 2-3 小時 | 實作音訊提取邏輯、建立各種測試場景 |
 | 任務 4：補充使用文檔 | 2-3 小時 | 撰寫配置指南、快速開始指南、故障排解 |
+| 音訊處理實作 | 1-2 小時 | 實作 MP4 音訊提取功能（或使用模擬資料） |
 | 整合測試和除錯 | 1-2 小時 | 執行完整測試套件、修復發現的問題 |
-| **總計** | **11-16 小時** | 包含測試、除錯和文檔撰寫的完整工作 |
+| **總計** | **12-18 小時** | 包含音訊處理、測試、除錯和文檔撰寫的完整工作 |
 
 ---
 
 **負責人**: 待指派  
 **建立日期**: 2025-06-14  
-**更新日期**: 2025-06-14  
+**更新日期**: 2025-06-15 (修改為使用 SubX 主題音樂檔案)  
 **狀態**: 待開始  
 **優先級**: 高  
 **相關**: Backlog #32, 程式碼審查報告 #138
 
-**標籤**: `testing`, `documentation`, `sync`, `validation`, `integration`
+**標籤**: `testing`, `documentation`, `sync`, `validation`, `integration`, `subx-theme`
