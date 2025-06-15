@@ -25,8 +25,8 @@ SubX 是一個基於 Rust 開發的 CLI 工具，專注於智慧字幕處理。�
         │  ┌─────────────┐  ┌─────────────┐  ┌──────────── │
         │  │ OpenAI API  │  │ Audio Proc. │  │ File System │
         │  │             │  │             │  │             │
-        │  │ • GPT-4o    │  │ • AUS Crate │  │ • File I/O  │
-        │  │ • Text      │  │ • Symphonia │  │ • Path      │
+        │  │ • GPT-4o    │  │ • Symphonia │  │ • File I/O  │
+        │  │ • Text      │  │ • VAD       │  │ • Path      │
         │  │   Analysis  │  │ • Dialogue  │  │   Handling  │
         │  │ • Retry     │  │   Detection │  │ • Rollback  │
         │  │   Logic     │  │             │  │   Support   │
@@ -344,11 +344,6 @@ pub struct AudioAnalyzer {
     window_size: usize,
 }
 
-// src/services/audio/aus_adapter.rs - AUS Crate 適配器
-pub struct AusAdapter {
-    // Adapter for AUS audio processing library
-}
-
 // src/services/audio/dialogue_detector.rs - 對話檢測
 pub struct DialogueDetector {
     // Voice activity detection and dialogue segmentation
@@ -357,7 +352,7 @@ pub struct DialogueDetector {
 
 **音訊處理流程**:
 1. **Audio Loading** - 使用 Symphonia 載入音訊
-2. **AUS Integration** - 使用 AUS crate 進行進階音訊分析
+2. **VAD Integration** - 使用 Voice Activity Detection 進行語音檢測
 3. **Dialogue Detection** - 自動檢測對話段落
 4. **Feature Extraction** - 提取音訊特徵
 
@@ -379,7 +374,6 @@ toml = "0.8"
 
 # 音訊處理
 symphonia = { version = "0.5", features = ["all"] }
-aus = "0.1.8"  # Advanced audio processing
 
 # 文件處理
 walkdir = "2.3"
@@ -491,7 +485,7 @@ Input: Video + Subtitle
     │
     ▼
 ┌─────────────────┐
-│ Audio Extract   │ ──▶ 提取音訊能量包絡（AUS）
+│ Audio Extract   │ ──▶ 提取音訊能量包絡（VAD）
 └─────────────────┘
     │
     ▼
@@ -631,7 +625,7 @@ pub async fn process_batch(files: Vec<MediaPair>) -> Result<Vec<ProcessResult>> 
 
 ### 2. 記憶體優化
 - **流式處理** - 大文件採用流式讀取
-- **音訊採樣** - 使用 AUS crate 進行高效音訊處理
+- **音訊採樣** - 使用 VAD 進行高效音訊處理
 - **快取機制** - AI 分析結果快取，減少重複請求
 - **並行控制** - 根據系統資源動態調整並行度
 

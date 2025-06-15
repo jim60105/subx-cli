@@ -449,16 +449,3 @@ pub enum ApiErrorSource {
     #[error("Whisper")]
     Whisper,
 }
-
-// aus error conversion
-impl From<aus::AudioError> for SubXError {
-    fn from(error: aus::AudioError) -> Self {
-        SubXError::audio_processing(format!("{:?}", error))
-    }
-}
-
-impl From<aus::spectrum::SpectrumError> for SubXError {
-    fn from(error: aus::spectrum::SpectrumError) -> Self {
-        SubXError::audio_processing(format!("Spectrum processing error: {:?}", error))
-    }
-}

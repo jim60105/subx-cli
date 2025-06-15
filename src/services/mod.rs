@@ -55,17 +55,16 @@
 //!
 //! ## Audio Synchronization
 //! ```rust,ignore
-//! use subx_cli::services::audio::{AudioAnalyzer, AusAdapter};
+//! use subx_cli::services::audio::AudioTranscoder;
 //!
-//! fn synchronize_audio() -> subx_cli::Result<()> {
-//!     let analyzer = AudioAnalyzer::new();
-//!     let adapter = AusAdapter::new();
+//! async fn synchronize_audio() -> subx_cli::Result<()> {
+//!     let transcoder = AudioTranscoder::new()?;
 //!     
-//!     let audio_data = adapter.load_audio("video.mp4")?;
-//!     let features = analyzer.extract_features(&audio_data)?;
-//!     let dialogue_segments = analyzer.detect_dialogue(&audio_data)?;
+//!     let wav_path = transcoder.transcode_to_wav("video.mp4").await?;
 //!     
-//!     // Process synchronization based on dialogue timing
+//!     // Process audio for synchronization
+//!     println!("Audio transcoded to: {}", wav_path.display());
+//!     
 //!     Ok(())
 //! }
 //! ```

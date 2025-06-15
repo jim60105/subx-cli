@@ -36,8 +36,8 @@
 | `min_dialogue_duration_ms` | u32 | 500 | **呼叫樹:**<br>• `SyncCommand::execute()` (line 283, 318) → `src/commands/sync_command.rs:283,318`<br>• `DialogueDetector::new()` (line 38, 59, 200) → `src/core/sync/dialogue/detector.rs:38,59,200`<br>• `EnergyAnalyzer::filter_short_segments()` 過濾短片段 | 最小對話片段持續時間，用於過濾短於此時間的檢測結果 | `subx-cli sync` | ✅ 使用中 |
 | `dialogue_merge_gap_ms` | u32 | 200 | **呼叫樹:**<br>• `DialogueDetector::optimize_segments()` (line 114) → `src/core/sync/dialogue/detector.rs:114`<br>• 用於計算相鄰對話片段是否應該合併的時間間隔閾值 | 對話片段合併間隔，控制相鄰對話合併邏輯 | `subx-cli sync`（透過 DialogueDetector） | ✅ 使用中 |
 | `enable_dialogue_detection` | bool | true | **呼叫樹:**<br>• `SyncCommand::execute()` (line 336) → `src/commands/sync_command.rs:336`<br>• `DialogueDetector::detect_dialogue()` (line 87) → `src/core/sync/dialogue/detector.rs:87` | 是否啟用對話檢測功能 | `subx-cli sync` | ✅ 使用中 |
-| `audio_sample_rate` | u32 | 44100 | **呼叫樹:**<br>• `DialogueDetector::load_audio()` (line 102, 105) → `src/core/sync/dialogue/detector.rs:102,105`<br>• `AusAdapter::new()` 作為回退採樣率<br>• `AudioAnalyzer::new()` 用於音訊分析初始化 | 音訊處理的目標採樣率，用於對話檢測 | `subx-cli sync`（透過 DialogueDetector） | ✅ 使用中 |
-| `auto_detect_sample_rate` | bool | true | **呼叫樹:**<br>• `DialogueDetector::load_audio()` (line 101-105) → `src/core/sync/dialogue/detector.rs:101-105`<br>• `AusAdapter::read_audio_file()` 檢測音訊檔案採樣率<br>• 失敗時回退到配置值 | 自動檢測音訊採樣率，失敗時回退到配置值 | `subx-cli sync` | ✅ 使用中 |
+| `audio_sample_rate` | u32 | 44100 | **呼叫樹:**<br>• `DialogueDetector::load_audio()` (line 102, 105) → `src/core/sync/dialogue/detector.rs:102,105`<br>• 音訊處理模組使用的採樣率參數 | 音訊處理的目標採樣率，用於對話檢測 | `subx-cli sync`（透過 DialogueDetector） | ✅ 使用中 |
+| `auto_detect_sample_rate` | bool | true | **呼叫樹:**<br>• `DialogueDetector::load_audio()` (line 101-105) → `src/core/sync/dialogue/detector.rs:101-105`<br>• 自動檢測音訊檔案採樣率功能<br>• 失敗時回退到配置值 | 自動檢測音訊採樣率，失敗時回退到配置值 | `subx-cli sync` | ✅ 使用中 |
 
 ### 一般配置 (`[general]`)
 

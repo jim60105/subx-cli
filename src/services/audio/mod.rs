@@ -48,30 +48,18 @@
 //!
 //! ## Basic Audio Analysis
 //! ```rust,ignore
-//! use subx_cli::services::audio::{AudioAnalyzer, AusAdapter};
+//! use subx_cli::services::audio::AudioTranscoder;
 //! use subx_cli::Result;
 //!
 //! async fn analyze_audio_file() -> Result<()> {
 //!     // Initialize audio processing components
-//!     let analyzer = AudioAnalyzer::new();
-//!     let adapter = AusAdapter::new();
+//!     let transcoder = AudioTranscoder::new()?;
 //!     
-//!     // Load audio from video file
-//!     let audio_data = adapter.load_audio("movie.mp4").await?;
+//!     // Transcode audio from video file
+//!     let wav_path = transcoder.transcode_to_wav("movie.mp4").await?;
 //!     
-//!     // Extract comprehensive audio features
-//!     let features = analyzer.extract_features(&audio_data)?;
-//!     println!("Extracted {} audio feature frames", features.frames.len());
-//!     
-//!     // Detect dialogue segments
-//!     let dialogue_segments = analyzer.detect_dialogue(&audio_data, 0.3)?;
-//!     println!("Found {} dialogue segments", dialogue_segments.len());
-//!     
-//!     // Analyze speech characteristics
-//!     for segment in dialogue_segments {
-//!         println!("Dialogue: {:.2}s - {:.2}s (intensity: {:.2})",
-//!             segment.start_time, segment.end_time, segment.intensity);
-//!     }
+//!     // Audio analysis would be performed here
+//!     println!("Transcoded audio file: {}", wav_path.display());
 //!     
 //!     Ok(())
 //! }
@@ -79,34 +67,15 @@
 //!
 //! ## Advanced Synchronization Workflow
 //! ```rust,ignore
-//! use subx_cli::services::audio::{AudioAnalyzer, DialogueSegment, AudioEnvelope};
+//! use subx_cli::services::audio::{AudioTranscoder, AudioEnvelope};
 //!
 //! async fn synchronize_subtitles() -> Result<()> {
-//!     let analyzer = AudioAnalyzer::new();
 //!     
-//!     // Load and process audio
-//!     let audio_data = load_audio_from_video("episode.mkv").await?;
-//!     let envelope = analyzer.generate_envelope(&audio_data)?;
+//!     // Process audio for subtitle synchronization
+//!     let transcoded_path = transcoder.transcode_to_wav("episode.mkv").await?;
 //!     
-//!     // Detect dialogue segments with high precision
-//!     let dialogue_segments = analyzer.detect_dialogue_advanced(
-//!         &envelope,
-//!         0.25,  // threshold
-//!         1.0,   // min_duration
-//!         0.5    // gap_threshold
-//!     )?;
-//!     
-//!     // Load subtitle timing
-//!     let subtitle_entries = load_subtitle_entries("episode.srt")?;
-//!     
-//!     // Perform correlation analysis
-//!     let correlation_result = analyzer.correlate_dialogue_with_subtitles(
-//!         &dialogue_segments,
-//!         &subtitle_entries
-//!     )?;
-//!     
-//!     println!("Synchronization confidence: {:.2}%",
-//!         correlation_result.confidence * 100.0);
+//!     // Audio analysis would be performed here for synchronization
+//!     println!("Audio processing complete for: {}", transcoded_path.display());
 //!     
 //!     Ok(())
 //! }
@@ -131,15 +100,6 @@
 //! - **CPU Usage**: 50-200% CPU during active processing
 //! - **Disk Cache**: ~10-100MB per analyzed audio file
 //! - **Network Usage**: Minimal (only for initial model loading)
-
-pub mod aus_adapter;
-pub use aus_adapter::AusAdapter;
-
-pub mod analyzer;
-pub use analyzer::{AudioFeatures, AusAudioAnalyzer, FrameFeatures};
-
-pub mod dialogue_detector;
-pub use dialogue_detector::AusDialogueDetector;
 
 pub mod transcoder;
 pub use transcoder::AudioTranscoder;
@@ -201,9 +161,3 @@ pub struct AudioData {
     /// Total duration in seconds
     pub duration: f32,
 }
-
-/// Primary audio analyzer implementation (based on AUS).
-///
-/// Type alias for the main audio analyzer used throughout SubX,
-/// currently implemented using the AUS (Audio Understanding Service) library.
-pub type AudioAnalyzer = AusAudioAnalyzer;
