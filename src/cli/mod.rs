@@ -269,14 +269,9 @@ pub async fn run_with_config(
             crate::commands::cache_command::execute(args).await?;
         }
         Commands::DetectEncoding(args) => {
-            let paths = args.get_file_paths()?;
-            let string_paths: Vec<String> = paths
-                .into_iter()
-                .map(|p| p.to_string_lossy().to_string())
-                .collect();
-            crate::commands::detect_encoding_command::detect_encoding_command(
-                &string_paths,
-                args.verbose,
+            crate::commands::detect_encoding_command::detect_encoding_command_with_config(
+                args,
+                config_service,
             )?;
         }
     }

@@ -327,7 +327,7 @@ impl std::fmt::Display for OutputSubtitleFormat {
 }
 // Test parameter parsing behavior
 #[cfg(test)]
-mod tests {
+mod tests_parse {
     use super::*;
     use crate::cli::{Cli, Commands};
     use clap::Parser;

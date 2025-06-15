@@ -319,6 +319,8 @@ mod tests {
         let args = SyncArgs {
             video: Some(PathBuf::from("video.mp4")),
             subtitle: PathBuf::from("subtitle.srt"),
+            input_paths: Vec::new(),
+            recursive: false,
             offset: Some(2.5),
             method: None,
             window: 30,
@@ -362,6 +364,8 @@ mod tests {
         let args = SyncArgs {
             video: Some(PathBuf::from("video.mp4")),
             subtitle: PathBuf::from("subtitle.srt"),
+            input_paths: Vec::new(),
+            recursive: false,
             offset: None,
             method: None,
             window: 30,

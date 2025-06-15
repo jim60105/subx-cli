@@ -148,7 +148,6 @@ pub struct DetectEncodingArgs {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use crate::cli::{Cli, Commands};
     use clap::Parser;
     use std::path::PathBuf;

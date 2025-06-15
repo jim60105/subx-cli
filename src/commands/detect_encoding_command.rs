@@ -79,7 +79,6 @@ use crate::Result;
 use crate::config::ConfigService;
 use crate::core::formats::encoding::EncodingDetector;
 use log::error;
-use std::path::Path;
 
 /// Execute character encoding detection for subtitle files with comprehensive analysis.
 ///
@@ -191,39 +190,49 @@ use std::path::Path;
 /// - **Quality Assurance**: Verify encoding consistency across file collections
 /// - **Migration**: Assess encoding diversity when migrating subtitle libraries
 /// - **Automation**: Integrate encoding detection into batch processing workflows
-pub fn detect_encoding_command(file_paths: &[String], verbose: bool) -> Result<()> {
+use crate::cli::DetectEncodingArgs;
+use crate::error::SubXError;
+
+/// Execute character encoding detection for subtitle files based on input arguments.
+pub fn detect_encoding_command(args: &DetectEncodingArgs) -> Result<()> {
     // Initialize the encoding detection engine
     let detector = EncodingDetector::with_defaults();
 
+    // Collect target files using InputPathHandler logic
+    let paths = args
+        .get_file_paths()
+        .map_err(|e| SubXError::CommandExecution(e.to_string()))?;
+
     // Process each file individually to provide isolated error handling
-    for file in file_paths {
-        if !Path::new(file).exists() {
-            error!("File not found: {}", file);
+    for path in paths {
+        if !path.exists() {
+            error!("路徑不存在: {}", path.display());
             continue;
         }
-        match detector.detect_file_encoding(file) {
+        let file_str = path.to_string_lossy();
+        match detector.detect_file_encoding(&file_str) {
             Ok(info) => {
-                let name = Path::new(file)
+                let name = path
                     .file_name()
                     .and_then(|n| n.to_str())
-                    .unwrap_or(file);
-                println!("File: {}", name);
+                    .unwrap_or(&file_str);
+                println!("檔案: {}", name);
                 println!(
-                    "  Encoding: {:?} (confidence: {:.1}%) BOM: {}",
+                    "  編碼: {:?} (信心度: {:.1}%) BOM: {}",
                     info.charset,
                     info.confidence * 100.0,
-                    if info.bom_detected { "yes" } else { "no" }
+                    if info.bom_detected { "是" } else { "否" }
                 );
-                let sample = if verbose {
+                let sample = if args.verbose {
                     info.sample_text.clone()
                 } else if info.sample_text.len() > 50 {
                     format!("{}...", &info.sample_text[..47])
                 } else {
                     info.sample_text.clone()
                 };
-                println!("  Sample text: {}\n", sample);
+                println!("  範例文本: {}\n", sample);
             }
-            Err(e) => error!("Failed to detect encoding for {}: {}", file, e),
+            Err(e) => error!("無法偵測 {} 的編碼: {}", path.display(), e),
         }
     }
     Ok(())
@@ -244,10 +253,9 @@ pub fn detect_encoding_command(file_paths: &[String], verbose: bool) -> Result<(
 ///
 /// Returns `Ok(())` on successful completion, or an error if detection fails.
 pub fn detect_encoding_command_with_config(
-    file_paths: &[String],
-    verbose: bool,
-    _config_service: std::sync::Arc<dyn ConfigService>,
+    args: DetectEncodingArgs,
+    _config_service: &dyn ConfigService,
 ) -> Result<()> {
-    // Encoding detection doesn't need complex configuration, delegate to original implementation
-    detect_encoding_command(file_paths, verbose)
+    // Delegate to new implementation based on input argument struct
+    detect_encoding_command(&args)
 }

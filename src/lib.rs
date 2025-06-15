@@ -226,9 +226,8 @@ impl App {
             }
             cli::Commands::DetectEncoding(args) => {
                 crate::commands::detect_encoding_command::detect_encoding_command_with_config(
-                    &args.file_paths,
-                    args.verbose,
-                    self.config_service.clone(),
+                    args,
+                    self.config_service.as_ref(),
                 )?;
                 Ok(())
             }

@@ -71,7 +71,7 @@
 //! convert_command::execute(batch_args).await?;
 //! ```
 
-use crate::cli::{ConvertArgs, InputPathHandler, OutputSubtitleFormat};
+use crate::cli::{ConvertArgs, OutputSubtitleFormat};
 use crate::config::ConfigService;
 use crate::core::file_manager::FileManager;
 use crate::core::formats::converter::{ConversionConfig, FormatConverter};
@@ -243,11 +243,10 @@ pub async fn execute(args: ConvertArgs, config_service: &dyn ConfigService) -> c
         let fmt = output_format.to_string();
         let output_path = if let Some(ref o) = args.output {
             let mut p = o.clone();
-            if handler.paths.len() != 1 || handler.paths[0].is_dir() {
-                if p.is_dir() {
-                    if let Some(stem) = input_path.file_stem().and_then(|s| s.to_str()) {
-                        p.push(format!("{}.{}", stem, fmt));
-                    }
+            #[allow(clippy::collapsible_if)]
+            if (handler.paths.len() != 1 || handler.paths[0].is_dir()) && p.is_dir() {
+                if let Some(stem) = input_path.file_stem().and_then(|s| s.to_str()) {
+                    p.push(format!("{}.{}", stem, fmt));
                 }
             }
             p
@@ -327,7 +326,9 @@ mod tests {
         .unwrap();
 
         let args = ConvertArgs {
-            input: input_file.clone(),
+            input: Some(input_file.clone()),
+            input_paths: Vec::new(),
+            recursive: false,
             format: Some(OutputSubtitleFormat::Vtt),
             output: Some(output_file.clone()),
             keep_original: false,
@@ -364,7 +365,9 @@ mod tests {
         }
 
         let args = ConvertArgs {
-            input: temp_dir.path().to_path_buf(),
+            input: Some(temp_dir.path().to_path_buf()),
+            input_paths: Vec::new(),
+            recursive: false,
             format: Some(OutputSubtitleFormat::Vtt),
             output: Some(temp_dir.path().join("output")),
             keep_original: false,
@@ -388,7 +391,9 @@ mod tests {
         fs::write(&input_file, "not a subtitle").unwrap();
 
         let args = ConvertArgs {
-            input: input_file,
+            input: Some(input_file),
+            input_paths: Vec::new(),
+            recursive: false,
             format: Some(OutputSubtitleFormat::Srt),
             output: None,
             keep_original: false,

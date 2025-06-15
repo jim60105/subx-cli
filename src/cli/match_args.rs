@@ -236,4 +236,28 @@ mod tests {
         assert!(args.move_files);
         assert!(args.validate().is_ok());
     }
+
+    #[test]
+    fn test_match_args_input_paths() {
+        let cli = Cli::try_parse_from(&[
+            "subx-cli",
+            "match",
+            "-i",
+            "dir1",
+            "-i",
+            "dir2",
+            "--recursive",
+        ])
+        .unwrap();
+        let args = match cli.command {
+            Commands::Match(m) => m,
+            _ => panic!("Expected Match command"),
+        };
+        assert!(args.path.is_none());
+        assert_eq!(
+            args.input_paths,
+            vec![PathBuf::from("dir1"), PathBuf::from("dir2")]
+        );
+        assert!(args.recursive);
+    }
 }

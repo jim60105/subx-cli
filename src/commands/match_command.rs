@@ -69,6 +69,7 @@ use crate::core::matcher::{FileDiscovery, MatchConfig, MatchEngine, MediaFileTyp
 use crate::core::parallel::{
     FileProcessingTask, ProcessingOperation, Task, TaskResult, TaskScheduler,
 };
+use crate::error::SubXError;
 use crate::services::ai::{AIClientFactory, AIProvider};
 use indicatif::ProgressDrawTarget;
 
@@ -323,20 +324,31 @@ pub async fn execute_with_client(
     // Initialize the matching engine with AI client and configuration
     let engine = MatchEngine::new(ai_client, match_config);
 
-    // Execute the core matching algorithm
-    let target = args.path.as_ref().expect("No input path specified");
-    let operations = engine.match_files(target, args.recursive).await?;
+    // Collect all target paths using InputPathHandler
+    let handler = args
+        .get_input_handler()
+        .map_err(|e| SubXError::CommandExecution(e.to_string()))?;
+    let paths = handler
+        .collect_files()
+        .map_err(|e| SubXError::CommandExecution(e.to_string()))?;
+
+    // Execute the matching algorithm for each path
+    let mut operations = Vec::new();
+    for path in &paths {
+        let ops = engine.match_files(path, args.recursive).await?;
+        operations.extend(ops);
+    }
 
     // Display formatted results table to user
     display_match_results(&operations, args.dry_run);
 
-    if args.dry_run {
-        // Save results to cache for potential later application
-        engine
-            .save_cache(target, args.recursive, &operations)
-            .await?;
-    } else {
-        // Execute actual file operations (rename, backup, etc.)
+    // Save or execute operations based on dry-run flag
+    for path in &paths {
+        if args.dry_run {
+            engine.save_cache(path, args.recursive, &operations).await?;
+        }
+    }
+    if !args.dry_run {
         engine.execute_operations(&operations, args.dry_run).await?;
     }
 
@@ -614,7 +626,8 @@ mod tests {
 
         // Execute dry-run
         let args = MatchArgs {
-            path: PathBuf::from(&media_path),
+            path: Some(PathBuf::from(&media_path)),
+            input_paths: Vec::new(),
             dry_run: true,
             recursive: false,
             confidence: 80,
