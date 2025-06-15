@@ -28,7 +28,10 @@
 //! subx detect-encoding *.srt *.ass *.vtt *.sub
 //! ```
 
+use crate::cli::InputPathHandler;
+use crate::error::SubXError;
 use clap::Args;
+use std::path::PathBuf;
 
 /// Command-line arguments for file encoding detection.
 ///
@@ -88,6 +91,19 @@ pub struct DetectEncodingArgs {
     #[arg(short, long)]
     pub verbose: bool,
 
+    /// 指定要處理的檔案或目錄路徑（新增參數，與 file_paths 互斥）
+    #[arg(
+        short = 'i',
+        long = "input",
+        value_name = "PATH",
+        conflicts_with = "file_paths"
+    )]
+    pub input_paths: Vec<PathBuf>,
+
+    /// 遞迴處理子目錄（新增參數）
+    #[arg(short, long)]
+    pub recursive: bool,
+
     /// File paths to analyze for encoding detection.
     ///
     /// Accepts multiple file paths or glob patterns. All specified files
@@ -126,6 +142,21 @@ pub struct DetectEncodingArgs {
     /// - Processing continues with remaining files
     /// - Non-text files are skipped with a warning
     /// - Permission errors are clearly indicated
-    #[arg(required = true)]
+    #[arg(required = true, conflicts_with = "input_paths")]
     pub file_paths: Vec<String>,
+}
+
+impl DetectEncodingArgs {
+    /// 取得所有要處理的檔案路徑
+    pub fn get_file_paths(&self) -> Result<Vec<PathBuf>, SubXError> {
+        if !self.input_paths.is_empty() {
+            let handler = InputPathHandler::from_args(&self.input_paths, self.recursive)?
+                .with_extensions(&["srt", "ass", "vtt", "ssa", "sub", "txt"]);
+            return handler.collect_files();
+        }
+        if !self.file_paths.is_empty() {
+            return Ok(self.file_paths.iter().map(PathBuf::from).collect());
+        }
+        Err(SubXError::NoInputSpecified)
+    }
 }

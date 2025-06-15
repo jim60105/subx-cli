@@ -1,6 +1,8 @@
 #![allow(clippy::needless_borrows_for_generic_args)]
 //! Command-line arguments for the AI-powered subtitle matching command.
 
+use crate::cli::InputPathHandler;
+use crate::error::SubXError;
 use clap::Args;
 use std::path::PathBuf;
 
@@ -47,7 +49,15 @@ pub struct MatchArgs {
     /// The directory should contain both video files and subtitle files
     /// that need to be matched and renamed. Supported video formats include
     /// MP4, MKV, AVI, etc. Supported subtitle formats include SRT, ASS, VTT, etc.
-    pub path: PathBuf,
+    pub path: Option<PathBuf>,
+
+    /// 指定要處理的檔案或目錄路徑（新增參數），可以多次使用
+    #[arg(short = 'i', long = "input", value_name = "PATH")]
+    pub input_paths: Vec<PathBuf>,
+
+    /// 遞迴處理子目錄（新增參數）
+    #[arg(short, long)]
+    pub recursive: bool,
 
     /// Enable dry-run mode to preview operations without making changes.
     ///
@@ -121,6 +131,21 @@ impl MatchArgs {
         }
         Ok(())
     }
+
+    /// 取得所有輸入路徑，優先使用 -i 參數
+    pub fn get_input_handler(&self) -> Result<InputPathHandler, SubXError> {
+        if !self.input_paths.is_empty() {
+            Ok(
+                InputPathHandler::from_args(&self.input_paths, self.recursive)?
+                    .with_extensions(&["mp4", "mkv", "avi", "mov", "srt", "ass", "vtt", "sub"]),
+            )
+        } else if let Some(p) = &self.path {
+            Ok(InputPathHandler::from_args(&[p.clone()], self.recursive)?
+                .with_extensions(&["mp4", "mkv", "avi", "mov", "srt", "ass", "vtt", "sub"]))
+        } else {
+            Err(SubXError::NoInputSpecified)
+        }
+    }
 }
 
 // Test parameter parsing behavior
@@ -137,7 +162,8 @@ mod tests {
             Commands::Match(m) => m,
             _ => panic!("Expected Match command"),
         };
-        assert_eq!(args.path, PathBuf::from("path"));
+        assert_eq!(args.path, Some(PathBuf::from("path")));
+        assert!(args.input_paths.is_empty());
         assert!(!args.dry_run);
         assert!(!args.recursive);
         assert!(!args.backup);
@@ -161,6 +187,8 @@ mod tests {
             Commands::Match(m) => m,
             _ => panic!("Expected Match command"),
         };
+        assert_eq!(args.path, Some(PathBuf::from("path")));
+        assert!(args.input_paths.is_empty());
         assert!(args.dry_run);
         assert!(args.recursive);
         assert!(args.backup);

@@ -34,6 +34,7 @@ mod config_args;
 mod convert_args;
 mod detect_encoding_args;
 mod generate_completion_args;
+mod input_handler;
 mod match_args;
 mod sync_args;
 pub mod table;
@@ -45,6 +46,7 @@ pub use config_args::{ConfigAction, ConfigArgs};
 pub use convert_args::{ConvertArgs, OutputSubtitleFormat};
 pub use detect_encoding_args::DetectEncodingArgs;
 pub use generate_completion_args::GenerateCompletionArgs;
+pub use input_handler::InputPathHandler;
 pub use match_args::MatchArgs;
 pub use sync_args::{SyncArgs, SyncMethod, SyncMethodArg};
 pub use ui::{

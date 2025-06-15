@@ -114,6 +114,34 @@ pub enum SubXError {
     #[error("{0}")]
     CommandExecution(String),
 
+    /// 未指定輸入路徑
+    #[error("未指定輸入路徑")]
+    NoInputSpecified,
+
+    /// 無效的路徑
+    #[error("無效的路徑: {0}")]
+    InvalidPath(std::path::PathBuf),
+
+    /// 路徑不存在
+    #[error("路徑不存在: {0}")]
+    PathNotFound(std::path::PathBuf),
+
+    /// 無法讀取目錄
+    #[error("無法讀取目錄: {path}")]
+    DirectoryReadError {
+        path: std::path::PathBuf,
+        #[source]
+        source: std::io::Error,
+    },
+
+    /// 同步設定無效：請指定影片和字幕檔案，或使用 -i 參數進行批次處理
+    #[error("同步設定無效：請指定影片和字幕檔案，或使用 -i 參數進行批次處理")]
+    InvalidSyncConfiguration,
+
+    /// 不支援的檔案類型
+    #[error("不支援的檔案類型: {0}")]
+    UnsupportedFileType(String),
+
     /// Catch-all error variant wrapping any other failure.
     #[error("Unknown error: {0}")]
     Other(#[from] anyhow::Error),
