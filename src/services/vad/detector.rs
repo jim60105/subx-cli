@@ -5,13 +5,30 @@ use std::path::Path;
 use std::time::{Duration, Instant};
 use voice_activity_detector::{IteratorExt, LabeledAudio, VoiceActivityDetector};
 
-/// 本地語音活動檢測器
+/// Local voice activity detector.
+///
+/// Provides voice activity detection using local processing without
+/// external API calls. Uses the `voice_activity_detector` crate for
+/// speech detection and analysis.
 pub struct LocalVadDetector {
     config: VadConfig,
     audio_processor: VadAudioProcessor,
 }
 
 impl LocalVadDetector {
+    /// Create a new local VAD detector.
+    ///
+    /// # Arguments
+    ///
+    /// * `config` - VAD configuration parameters
+    ///
+    /// # Returns
+    ///
+    /// A new `LocalVadDetector` instance
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the audio processor cannot be initialized
     pub fn new(config: VadConfig) -> Result<Self> {
         // Clone config to avoid moving while initializing audio_processor
         let cfg_clone = config.clone();
@@ -21,24 +38,42 @@ impl LocalVadDetector {
         })
     }
 
-    /// 檢測音訊檔案中的語音活動
+    /// Detect speech activity in an audio file.
+    ///
+    /// Processes the entire audio file to identify speech segments
+    /// with timestamps and confidence scores.
+    ///
+    /// # Arguments
+    ///
+    /// * `audio_path` - Path to the audio file to analyze
+    ///
+    /// # Returns
+    ///
+    /// VAD analysis results including speech segments and metadata
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - Audio file cannot be loaded
+    /// - VAD processing fails
+    /// - Audio format is unsupported
     pub async fn detect_speech(&self, audio_path: &Path) -> Result<VadResult> {
         let start_time = Instant::now();
 
-        // 1. 載入和預處理音訊
+        // 1. Load and preprocess audio
         let audio_data = self
             .audio_processor
             .load_and_prepare_audio(audio_path)
             .await?;
 
-        // 2. 建立 VAD 實例
+        // 2. Create VAD instance
         let vad = VoiceActivityDetector::builder()
             .sample_rate(self.config.sample_rate)
             .chunk_size(self.config.chunk_size)
             .build()
             .map_err(|e| SubXError::audio_processing(format!("Failed to create VAD: {}", e)))?;
 
-        // 3. 執行語音檢測
+        // 3. Execute speech detection
         let speech_segments = self.detect_speech_segments(vad, &audio_data.samples)?;
 
         let processing_duration = start_time.elapsed();
@@ -117,7 +152,7 @@ impl LocalVadDetector {
             }
         }
 
-        // 合併相近的語音片段
+        // Merge close segments
         Ok(self.merge_close_segments(segments))
     }
 
@@ -132,12 +167,12 @@ impl LocalVadDetector {
 
         for segment in segments.into_iter().skip(1) {
             if segment.start_time - current.end_time <= merge_threshold {
-                // 合併片段
+                // Merge segments
                 current.end_time = segment.end_time;
                 current.duration = current.end_time - current.start_time;
                 current.probability = current.probability.max(segment.probability);
             } else {
-                // 儲存當前片段，開始新片段
+                // Store current segment, start new segment
                 merged.push(current);
                 current = segment;
             }
@@ -148,25 +183,48 @@ impl LocalVadDetector {
     }
 }
 
+/// VAD detection result containing speech segments and processing metadata.
+///
+/// Represents the complete result of voice activity detection analysis,
+/// including identified speech segments, timing information, and audio metadata.
 #[derive(Debug, Clone)]
 pub struct VadResult {
+    /// Detected speech segments with timing and confidence
     pub speech_segments: Vec<SpeechSegment>,
+    /// Time taken to process the audio file
     pub processing_duration: Duration,
+    /// Original audio file information
     pub audio_info: AudioInfo,
 }
 
+/// Individual speech segment identified by VAD.
+///
+/// Represents a continuous segment of detected speech with timing
+/// and confidence information.
 #[derive(Debug, Clone)]
 pub struct SpeechSegment {
+    /// Start time of the speech segment in seconds
     pub start_time: f64,
+    /// End time of the speech segment in seconds
     pub end_time: f64,
+    /// Confidence probability of speech detection (0.0-1.0)
     pub probability: f32,
+    /// Duration of the speech segment in seconds
     pub duration: f64,
 }
 
+/// Audio file metadata and properties.
+///
+/// Contains technical information about the processed audio file
+/// including format, duration, and sample information.
 #[derive(Debug, Clone)]
 pub struct AudioInfo {
+    /// Audio sample rate in Hz
     pub sample_rate: u32,
+    /// Number of audio channels
     pub channels: u16,
+    /// Total duration of audio in seconds
     pub duration_seconds: f64,
+    /// Total number of audio samples
     pub total_samples: usize,
 }

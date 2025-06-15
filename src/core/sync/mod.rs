@@ -1,15 +1,32 @@
-//! 重構後的同步模組
+//! Refactored synchronization module.
 //!
-//! 提供多種語音檢測方法的統一字幕同步功能，包括：
-//! - OpenAI Whisper API 雲端轉錄
-//! - 本地 Voice Activity Detection (VAD)
-//! - 自動方法選擇和回退機制
+//! Provides unified subtitle synchronization functionality with multiple
+//! voice detection methods, including:
+//! - OpenAI Whisper API cloud transcription
+//! - Local Voice Activity Detection (VAD)
+//! - Automatic method selection and fallback mechanisms
+//!
+//! # Key Components
+//!
+//! - [`SyncEngine`] - Main synchronization engine with method abstraction
+//! - [`SyncMethod`] - Enumeration of available synchronization methods
+//! - [`SyncResult`] - Results structure with timing and confidence data
+//!
+//! # Usage
+//!
+//! ```rust
+//! use subx_cli::core::sync::{SyncEngine, SyncMethod};
+//! use subx_cli::config::SyncConfig;
+//!
+//! let engine = SyncEngine::new(SyncConfig::default())?;
+//! let result = engine.detect_sync_offset(video_path, &subtitle, Some(SyncMethod::LocalVad)).await?;
+//! ```
 
 pub mod engine;
 
-// 重新匯出主要類型
+// Re-export main types
 pub use engine::{MethodSelectionStrategy, SyncEngine, SyncMethod, SyncResult};
 
-// 向後兼容性匯出（但標記為 deprecated）
+// Backward compatibility exports (marked as deprecated)
 #[allow(deprecated)]
 pub use engine::OldSyncConfig;

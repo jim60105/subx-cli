@@ -6,27 +6,66 @@ use crate::{Result, error::SubXError};
 use serde_json::json;
 use std::path::Path;
 
+/// VAD-based subtitle synchronization detector.
+///
+/// Uses Voice Activity Detection to analyze audio files and calculate
+/// subtitle timing offsets by comparing detected speech segments with
+/// subtitle timing information.
 pub struct VadSyncDetector {
     vad_detector: LocalVadDetector,
 }
 
 impl VadSyncDetector {
+    /// Create a new VAD sync detector.
+    ///
+    /// # Arguments
+    ///
+    /// * `config` - VAD configuration parameters
+    ///
+    /// # Returns
+    ///
+    /// A new `VadSyncDetector` instance
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the VAD detector cannot be initialized
     pub fn new(config: VadConfig) -> Result<Self> {
         Ok(Self {
             vad_detector: LocalVadDetector::new(config)?,
         })
     }
 
+    /// Detect synchronization offset between audio and subtitle.
+    ///
+    /// Analyzes the entire audio file using VAD to identify speech segments
+    /// and compares them with subtitle timing to calculate the offset.
+    ///
+    /// # Arguments
+    ///
+    /// * `audio_path` - Path to the audio file to analyze
+    /// * `subtitle` - Subtitle data with timing information
+    /// * `_analysis_window_seconds` - Ignored parameter (processes entire file)
+    ///
+    /// # Returns
+    ///
+    /// Synchronization result with detected offset and confidence
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - Audio analysis fails
+    /// - Subtitle has no entries
+    /// - VAD processing fails
     pub async fn detect_sync_offset(
         &self,
         audio_path: &Path,
         subtitle: &Subtitle,
-        _analysis_window_seconds: u32, // 忽略此參數，處理完整檔案
+        _analysis_window_seconds: u32, // Ignore this parameter, process entire file
     ) -> Result<SyncResult> {
-        // 1. 獲取第一句字幕的預期開始時間
+        // 1. Get expected start time of first subtitle
         let first_entry = self.get_first_subtitle_entry(subtitle)?;
 
-        // 2. 直接對完整音訊檔案進行 VAD 分析
+        // 2. Perform VAD analysis on entire audio file
         let vad_result = self.vad_detector.detect_speech(audio_path).await?;
 
         // 3. 分析結果：比較第一個語音片段與第一句字幕的時間差

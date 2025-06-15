@@ -167,23 +167,41 @@ pub enum SyncMethod {
 }
 
 /// 同步結果結構
+/// Synchronization result containing offset and analysis metadata.
+///
+/// Represents the complete result of subtitle synchronization analysis,
+/// including the calculated offset, confidence metrics, and processing information.
 #[derive(Debug, Clone)]
 pub struct SyncResult {
+    /// Calculated time offset in seconds
     pub offset_seconds: f32,
+    /// Confidence level of the detection (0.0-1.0)
     pub confidence: f32,
+    /// Synchronization method that was used
     pub method_used: SyncMethod,
+    /// Peak correlation value from analysis
     pub correlation_peak: f32,
+    /// Additional method-specific information
     pub additional_info: Option<serde_json::Value>,
+    /// Time taken to complete the analysis
     pub processing_duration: Duration,
+    /// Any warnings generated during processing
     pub warnings: Vec<String>,
 }
 
-/// 方法選擇策略，預留後續擴充
+/// Method selection strategy for synchronization analysis.
+///
+/// Defines preferences and fallback behavior for automatic method selection
+/// when multiple synchronization approaches are available.
 #[derive(Debug, Clone)]
 pub struct MethodSelectionStrategy {
+    /// Preferred methods in order of preference
     pub preferred_methods: Vec<SyncMethod>,
+    /// Minimum confidence threshold for accepting results
     pub min_confidence_threshold: f32,
+    /// Whether to allow fallback to alternative methods
     pub allow_fallback: bool,
+    /// Maximum time to spend on analysis attempts
     pub max_attempt_duration: u32,
 }
 

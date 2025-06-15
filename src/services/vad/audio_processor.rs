@@ -6,18 +6,38 @@ use std::fs::File;
 use std::io::BufReader;
 use std::path::Path;
 
+/// Audio processor for VAD operations.
+///
+/// Handles loading, resampling, and format conversion of audio files
+/// for voice activity detection processing.
 pub struct VadAudioProcessor {
     target_sample_rate: u32,
     target_channels: u16,
 }
 
+/// Processed audio data ready for VAD analysis.
+///
+/// Contains the audio samples and metadata after processing
+/// and format conversion.
 #[derive(Debug)]
 pub struct ProcessedAudioData {
+    /// Audio samples as 16-bit integers
     pub samples: Vec<i16>,
+    /// Audio metadata and properties
     pub info: AudioInfo,
 }
 
 impl VadAudioProcessor {
+    /// Create a new VAD audio processor.
+    ///
+    /// # Arguments
+    ///
+    /// * `target_sample_rate` - Desired sample rate for processing
+    /// * `target_channels` - Desired number of audio channels
+    ///
+    /// # Returns
+    ///
+    /// A new `VadAudioProcessor` instance
     pub fn new(target_sample_rate: u32, target_channels: u16) -> Result<Self> {
         Ok(Self {
             target_sample_rate,
@@ -25,18 +45,39 @@ impl VadAudioProcessor {
         })
     }
 
+    /// Load and prepare audio file for VAD processing.
+    ///
+    /// Performs all necessary audio processing steps including loading,
+    /// resampling, and format conversion to prepare the audio for
+    /// voice activity detection.
+    ///
+    /// # Arguments
+    ///
+    /// * `audio_path` - Path to the audio file to process
+    ///
+    /// # Returns
+    ///
+    /// Processed audio data ready for VAD analysis
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - Audio file cannot be loaded
+    /// - Audio format is unsupported
+    /// - Resampling fails
+    /// - Format conversion fails
     pub async fn load_and_prepare_audio(&self, audio_path: &Path) -> Result<ProcessedAudioData> {
-        // 1. 載入音訊檔案
+        // 1. Load audio file
         let raw_audio_data = self.load_wav_file(audio_path)?;
 
-        // 2. 轉換採樣率（如果需要）
+        // 2. Convert sample rate (if needed)
         let resampled_data = if raw_audio_data.info.sample_rate != self.target_sample_rate {
             self.resample_audio(&raw_audio_data)?
         } else {
             raw_audio_data
         };
 
-        // 3. 轉換為單聲道（如果需要）
+        // 3. Convert to mono (if needed)
         let mono_data = if resampled_data.info.channels > 1 {
             self.convert_to_mono(&resampled_data)?
         } else {
@@ -58,7 +99,7 @@ impl VadAudioProcessor {
         let sample_rate = spec.sample_rate;
         let channels = spec.channels;
 
-        // 讀取所有樣本並轉換為 i16
+        // Read all samples and convert to i16
         let samples: Vec<i16> = match spec.sample_format {
             SampleFormat::Int => match spec.bits_per_sample {
                 16 => {
@@ -116,7 +157,7 @@ impl VadAudioProcessor {
             });
         }
 
-        // 設定重取樣參數
+        // Configure resampling parameters
         let params = SincInterpolationParameters {
             sinc_len: 256,
             f_cutoff: 0.95,
@@ -125,7 +166,7 @@ impl VadAudioProcessor {
             window: rubato::WindowFunction::BlackmanHarris2,
         };
 
-        // 建立重取樣器
+        // Create resampler
         let mut resampler = SincFixedIn::<f64>::new(
             self.target_sample_rate as f64 / audio_data.info.sample_rate as f64,
             2.0, // max_resample_ratio_relative
@@ -135,7 +176,7 @@ impl VadAudioProcessor {
         )
         .map_err(|e| SubXError::audio_processing(format!("Failed to create resampler: {}", e)))?;
 
-        // 轉換樣本格式為 f64
+        // Convert sample format to f64
         let input_channels = if audio_data.info.channels == 1 {
             vec![
                 audio_data
@@ -145,7 +186,7 @@ impl VadAudioProcessor {
                     .collect(),
             ]
         } else {
-            // 處理多聲道音訊
+            // Process multi-channel audio
             let mut channels = vec![Vec::new(); audio_data.info.channels as usize];
             for (i, &sample) in audio_data.samples.iter().enumerate() {
                 channels[i % audio_data.info.channels as usize].push(sample as f64 / 32768.0);
@@ -153,12 +194,12 @@ impl VadAudioProcessor {
             channels
         };
 
-        // 執行重取樣
+        // Perform resampling
         let output_channels = resampler
             .process(&input_channels, None)
             .map_err(|e| SubXError::audio_processing(format!("Resampling failed: {}", e)))?;
 
-        // 轉換回 i16 格式
+        // Convert back to i16 format
         let mut resampled_samples = Vec::new();
         if audio_data.info.channels == 1 {
             resampled_samples = output_channels[0]
@@ -166,7 +207,7 @@ impl VadAudioProcessor {
                 .map(|&s| (s * 32767.0) as i16)
                 .collect();
         } else {
-            // 交錯多聲道樣本
+            // Interleave multi-channel samples
             let max_len = output_channels.iter().map(|ch| ch.len()).max().unwrap_or(0);
             for i in 0..max_len {
                 for ch in &output_channels {
@@ -203,7 +244,7 @@ impl VadAudioProcessor {
         let channels = audio_data.info.channels as usize;
         let mut mono_samples = Vec::new();
 
-        // 轉換為單聲道（平均所有聲道）
+        // Convert to mono (average all channels)
         for chunk in audio_data.samples.chunks_exact(channels) {
             let sum: i32 = chunk.iter().map(|&s| s as i32).sum();
             let average = (sum / channels as i32) as i16;

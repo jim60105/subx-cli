@@ -67,9 +67,24 @@ impl ConfigValidator for SyncValidator {
 }
 
 impl SyncConfig {
-    /// 驗證同步配置的有效性
+    /// Validate the sync configuration for correctness.
+    ///
+    /// Checks all sync-related configuration parameters to ensure they
+    /// are within valid ranges and have acceptable values.
+    ///
+    /// # Returns
+    ///
+    /// Returns `Ok(())` if validation passes, or an error describing
+    /// the validation failure.
+    ///
+    /// # Errors
+    ///
+    /// This function returns an error if:
+    /// - `default_method` is not one of the supported methods
+    /// - `max_offset_seconds` is outside the valid range
+    /// - VAD configuration validation fails
     pub fn validate(&self) -> Result<()> {
-        // 驗證 default_method
+        // Validate default_method
         match self.default_method.as_str() {
             "vad" | "auto" | "manual" => {}
             _ => {
@@ -79,14 +94,14 @@ impl SyncConfig {
             }
         }
 
-        // 驗證 max_offset_seconds
+        // Validate max_offset_seconds
         if self.max_offset_seconds <= 0.0 || self.max_offset_seconds > 3600.0 {
             return Err(SubXError::config(
                 "sync.max_offset_seconds must be between 0.1 and 3600.0",
             ));
         }
 
-        // 驗證子配置
+        // Validate sub-configurations
         self.vad.validate()?;
 
         Ok(())
@@ -94,23 +109,38 @@ impl SyncConfig {
 }
 
 impl VadConfig {
-    /// 驗證本地 VAD 配置的有效性
+    /// Validate the local VAD configuration for correctness.
+    ///
+    /// Ensures that all VAD-related parameters are within acceptable
+    /// ranges and have valid values for audio processing.
+    ///
+    /// # Returns
+    ///
+    /// Returns `Ok(())` if validation passes, or an error describing
+    /// the validation failure.
+    ///
+    /// # Errors
+    ///
+    /// This function returns an error if:
+    /// - `sensitivity` is outside the valid range (0.0-1.0)
+    /// - `chunk_size` is not a power of 2 or outside valid range
+    /// - `sample_rate` is not one of the supported rates
     pub fn validate(&self) -> Result<()> {
-        // 驗證 sensitivity
+        // Validate sensitivity
         if self.sensitivity < 0.0 || self.sensitivity > 1.0 {
             return Err(SubXError::config(
                 "sync.vad.sensitivity must be between 0.0 and 1.0",
             ));
         }
 
-        // 驗證 chunk_size (must be power of 2 and reasonable size)
+        // Validate chunk_size (must be power of 2 and reasonable size)
         if self.chunk_size < 256 || self.chunk_size > 2048 || !self.chunk_size.is_power_of_two() {
             return Err(SubXError::config(
                 "sync.vad.chunk_size must be a power of 2 between 256 and 2048",
             ));
         }
 
-        // 驗證 sample_rate
+        // Validate sample_rate
         match self.sample_rate {
             8000 | 16000 | 32000 | 44100 | 48000 => {}
             _ => {

@@ -1,17 +1,29 @@
-//! 重構後的同步指令 CLI 參數定義
+//! Refactored sync command CLI argument definitions.
 //!
-//! 支援多種同步方法：OpenAI Whisper API、本地 VAD、自動選擇和手動偏移。
-//! 提供細緻的參數控制和智能預設值。
+//! Supports multiple synchronization methods: OpenAI Whisper API, local VAD,
+//! automatic selection, and manual offset. Provides fine-grained parameter
+//! control and intelligent defaults.
 //!
-//! # 同步方法
+//! # Synchronization Methods
 //!
 //! ## OpenAI Whisper API
-//! 雲端轉錄服務，提供高精度語音檢測：
+//! Cloud transcription service providing high-precision speech detection.
+//!
+//! ## Local VAD
+//! Voice Activity Detection using local processing for privacy and speed.
+//!
+//! ## Manual Offset
+//! Direct time offset specification for precise manual synchronization.
+
+/// Synchronization method selection for CLI arguments.
+///
+/// Defines the available synchronization methods that can be specified
+/// via command-line arguments.
 #[derive(Debug, Clone, ValueEnum, PartialEq)]
 pub enum SyncMethodArg {
-    /// 僅使用本地語音活動檢測
+    /// Use local voice activity detection only
     Vad,
-    /// 套用手動偏移（需搭配 --offset）
+    /// Apply manual offset (requires --offset parameter)
     Manual,
 }
 

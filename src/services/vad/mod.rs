@@ -1,7 +1,21 @@
-//! 本地語音活動檢測 (Voice Activity Detection) 模組
+//! Local Voice Activity Detection (VAD) module.
 //!
-//! 此模組提供基於 `voice_activity_detector` crate 的本地語音檢測功能，
-//! 用於在本地環境中進行快速、私密的語音活動檢測和字幕同步。
+//! This module provides local voice detection functionality based on the
+//! `voice_activity_detector` crate, enabling fast and private voice activity
+//! detection and subtitle synchronization in local environments.
+//!
+//! # Key Components
+//!
+//! - [`VadAudioProcessor`] - Audio processing and format conversion
+//! - [`VadDetector`] - Core VAD detection functionality  
+//! - [`VadSyncDetector`] - Subtitle synchronization using VAD
+//!
+//! # Features
+//!
+//! - Local audio processing without external API calls
+//! - Configurable sensitivity and processing parameters
+//! - Support for multiple audio formats and sample rates
+//! - Privacy-focused design with no data transmission
 
 mod audio_processor;
 mod detector;

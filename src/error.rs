@@ -69,12 +69,15 @@ pub enum SubXError {
     #[error("AI service error: {0}")]
     AiService(String),
 
-    /// API 請求錯誤，指定來源
+    /// API request error with specified source.
+    ///
+    /// Represents errors that occur during API requests, providing both
+    /// the error message and the source of the API error.
     #[error("API error [{source:?}]: {message}")]
     Api {
-        /// 錯誤訊息
+        /// Error message from the API
         message: String,
-        /// API 錯誤來源
+        /// Source of the API error
         source: ApiErrorSource,
     },
 
@@ -399,9 +402,17 @@ impl SubXError {
     }
 }
 
-/// Whisper API 和音訊處理相關錯誤協助函式
+/// Helper functions for Whisper API and audio processing related errors.
 impl SubXError {
-    /// 建立 Whisper API 錯誤
+    /// Create a Whisper API error.
+    ///
+    /// # Arguments
+    ///
+    /// * `message` - The error message describing the Whisper API failure
+    ///
+    /// # Returns
+    ///
+    /// A new `SubXError::Api` variant with Whisper as the source
     pub fn whisper_api<T: Into<String>>(message: T) -> Self {
         Self::Api {
             message: message.into(),
@@ -409,7 +420,15 @@ impl SubXError {
         }
     }
 
-    /// 建立音訊擷取/轉碼錯誤
+    /// Create an audio extraction/transcoding error.
+    ///
+    /// # Arguments
+    ///
+    /// * `message` - The error message describing the audio processing failure
+    ///
+    /// # Returns
+    ///
+    /// A new `SubXError::AudioProcessing` variant
     pub fn audio_extraction<T: Into<String>>(message: T) -> Self {
         Self::AudioProcessing {
             message: message.into(),
@@ -417,7 +436,10 @@ impl SubXError {
     }
 }
 
-/// API 錯誤來源
+/// API error source enumeration.
+///
+/// Specifies the source of API-related errors to help with error diagnosis
+/// and handling.
 #[derive(Debug, thiserror::Error)]
 pub enum ApiErrorSource {
     /// OpenAI Whisper API

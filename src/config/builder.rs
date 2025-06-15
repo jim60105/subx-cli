@@ -110,25 +110,41 @@ impl TestConfigBuilder {
 
     // Sync Configuration Methods
 
-    /// 設定同步方法
+    /// Set the synchronization method.
+    ///
+    /// # Arguments
+    ///
+    /// * `method` - The sync method to use ("vad", "auto", "manual")
     pub fn with_sync_method(mut self, method: &str) -> Self {
         self.config.sync.default_method = method.to_string();
         self
     }
 
-    /// 啟用/停用本地 VAD
+    /// Enable or disable local VAD.
+    ///
+    /// # Arguments
+    ///
+    /// * `enabled` - Whether to enable local VAD processing
     pub fn with_vad_enabled(mut self, enabled: bool) -> Self {
         self.config.sync.vad.enabled = enabled;
         self
     }
 
-    /// 設定 VAD 敏感度
+    /// Set VAD sensitivity.
+    ///
+    /// # Arguments
+    ///
+    /// * `sensitivity` - VAD sensitivity value (0.0-1.0)
     pub fn with_vad_sensitivity(mut self, sensitivity: f32) -> Self {
         self.config.sync.vad.sensitivity = sensitivity;
         self
     }
 
-    /// 設定 VAD 取樣率
+    /// Set VAD sample rate.
+    ///
+    /// # Arguments
+    ///
+    /// * `sample_rate` - Audio sample rate in Hz
     pub fn with_vad_sample_rate(mut self, sample_rate: u32) -> Self {
         self.config.sync.vad.sample_rate = sample_rate;
         self

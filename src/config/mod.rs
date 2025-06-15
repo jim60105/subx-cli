@@ -187,56 +187,69 @@ impl Default for FormatsConfig {
     }
 }
 
-/// 音訊同步配置，支援 VAD 語音檢測
+/// Audio synchronization configuration supporting VAD speech detection.
+///
+/// This configuration struct defines settings for subtitle-audio synchronization,
+/// including method selection, timing constraints, and VAD-specific parameters.
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct SyncConfig {
-    /// 預設同步方法 ("vad", "auto")  
+    /// Default synchronization method ("vad", "auto")
     pub default_method: String,
-    /// 最大允許的時間偏移量（秒）
+    /// Maximum allowed time offset in seconds
     pub max_offset_seconds: f32,
-    /// 本地 VAD 相關設定
+    /// Local VAD related settings
     pub vad: VadConfig,
 
     // Deprecated legacy fields, preserved for backward compatibility
+    /// Deprecated: correlation threshold for audio analysis
     #[deprecated]
     #[serde(skip)]
     pub correlation_threshold: f32,
+    /// Deprecated: dialogue detection threshold
     #[deprecated]
     #[serde(skip)]
     pub dialogue_detection_threshold: f32,
+    /// Deprecated: minimum dialogue duration in milliseconds
     #[deprecated]
     #[serde(skip)]
     pub min_dialogue_duration_ms: u32,
+    /// Deprecated: dialogue merge gap in milliseconds
     #[deprecated]
     #[serde(skip)]
     pub dialogue_merge_gap_ms: u32,
+    /// Deprecated: enable dialogue detection flag
     #[deprecated]
     #[serde(skip)]
     pub enable_dialogue_detection: bool,
+    /// Deprecated: audio sample rate
     #[deprecated]
     #[serde(skip)]
     pub audio_sample_rate: u32,
+    /// Deprecated: auto-detect sample rate flag  
     #[deprecated]
     #[serde(skip)]
     pub auto_detect_sample_rate: bool,
 }
 
-/// 本地 Voice Activity Detection 配置
+/// Local Voice Activity Detection configuration.
+///
+/// Defines parameters for local VAD processing, including sensitivity settings,
+/// audio processing parameters, and speech detection behavior.
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct VadConfig {
-    /// 是否啟用本地 VAD 方法
+    /// Whether to enable local VAD method
     pub enabled: bool,
-    /// 語音檢測敏感度 (0.0-1.0)
+    /// Speech detection sensitivity (0.0-1.0)
     pub sensitivity: f32,
-    /// 音訊塊大小（樣本數）
+    /// Audio chunk size in samples
     pub chunk_size: usize,
-    /// 處理採樣率（Hz）
+    /// Processing sample rate in Hz
     pub sample_rate: u32,
-    /// 語音檢測前後填充塊數
+    /// Padding chunks before and after speech detection
     pub padding_chunks: u32,
-    /// 最小語音持續時間（毫秒）
+    /// Minimum speech duration in milliseconds
     pub min_speech_duration_ms: u32,
-    /// 語音段合併間隔（毫秒）
+    /// Speech segment merge gap in milliseconds
     pub speech_merge_gap_ms: u32,
 }
 
@@ -443,14 +456,14 @@ mod config_tests {
     fn test_sync_config_validation() {
         let mut sync = SyncConfig::default();
 
-        // 有效配置應該通過驗證
+        // Valid configuration should pass validation
         assert!(sync.validate().is_ok());
 
-        // 無效的 default_method
+        // Invalid default_method
         sync.default_method = "invalid".to_string();
         assert!(sync.validate().is_err());
 
-        // 重置並測試其他無效值
+        // Reset and test other invalid values
         sync = SyncConfig::default();
         sync.max_offset_seconds = -1.0;
         assert!(sync.validate().is_err());
@@ -460,19 +473,19 @@ mod config_tests {
     fn test_vad_config_validation() {
         let mut vad = VadConfig::default();
 
-        // 有效配置
+        // Valid configuration
         assert!(vad.validate().is_ok());
 
-        // 無效敏感度
+        // Invalid sensitivity
         vad.sensitivity = 1.5;
         assert!(vad.validate().is_err());
 
-        // 無效 chunk_size (不是 2 的冪次)
+        // Invalid chunk_size (not power of 2)
         vad = VadConfig::default();
         vad.chunk_size = 500;
         assert!(vad.validate().is_err());
 
-        // 無效取樣率
+        // Invalid sample rate
         vad = VadConfig::default();
         vad.sample_rate = 22050;
         assert!(vad.validate().is_err());
@@ -483,11 +496,11 @@ mod config_tests {
         let config = Config::default();
         let toml_str = toml::to_string(&config).unwrap();
 
-        // 確保新的配置結構存在於序列化輸出中
+        // Ensure new configuration structure exists in serialized output
         assert!(toml_str.contains("[sync]"));
         assert!(toml_str.contains("[sync.vad]"));
         assert!(toml_str.contains("default_method"));
-        // Whisper 相關欄位已移除，不應該出現在序列化輸出中
+        // Whisper-related fields removed, should not appear in serialized output
         assert!(!toml_str.contains("[sync.whisper]"));
         assert!(!toml_str.contains("analysis_window_seconds"));
     }
