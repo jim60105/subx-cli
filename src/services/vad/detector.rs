@@ -93,7 +93,7 @@ impl LocalVadDetector {
         let mut segments = Vec::new();
         let chunk_duration_seconds = self.config.chunk_size as f64 / self.config.sample_rate as f64;
 
-        // 使用 label 功能來標識語音和非語音片段
+        // Use label functionality to identify speech and non-speech segments
         let labels: Vec<LabeledAudio<i16>> = samples
             .iter()
             .copied()
@@ -121,12 +121,12 @@ impl LocalVadDetector {
                         let end_time = chunk_start_time;
                         let duration = end_time - start_time;
 
-                        // 過濾太短的語音片段
+                        // Filter out speech segments that are too short
                         if duration >= self.config.min_speech_duration_ms as f64 / 1000.0 {
                             segments.push(SpeechSegment {
                                 start_time,
                                 end_time,
-                                probability: self.config.sensitivity, // 使用配置的敏感度作為機率
+                                probability: self.config.sensitivity, // Use configured sensitivity as probability
                                 duration,
                             });
                         }
@@ -137,7 +137,7 @@ impl LocalVadDetector {
             chunk_index += 1;
         }
 
-        // 處理最後一個語音片段（如果存在）
+        // Handle the last speech segment (if exists)
         if let Some(start_time) = current_speech_start {
             let end_time = chunk_index as f64 * chunk_duration_seconds;
             let duration = end_time - start_time;

@@ -308,7 +308,14 @@ impl AudioTranscoder {
         Ok(path)
     }
 
-    /// 提取指定時間範圍的音訊片段並轉為 WAV
+    /// Extract audio segment for specified time range and convert to WAV.
+    ///
+    /// # Arguments
+    ///
+    /// * `input` - Input audio file path
+    /// * `output` - Output WAV file path
+    /// * `_start` - Start time for extraction (currently unused)
+    /// * `_end` - End time for extraction (currently unused)
     pub async fn extract_segment<P: AsRef<Path>, Q: AsRef<Path>>(
         &self,
         input: P,
@@ -323,7 +330,14 @@ impl AudioTranscoder {
         Ok(())
     }
 
-    /// 轉碼音訊至指定格式 (WAV)，忽略參數
+    /// Transcode audio to specified format (WAV), ignoring parameters.
+    ///
+    /// # Arguments
+    ///
+    /// * `input` - Input audio file path
+    /// * `output` - Output file path
+    /// * `_sample_rate` - Target sample rate (currently unused)
+    /// * `_channels` - Target channel count (currently unused)
     pub async fn transcode_to_format<P: AsRef<Path>, Q: AsRef<Path>>(
         &self,
         input: P,

@@ -103,5 +103,5 @@
 pub mod ai;
 pub mod audio;
 
-// VAD 服務模組
+// VAD service modules
 pub mod vad;

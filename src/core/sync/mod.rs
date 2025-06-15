@@ -1,15 +1,15 @@
-//! 重構後的同步模組，專注於 VAD 語音檢測
+//! Refactored sync module focused on VAD (Voice Activity Detection).
 //!
-//! 提供統一的字幕同步功能，使用本地 VAD (Voice Activity Detection)
-//! 進行語音檢測和同步偏移計算。
+//! Provides unified subtitle synchronization functionality using local
+//! VAD (Voice Activity Detection) for voice detection and sync offset calculation.
 //!
-//! # 核心組件
+//! # Core Components
 //!
-//! - [`SyncEngine`] - 基於 VAD 的同步引擎
-//! - [`SyncMethod`] - 同步方法枚舉（VAD 和手動）
-//! - [`SyncResult`] - 同步結果結構，包含偏移量和信心度
+//! - [`SyncEngine`] - VAD-based sync engine
+//! - [`SyncMethod`] - Sync method enumeration (VAD and manual)
+//! - [`SyncResult`] - Sync result structure containing offset and confidence
 //!
-//! # 用法
+//! # Usage
 //!
 //! ```no_run
 //! use subx_cli::core::sync::{SyncEngine, SyncMethod};

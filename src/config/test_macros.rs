@@ -535,7 +535,7 @@ mod tests {
             60.0,
             |config_service: &crate::config::TestConfigService| {
                 let config = config_service.config();
-                // 測試新的 sync 配置結構
+                // Test new sync configuration structure
                 assert_eq!(config.sync.vad.sensitivity, 0.9);
                 assert_eq!(config.sync.default_method, "vad");
             }

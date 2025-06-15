@@ -1,7 +1,7 @@
-//! 重構後的同步引擎，支援 VAD 語音檢測
+//! Refactored sync engine with VAD (Voice Activity Detection) support.
 //!
-//! 此模組提供統一的字幕同步功能，使用本地 VAD (Voice Activity Detection)
-//! 進行語音檢測和同步偏移計算。
+//! This module provides unified subtitle synchronization functionality using
+//! local VAD (Voice Activity Detection) for voice detection and sync offset calculation.
 
 use serde::{Deserialize, Serialize};
 use serde_json::json;
@@ -13,20 +13,31 @@ use crate::core::formats::Subtitle;
 use crate::services::vad::VadSyncDetector;
 use crate::{Result, error::SubXError};
 
-/// 統一的同步引擎，基於 VAD 語音檢測
+/// Unified sync engine based on VAD voice detection.
+///
+/// This engine provides automatic subtitle synchronization using Voice Activity
+/// Detection (VAD) to analyze audio tracks and calculate optimal sync offsets.
 pub struct SyncEngine {
     config: SyncConfig,
     vad_detector: Option<VadSyncDetector>,
 }
 
 impl SyncEngine {
-    /// 建立新的同步引擎實例
+    /// Create a new sync engine instance.
+    ///
+    /// # Arguments
+    ///
+    /// * `config` - Sync configuration containing VAD settings and thresholds
+    ///
+    /// # Returns
+    ///
+    /// A new sync engine instance with initialized VAD detector if enabled.
     pub fn new(config: SyncConfig) -> Result<Self> {
         let vad_detector = if config.vad.enabled {
             match VadSyncDetector::new(config.vad.clone()) {
                 Ok(det) => Some(det),
                 Err(e) => {
-                    log::warn!("VAD 初始化失敗: {}", e);
+                    log::warn!("VAD initialization failed: {}", e);
                     None
                 }
             }
@@ -46,7 +57,17 @@ impl SyncEngine {
         })
     }
 
-    /// 自動或指定方法檢測同步偏移
+    /// Detect sync offset using automatic or specified method.
+    ///
+    /// # Arguments
+    ///
+    /// * `audio_path` - Path to the audio file for analysis
+    /// * `subtitle` - Subtitle data to synchronize
+    /// * `method` - Optional sync method, defaults to automatic detection
+    ///
+    /// # Returns
+    ///
+    /// Sync result containing offset, confidence, and processing metadata.
     pub async fn detect_sync_offset(
         &self,
         audio_path: &Path,
@@ -72,7 +93,7 @@ impl SyncEngine {
         audio_path: &Path,
         subtitle: &Subtitle,
     ) -> Result<SyncResult> {
-        // 自動模式使用 VAD
+        // Auto mode uses VAD
         if self.vad_detector.is_some() {
             return self.vad_detect_sync_offset(audio_path, subtitle).await;
         }
@@ -81,7 +102,16 @@ impl SyncEngine {
         ))
     }
 
-    /// 應用手動偏移量
+    /// Apply manual offset to subtitle timing.
+    ///
+    /// # Arguments
+    ///
+    /// * `subtitle` - Mutable subtitle data to modify
+    /// * `offset_seconds` - Offset in seconds (positive delays, negative advances)
+    ///
+    /// # Returns
+    ///
+    /// Sync result with the applied offset and full confidence.
     pub fn apply_manual_offset(
         &self,
         subtitle: &mut Subtitle,
@@ -150,27 +180,29 @@ impl SyncEngine {
             .vad_detector
             .as_ref()
             .ok_or_else(|| SubXError::audio_processing("VAD detector not available"))?;
-        det.detect_sync_offset(audio_path, subtitle, 0) // analysis_window_seconds 不再使用
+        det.detect_sync_offset(audio_path, subtitle, 0) // analysis_window_seconds no longer used
             .await
     }
 }
 
-/// 同步方法枚舉
+/// Sync method enumeration.
+///
+/// Defines the available methods for subtitle synchronization,
+/// from automatic detection to manual offset specification.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum SyncMethod {
-    /// 自動選擇方法（目前只有 VAD）
+    /// Automatic method selection (currently VAD only).
     Auto,
-    /// 本地 VAD 檢測
+    /// Local VAD (Voice Activity Detection) processing.
     LocalVad,
-    /// 手動指定偏移量
+    /// Manual offset specification.
     Manual,
 }
 
-/// 同步結果結構
-/// Synchronization result containing offset and analysis metadata.
+/// Synchronization result structure.
 ///
-/// Represents the complete result of subtitle synchronization analysis,
-/// including the calculated offset, confidence metrics, and processing information.
+/// Contains the complete results of subtitle synchronization analysis,
+/// including calculated offset, confidence metrics, and processing metadata.
 #[derive(Debug, Clone)]
 pub struct SyncResult {
     /// Calculated time offset in seconds
@@ -205,7 +237,7 @@ pub struct MethodSelectionStrategy {
     pub max_attempt_duration: u32,
 }
 
-// 單元測試模組：補充同步引擎核心行為驗證
+// Unit test module: Supplement sync engine core behavior verification
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -280,11 +312,15 @@ mod tests {
     }
 }
 
-/// 向後兼容性 - 保留舊的 SyncConfig 結構但標記為 deprecated
+/// Backward compatibility - Deprecated legacy SyncConfig structure.
 #[deprecated(note = "Use new SyncConfig with Whisper and VAD support")]
 pub struct OldSyncConfig {
+    /// Maximum search offset in seconds for synchronization.
     pub max_offset_seconds: f32,
+    /// Minimum correlation threshold for accepting sync results.
     pub correlation_threshold: f32,
+    /// Dialogue detection threshold for identifying speech segments.
     pub dialogue_threshold: f32,
+    /// Minimum dialogue segment length in seconds.
     pub min_dialogue_length: f32,
 }
