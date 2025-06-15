@@ -8,6 +8,7 @@ description: "This prompt is designed to guide the agent in updating the command
   * Ensure the **"Actual Usage Location"** field is completed by identifying where the configuration item is actively used in the codebase.
   * You **must** ignore all references found solely in unit or integration tests; only consider real-world, production-level usage.
   * Exclude any configuration item that is **obviously** set through the `subx-cli config` sub-command; these do not require documentation.
+  * If you find that a setting has been assigned to a struct property, you need to continue searching for places where that property is used. If there is nowhere that uses this property, then it is effectively unused.
 * As you validate each individual configuration item:
   * Update #file:docs/config-usage-analysis.md **immediately** after each clarification—**do not batch all updates at once**.
 * Cross-check the **line numbers** referenced in the call hierarchy ("呼叫樹"), and update them if necessary to reflect the current codebase.
