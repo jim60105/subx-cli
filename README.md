@@ -83,8 +83,11 @@ subx-cli config set parallel.task_queue_size 1000
 
 **Subtitle Matching and Renaming**
 ```bash
-# Process a single folder
+# Process a single folder (traditional way)
 subx-cli match /path/to/media/folder
+
+# Process multiple input sources using -i parameter
+subx-cli match -i /path/to/videos -i /path/to/more/media
 
 # Preview mode (no actual execution)
 subx-cli match --dry-run /path/to/media/folder
@@ -92,11 +95,17 @@ subx-cli match --dry-run /path/to/media/folder
 # Recursively process subfolders
 subx-cli match --recursive /path/to/media/folder
 
+# Combine -i parameter with recursive processing
+subx-cli match -i /path/to/videos -i /path/to/movies --recursive
+
 # Copy matched subtitles to video folders
 subx-cli match --copy /path/to/media/folder
 
-# Move matched subtitles to video folders
+# Move matched subtitles to video folders  
 subx-cli match --move /path/to/media/folder
+
+# Advanced: Mix files and directories with multiple options
+subx-cli match -i ./video1.mp4 -i ./subtitles_dir -i ./video2.mkv --recursive --copy --backup
 
 # Combine with recursive and backup options
 subx-cli match --recursive --move --backup /path/to/media/folder
@@ -104,14 +113,23 @@ subx-cli match --recursive --move --backup /path/to/media/folder
 
 **Format Conversion**
 ```bash
-# Convert single file
+# Convert single file (traditional way)
 subx-cli convert subtitle.ass --format srt
 
-# Batch conversion
+# Batch conversion using -i parameter for multiple directories
+subx-cli convert -i ./srt_files -i ./more_subtitles --format vtt
+
+# Batch conversion with recursive directory scanning
+subx-cli convert -i ./srt_files -i ./more_subtitles --format vtt --recursive
+
+# Batch conversion (traditional way)
 subx-cli convert --format srt /path/to/subtitles/
 
 # Convert while keeping original file
 subx-cli convert --keep-original subtitle.vtt --format srt
+
+# Advanced: Mix files and directories with encoding specification
+subx-cli convert -i movie1.srt -i ./batch_dir -i movie2.ass --format srt --recursive --keep-original --encoding utf-8
 ```
 
 **Timeline Correction**
@@ -126,8 +144,35 @@ subx-cli sync --offset 2.5 subtitle.srt
 # VAD with custom sensitivity
 subx-cli sync --vad-sensitivity 0.8 video.mp4 subtitle.srt
 
-# Batch processing mode (processes entire directories)
+# Batch processing mode (traditional way - processes entire directories)
 subx-cli sync --batch /path/to/media/folder
+
+# Batch processing using -i parameter for multiple directories
+subx-cli sync -i ./movies_directory --batch
+
+# Batch processing with recursive directory scanning  
+subx-cli sync -i ./movies_directory --batch --recursive
+
+# Advanced: Multiple directories with specific sync method
+subx-cli sync -i ./movies1 -i ./movies2 -i ./tv_shows --recursive --batch --method vad
+
+# Batch mode with detailed output and dry-run
+subx-cli sync -i ./media --batch --recursive --dry-run --verbose
+```
+
+**Character Encoding Detection**
+```bash
+# Traditional way - specify files directly
+subx-cli detect-encoding *.srt
+
+# Using -i parameter for directory processing (flat)
+subx-cli detect-encoding -i ./subtitles1 -i ./subtitles2 --verbose
+
+# Using -i parameter with recursive directory scanning
+subx-cli detect-encoding -i ./subtitles1 -i ./subtitles2 --verbose --recursive
+
+# Advanced: Mix specific files with directory scanning
+subx-cli detect-encoding -i ./more_subtitles -i specific_file.srt --recursive --verbose
 ```
 
 **Cache Management**
@@ -154,19 +199,53 @@ subx-cli convert --format srt .
 subx-cli sync --batch .
 ```
 
+### Advanced Workflow with -i Parameter
+```bash
+# 1. Process multiple directories with different sources
+cd ~/Media/
+
+# 2. Match and organize from multiple input sources
+subx-cli match -i ./Downloads/Movies -i ./Downloads/TV_Shows -i ./Backup/Subs --recursive --dry-run --copy
+subx-cli match -i ./Downloads/Movies -i ./Downloads/TV_Shows -i ./Backup/Subs --recursive --copy
+
+# 3. Batch convert all subtitle formats to SRT with recursive scanning
+subx-cli convert -i ./Movies -i ./TV_Shows --format srt --recursive --keep-original
+
+# 4. Batch synchronize all media with multiple directories
+subx-cli sync -i ./Movies -i ./TV_Shows --batch --recursive --method vad
+
+# 5. Check encoding of all subtitle files
+subx-cli detect-encoding -i ./Movies -i ./TV_Shows --recursive --verbose
+```
+
 ### File Organization Scenarios
 ```bash
-# Scenario 1: Keep original subtitles in place, copy to video folders
+# Scenario 1: Keep original subtitles in place, copy to video folders (traditional)
 subx-cli match --recursive --copy /media/collection/
 
-# Scenario 2: Move subtitles to video folders, clean up original locations
+# Scenario 1b: Multiple input sources with copy operation
+subx-cli match -i /media/movies -i /media/tv_shows -i /backup/subtitles --recursive --copy
+
+# Scenario 2: Move subtitles to video folders, clean up original locations (traditional)
 subx-cli match --recursive --move /media/collection/
 
-# Scenario 3: Preview file organization operations
+# Scenario 2b: Multiple input sources with move operation
+subx-cli match -i /media/movies -i /media/tv_shows -i /backup/subtitles --recursive --move
+
+# Scenario 3: Preview file organization operations (traditional)
 subx-cli match --dry-run --copy --recursive /media/collection/
 
-# Scenario 4: Organize files with backup protection
+# Scenario 3b: Preview with multiple input sources
+subx-cli match -i /media/movies -i /media/tv_shows -i /backup/subtitles --recursive --dry-run --copy
+
+# Scenario 4: Organize files with backup protection (traditional)
 subx-cli match --move --backup --recursive /media/collection/
+
+# Scenario 4b: Multiple sources with backup protection
+subx-cli match -i /media/movies -i /media/tv_shows -i /backup/subtitles --recursive --move --backup
+
+# Scenario 5: Advanced - Mix specific files with directories
+subx-cli match -i ./video1.mp4 -i ./subtitles_dir -i ./video2.mkv --recursive --copy --backup
 ```
 
 ### Folder Structure Example

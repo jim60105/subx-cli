@@ -59,9 +59,10 @@ async fn test_cache_reuse_preserves_copy_mode() {
 
     // First execution dry-run to create cache
     let args_preview = MatchArgs {
-        path: test_root.to_path_buf(),
+        input_paths: vec![],
+        recursive: false,
+        path: Some(test_root.to_path_buf()),
         dry_run: true,
-        recursive: true,
         confidence: 80,
         backup: false,
         copy: true,
@@ -73,9 +74,10 @@ async fn test_cache_reuse_preserves_copy_mode() {
 
     // Second execution of the same dry-run operation, should use cache (same directory)
     let args_second = MatchArgs {
-        path: test_root.to_path_buf(), // Use the same directory
-        dry_run: true,                 // Keep the same mode
-        recursive: true,
+        input_paths: vec![],
+        recursive: false,
+        path: Some(test_root.to_path_buf()), // Use the same directory
+        dry_run: true,                       // Keep the same mode
         confidence: 80,
         backup: false,
         copy: true,
@@ -137,9 +139,10 @@ async fn test_cache_reuse_preserves_move_mode() {
 
     // First execution dry-run to create cache
     let args_preview = MatchArgs {
-        path: test_root.to_path_buf(),
+        input_paths: vec![],
+        recursive: false,
+        path: Some(test_root.to_path_buf()),
         dry_run: true,
-        recursive: true,
         confidence: 80,
         backup: false,
         copy: false,
@@ -151,9 +154,10 @@ async fn test_cache_reuse_preserves_move_mode() {
 
     // Second execution of the same dry-run operation, should use cache
     let args_second = MatchArgs {
-        path: test_root.to_path_buf(),
+        input_paths: vec![],
+        recursive: false,
+        path: Some(test_root.to_path_buf()),
         dry_run: true, // Keep the same mode
-        recursive: true,
         confidence: 80,
         backup: false,
         copy: false,

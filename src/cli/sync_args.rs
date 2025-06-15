@@ -63,9 +63,10 @@ pub struct SyncArgs {
         short = 's',
         long = "subtitle",
         value_name = "SUBTITLE",
-        help = "Subtitle file path"
+        help = "Subtitle file path (required for single file, optional for batch mode)",
+        required_unless_present_any = ["input_paths", "batch"]
     )]
-    pub subtitle: PathBuf,
+    pub subtitle: Option<PathBuf>,
     /// 指定要處理的檔案或目錄路徑（新增參數），可以多次使用
     #[arg(short = 'i', long = "input", value_name = "PATH")]
     pub input_paths: Vec<PathBuf>,
@@ -197,11 +198,13 @@ Need help? Run: subx sync --help"
     }
 
     /// Get output file path.
-    pub fn get_output_path(&self) -> PathBuf {
+    pub fn get_output_path(&self) -> Option<PathBuf> {
         if let Some(ref output) = self.output {
-            output.clone()
+            Some(output.clone())
         } else {
-            create_default_output_path(&self.subtitle)
+            self.subtitle
+                .as_ref()
+                .map(|subtitle| create_default_output_path(subtitle))
         }
     }
 
@@ -259,7 +262,8 @@ Need help? Run: subx sync --help"
                 .with_extensions(&["mp4", "mkv", "avi", "mov", "srt", "ass", "vtt", "sub"]);
 
             Ok(SyncMode::Batch(handler))
-        } else if let (Some(video), subtitle) = (self.video.as_ref(), &self.subtitle) {
+        } else if let (Some(video), Some(subtitle)) = (self.video.as_ref(), self.subtitle.as_ref())
+        {
             Ok(SyncMode::Single {
                 video: video.clone(),
                 subtitle: subtitle.clone(),
@@ -318,7 +322,7 @@ mod tests {
     fn test_sync_method_selection_manual() {
         let args = SyncArgs {
             video: Some(PathBuf::from("video.mp4")),
-            subtitle: PathBuf::from("subtitle.srt"),
+            subtitle: Some(PathBuf::from("subtitle.srt")),
             input_paths: Vec::new(),
             recursive: false,
             offset: Some(2.5),
@@ -341,8 +345,17 @@ mod tests {
 
     #[test]
     fn test_sync_args_batch_input() {
-        let cli = Cli::try_parse_from(["subx-cli", "sync", "-i", "dir", "--batch", "--recursive"])
-            .unwrap();
+        let cli = Cli::try_parse_from([
+            "subx-cli",
+            "sync",
+            "-i",
+            "dir",
+            "--batch",
+            "--recursive",
+            "--video",
+            "video.mp4",
+        ])
+        .unwrap();
         let args = match cli.command {
             Commands::Sync(a) => a,
             _ => panic!("Expected Sync command"),
@@ -350,12 +363,13 @@ mod tests {
         assert_eq!(args.input_paths, vec![PathBuf::from("dir")]);
         assert!(args.batch);
         assert!(args.recursive);
+        assert_eq!(args.video, Some(PathBuf::from("video.mp4")));
     }
 
     #[test]
     fn test_sync_args_invalid_combinations() {
-        // offset and batch without subtitle/video should error
-        let res = Cli::try_parse_from(["subx-cli", "sync", "--offset", "1.0", "--batch"]);
+        // batch mode requires video parameter
+        let res = Cli::try_parse_from(["subx-cli", "sync", "--batch", "-i", "dir"]);
         assert!(res.is_err());
     }
 
@@ -363,7 +377,7 @@ mod tests {
     fn test_sync_method_selection_auto() {
         let args = SyncArgs {
             video: Some(PathBuf::from("video.mp4")),
-            subtitle: PathBuf::from("subtitle.srt"),
+            subtitle: Some(PathBuf::from("subtitle.srt")),
             input_paths: Vec::new(),
             recursive: false,
             offset: None,

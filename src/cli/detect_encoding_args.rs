@@ -52,13 +52,28 @@ use std::path::PathBuf;
 ///
 /// ```rust
 /// use subx_cli::cli::DetectEncodingArgs;
+/// use std::path::PathBuf;
 ///
+/// // 使用傳統檔案路徑參數
 /// let args = DetectEncodingArgs {
 ///     verbose: true,
 ///     file_paths: vec![
 ///         "subtitle1.srt".to_string(),
 ///         "subtitle2.ass".to_string(),
 ///     ],
+///     input_paths: vec![],
+///     recursive: false,
+/// };
+///
+/// // 使用新的 -i 參數進行批次處理
+/// let batch_args = DetectEncodingArgs {
+///     verbose: true,
+///     file_paths: vec![],
+///     input_paths: vec![
+///         PathBuf::from("./subtitles/"),
+///         PathBuf::from("./more_subs/"),
+///     ],
+///     recursive: true,
 /// };
 /// ```
 #[derive(Args, Debug)]

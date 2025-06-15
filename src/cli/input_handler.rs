@@ -3,14 +3,111 @@ use std::path::{Path, PathBuf};
 
 use crate::error::SubXError;
 
-/// 通用輸入路徑處理結構
+/// Universal input path processing structure for CLI commands.
+///
+/// `InputPathHandler` provides a unified interface for processing file and directory
+/// inputs across different SubX CLI commands. It supports multiple input sources,
+/// recursive directory scanning, and file extension filtering.
+///
+/// This handler is used by commands like `match`, `convert`, `sync`, and `detect-encoding`
+/// to provide consistent `-i` parameter functionality and directory processing behavior.
+///
+/// # Features
+///
+/// - **Multiple Input Sources**: Supports multiple files and directories via `-i` parameter
+/// - **Recursive Processing**: Optional recursive directory scanning with `--recursive` flag
+/// - **File Filtering**: Filter files by extension for command-specific processing
+/// - **Path Validation**: Validates all input paths exist before processing
+/// - **Cross-Platform**: Handles both absolute and relative paths correctly
+///
+/// # Examples
+///
+/// ## Basic Usage
+///
+/// ```rust
+/// use subx_cli::cli::InputPathHandler;
+/// use std::path::PathBuf;
+/// # use tempfile::TempDir;
+/// # use std::fs;
+///
+/// # let tmp = TempDir::new().unwrap();
+/// # let test_dir = tmp.path();
+/// # let file1 = test_dir.join("test1.srt");
+/// # let file2 = test_dir.join("test2.ass");
+/// # fs::write(&file1, "test content").unwrap();
+/// # fs::write(&file2, "test content").unwrap();
+///
+/// // Create handler from multiple paths
+/// let paths = vec![file1, file2];
+/// let handler = InputPathHandler::from_args(&paths, false)?
+///     .with_extensions(&["srt", "ass"]);
+///
+/// // Collect all matching files
+/// let files = handler.collect_files()?;
+/// assert_eq!(files.len(), 2);
+/// # Ok::<(), subx_cli::error::SubXError>(())
+/// ```
+///
+/// ## Directory Processing
+///
+/// ```rust
+/// use subx_cli::cli::InputPathHandler;
+/// use std::path::PathBuf;
+/// # use tempfile::TempDir;
+/// # use std::fs;
+///
+/// # let tmp = TempDir::new().unwrap();
+/// # let test_dir = tmp.path();
+/// # let nested_dir = test_dir.join("nested");
+/// # fs::create_dir(&nested_dir).unwrap();
+/// # let file1 = test_dir.join("test1.srt");
+/// # let file2 = nested_dir.join("test2.srt");
+/// # fs::write(&file1, "test content").unwrap();
+/// # fs::write(&file2, "test content").unwrap();
+///
+/// // Flat directory scanning (non-recursive)
+/// let handler_flat = InputPathHandler::from_args(&[test_dir.to_path_buf()], false)?
+///     .with_extensions(&["srt"]);
+/// let files_flat = handler_flat.collect_files()?;
+/// assert_eq!(files_flat.len(), 1); // Only finds file1
+///
+/// // Recursive directory scanning
+/// let handler_recursive = InputPathHandler::from_args(&[test_dir.to_path_buf()], true)?
+///     .with_extensions(&["srt"]);
+/// let files_recursive = handler_recursive.collect_files()?;
+/// assert_eq!(files_recursive.len(), 2); // Finds both file1 and file2
+/// # Ok::<(), subx_cli::error::SubXError>(())
+/// ```
+///
+/// ## Command Integration
+///
+/// ```rust,no_run
+/// use subx_cli::cli::{InputPathHandler, MatchArgs};
+/// # use std::path::PathBuf;
+///
+/// // Example of how commands use InputPathHandler
+/// # let args = MatchArgs {
+/// #     path: Some(PathBuf::from("test")),
+/// #     input_paths: vec![],
+/// #     recursive: false,
+/// #     dry_run: false,
+/// #     confidence: 80,
+/// #     backup: false,
+/// #     copy: false,
+/// #     move_files: false,
+/// # };
+/// let handler = args.get_input_handler()?;
+/// let files = handler.collect_files()?;
+/// // Process files...
+/// # Ok::<(), subx_cli::error::SubXError>(())
+/// ```
 #[derive(Debug, Clone)]
 pub struct InputPathHandler {
-    /// 輸入路徑列表
+    /// List of input paths (files and directories) to process
     pub paths: Vec<PathBuf>,
-    /// 是否遞迴處理子目錄
+    /// Whether to recursively scan subdirectories
     pub recursive: bool,
-    /// 檔案類型過濾器 (小寫副檔名，不含點)
+    /// File extension filters (lowercase, without dot)
     pub file_extensions: Vec<String>,
 }
 

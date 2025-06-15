@@ -24,7 +24,9 @@ fn test_sync_args_basic_parsing() {
     #[allow(deprecated)]
     let args = SyncArgs {
         video: Some(video_path.clone()),
-        subtitle: subtitle_path.clone(),
+        subtitle: Some(subtitle_path.clone()),
+        input_paths: vec![],
+        recursive: false,
         offset: None,
         method: Some(SyncMethodArg::Vad),
         window: 30,
@@ -59,7 +61,9 @@ fn test_sync_args_vad_method() {
     #[allow(deprecated)]
     let args = SyncArgs {
         video: Some(video_path.clone()),
-        subtitle: subtitle_path.clone(),
+        subtitle: Some(subtitle_path.clone()),
+        input_paths: vec![],
+        recursive: false,
         offset: None,
         method: Some(SyncMethodArg::Vad),
         window: 45,
@@ -92,8 +96,10 @@ fn test_sync_args_manual_method() {
 
     #[allow(deprecated)]
     let args = SyncArgs {
+        input_paths: vec![],
+        recursive: false,
         video: None, // 手動偏移不需要視訊檔案
-        subtitle: subtitle_path.clone(),
+        subtitle: Some(subtitle_path.clone()),
         offset: Some(2.5),
         method: Some(SyncMethodArg::Manual),
         window: 30,
@@ -127,8 +133,10 @@ fn test_sync_args_batch_mode() {
 
     #[allow(deprecated)]
     let args = SyncArgs {
+        input_paths: vec![],
+        recursive: false,
         video: Some(video_path.clone()),
-        subtitle: subtitle_path.clone(),
+        subtitle: Some(subtitle_path.clone()),
         offset: None,
         method: Some(SyncMethodArg::Vad),
         window: 30,

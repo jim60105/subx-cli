@@ -27,7 +27,9 @@ fn test_sync_args_with_vad_method() {
     #[allow(deprecated)]
     let args = SyncArgs {
         video: Some(video_path.clone()),
-        subtitle: subtitle_path.clone(),
+        subtitle: Some(subtitle_path.clone()),
+        input_paths: vec![],
+        recursive: false,
         offset: None,
         method: Some(SyncMethodArg::Vad),
         window: 45,
@@ -61,7 +63,9 @@ fn test_sync_args_with_vad_default_settings() {
     #[allow(deprecated)]
     let args = SyncArgs {
         video: Some(video_path.clone()),
-        subtitle: subtitle_path.clone(),
+        subtitle: Some(subtitle_path.clone()),
+        input_paths: vec![],
+        recursive: false,
         offset: None,
         method: Some(SyncMethodArg::Vad),
         window: 30,
@@ -91,7 +95,9 @@ fn test_sync_args_with_manual_offset() {
     #[allow(deprecated)]
     let args = SyncArgs {
         video: None, // 手動偏移不需要視訊檔案
-        subtitle: subtitle_path.clone(),
+        subtitle: Some(subtitle_path.clone()),
+        input_paths: vec![],
+        recursive: false,
         offset: Some(2.5),
         method: Some(SyncMethodArg::Manual),
         window: 30,
@@ -124,7 +130,9 @@ fn test_sync_args_batch_mode() {
     #[allow(deprecated)]
     let args = SyncArgs {
         video: Some(input_dir.clone()),
-        subtitle: input_dir.clone(),
+        subtitle: Some(input_dir.clone()),
+        input_paths: vec![],
+        recursive: false,
         offset: None,
         method: Some(SyncMethodArg::Vad), // 使用 Vad 而不是 Auto
         window: 30,
@@ -154,7 +162,9 @@ fn test_sync_args_validation() {
     #[allow(deprecated)]
     let args = SyncArgs {
         video: None,
-        subtitle: subtitle_path.clone(),
+        subtitle: Some(subtitle_path.clone()),
+        input_paths: vec![],
+        recursive: false,
         offset: None, // 缺少 offset
         method: Some(SyncMethodArg::Manual),
         window: 30,

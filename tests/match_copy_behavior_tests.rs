@@ -50,9 +50,10 @@ async fn test_copy_mode_preserves_original_file() {
         .await;
 
     let args = MatchArgs {
-        path: root.to_path_buf(),
+        input_paths: vec![],
+        recursive: false,
+        path: Some(root.to_path_buf()),
         dry_run: false,
-        recursive: true,
         confidence: 80,
         backup: false,
         copy: true,
@@ -113,9 +114,10 @@ async fn test_copy_mode_with_rename() {
         .await;
 
     let args = MatchArgs {
-        path: root.to_path_buf(),
+        input_paths: vec![],
+        recursive: false,
+        path: Some(root.to_path_buf()),
         dry_run: false,
-        recursive: true,
         confidence: 80,
         backup: false,
         copy: true,

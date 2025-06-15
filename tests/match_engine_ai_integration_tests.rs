@@ -92,10 +92,11 @@ async fn test_parallel_match_operations_with_mock() {
         .build_service();
 
     let args = MatchArgs {
-        path: root.to_path_buf(),
+        input_paths: vec![],
+        recursive: true,
+        path: Some(root.to_path_buf()),
         dry_run: false,
         confidence: 50,
-        recursive: true,
         backup: true,
         copy: true,
         move_files: false,
@@ -137,10 +138,11 @@ async fn test_confidence_threshold_filtering() {
         .build_service();
 
     let args = MatchArgs {
-        path: root.to_path_buf(),
+        input_paths: vec![],
+        recursive: true,
+        path: Some(root.to_path_buf()),
         dry_run: false,
         confidence: 80,
-        recursive: true,
         backup: true,
         copy: true,
         move_files: false,

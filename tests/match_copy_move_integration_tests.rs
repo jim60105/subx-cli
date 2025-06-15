@@ -42,10 +42,11 @@ async fn test_match_copy_operation() {
 
     // Test match with copy operation
     let args = MatchArgs {
-        path: root.to_path_buf(),
+        input_paths: vec![],
+        recursive: false,
+        path: Some(root.to_path_buf()),
         dry_run: false,
         confidence: 50,
-        recursive: true,
         backup: true,
         copy: true,
         move_files: false,
@@ -123,10 +124,11 @@ async fn test_match_move_operation() {
 
     // Test match with move operation
     let args = MatchArgs {
-        path: root.to_path_buf(),
+        input_paths: vec![],
+        recursive: false,
+        path: Some(root.to_path_buf()),
         dry_run: false,
         confidence: 50,
-        recursive: true,
         backup: true,
         copy: false,
         move_files: true,
@@ -204,10 +206,11 @@ async fn test_match_copy_dry_run() {
 
     // Test dry run with copy operation
     let args = MatchArgs {
-        path: root.to_path_buf(),
+        input_paths: vec![],
+        recursive: true,
+        path: Some(root.to_path_buf()),
         dry_run: true,
         confidence: 50,
-        recursive: true,
         backup: false,
         copy: true,
         move_files: false,
@@ -242,10 +245,11 @@ async fn test_match_copy_dry_run() {
 #[test]
 fn test_copy_move_mutual_exclusion() {
     let args = MatchArgs {
-        path: PathBuf::from("/tmp"),
+        input_paths: vec![],
+        recursive: false,
+        path: Some(PathBuf::from("/tmp")),
         dry_run: true,
         confidence: 80,
-        recursive: false,
         backup: false,
         copy: true,
         move_files: true, // Both copy and move set to true
@@ -267,10 +271,11 @@ fn test_copy_move_mutual_exclusion() {
 #[test]
 fn test_no_operation_mode() {
     let args = MatchArgs {
-        path: PathBuf::from("/tmp"),
+        input_paths: vec![],
+        recursive: false,
+        path: Some(PathBuf::from("/tmp")),
         dry_run: true,
         confidence: 80,
-        recursive: false,
         backup: false,
         copy: false,
         move_files: false, // Neither copy nor move

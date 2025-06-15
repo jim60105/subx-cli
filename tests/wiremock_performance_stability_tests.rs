@@ -33,10 +33,11 @@ async fn test_high_load_scenario() {
         .build_service();
 
     let args = MatchArgs {
-        path: root.to_path_buf(),
+        input_paths: vec![],
+        recursive: true,
+        path: Some(root.to_path_buf()),
         dry_run: true,
         confidence: 50,
-        recursive: true,
         backup: true,
         copy: true,
         move_files: false,
@@ -71,10 +72,11 @@ async fn test_memory_stability() {
             .build_service();
 
         let args = MatchArgs {
-            path: root.to_path_buf(),
+            input_paths: vec![],
+            recursive: true,
+            path: Some(root.to_path_buf()),
             dry_run: true,
             confidence: 50,
-            recursive: true,
             backup: true,
             copy: false,
             move_files: false,

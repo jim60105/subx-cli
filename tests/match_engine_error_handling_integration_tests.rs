@@ -34,9 +34,10 @@ async fn test_unauthorized_error_handling() {
         .build_service();
 
     let args = MatchArgs {
-        path: root.to_path_buf(),
+        input_paths: vec![],
+        recursive: false,
+        path: Some(root.to_path_buf()),
         dry_run: false,
-        recursive: true,
         confidence: 50,
         backup: false,
         copy: true,
@@ -67,9 +68,10 @@ async fn test_rate_limit_error_handling() {
         .build_service();
 
     let args = MatchArgs {
-        path: root.to_path_buf(),
+        input_paths: vec![],
+        recursive: false,
+        path: Some(root.to_path_buf()),
         dry_run: false,
-        recursive: true,
         confidence: 50,
         backup: false,
         copy: true,
@@ -100,9 +102,10 @@ async fn test_internal_server_error_handling() {
         .build_service();
 
     let args = MatchArgs {
-        path: root.to_path_buf(),
+        input_paths: vec![],
+        recursive: false,
+        path: Some(root.to_path_buf()),
         dry_run: false,
-        recursive: true,
         confidence: 50,
         backup: false,
         copy: true,

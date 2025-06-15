@@ -45,12 +45,29 @@ use std::path::PathBuf;
 /// use subx_cli::cli::OutputSubtitleFormat;
 /// use std::path::PathBuf;
 ///
+/// // 單檔轉換（傳統方式）
 /// let args = ConvertArgs {
-///     input: PathBuf::from("input.srt"),
+///     input: Some(PathBuf::from("input.srt")),
 ///     format: Some(OutputSubtitleFormat::Ass),
 ///     output: Some(PathBuf::from("output.ass")),
 ///     keep_original: true,
 ///     encoding: "utf-8".to_string(),
+///     input_paths: vec![],
+///     recursive: false,
+/// };
+///
+/// // 批次轉換（使用 -i 參數）
+/// let batch_args = ConvertArgs {
+///     input: None,
+///     format: Some(OutputSubtitleFormat::Vtt),
+///     output: None,
+///     keep_original: true,
+///     encoding: "utf-8".to_string(),
+///     input_paths: vec![
+///         PathBuf::from("./subtitles/"),
+///         PathBuf::from("./more_subs/"),
+///     ],
+///     recursive: true,
 /// };
 /// ```
 #[derive(Args, Debug)]
