@@ -259,7 +259,7 @@ Need help? Run: subx sync --help"
                 .with_extensions(&["mp4", "mkv", "avi", "mov", "srt", "ass", "vtt", "sub"]);
 
             Ok(SyncMode::Batch(handler))
-        } else if let (Some(video), Some(subtitle)) = (&self.video, &self.subtitle) {
+        } else if let (Some(video), subtitle) = (self.video.as_ref(), &self.subtitle) {
             Ok(SyncMode::Single {
                 video: video.clone(),
                 subtitle: subtitle.clone(),
@@ -310,6 +310,9 @@ fn create_default_output_path(input: &Path) -> PathBuf {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::cli::{Cli, Commands};
+    use clap::Parser;
+    use std::path::PathBuf;
 
     #[test]
     fn test_sync_method_selection_manual() {
@@ -332,6 +335,26 @@ mod tests {
             threshold: None,
         };
         assert_eq!(args.sync_method(), SyncMethod::Manual);
+    }
+
+    #[test]
+    fn test_sync_args_batch_input() {
+        let cli = Cli::try_parse_from(&["subx-cli", "sync", "-i", "dir", "--batch", "--recursive"])
+            .unwrap();
+        let args = match cli.command {
+            Commands::Sync(a) => a,
+            _ => panic!("Expected Sync command"),
+        };
+        assert_eq!(args.input_paths, vec![PathBuf::from("dir")]);
+        assert!(args.batch);
+        assert!(args.recursive);
+    }
+
+    #[test]
+    fn test_sync_args_invalid_combinations() {
+        // offset and batch without subtitle/video should error
+        let res = Cli::try_parse_from(&["subx-cli", "sync", "--offset", "1.0", "--batch"]);
+        assert!(res.is_err());
     }
 
     #[test]

@@ -324,7 +324,8 @@ pub async fn execute_with_client(
     let engine = MatchEngine::new(ai_client, match_config);
 
     // Execute the core matching algorithm
-    let operations = engine.match_files(&args.path, args.recursive).await?;
+    let target = args.path.as_ref().expect("No input path specified");
+    let operations = engine.match_files(target, args.recursive).await?;
 
     // Display formatted results table to user
     display_match_results(&operations, args.dry_run);
@@ -332,7 +333,7 @@ pub async fn execute_with_client(
     if args.dry_run {
         // Save results to cache for potential later application
         engine
-            .save_cache(&args.path, args.recursive, &operations)
+            .save_cache(target, args.recursive, &operations)
             .await?;
     } else {
         // Execute actual file operations (rename, backup, etc.)

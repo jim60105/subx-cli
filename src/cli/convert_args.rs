@@ -214,6 +214,62 @@ pub enum OutputSubtitleFormat {
     Sub,
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::cli::{Cli, Commands};
+    use clap::Parser;
+    use std::path::PathBuf;
+
+    #[test]
+    fn test_convert_args_default_and_format() {
+        let cli =
+            Cli::try_parse_from(&["subx-cli", "convert", "movie.srt", "--format", "ass"]).unwrap();
+        let args = match cli.command {
+            Commands::Convert(a) => a,
+            _ => panic!("Expected Convert command"),
+        };
+        assert!(args.input_paths.is_empty());
+        assert_eq!(args.input, Some(PathBuf::from("movie.srt")));
+        assert!(!args.recursive);
+        assert_eq!(args.format, Some(OutputSubtitleFormat::Ass));
+        assert!(!args.keep_original);
+        assert_eq!(args.encoding, "utf-8");
+    }
+
+    #[test]
+    fn test_convert_args_multiple_input_recursive_and_keep_original() {
+        let cli = Cli::try_parse_from(&[
+            "subx-cli",
+            "convert",
+            "-i",
+            "d1",
+            "-i",
+            "f.srt",
+            "--recursive",
+            "--format",
+            "vtt",
+            "--encoding",
+            "utf-16",
+            "--keep-original",
+        ])
+        .unwrap();
+        let args = match cli.command {
+            Commands::Convert(a) => a,
+            _ => panic!("Expected Convert command"),
+        };
+        assert_eq!(
+            args.input_paths,
+            vec![PathBuf::from("d1"), PathBuf::from("f.srt")]
+        );
+        assert_eq!(args.input, None);
+        assert!(args.recursive);
+        assert_eq!(args.format, Some(OutputSubtitleFormat::Vtt));
+        assert!(args.keep_original);
+        assert_eq!(args.encoding, "utf-16");
+    }
+}
+
 impl OutputSubtitleFormat {
     /// Returns the format identifier as a string.
     ///

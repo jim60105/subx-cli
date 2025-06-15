@@ -71,7 +71,7 @@
 //! convert_command::execute(batch_args).await?;
 //! ```
 
-use crate::cli::{ConvertArgs, OutputSubtitleFormat};
+use crate::cli::{ConvertArgs, InputPathHandler, OutputSubtitleFormat};
 use crate::config::ConfigService;
 use crate::core::file_manager::FileManager;
 use crate::core::formats::converter::{ConversionConfig, FormatConverter};
@@ -213,12 +213,6 @@ pub async fn execute(args: ConvertArgs, config_service: &dyn ConfigService) -> c
     };
     let converter = FormatConverter::new(config);
 
-    // Determine input path, unwrap required parameter
-    let input = args
-        .input
-        .clone()
-        .ok_or_else(|| SubXError::CommandExecution("No input path specified".to_string()))?;
-
     // Determine output format from arguments or configuration defaults
     let default_output = match app_config.formats.default_output.as_str() {
         "srt" => OutputSubtitleFormat::Srt,
@@ -234,8 +228,59 @@ pub async fn execute(args: ConvertArgs, config_service: &dyn ConfigService) -> c
     };
     let output_format = args.format.clone().unwrap_or(default_output);
 
-    // Delegate to the shared conversion logic
-    execute_conversion_logic(args, app_config, converter, output_format).await
+    // Collect input files using InputPathHandler
+    let handler = args
+        .get_input_handler()
+        .map_err(|e| SubXError::CommandExecution(e.to_string()))?;
+    let files = handler
+        .collect_files()
+        .map_err(|e| SubXError::CommandExecution(e.to_string()))?;
+    if files.is_empty() {
+        return Ok(());
+    }
+    // Process each file
+    for input_path in files {
+        let fmt = output_format.to_string();
+        let output_path = if let Some(ref o) = args.output {
+            let mut p = o.clone();
+            if handler.paths.len() != 1 || handler.paths[0].is_dir() {
+                if p.is_dir() {
+                    if let Some(stem) = input_path.file_stem().and_then(|s| s.to_str()) {
+                        p.push(format!("{}.{}", stem, fmt));
+                    }
+                }
+            }
+            p
+        } else {
+            input_path.with_extension(fmt.clone())
+        };
+        match converter
+            .convert_file(&input_path, &output_path, &fmt)
+            .await
+        {
+            Ok(result) => {
+                if result.success {
+                    println!(
+                        "✓ Conversion completed: {} -> {}",
+                        input_path.display(),
+                        output_path.display()
+                    );
+                    if !args.keep_original {
+                        let _ = FileManager::new().remove_file(&input_path);
+                    }
+                } else {
+                    eprintln!("✗ Conversion failed for {}", input_path.display());
+                    for err in result.errors {
+                        eprintln!("  Error: {}", err);
+                    }
+                }
+            }
+            Err(e) => {
+                eprintln!("✗ Conversion error for {}: {}", input_path.display(), e);
+            }
+        }
+    }
+    Ok(())
 }
 
 /// Execute subtitle format conversion with injected configuration service.
@@ -255,102 +300,7 @@ pub async fn execute_with_config(
     args: ConvertArgs,
     config_service: std::sync::Arc<dyn ConfigService>,
 ) -> crate::Result<()> {
-    // Load application configuration for conversion settings from injected service
-    let app_config = config_service.get_config()?;
-
-    // Configure conversion engine with user preferences and application defaults
-    let config = ConversionConfig {
-        preserve_styling: app_config.formats.preserve_styling,
-        target_encoding: args.encoding.clone(),
-        keep_original: args.keep_original,
-        validate_output: true,
-    };
-    let converter = FormatConverter::new(config);
-
-    // Determine output format from arguments or configuration defaults
-    let default_output = match app_config.formats.default_output.as_str() {
-        "srt" => OutputSubtitleFormat::Srt,
-        "ass" => OutputSubtitleFormat::Ass,
-        "vtt" => OutputSubtitleFormat::Vtt,
-        "sub" => OutputSubtitleFormat::Sub,
-        other => {
-            return Err(SubXError::config(format!(
-                "Unknown default output format: {}",
-                other
-            )));
-        }
-    };
-    let output_format = args.format.clone().unwrap_or(default_output);
-
-    // Delegate to the existing conversion logic
-    execute_conversion_logic(args, app_config, converter, output_format).await
-}
-
-/// Internal function containing the core conversion logic.
-///
-/// This function contains the shared conversion logic that can be used by both
-/// the legacy execute() function and the new execute_with_config() function.
-async fn execute_conversion_logic(
-    args: ConvertArgs,
-    _app_config: crate::config::Config,
-    converter: FormatConverter,
-    output_format: OutputSubtitleFormat,
-) -> crate::Result<()> {
-    if input.is_file() {
-        // Single file conversion with automatic output path generation
-        let format_str = output_format.to_string();
-        let output_path = args
-            .output
-            .clone()
-            .unwrap_or_else(|| input.with_extension(format_str.clone()));
-        let mut file_manager = FileManager::new();
-        match converter
-            .convert_file(&input, &output_path, &format_str)
-            .await
-        {
-            Ok(result) => {
-                if result.success {
-                    file_manager.record_creation(&output_path);
-                    println!(
-                        "✓ Conversion completed: {} -> {}",
-                        input.display(),
-                        output_path.display()
-                    );
-                    if !args.keep_original {
-                        if let Err(e) = file_manager.remove_file(&input) {
-                            eprintln!("⚠️  Cannot remove original file {}: {}", input.display(), e);
-                        }
-                    }
-                } else {
-                    println!("✗ Conversion failed");
-                    for error in result.errors {
-                        println!("  Error: {}", error);
-                    }
-                }
-            }
-            Err(e) => {
-                eprintln!("✗ Conversion failed: {}", e);
-                if let Err(rollback_err) = file_manager.rollback() {
-                    eprintln!("✗ Rollback failed: {}", rollback_err);
-                }
-                return Err(e);
-            }
-        }
-    } else {
-        // Batch conversion
-        let format_str = output_format.to_string();
-        let results = converter.convert_batch(&input, &format_str, true).await?;
-        let success_count = results.iter().filter(|r| r.success).count();
-        let total_count = results.len();
-        println!(
-            "Batch conversion completed: {}/{} successful",
-            success_count, total_count
-        );
-        for result in results.iter().filter(|r| !r.success) {
-            println!("Failed: {}", result.errors.join(", "));
-        }
-    }
-    Ok(())
+    execute(args, config_service.as_ref()).await
 }
 
 #[cfg(test)]

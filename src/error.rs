@@ -426,6 +426,7 @@ impl SubXError {
             SubXError::Other(err) => {
                 format!("Unknown error: {}\nHint: please report this issue", err)
             }
+            _ => format!("Error: {}", self),
         }
     }
 }

@@ -146,6 +146,61 @@ pub struct DetectEncodingArgs {
     pub file_paths: Vec<String>,
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::cli::{Cli, Commands};
+    use clap::Parser;
+    use std::path::PathBuf;
+
+    #[test]
+    fn test_detect_encoding_args_file_paths() {
+        let cli = Cli::try_parse_from(&["subx-cli", "detect-encoding", "a.srt", "b.ass"]).unwrap();
+        let args = match cli.command {
+            Commands::DetectEncoding(a) => a,
+            _ => panic!("Expected DetectEncoding command"),
+        };
+        assert!(args.input_paths.is_empty());
+        assert_eq!(
+            args.file_paths,
+            vec!["a.srt".to_string(), "b.ass".to_string()]
+        );
+        assert!(!args.recursive);
+    }
+
+    #[test]
+    fn test_detect_encoding_args_input_paths() {
+        let cli = Cli::try_parse_from(&[
+            "subx-cli",
+            "detect-encoding",
+            "-i",
+            "dir1",
+            "-i",
+            "dir2",
+            "--recursive",
+            "--verbose",
+        ])
+        .unwrap();
+        let args = match cli.command {
+            Commands::DetectEncoding(a) => a,
+            _ => panic!("Expected DetectEncoding command"),
+        };
+        assert!(args.file_paths.is_empty());
+        assert_eq!(
+            args.input_paths,
+            vec![PathBuf::from("dir1"), PathBuf::from("dir2")]
+        );
+        assert!(args.recursive);
+        assert!(args.verbose);
+    }
+
+    #[test]
+    fn test_detect_encoding_args_conflict_file_and_input() {
+        let res = Cli::try_parse_from(&["subx-cli", "detect-encoding", "file.srt", "-i", "dir"]);
+        assert!(res.is_err());
+    }
+}
+
 impl DetectEncodingArgs {
     /// 取得所有要處理的檔案路徑
     pub fn get_file_paths(&self) -> Result<Vec<PathBuf>, SubXError> {
