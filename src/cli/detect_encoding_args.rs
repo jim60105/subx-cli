@@ -54,7 +54,7 @@ use std::path::PathBuf;
 /// use subx_cli::cli::DetectEncodingArgs;
 /// use std::path::PathBuf;
 ///
-/// // 使用傳統檔案路徑參數
+/// // Using traditional file path parameters
 /// let args = DetectEncodingArgs {
 ///     verbose: true,
 ///     file_paths: vec![
@@ -65,7 +65,7 @@ use std::path::PathBuf;
 ///     recursive: false,
 /// };
 ///
-/// // 使用新的 -i 參數進行批次處理
+/// // Using new -i parameter for batch processing
 /// let batch_args = DetectEncodingArgs {
 ///     verbose: true,
 ///     file_paths: vec![],

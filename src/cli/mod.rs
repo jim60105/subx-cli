@@ -128,7 +128,7 @@ pub struct Cli {
 /// use subx_cli::cli::{Commands, MatchArgs};
 /// use std::path::PathBuf;
 ///
-/// // 傳統方式使用 path 參數
+/// // Traditional way using path parameter
 /// let match_command = Commands::Match(MatchArgs {
 ///     path: Some(PathBuf::from("videos/")),
 ///     dry_run: true,
@@ -140,7 +140,7 @@ pub struct Cli {
 ///     input_paths: vec![],
 /// });
 ///
-/// // 使用新的 -i 參數進行多路徑處理
+/// // Using new -i parameter for multi-path processing
 /// let multi_input_command = Commands::Match(MatchArgs {
 ///     path: None,
 ///     dry_run: false,

@@ -45,7 +45,7 @@ use std::path::PathBuf;
 /// use subx_cli::cli::OutputSubtitleFormat;
 /// use std::path::PathBuf;
 ///
-/// // 單檔轉換（傳統方式）
+/// // Single file conversion (traditional way)
 /// let args = ConvertArgs {
 ///     input: Some(PathBuf::from("input.srt")),
 ///     format: Some(OutputSubtitleFormat::Ass),
@@ -56,7 +56,7 @@ use std::path::PathBuf;
 ///     recursive: false,
 /// };
 ///
-/// // 批次轉換（使用 -i 參數）
+/// // Batch conversion (using -i parameter)
 /// let batch_args = ConvertArgs {
 ///     input: None,
 ///     format: Some(OutputSubtitleFormat::Vtt),
