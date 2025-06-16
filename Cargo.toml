@@ -10,6 +10,25 @@ homepage = "https://github.com/jim60105/subx-cli"
 keywords = ["subtitle", "cli", "ai", "video"]
 categories = ["command-line-utilities", "multimedia"]
 
+exclude = [
+    "assets/",
+    ".github/",
+    "tests/",
+    "target/",
+    "*.mp4",
+    "*.mp3",
+    "*.mov",
+    "*.avi",
+    "*.mkv",
+    "plans/",
+    "scripts/test_*.sh",
+    "benches/",
+    "**/*.log",
+    "**/*.tmp",
+    "**/.DS_Store",
+    "Cargo.lock"
+]
+
 [package.metadata.docs.rs]
 all-features = true
 rustdoc-args = ["--cfg", "docsrs"]
