@@ -152,19 +152,19 @@ async fn test_match_with_only_input_paths() {
     );
 
     // Get file information for mock setup
-    let video1 = input1_files
+    let _video1 = input1_files
         .iter()
         .find(|f| f.name.ends_with(".mp4"))
         .unwrap();
-    let subtitle1 = input1_files
+    let _subtitle1 = input1_files
         .iter()
         .find(|f| f.name.ends_with(".srt"))
         .unwrap();
-    let video2 = input2_files
+    let _video2 = input2_files
         .iter()
         .find(|f| f.name.ends_with(".mkv"))
         .unwrap();
-    let subtitle2 = input2_files
+    let _subtitle2 = input2_files
         .iter()
         .find(|f| f.name.ends_with(".srt"))
         .unwrap();
@@ -257,19 +257,19 @@ async fn test_match_with_file_and_directory_inputs() {
     );
 
     // Get file information for mock setup
-    let video1 = main_files
+    let _video1 = main_files
         .iter()
         .find(|f| f.name.ends_with(".mp4"))
         .unwrap();
-    let subtitle1 = main_files
+    let _subtitle1 = main_files
         .iter()
         .find(|f| f.name.ends_with(".srt"))
         .unwrap();
-    let video2 = input_files
+    let _video2 = input_files
         .iter()
         .find(|f| f.name.ends_with(".mkv"))
         .unwrap();
-    let subtitle2 = input_files
+    let _subtitle2 = input_files
         .iter()
         .find(|f| f.name.ends_with(".srt"))
         .unwrap();

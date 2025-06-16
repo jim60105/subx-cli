@@ -1,7 +1,7 @@
 #[cfg(test)]
 mod debug_path_tests {
     use std::fs;
-    use subx_cli::cli::{InputPathHandler, MatchArgs};
+    use subx_cli::cli::MatchArgs;
     use tempfile::TempDir;
 
     #[test]
