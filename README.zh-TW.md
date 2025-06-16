@@ -14,13 +14,13 @@ AI 智慧字幕處理工具，自動匹配、重命名及轉換字幕檔案。
 ## 功能特色
 
 - 🤖 **AI 智慧匹配** - 使用 AI 技術自動識別影片與字幕的對應關係並重命名
-- 📁 **檔案整理** - 自動複製或移動匹配的字幕檔案到影片資料夾
+- 📁 **檔案整理** - 自動複製或移動匹配的字幕檔案到影片資料夾，提升播放器相容性
 - 🔄 **格式轉換** - 支援 SRT、ASS、VTT、SUB 等主流字幕格式互轉
-- 🔊 **音訊處理** - 使用先進的語音活動檢測技術直接處理多種音訊格式
-- ⏰ **時間軸校正** - 採用隱私保護的本地 VAD 技術自動檢測並修正字幕時間偏移問題
+- 🔊 **音訊轉碼** - 自動轉碼多種音訊容器格式（MP4、MKV、WebM、OGG）為 WAV 進行同步分析
+- ⏰ **時間軸校正** - 自動檢測並修正字幕時間偏移問題
 - 🏃 **批次處理** - 一次處理整個資料夾的媒體檔案
 - 🔍 **Dry-run 模式** - 預覽操作結果，安全可靠
-- 📦 **快取管理** - 重複使用 Dry-run 運行時的分析結果
+- 📦 **快取管理** - 重複使用先前分析結果，提升重複 dry-run 的效率
 
 ## 安裝
 
@@ -62,16 +62,26 @@ export OPENAI_API_KEY="your-api-key-here"
 subx-cli config set sync.vad.sensitivity 0.8
 subx-cli config set sync.vad.enabled true
 
+# 配置同步方法 (auto, vad)
+subx-cli config set sync.default_method auto
+
 # 啟用一般備份功能
 subx-cli config set general.backup_enabled true
+
+# 配置平行處理
+subx-cli config set parallel.max_workers 8
+subx-cli config set parallel.task_queue_size 1000
 ```
 
 ### 2. 基本使用
 
 **字幕匹配與重命名**
 ```bash
-# 處理單個資料夾
+# 處理單個資料夾（傳統方式）
 subx-cli match /path/to/media/folder
+
+# 使用 -i 參數處理多個輸入來源
+subx-cli match -i /path/to/videos -i /path/to/more/media
 
 # 預覽模式（不實際執行）
 subx-cli match --dry-run /path/to/media/folder
@@ -79,11 +89,17 @@ subx-cli match --dry-run /path/to/media/folder
 # 遞迴處理子資料夾
 subx-cli match --recursive /path/to/media/folder
 
+# 結合 -i 參數與遞迴處理
+subx-cli match -i /path/to/videos -i /path/to/movies --recursive
+
 # 複製匹配的字幕到影片資料夾
 subx-cli match --copy /path/to/media/folder
 
 # 移動匹配的字幕到影片資料夾
 subx-cli match --move /path/to/media/folder
+
+# 進階：混合檔案和目錄與多個選項
+subx-cli match -i ./video1.mp4 -i ./subtitles_dir -i ./video2.mkv --recursive --copy --backup
 
 # 結合遞迴和備份選項使用
 subx-cli match --recursive --move --backup /path/to/media/folder
@@ -91,14 +107,23 @@ subx-cli match --recursive --move --backup /path/to/media/folder
 
 **格式轉換**
 ```bash
-# 單檔案轉換
+# 單檔案轉換（傳統方式）
 subx-cli convert subtitle.ass --format srt
 
-# 批量轉換
+# 使用 -i 參數批量轉換多個目錄
+subx-cli convert -i ./srt_files -i ./more_subtitles --format vtt
+
+# 批量轉換並遞迴掃描目錄
+subx-cli convert -i ./srt_files -i ./more_subtitles --format vtt --recursive
+
+# 批量轉換（傳統方式）
 subx-cli convert --format srt /path/to/subtitles/
 
 # 轉換並保留原檔案
 subx-cli convert --keep-original subtitle.vtt --format srt
+
+# 進階：混合檔案和目錄，指定編碼
+subx-cli convert -i movie1.srt -i ./batch_dir -i movie2.ass --format srt --recursive --keep-original --encoding utf-8
 ```
 
 **時間軸校正**
@@ -113,8 +138,35 @@ subx-cli sync --offset 2.5 subtitle.srt
 # 明確指定 VAD 方法並自訂靈敏度
 subx-cli sync --vad-sensitivity 0.8 video.mp4 subtitle.srt
 
-# 批量處理模式（處理整個資料夾）
+# 批量處理模式（傳統方式 - 處理整個目錄）
 subx-cli sync --batch /path/to/media/folder
+
+# 使用 -i 參數批量處理多個目錄
+subx-cli sync -i ./movies_directory --batch
+
+# 批量處理並遞迴掃描目錄
+subx-cli sync -i ./movies_directory --batch --recursive
+
+# 進階：多個目錄並指定同步方法
+subx-cli sync -i ./movies1 -i ./movies2 -i ./tv_shows --recursive --batch --method vad
+
+# 批量模式並顯示詳細輸出和 dry-run
+subx-cli sync -i ./media --batch --recursive --dry-run --verbose
+```
+
+**字元編碼檢測**
+```bash
+# 傳統方式 - 直接指定檔案
+subx-cli detect-encoding *.srt
+
+# 使用 -i 參數處理目錄（平面掃描）
+subx-cli detect-encoding -i ./subtitles1 -i ./subtitles2 --verbose
+
+# 使用 -i 參數遞迴掃描目錄
+subx-cli detect-encoding -i ./subtitles1 -i ./subtitles2 --verbose --recursive
+
+# 進階：混合特定檔案與目錄掃描
+subx-cli detect-encoding -i ./more_subtitles -i specific_file.srt --recursive --verbose
 ```
 
 **快取管理**
@@ -141,19 +193,53 @@ subx-cli convert --format srt .
 subx-cli sync --batch .
 ```
 
+### 使用 -i 參數的進階工作流程
+```bash
+# 1. 處理多個目錄的不同來源
+cd ~/Media/
+
+# 2. 從多個輸入來源匹配並整理
+subx-cli match -i ./Downloads/Movies -i ./Downloads/TV_Shows -i ./Backup/Subs --recursive --dry-run --copy
+subx-cli match -i ./Downloads/Movies -i ./Downloads/TV_Shows -i ./Backup/Subs --recursive --copy
+
+# 3. 批量轉換所有字幕格式為 SRT 並遞迴掃描
+subx-cli convert -i ./Movies -i ./TV_Shows --format srt --recursive --keep-original
+
+# 4. 批量同步所有媒體檔案
+subx-cli sync -i ./Movies -i ./TV_Shows --batch --recursive --method vad
+
+# 5. 檢查所有字幕檔案編碼
+subx-cli detect-encoding -i ./Movies -i ./TV_Shows --recursive --verbose
+```
+
 ### 檔案整理應用場景
 ```bash
-# 場景 1：保留原始字幕位置，複製到影片資料夾
+# 場景 1：保留原始字幕位置，複製到影片資料夾（傳統方式）
 subx-cli match --recursive --copy /media/collection/
 
-# 場景 2：移動字幕到影片資料夾，清理原始位置
+# 場景 1b：使用多個輸入來源進行複製操作
+subx-cli match -i /media/movies -i /media/tv_shows -i /backup/subtitles --recursive --copy
+
+# 場景 2：移動字幕到影片資料夾，清理原始位置（傳統方式）
 subx-cli match --recursive --move /media/collection/
 
-# 場景 3：預覽檔案整理操作
+# 場景 2b：使用多個輸入來源進行移動操作
+subx-cli match -i /media/movies -i /media/tv_shows -i /backup/subtitles --recursive --move
+
+# 場景 3：預覽檔案整理操作（傳統方式）
 subx-cli match --dry-run --copy --recursive /media/collection/
 
-# 場景 4：使用備份保護進行檔案整理
+# 場景 3b：使用多個輸入來源預覽
+subx-cli match -i /media/movies -i /media/tv_shows -i /backup/subtitles --recursive --dry-run --copy
+
+# 場景 4：使用備份保護進行檔案整理（傳統方式）
 subx-cli match --move --backup --recursive /media/collection/
+
+# 場景 4b：多個來源使用備份保護
+subx-cli match -i /media/movies -i /media/tv_shows -i /backup/subtitles --recursive --move --backup
+
+# 場景 5：進階 - 混合特定檔案與目錄
+subx-cli match -i ./video1.mp4 -i ./subtitles_dir -i ./video2.mkv --recursive --copy --backup
 ```
 
 ### 資料夾結構範例
@@ -223,6 +309,9 @@ export OPENAI_BASE_URL="https://api.openai.com/v1"
 # 或使用配置指令
 subx-cli config set ai.api_key "your-api-key-here"
 subx-cli config set ai.model "gpt-4.1-mini"
+subx-cli config set ai.base_url "https://api.openai.com/v1"
+subx-cli config set ai.temperature 0.3
+subx-cli config set ai.retry_attempts 3
 ```
 
 ### 配置檔案位置
@@ -271,7 +360,7 @@ subx-cli config set ai.model "gpt-4.1-mini"
   --encoding <ENC>      指定文字編碼 (預設值: utf-8)
 
 配置支援:
-  - 格式設定: 預設輸出格式、樣式保留、編碼檢測等
+  - 格式設定: 預設輸出格式、樣式保留、編碼檢測信心度、預設編碼等
 ```
 
 ### `subx-cli detect-encoding` - 檔案編碼檢測
@@ -281,22 +370,26 @@ subx-cli config set ai.model "gpt-4.1-mini"
   -v, --verbose          顯示詳細樣本文字
 
 配置支援:
-  - 格式設定: 編碼檢測信心度閾值、預設編碼等
+  - 格式設定: 編碼檢測信心度閾值、預設編碼回退等
 ```
 
 ### `subx-cli sync` - 時間軸校正
 ```
 選項:
-  <VIDEO>               影片檔案路徑 (支援 MP4、MKV/WebM、OGG、WAV 音訊輸入，自動轉為 WAV 分析)
+  <VIDEO>               影片檔案路徑 (支援 MP4、MKV/WebM、OGG、WAV 音訊輸入)
   <SUBTITLE>            字幕檔案路徑
-  --offset <SECONDS>    手動指定偏移量
+  --offset <SECONDS>    手動指定偏移量 (不可超過 sync.max_offset_seconds 配置)
   --batch               批量處理模式
-  --range <SECONDS>     偏移檢測範圍 (預設值: 配置檔案中的 max_offset_seconds)
-  --threshold <THRESHOLD>  相關性閾值 (0-1，預設值: 配置檔案中的 correlation_threshold)
+  --method <METHOD>     同步方法 (auto|vad，預設值: 來自 sync.default_method 配置)
+  --vad-sensitivity <SENSITIVITY>    VAD 檢測靈敏度 (0.0-1.0，覆蓋配置)
+  --vad-chunk-size <SIZE>           VAD 區塊大小 (覆蓋配置)
+
+音訊格式支援:
+  - MP4、MKV/WebM、OGG、WAV 容器 (自動轉碼為 WAV 進行分析)
 
 配置支援:
-  - 同步設定: 最大偏移範圍、相關性閾值、對話檢測等
-  - 音訊處理: 採樣率、對話檢測閾值、片段合併等
+  - 同步設定: 預設同步方法、最大偏移範圍等
+  - VAD 處理: 靈敏度、區塊大小、採樣率、填充區塊、最小語音持續時間、語音合併間隔等
 ```
 
 ### `subx-cli config` - 配置管理
@@ -343,19 +436,37 @@ A: 確保音訊/視頻檔案可存取，並檢查檔案格式是否支援。如�
 - 檢查 VAD 配置：`subx-cli config set sync.vad.enabled true`
 - 針對非常嘈雜的音訊：`subx-cli config set sync.vad.min_speech_duration_ms 200`
 - 針對快速語音：`subx-cli config set sync.vad.speech_merge_gap_ms 100`
+- 調整音訊處理參數：
+  - `subx-cli config set sync.vad.chunk_size 512`
+  - `subx-cli config set sync.vad.sample_rate 16000`
+  - `subx-cli config set sync.vad.padding_chunks 3`
 
 ### Q: 處理大量檔案時性能不佳？
 
 A: 可以調整並行處理配置：
 ```bash
 subx-cli config set general.max_concurrent_jobs 8     # 增加並發數
-subx-cli config set parallel.task_queue_size 200     # 增加佇列大小
+subx-cli config set parallel.task_queue_size 2000    # 增加佇列大小
 subx-cli config set parallel.auto_balance_workers true # 啟用負載平衡
+subx-cli config set parallel.enable_task_priorities true # 啟用任務優先級
+subx-cli config set parallel.max_workers 16          # 增加最大工作執行緒數
 ```
 
 ### Q: 編碼檢測不準確？
 
-A: 調整檢測信心度閾值：`subx-cli config set formats.encoding_detection_confidence 0.8`
+A: 調整檢測信心度閾值和預設編碼：
+```bash
+subx-cli config set formats.encoding_detection_confidence 0.8
+subx-cli config set formats.default_encoding "utf-8"
+```
+
+### Q: 格式轉換問題或樣式問題？
+
+A: 配置格式轉換設定：
+```bash
+subx-cli config set formats.default_output "srt"      # 設定預設輸出格式
+subx-cli config set formats.preserve_styling true     # 轉換時保留樣式
+```
 
 ### Q: 快取檔案佔用太多空間？
 
