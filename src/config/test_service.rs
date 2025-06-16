@@ -167,7 +167,6 @@ impl ConfigService for TestConfigService {
             ["sync", "vad", "speech_merge_gap_ms"] => {
                 Ok(config.sync.vad.speech_merge_gap_ms.to_string())
             }
-            ["sync", "correlation_threshold"] => Ok(config.sync.correlation_threshold.to_string()),
             ["general", "backup_enabled"] => Ok(config.general.backup_enabled.to_string()),
             ["general", "task_timeout_seconds"] => {
                 Ok(config.general.task_timeout_seconds.to_string())

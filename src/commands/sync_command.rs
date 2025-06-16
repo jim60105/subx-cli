@@ -48,21 +48,23 @@ async fn run_single(
             additional_info: None,
         }
     } else {
+        // 自動同步需要視頻檔案
+        let video_path = args.video.as_ref().ok_or_else(|| {
+            SubXError::CommandExecution(
+                "Video file path is required for automatic sync".to_string(),
+            )
+        })?;
         let method = determine_sync_method(args, &config.sync.default_method)?;
         if args.verbose {
             println!("🔍 Starting sync analysis...");
             println!("   Method: {:?}", method);
             println!("   Analysis window: {}s", args.window);
-            println!("   Video file: {}", args.video.as_ref().unwrap().display());
+            println!("   Video file: {}", video_path.display());
         }
         let mut sync_cfg = config.sync.clone();
         apply_cli_overrides(&mut sync_cfg, args)?;
         let result = sync_engine
-            .detect_sync_offset(
-                args.video.as_ref().unwrap().as_path(),
-                &subtitle,
-                Some(method),
-            )
+            .detect_sync_offset(video_path.as_path(), &subtitle, Some(method))
             .await?;
         if args.verbose {
             println!("✅ Analysis completed:");
@@ -133,6 +135,26 @@ pub async fn execute(args: SyncArgs, config_service: &dyn ConfigService) -> Resu
         return Err(SubXError::CommandExecution(msg));
     }
     let config = config_service.get_config()?;
+
+    // Validate manual offset against max_offset_seconds configuration
+    if let Some(manual_offset) = args.offset {
+        if manual_offset.abs() > config.sync.max_offset_seconds {
+            return Err(SubXError::config(format!(
+                "指定的偏移量 {:.2}s 超過配置的最大允許值 {:.2}s。\n\n\
+                請使用以下方法之一解決此問題：\n\
+                1. 使用較小的偏移量：--offset {:.2}\n\
+                2. 調整配置：subx-cli config set sync.max_offset_seconds {:.2}\n\
+                3. 使用自動檢測：移除 --offset 參數",
+                manual_offset,
+                config.sync.max_offset_seconds,
+                config.sync.max_offset_seconds * 0.9, // 建議值稍小於限制
+                manual_offset
+                    .abs()
+                    .max(config.sync.max_offset_seconds * 1.5)  // 建議增加到合適的值
+            )));
+        }
+    }
+
     let sync_engine = SyncEngine::new(config.sync.clone())?;
     let format_manager = FormatManager::new();
 

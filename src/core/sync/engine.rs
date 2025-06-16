@@ -112,11 +112,23 @@ impl SyncEngine {
     /// # Returns
     ///
     /// Sync result with the applied offset and full confidence.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the offset exceeds the configured maximum.
     pub fn apply_manual_offset(
         &self,
         subtitle: &mut Subtitle,
         offset_seconds: f32,
     ) -> Result<SyncResult> {
+        // Validate offset against max_offset_seconds configuration
+        if offset_seconds.abs() > self.config.max_offset_seconds {
+            return Err(SubXError::config(format!(
+                "偏移量 {:.2}s 超過最大允許值 {:.2}s。請檢查配置 sync.max_offset_seconds 或使用更小的偏移量。",
+                offset_seconds, self.config.max_offset_seconds
+            )));
+        }
+
         let start = Instant::now();
         for entry in &mut subtitle.entries {
             entry.start_time = entry
@@ -180,8 +192,34 @@ impl SyncEngine {
             .vad_detector
             .as_ref()
             .ok_or_else(|| SubXError::audio_processing("VAD detector not available"))?;
-        det.detect_sync_offset(audio_path, subtitle, 0) // analysis_window_seconds no longer used
-            .await
+
+        let mut result = det.detect_sync_offset(audio_path, subtitle, 0).await?; // analysis_window_seconds no longer used
+
+        // Validate detected offset against max_offset_seconds configuration
+        if result.offset_seconds.abs() > self.config.max_offset_seconds {
+            // Provide warning but don't completely fail, allow user to decide
+            result.warnings.push(format!(
+                "檢測到的偏移量 {:.2}s 超過配置的最大值 {:.2}s。建議檢查音訊品質或調整 sync.max_offset_seconds 配置。",
+                result.offset_seconds, self.config.max_offset_seconds
+            ));
+
+            // Optionally: clamp to maximum value (preserving sign)
+            let sign = if result.offset_seconds >= 0.0 {
+                1.0
+            } else {
+                -1.0
+            };
+            let original_offset = result.offset_seconds;
+            result.offset_seconds = sign * self.config.max_offset_seconds;
+
+            result.additional_info = Some(json!({
+                "original_offset": original_offset,
+                "clamped_offset": result.offset_seconds,
+                "reason": "Exceeded max_offset_seconds configuration"
+            }));
+        }
+
+        Ok(result)
     }
 }
 

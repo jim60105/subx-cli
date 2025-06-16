@@ -95,10 +95,29 @@ impl SyncConfig {
         }
 
         // Validate max_offset_seconds
-        if self.max_offset_seconds <= 0.0 || self.max_offset_seconds > 3600.0 {
+        if self.max_offset_seconds <= 0.0 {
             return Err(SubXError::config(
-                "sync.max_offset_seconds must be between 0.1 and 3600.0",
+                "sync.max_offset_seconds 必須大於 0。建議值：30.0 到 300.0 秒之間。",
             ));
+        }
+
+        if self.max_offset_seconds > 3600.0 {
+            return Err(SubXError::config(
+                "sync.max_offset_seconds 不應超過 3600 秒（1 小時）。如需更大值，請檢查同步需求是否合理。",
+            ));
+        }
+
+        // Provide recommendations for common use cases
+        if self.max_offset_seconds < 5.0 {
+            log::warn!(
+                "sync.max_offset_seconds 設定為 {:.1}s 可能過小，建議使用 30.0-60.0 秒。",
+                self.max_offset_seconds
+            );
+        } else if self.max_offset_seconds > 600.0 && self.max_offset_seconds <= 3600.0 {
+            log::warn!(
+                "sync.max_offset_seconds 設定為 {:.1}s 較大，請確認是否符合使用需求。",
+                self.max_offset_seconds
+            );
         }
 
         // Validate sub-configurations

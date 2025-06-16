@@ -282,6 +282,17 @@ Need help? Run: subx sync --help"
                 video: video.clone(),
                 subtitle: subtitle.clone(),
             })
+        } else if let Some(subtitle) = self.subtitle.as_ref() {
+            // 手動模式只需要字幕檔案
+            if self.offset.is_some() || matches!(self.method, Some(SyncMethodArg::Manual)) {
+                // 為手動模式建立虛擬視頻路徑
+                Ok(SyncMode::Single {
+                    video: PathBuf::from(""), // 虛擬視頻路徑，不會被使用
+                    subtitle: subtitle.clone(),
+                })
+            } else {
+                Err(SubXError::InvalidSyncConfiguration)
+            }
         } else {
             Err(SubXError::InvalidSyncConfiguration)
         }
