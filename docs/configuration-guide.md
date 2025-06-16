@@ -50,6 +50,7 @@ model = "gpt-4o-mini"                         # AI model to use (String)
 base_url = "https://api.openai.com/v1"        # API endpoint URL (String)
 max_sample_length = 3000                      # Maximum content length sent to AI (usize, 100-10000)
 temperature = 0.3                             # Response randomness control (f32, 0.0-2.0)
+max_tokens = 10000                            # Maximum tokens in response (u32, 1-100000)
 retry_attempts = 3                            # API request retry count (u32, 1-10)
 retry_delay_ms = 1000                         # Retry delay in milliseconds (u64, 100-10000)
 ```
@@ -227,6 +228,7 @@ model = "gpt-4.1-mini"
 base_url = "https://api.openai.com/v1"
 max_sample_length = 3000
 temperature = 0.3
+max_tokens = 10000
 retry_attempts = 3
 retry_delay_ms = 1000
 

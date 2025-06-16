@@ -96,6 +96,16 @@ impl TestConfigBuilder {
         self
     }
 
+    /// Set the AI max tokens parameter.
+    ///
+    /// # Arguments
+    ///
+    /// * `max_tokens` - Maximum tokens in response (1-100000)
+    pub fn with_ai_max_tokens(mut self, max_tokens: u32) -> Self {
+        self.config.ai.max_tokens = max_tokens;
+        self
+    }
+
     /// Set the AI retry parameters.
     ///
     /// # Arguments

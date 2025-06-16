@@ -305,6 +305,10 @@ impl ProductionConfigService {
                 let v = validate_float_range(value, 0.0, 1.0)?;
                 config.ai.temperature = v;
             }
+            ["ai", "max_tokens"] => {
+                let v = validate_uint_range(value, 1, 100000)?;
+                config.ai.max_tokens = v;
+            }
             ["ai", "retry_attempts"] => {
                 let v = validate_uint_range(value, 1, 10)?;
                 config.ai.retry_attempts = v;
@@ -517,6 +521,7 @@ impl ConfigService for ProductionConfigService {
             ["ai", "api_key"] => Ok(config.ai.api_key.clone().unwrap_or_default()),
             ["ai", "base_url"] => Ok(config.ai.base_url.clone()),
             ["ai", "temperature"] => Ok(config.ai.temperature.to_string()),
+            ["ai", "max_tokens"] => Ok(config.ai.max_tokens.to_string()),
             ["formats", "default_output"] => Ok(config.formats.default_output.clone()),
             ["formats", "default_encoding"] => Ok(config.formats.default_encoding.clone()),
             ["formats", "preserve_styling"] => Ok(config.formats.preserve_styling.to_string()),

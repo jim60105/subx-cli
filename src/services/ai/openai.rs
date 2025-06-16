@@ -13,13 +13,13 @@ use std::time::Duration;
 use tokio::time;
 
 /// OpenAI client implementation
-/// OpenAI client implementation
 #[derive(Debug)]
 pub struct OpenAIClient {
     client: Client,
     api_key: String,
     model: String,
     temperature: f32,
+    max_tokens: u32,
     retry_attempts: u32,
     retry_delay_ms: u64,
     base_url: String,
@@ -46,10 +46,11 @@ mod tests {
 
     #[tokio::test]
     async fn test_openai_client_creation() {
-        let client = OpenAIClient::new("test-key".into(), "gpt-4.1-mini".into(), 0.5, 2, 100);
+        let client = OpenAIClient::new("test-key".into(), "gpt-4.1-mini".into(), 0.5, 1000, 2, 100);
         assert_eq!(client.api_key, "test-key");
         assert_eq!(client.model, "gpt-4.1-mini");
         assert_eq!(client.temperature, 0.5);
+        assert_eq!(client.max_tokens, 1000);
         assert_eq!(client.retry_attempts, 2);
         assert_eq!(client.retry_delay_ms, 100);
     }
@@ -65,7 +66,8 @@ mod tests {
             })))
             .mount(&server)
             .await;
-        let mut client = OpenAIClient::new("test-key".into(), "gpt-4.1-mini".into(), 0.3, 1, 0);
+        let mut client =
+            OpenAIClient::new("test-key".into(), "gpt-4.1-mini".into(), 0.3, 1000, 1, 0);
         client.base_url = server.uri();
         let messages = vec![json!({"role":"user","content":"test"})];
         let resp = client.chat_completion(messages).await.unwrap();
@@ -82,7 +84,8 @@ mod tests {
             })))
             .mount(&server)
             .await;
-        let mut client = OpenAIClient::new("bad-key".into(), "gpt-4.1-mini".into(), 0.3, 1, 0);
+        let mut client =
+            OpenAIClient::new("bad-key".into(), "gpt-4.1-mini".into(), 0.3, 1000, 1, 0);
         client.base_url = server.uri();
         let messages = vec![json!({"role":"user","content":"test"})];
         let result = client.chat_completion(messages).await;
@@ -112,7 +115,7 @@ mod tests {
 
     #[test]
     fn test_prompt_building_and_parsing() {
-        let client = OpenAIClient::new("k".into(), "m".into(), 0.1, 0, 0);
+        let client = OpenAIClient::new("k".into(), "m".into(), 0.1, 1000, 0, 0);
         let request = AnalysisRequest {
             video_files: vec!["F1.mp4".into()],
             subtitle_files: vec!["S1.srt".into()],
@@ -135,6 +138,7 @@ mod tests {
             model: "gpt-test".to_string(),
             base_url: "https://custom.openai.com/v1".to_string(),
             temperature: 0.7,
+            max_tokens: 2000,
             retry_attempts: 2,
             retry_delay_ms: 150,
             max_sample_length: 500,
@@ -143,6 +147,7 @@ mod tests {
         assert_eq!(client.api_key, "test-key");
         assert_eq!(client.model, "gpt-test");
         assert_eq!(client.temperature, 0.7);
+        assert_eq!(client.max_tokens, 2000);
         assert_eq!(client.base_url, "https://custom.openai.com/v1");
     }
 
@@ -154,6 +159,7 @@ mod tests {
             model: "gpt-test".to_string(),
             base_url: "ftp://invalid.url".to_string(),
             temperature: 0.7,
+            max_tokens: 1000,
             retry_attempts: 2,
             retry_delay_ms: 150,
             max_sample_length: 500,
@@ -173,6 +179,7 @@ impl OpenAIClient {
         api_key: String,
         model: String,
         temperature: f32,
+        max_tokens: u32,
         retry_attempts: u32,
         retry_delay_ms: u64,
     ) -> Self {
@@ -180,6 +187,7 @@ impl OpenAIClient {
             api_key,
             model,
             temperature,
+            max_tokens,
             retry_attempts,
             retry_delay_ms,
             "https://api.openai.com/v1".to_string(),
@@ -191,6 +199,7 @@ impl OpenAIClient {
         api_key: String,
         model: String,
         temperature: f32,
+        max_tokens: u32,
         retry_attempts: u32,
         retry_delay_ms: u64,
         base_url: String,
@@ -204,6 +213,7 @@ impl OpenAIClient {
             api_key,
             model,
             temperature,
+            max_tokens,
             retry_attempts,
             retry_delay_ms,
             base_url: base_url.trim_end_matches('/').to_string(),
@@ -224,6 +234,7 @@ impl OpenAIClient {
             api_key.clone(),
             config.model.clone(),
             config.temperature,
+            config.max_tokens,
             config.retry_attempts,
             config.retry_delay_ms,
             config.base_url.clone(),
@@ -256,7 +267,7 @@ impl OpenAIClient {
             "model": self.model,
             "messages": messages,
             "temperature": self.temperature,
-            "max_tokens": 1000,
+            "max_tokens": self.max_tokens,
         });
 
         let request = self

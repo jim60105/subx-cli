@@ -64,12 +64,14 @@
 //! ## AI Configuration
 //! ```text
 //! ai.provider                    # String: AI service provider
-//! ai.openai.api_key             # String: OpenAI API authentication
-//! ai.openai.model               # String: GPT model selection
-//! ai.openai.max_tokens          # Integer: Maximum response length
-//! ai.anthropic.api_key          # String: Anthropic API authentication
-//! ai.max_sample_length          # Integer: Text sample size for analysis
-//! ai.enable_cache               # Boolean: Cache AI responses
+//! ai.api_key                     # String: OpenAI API authentication
+//! ai.model                       # String: GPT model selection
+//! ai.max_tokens                  # Integer: Maximum response length
+//! ai.base_url                    # String: API endpoint URL
+//! ai.max_sample_length           # Integer: Text sample size for analysis
+//! ai.temperature                 # Float: Response randomness control
+//! ai.retry_attempts              # Integer: API request retry count
+//! ai.retry_delay_ms              # Integer: Retry delay in milliseconds
 //! ```
 //!
 //! ## Audio Processing

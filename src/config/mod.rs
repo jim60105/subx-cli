@@ -128,6 +128,8 @@ pub struct AIConfig {
     pub max_sample_length: usize,
     /// AI generation creativity parameter (0.0-1.0).
     pub temperature: f32,
+    /// Maximum tokens in response.
+    pub max_tokens: u32,
     /// Number of retries on request failure.
     pub retry_attempts: u32,
     /// Retry interval in milliseconds.
@@ -143,6 +145,7 @@ impl Default for AIConfig {
             base_url: "https://api.openai.com/v1".to_string(),
             max_sample_length: 3000,
             temperature: 0.3,
+            max_tokens: 10000,
             retry_attempts: 3,
             retry_delay_ms: 1000,
         }
@@ -442,6 +445,18 @@ mod config_tests {
         assert_eq!(ai_config.model, "gpt-4.1-mini");
         assert_eq!(ai_config.temperature, 0.3);
         assert_eq!(ai_config.max_sample_length, 3000);
+        assert_eq!(ai_config.max_tokens, 10000);
+    }
+
+    #[test]
+    fn test_ai_config_max_tokens_configuration() {
+        let mut ai_config = AIConfig::default();
+        ai_config.max_tokens = 5000;
+        assert_eq!(ai_config.max_tokens, 5000);
+
+        // Test with different value
+        ai_config.max_tokens = 20000;
+        assert_eq!(ai_config.max_tokens, 20000);
     }
 
     #[test]

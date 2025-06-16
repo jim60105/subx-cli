@@ -161,6 +161,7 @@ mod tests {
             base_url: "https://api.openai.com/v1".to_string(),
             max_sample_length: 100,
             temperature: 0.1,
+            max_tokens: 1000,
             retry_attempts: 1,
             retry_delay_ms: 10,
         };
@@ -178,6 +179,7 @@ mod tests {
             base_url: "https://api.openai.com/v1".to_string(),
             max_sample_length: 100,
             temperature: 0.1,
+            max_tokens: 1000,
             retry_attempts: 1,
             retry_delay_ms: 10,
         };
