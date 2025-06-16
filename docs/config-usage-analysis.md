@@ -8,30 +8,31 @@
 
 | 配置項目 | 類型 | 預設值 | 實際使用位置 | 使用方式 | 使用的子命令 | 狀態 |
 |---------|------|---------|-------------|---------|-------------|------|
-| `provider` | String | "openai" | **呼叫樹:**<br>• `MatchCommand::execute()` (line 174) → `src/commands/match_command.rs:174`<br>• `MatchCommand::execute_with_config()` (line 209) → `src/commands/match_command.rs:209`<br>• `AIClientFactory::create_client()` (line 131) → `src/services/ai/factory.rs:131`<br>• 根據 provider 類型選擇對應的 AI 客戶端實現 | 用於選擇 AI 提供商類型，目前支援 "openai" | `subx-cli match` | ✅ 使用中 |
-| `api_key` | Option<String> | None | **呼叫樹:**<br>• `MatchCommand::execute()` (line 174) → `src/commands/match_command.rs:174`<br>• `MatchCommand::execute_with_config()` (line 209) → `src/commands/match_command.rs:209`<br>• `AIClientFactory::create_client()` → `OpenAIClient::from_config()` (line 215-217) → `src/services/ai/openai.rs:215-217`<br>• `OpenAIClient::new_with_base_url()` (line 224) → `src/services/ai/openai.rs:224`<br>• 在 HTTP 請求中作為 Authorization Bearer token (line 265) → `src/services/ai/openai.rs:265` | 用於 OpenAI API 認證，支援從環境變數載入 | `subx-cli match` | ✅ 使用中 |
-| `model` | String | "gpt-4.1-mini" | **呼叫樹:**<br>• `MatchCommand::execute()` (line 174) → `src/commands/match_command.rs:174`<br>• `MatchCommand::execute_with_config()` (line 209) → `src/commands/match_command.rs:209`<br>• `AIClientFactory::create_client()` → `OpenAIClient::from_config()` (line 225) → `src/services/ai/openai.rs:225`<br>• `OpenAIClient::chat_completion()` HTTP 請求中使用 (line 256) → `src/services/ai/openai.rs:256` | 指定使用的 OpenAI 模型，在 HTTP 請求中使用 | `subx-cli match` | ✅ 使用中 |
-| `base_url` | String | "https://api.openai.com/v1" | **呼叫樹:**<br>• `MatchCommand::execute()` (line 174) → `src/commands/match_command.rs:174`<br>• `MatchCommand::execute_with_config()` (line 209) → `src/commands/match_command.rs:209`<br>• `AIClientFactory::create_client()` → `OpenAIClient::from_config()` (line 221, 229) → `src/services/ai/openai.rs:221,229`<br>• `OpenAIClient::validate_base_url()` 驗證 URL 格式 (line 232) → `src/services/ai/openai.rs:232`<br>• `OpenAIClient::chat_completion()` HTTP 請求端點 (line 264) → `src/services/ai/openai.rs:264` | 支援自訂 API 端點，完整從配置到實際 HTTP 請求的路徑 | `subx-cli match` | ✅ 使用中 |
-| `max_sample_length` | usize | 3000 | **呼叫樹:**<br>• `MatchCommand::execute_with_client()` (line 314) → `src/commands/match_command.rs:314`<br>• 透過 `MatchConfig` 結構傳遞給 `MatchEngine`<br>• `MatchEngine::generate_preview()` 用於限制內容預覽長度 (line 768-769) → `src/core/matcher/engine.rs:768-769` | 控制傳送給 AI 的內容長度上限和內容預覽長度 | `subx-cli match` | ✅ 使用中 |
-| `temperature` | f32 | 0.3 | **呼叫樹:**<br>• `MatchCommand::execute()` (line 174) → `src/commands/match_command.rs:174`<br>• `MatchCommand::execute_with_config()` (line 209) → `src/commands/match_command.rs:209`<br>• `AIClientFactory::create_client()` → `OpenAIClient::from_config()` (line 226) → `src/services/ai/openai.rs:226`<br>• `OpenAIClient::chat_completion()` HTTP 請求中使用 (line 258) → `src/services/ai/openai.rs:258` | 控制 AI 回應的隨機性，在 HTTP 請求中使用 | `subx-cli match` | ✅ 使用中 |
-| `retry_attempts` | u32 | 3 | **呼叫樹:**<br>• `MatchCommand::execute()` (line 174) → `src/commands/match_command.rs:174`<br>• `MatchCommand::execute_with_config()` (line 209) → `src/commands/match_command.rs:209`<br>• `AIClientFactory::create_client()` → `OpenAIClient::from_config()` (line 227) → `src/services/ai/openai.rs:227`<br>• `OpenAIClient::make_request_with_retry()` 重試邏輯 (line 337) → `src/services/ai/openai.rs:337` | API 請求失敗時的重試次數 | `subx-cli match` | ✅ 使用中 |
-| `retry_delay_ms` | u64 | 1000 | **呼叫樹:**<br>• `MatchCommand::execute()` (line 174) → `src/commands/match_command.rs:174`<br>• `MatchCommand::execute_with_config()` (line 209) → `src/commands/match_command.rs:209`<br>• `AIClientFactory::create_client()` → `OpenAIClient::from_config()` (line 228) → `src/services/ai/openai.rs:228`<br>• `OpenAIClient::make_request_with_retry()` 延遲邏輯 (line 340) → `src/services/ai/openai.rs:340` | API 重試之間的延遲時間 | `subx-cli match` | ✅ 使用中 |
+| `provider` | String | "openai" | **呼叫樹:**<br>• `MatchCommand::execute()` (line 170) → `src/commands/match_command.rs:170`<br>• `MatchCommand::execute_with_config()` (line 197) → `src/commands/match_command.rs:197`<br>• `AIClientFactory::create_client()` (line 131) → `src/services/ai/factory.rs:131`<br>• 根據 provider 類型選擇對應的 AI 客戶端實現 | 用於選擇 AI 提供商類型，目前支援 "openai" | `subx-cli match` | ✅ 使用中 |
+| `api_key` | Option<String> | None | **呼叫樹:**<br>• `MatchCommand::execute()` (line 170) → `src/commands/match_command.rs:170`<br>• `MatchCommand::execute_with_config()` (line 197) → `src/commands/match_command.rs:197`<br>• `AIClientFactory::create_client()` → `OpenAIClient::from_config()` (line 215-217) → `src/services/ai/openai.rs:215-217`<br>• `OpenAIClient::new_with_base_url()` (line 224) → `src/services/ai/openai.rs:224`<br>• 在 HTTP 請求中作為 Authorization Bearer token (line 273) → `src/services/ai/openai.rs:273` | 用於 OpenAI API 認證，支援從環境變數載入 | `subx-cli match` | ✅ 使用中 |
+| `model` | String | "gpt-4.1-mini" | **呼叫樹:**<br>• `MatchCommand::execute()` (line 170) → `src/commands/match_command.rs:170`<br>• `MatchCommand::execute_with_config()` (line 197) → `src/commands/match_command.rs:197`<br>• `AIClientFactory::create_client()` → `OpenAIClient::from_config()` (line 225) → `src/services/ai/openai.rs:225`<br>• `OpenAIClient::chat_completion()` HTTP 請求中使用 (line 268) → `src/services/ai/openai.rs:268` | 指定使用的 OpenAI 模型，在 HTTP 請求中使用 | `subx-cli match` | ✅ 使用中 |
+| `base_url` | String | "https://api.openai.com/v1" | **呼叫樹:**<br>• `MatchCommand::execute()` (line 170) → `src/commands/match_command.rs:170`<br>• `MatchCommand::execute_with_config()` (line 197) → `src/commands/match_command.rs:197`<br>• `AIClientFactory::create_client()` → `OpenAIClient::from_config()` (line 221, 229) → `src/services/ai/openai.rs:221,229`<br>• `OpenAIClient::validate_base_url()` 驗證 URL 格式 (line 232) → `src/services/ai/openai.rs:232`<br>• `OpenAIClient::chat_completion()` HTTP 請求端點 (line 276) → `src/services/ai/openai.rs:276` | 支援自訂 API 端點，完整從配置到實際 HTTP 請求的路徑 | `subx-cli match` | ✅ 使用中 |
+| `max_sample_length` | usize | 3000 | **呼叫樹:**<br>• `MatchCommand::execute_with_client()` (line 314) → `src/commands/match_command.rs:314`<br>• 透過 `MatchConfig` 結構傳遞給 `MatchEngine`<br>• `MatchEngine::create_content_preview()` 用於限制內容預覽長度 (line 758-759) → `src/core/matcher/engine.rs:758-759` | 控制傳送給 AI 的內容長度上限和內容預覽長度 | `subx-cli match` | ✅ 使用中 |
+| `temperature` | f32 | 0.3 | **呼叫樹:**<br>• `MatchCommand::execute()` (line 170) → `src/commands/match_command.rs:170`<br>• `MatchCommand::execute_with_config()` (line 197) → `src/commands/match_command.rs:197`<br>• `AIClientFactory::create_client()` → `OpenAIClient::from_config()` (line 226) → `src/services/ai/openai.rs:226`<br>• `OpenAIClient::chat_completion()` HTTP 請求中使用 (line 270) → `src/services/ai/openai.rs:270` | 控制 AI 回應的隨機性，在 HTTP 請求中使用 | `subx-cli match` | ✅ 使用中 |
+| `max_tokens` | u32 | 10000 | **呼叫樹:**<br>• `MatchCommand::execute()` (line 170) → `src/commands/match_command.rs:170`<br>• `MatchCommand::execute_with_config()` (line 197) → `src/commands/match_command.rs:197`<br>• `AIClientFactory::create_client()` → `OpenAIClient::from_config()` (line 229) → `src/services/ai/openai.rs:229`<br>• `OpenAIClient::chat_completion()` HTTP 請求中使用 (line 271) → `src/services/ai/openai.rs:271` | 控制 AI 回應的最大 token 數量限制 | `subx-cli match` | ✅ 使用中 |
+| `retry_attempts` | u32 | 3 | **呼叫樹:**<br>• `MatchCommand::execute()` (line 170) → `src/commands/match_command.rs:170`<br>• `MatchCommand::execute_with_config()` (line 197) → `src/commands/match_command.rs:197`<br>• `AIClientFactory::create_client()` → `OpenAIClient::from_config()` (line 227) → `src/services/ai/openai.rs:227`<br>• `OpenAIClient::make_request_with_retry()` 重試邏輯 (line 347) → `src/services/ai/openai.rs:347` | API 請求失敗時的重試次數 | `subx-cli match` | ✅ 使用中 |
+| `retry_delay_ms` | u64 | 1000 | **呼叫樹:**<br>• `MatchCommand::execute()` (line 170) → `src/commands/match_command.rs:170`<br>• `MatchCommand::execute_with_config()` (line 197) → `src/commands/match_command.rs:197`<br>• `AIClientFactory::create_client()` → `OpenAIClient::from_config()` (line 228) → `src/services/ai/openai.rs:228`<br>• `OpenAIClient::make_request_with_retry()` 延遲邏輯 (line 349) → `src/services/ai/openai.rs:349` | API 重試之間的延遲時間 | `subx-cli match` | ✅ 使用中 |
 
 ### 格式配置 (`[formats]`)
 
 | 配置項目 | 類型 | 預設值 | 實際使用位置 | 使用方式 | 使用的子命令 | 狀態 |
 |---------|------|---------|-------------|---------|-------------|------|
-| `default_output` | String | "srt" | **呼叫樹:**<br>• `ConvertCommand::execute()` (line 217-229) → `src/commands/convert_command.rs:217-229`<br>• `ConvertCommand::execute_with_config()` (line 265-277) → `src/commands/convert_command.rs:265-277`<br>• 用於決定預設的輸出字幕格式，支援 srt/ass/vtt/sub | CLI 轉換命令的預設輸出格式 | `subx-cli convert` | ✅ 使用中 |
-| `preserve_styling` | bool | false | **呼叫樹:**<br>• `ConvertCommand::execute()` (line 209) → `src/commands/convert_command.rs:209`<br>• `ConvertCommand::execute_with_config()` (line 257) → `src/commands/convert_command.rs:257`<br>• `ConversionConfig` 中使用以控制格式轉換時的樣式保留 | 控制格式轉換時是否保留樣式 | `subx-cli convert` | ✅ 使用中 |
-| `default_encoding` | String | "utf-8" | **呼叫樹:**<br>• `EncodingDetector::new()` (line 21) → `src/core/formats/encoding/detector.rs:21`<br>• `EncodingDetector::with_config()` (line 41) → `src/core/formats/encoding/detector.rs:41`<br>• `EncodingDetector::select_best_encoding()` (line 306, 314, 321, 329) → `src/core/formats/encoding/detector.rs:306,314,321,329`<br>• 在編碼檢測失敗或信心度不足時用作回退編碼 | 編碼檢測失敗時的預設編碼回退 | `subx-cli detect-encoding`, `subx-cli convert` | ✅ 使用中 |
-| `encoding_detection_confidence` | f32 | 0.8 | **呼叫樹:**<br>• `EncodingDetector::new()` (line 18) → `src/core/formats/encoding/detector.rs:18`<br>• `EncodingDetector::with_config()` (line 38) → `src/core/formats/encoding/detector.rs:38`<br>• `EncodingDetector::select_best_encoding()` (line 319) → `src/core/formats/encoding/detector.rs:319` | 編碼自動檢測的信心度閾值 | `subx-cli detect-encoding`, `subx-cli convert` | ✅ 使用中 |
+| `default_output` | String | "srt" | **呼叫樹:**<br>• `ConvertCommand::execute()` (line 204) → `src/commands/convert_command.rs:204`<br>• 用於決定預設的輸出字幕格式 (line 217) → `src/commands/convert_command.rs:217`<br>• 支援 srt/ass/vtt/sub 格式 | CLI 轉換命令的預設輸出格式 | `subx-cli convert` | ✅ 使用中 |
+| `preserve_styling` | bool | false | **呼叫樹:**<br>• `ConvertCommand::execute()` (line 204) → `src/commands/convert_command.rs:204`<br>• `ConversionConfig` 中使用以控制格式轉換時的樣式保留 (line 209) → `src/commands/convert_command.rs:209` | 控制格式轉換時是否保留樣式 | `subx-cli convert` | ✅ 使用中 |
+| `default_encoding` | String | "utf-8" | **呼叫樹:**<br>• `EncodingDetector::new()` (line 16) → `src/core/formats/encoding/detector.rs:16`<br>• `EncodingDetector::with_config()` (line 33) → `src/core/formats/encoding/detector.rs:33`<br>• `EncodingDetector::select_best_encoding()` (line 306, 314, 321, 329) → `src/core/formats/encoding/detector.rs:306,314,321,329`<br>• 在編碼檢測失敗或信心度不足時用作回退編碼 | 編碼檢測失敗時的預設編碼回退 | `subx-cli detect-encoding`, `subx-cli convert` | ✅ 使用中 |
+| `encoding_detection_confidence` | f32 | 0.8 | **呼叫樹:**<br>• `EncodingDetector::new()` (line 16) → `src/core/formats/encoding/detector.rs:16`<br>• `EncodingDetector::with_config()` (line 33) → `src/core/formats/encoding/detector.rs:33`<br>• `EncodingDetector::select_best_encoding()` (line 319) → `src/core/formats/encoding/detector.rs:319` | 編碼自動檢測的信心度閾值 | `subx-cli detect-encoding`, `subx-cli convert` | ✅ 使用中 |
 
 ### 同步配置 (`[sync]`)
 
 | 配置項目 | 類型 | 預設值 | 實際使用位置 | 使用方式 | 使用的子命令 | 狀態 |
 |---------|------|---------|-------------|---------|-------------|------|
 | `default_method` | String | "auto" | **呼叫樹:**<br>• `SyncCommand::execute()` → `determine_sync_method()` (line 75) → `src/commands/sync_command.rs:75`<br>• `determine_sync_method()` 根據配置決定同步方法 (line 168) → `src/commands/sync_command.rs:168`<br>• `SyncEngine::detect_sync_offset()` → `determine_default_method()` (line 78) → `src/core/sync/engine.rs:78`<br>• `determine_default_method()` 將配置轉換為實際的同步策略 (line 168) → `src/core/sync/engine.rs:168` | 選擇預設的同步方法 ("vad", "auto") | `subx-cli sync` | ✅ 使用中 |
-| `max_offset_seconds` | f32 | 60.0 | **呼叫樹:**<br>• `SyncConfig` 結構定義 → `src/config/mod.rs:199`<br>• `validate()` 用於配置驗證 (line 98) → `src/config/validator.rs:98`<br>• **⚠️ 未發現實際業務邏輯使用**：配置可設定和驗證，但未在同步引擎中實際使用 | 設計用於最大允許時間偏移量，但**未實現限制邏輯** | `subx-cli sync` | ⚠️ 已定義但未使用 |
+| `max_offset_seconds` | f32 | 60.0 | **呼叫樹:**<br>• `SyncConfig` 結構定義 → `src/config/mod.rs:202`<br>• `validate()` 用於配置驗證 (line 98) → `src/config/validator.rs:98`<br>• **⚠️ 未發現實際業務邏輯使用**：配置可設定和驗證，但未在同步引擎中實際使用 | 設計用於最大允許時間偏移量，但**未實現限制邏輯** | `subx-cli sync` | ⚠️ 已定義但未使用 |
 | `vad.enabled` | bool | true | **呼叫樹:**<br>• `SyncCommand::execute()` (line 44) → `src/commands/sync_command.rs:44`<br>• `SyncEngine::new()` 檢查是否啟用 VAD (line 36) → `src/core/sync/engine.rs:36`<br>• 決定是否創建 `VadSyncDetector` 實例，影響同步功能可用性 | 是否啟用本地 VAD 方法 | `subx-cli sync` | ✅ 使用中 |
 | `vad.sensitivity` | f32 | 0.75 | **呼叫樹:**<br>• `SyncCommand::execute()` → `SyncEngine::new()` → `VadSyncDetector::new()` → `LocalVadDetector::new()`<br>• `LocalVadDetector::detect_speech()` 使用於 VAD 檢測 (line 102) → `src/services/vad/detector.rs:102`<br>• 作為語音段的概率值 (line 129) → `src/services/vad/detector.rs:129`<br>• CLI 參數可覆蓋此設定 (line 184) → `src/commands/sync_command.rs:184` | 語音檢測敏感度，影響 VAD 算法的檢測靈敏度 | `subx-cli sync` | ✅ 使用中 |
 | `vad.chunk_size` | usize | 512 | **呼叫樹:**<br>• `SyncCommand::execute()` → `SyncEngine::new()` → `VadSyncDetector::new()` → `LocalVadDetector::new()`<br>• `LocalVadDetector::detect_speech()` 創建 VAD 實例 (line 72) → `src/services/vad/detector.rs:72`<br>• `detect_speech_segments()` 計算塊持續時間 (line 94) → `src/services/vad/detector.rs:94`<br>• CLI 參數可覆蓋此設定 (line 187) → `src/commands/sync_command.rs:187` | 音訊塊大小，影響 VAD 處理精度和性能 | `subx-cli sync` | ✅ 使用中 |
@@ -76,8 +77,8 @@
 
 ## 總結
 
-### 完全整合的配置 (29 項) - 含詳細呼叫樹
-- **AI 配置**: 8/8 項已使用，包含完整的從配置載入到實際 API 呼叫的路徑，包括 provider 選擇和自訂 base_url
+### 完全整合的配置 (30 項) - 含詳細呼叫樹
+- **AI 配置**: 9/9 項已使用，包含完整的從配置載入到實際 API 呼叫的路徑，包括 provider 選擇和自訂 base_url
 - **格式配置**: 4/4 項已使用，包含編碼檢測、格式轉換流程和預設編碼回退
 - **同步配置**: 8/9 項已使用，包含新的 VAD 配置結構的完整實現路徑：
   - `default_method` - 實際用於同步方法選擇和引擎邏輯決策
@@ -103,23 +104,36 @@
 
 目前 `ProductionConfigService::get_config_value()` 方法只支援有限的配置鍵 (15 項)，但 `set_config_value()` 方法支援更多配置項目 (31 項)：
 
-**get_config_value 支援的配置鍵 (15 項)**：
-- AI: provider, model, api_key, base_url, temperature (缺少: max_sample_length, retry_attempts, retry_delay_ms)
+**get_config_value 支援的配置鍵 (15 項)** → `src/config/service.rs:522-542`：
+- AI: provider, model, api_key, base_url, temperature, max_tokens (缺少: max_sample_length, retry_attempts, retry_delay_ms)
 - 格式: default_output, default_encoding, preserve_styling (缺少: encoding_detection_confidence)
 - 同步: max_offset_seconds, correlation_threshold, audio_sample_rate (缺少: default_method 和所有 VAD 相關配置)
 - 一般: backup_enabled, max_concurrent_jobs (缺少: task_timeout_seconds, enable_progress_bar, worker_idle_timeout_seconds)
 - 並行: max_workers (缺少: task_queue_size, enable_task_priorities, auto_balance_workers, overflow_strategy)
 
-**set_config_value 支援的配置鍵 (31 項)**：
-- AI: provider, model, api_key, base_url, max_sample_length, temperature, retry_attempts, retry_delay_ms (8 項)
+**set_config_value 支援的配置鍵 (31 項)** → `src/config/service.rs:281-416`：
+- AI: provider, model, api_key, base_url, max_sample_length, temperature, max_tokens, retry_attempts, retry_delay_ms (9 項)
 - 格式: default_output, preserve_styling, default_encoding, encoding_detection_confidence (4 項)
-- 同步: max_offset_seconds, correlation_threshold, dialogue_detection_threshold, min_dialogue_duration_ms, dialogue_merge_gap_ms, enable_dialogue_detection, audio_sample_rate, auto_detect_sample_rate (8 項) - 缺少 default_method 和 VAD 配置
+- 同步（含舊項目）: max_offset_seconds, correlation_threshold, dialogue_detection_threshold, min_dialogue_duration_ms, dialogue_merge_gap_ms, enable_dialogue_detection, audio_sample_rate, auto_detect_sample_rate (8 項)
 - 一般: backup_enabled, max_concurrent_jobs, task_timeout_seconds, enable_progress_bar, worker_idle_timeout_seconds (5 項)
 - 並行: max_workers, task_queue_size, enable_task_priorities, auto_balance_workers, overflow_strategy (5 項)
-- **嚴重缺失**: 所有 VAD 相關配置 (7 項): enabled, sensitivity, chunk_size, sample_rate, padding_chunks, min_speech_duration_ms, speech_merge_gap_ms
-- **嚴重缺失**: sync.default_method
+
+### ⚠️ VAD 配置項目完全未實作
+
+**嚴重問題**: 所有 VAD 相關配置 (7 項) 在 `get_config_value` 和 `set_config_value` 中都**完全缺失**：
+- `sync.vad.enabled`, `sync.vad.sensitivity`, `sync.vad.chunk_size`, `sync.vad.sample_rate`
+- `sync.vad.padding_chunks`, `sync.vad.min_speech_duration_ms`, `sync.vad.speech_merge_gap_ms`
+- `sync.default_method` 也未在任何配置方法中實作
+
+**影響**: 使用者無法透過 `subx config set/get` 命令操作任何 VAD 配置，這些配置只能透過配置檔案或環境變數設定
 
 **建議修復**：
 1. 擴展 `get_config_value` 方法以支援所有 `set_config_value` 支援的配置項目
-2. 添加對 VAD 相關配置和 sync.default_method 的完整支援 
-3. 確保 `config get` 和 `config set` 命令的一致性
+2. **緊急**：新增對所有 VAD 相關配置的 `get_config_value` 和 `set_config_value` 支援：
+   - `sync.vad.enabled`, `sync.vad.sensitivity`, `sync.vad.chunk_size`
+   - `sync.vad.sample_rate`, `sync.vad.padding_chunks`
+   - `sync.vad.min_speech_duration_ms`, `sync.vad.speech_merge_gap_ms`
+3. 新增 `sync.default_method` 的配置方法支援
+4. 確保 `config get` 和 `config set` 命令的一致性
+
+**註**: 舊的 sync 配置項目 (correlation_threshold 等) 已標記為 `#[deprecated]` 和 `#[serde(skip)]`，建議移除其在 `set_config_value` 中的支援
