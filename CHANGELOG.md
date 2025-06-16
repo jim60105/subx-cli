@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.8.0] - 2025-06-16
+### Added
+- Added: max_tokens configuration support for OpenAI responses with configurable range (1-100000).
+- Added: Support for ai.max_tokens in config get/set operations with proper validation.
+
+### Changed
+- Changed: OpenAIClient now uses configurable max_tokens instead of hardcoded 1000 value.
+- Changed: All Chinese comments translated to English in CLI modules for documentation consistency.
+
+### Fixed
+- Fixed: Unit test environment isolation issues ensuring all 244+ tests pass without external dependencies.
+- Fixed: ProductionConfigService now properly respects injected SUBX_CONFIG_PATH environment variable.
+- Fixed: Environment variable configuration tests no longer interfere with existing user config files.
+- Fixed: Test macros now automatically set isolated config paths during testing.
+
 ## [0.7.0] - 2025-06-16
 ### Added
 - Added: Unified input path parameter (-i/--input) support across all CLI commands (match, convert, sync, detect-encoding).
@@ -191,7 +206,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Initial release of SubX CLI tool
 - Rust-based intelligent subtitle processing
 
-[Unreleased]: https://github.com/SubX-Project/SubX/compare/v0.7.0...HEAD
+[Unreleased]: https://github.com/SubX-Project/SubX/compare/v0.8.0...HEAD
+[0.8.0]: https://github.com/SubX-Project/SubX/compare/v0.7.0...v0.8.0
 [0.7.0]: https://github.com/SubX-Project/SubX/compare/v0.6.0...v0.7.0
 [0.6.0]: https://github.com/SubX-Project/SubX/compare/v0.5.0...v0.6.0
 [0.5.0]: https://github.com/SubX-Project/SubX/compare/v0.4.1...v0.5.0
