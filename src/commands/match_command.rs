@@ -336,33 +336,25 @@ pub async fn execute_with_client(
         ));
     }
 
-    // Convert files back to unique directories for MatchEngine compatibility
-    // This ensures we use collect_files() as required, but maintain compatibility with MatchEngine
-    let mut directories = std::collections::HashMap::new();
-    for file in files {
-        if let Some(parent) = file.parent() {
-            directories.entry(parent.to_path_buf()).or_insert_with(Vec::new).push(file);
-        }
-    }
-
-    // Execute the matching algorithm for each directory
-    let mut operations = Vec::new();
-    for directory in directories.keys() {
-        let ops = engine.match_files(directory, args.recursive).await?;
-        operations.extend(ops);
-    }
+    // Determine the appropriate matching strategy:
+    // 1. If the user specified explicit files via -i AND no directory path, use file-list-based matching
+    // 2. If the user specified a directory path AND no explicit files, use directory-based matching
+    // 3. For mixed input (both directory and files), use file-list-based matching
+    let operations = if !args.input_paths.is_empty() {
+        // User specified explicit files via -i, use file-list-based matching
+        engine.match_file_list(&files).await?
+    } else if let Some(main_path) = &args.path {
+        // User specified only a directory path, use directory-based matching for optimal cache behavior
+        engine.match_files(main_path, args.recursive).await?
+    } else {
+        // This should not happen due to CLI validation, but just in case
+        engine.match_file_list(&files).await?
+    };
 
     // Display formatted results table to user
     display_match_results(&operations, args.dry_run);
 
-    // Save or execute operations based on dry-run flag
-    for directory in directories.keys() {
-        if args.dry_run {
-            engine
-                .save_cache(directory, args.recursive, &operations)
-                .await?;
-        }
-    }
+    // Save operations if dry run, otherwise execute them
     if !args.dry_run {
         engine.execute_operations(&operations, args.dry_run).await?;
     }

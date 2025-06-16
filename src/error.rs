@@ -237,8 +237,22 @@ impl From<symphonia::core::errors::Error> for SubXError {
 // Convert config crate error to configuration error
 impl From<config::ConfigError> for SubXError {
     fn from(err: config::ConfigError) -> Self {
+        match err {
+            config::ConfigError::NotFound(path) => SubXError::Config {
+                message: format!("Configuration file not found: {}", path),
+            },
+            config::ConfigError::Message(msg) => SubXError::Config { message: msg },
+            _ => SubXError::Config {
+                message: format!("Configuration error: {}", err),
+            },
+        }
+    }
+}
+
+impl From<serde_json::Error> for SubXError {
+    fn from(err: serde_json::Error) -> Self {
         SubXError::Config {
-            message: format!("Configuration loading error: {}", err),
+            message: format!("JSON serialization/deserialization error: {}", err),
         }
     }
 }

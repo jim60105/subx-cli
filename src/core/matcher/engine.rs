@@ -13,11 +13,12 @@
 //! ```
 
 use crate::services::ai::{AIProvider, AnalysisRequest, ContentSample, MatchResult};
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 use crate::Result;
 use crate::core::language::LanguageDetector;
 use crate::core::matcher::cache::{CacheData, OpItem, SnapshotItem};
+use crate::core::matcher::discovery::generate_file_id;
 use crate::core::matcher::{FileDiscovery, MediaFile, MediaFileType};
 
 use crate::error::SubXError;
@@ -659,7 +660,7 @@ impl MatchEngine {
             );
         }
 
-        // 4. Assemble match operation list
+        // 5. Assemble match operation list
         let mut operations = Vec::new();
 
         for ai_match in match_result.matches {
@@ -739,6 +740,149 @@ impl MatchEngine {
                 eprintln!("     - ID: {} | {}", s.id, s.relative_path);
             }
         }
+
+        Ok(operations)
+    }
+
+    /// Matches video and subtitle files from a specified list of files.
+    ///
+    /// This method processes a user-provided list of files, filtering them into
+    /// video and subtitle files, then performing AI-powered matching analysis.
+    /// This is useful when users specify exact files via -i parameters.
+    ///
+    /// # Arguments
+    ///
+    /// * `file_paths` - A slice of file paths to process for matching
+    ///
+    /// # Returns
+    ///
+    /// A list of `MatchOperation` entries that meet the confidence threshold.
+    pub async fn match_file_list(&self, file_paths: &[PathBuf]) -> Result<Vec<MatchOperation>> {
+        // 1. Process the file list to create MediaFile objects
+        let files = self.discovery.scan_file_list(file_paths)?;
+
+        let videos: Vec<_> = files
+            .iter()
+            .filter(|f| matches!(f.file_type, MediaFileType::Video))
+            .collect();
+        let subtitles: Vec<_> = files
+            .iter()
+            .filter(|f| matches!(f.file_type, MediaFileType::Subtitle))
+            .collect();
+
+        if videos.is_empty() || subtitles.is_empty() {
+            return Ok(Vec::new());
+        }
+
+        // 2. Check if we can use cache for file list operations
+        // Create a stable cache key based on sorted file paths and their metadata
+        let cache_key = self.calculate_file_list_cache_key(file_paths)?;
+        if let Some(ops) = self.check_file_list_cache(&cache_key).await? {
+            return Ok(ops);
+        }
+
+        // 3. Content sampling
+        let content_samples = if self.config.enable_content_analysis {
+            self.extract_content_samples(&subtitles).await?
+        } else {
+            Vec::new()
+        };
+
+        // 4. AI analysis request
+        // Generate AI analysis request: include file IDs for precise matching
+        let video_files: Vec<String> = videos
+            .iter()
+            .map(|v| format!("ID:{} | Name:{} | Path:{}", v.id, v.name, v.relative_path))
+            .collect();
+        let subtitle_files: Vec<String> = subtitles
+            .iter()
+            .map(|s| format!("ID:{} | Name:{} | Path:{}", s.id, s.name, s.relative_path))
+            .collect();
+
+        let analysis_request = AnalysisRequest {
+            video_files,
+            subtitle_files,
+            content_samples,
+        };
+
+        // 5. Query AI service
+        let match_result = self.ai_client.analyze_content(analysis_request).await?;
+
+        // Debug: Log AI analysis results
+        eprintln!("🔍 AI Analysis Results:");
+        eprintln!("   - Total matches: {}", match_result.matches.len());
+        eprintln!(
+            "   - Confidence threshold: {:.2}",
+            self.config.confidence_threshold
+        );
+        for ai_match in &match_result.matches {
+            eprintln!(
+                "   - {} -> {} (confidence: {:.2})",
+                ai_match.video_file_id, ai_match.subtitle_file_id, ai_match.confidence
+            );
+        }
+
+        // 6. Assemble match operation list
+        let mut operations = Vec::new();
+
+        for ai_match in match_result.matches {
+            if ai_match.confidence >= self.config.confidence_threshold {
+                let video_match =
+                    Self::find_media_file_by_id_or_path(&videos, &ai_match.video_file_id, None);
+                let subtitle_match = Self::find_media_file_by_id_or_path(
+                    &subtitles,
+                    &ai_match.subtitle_file_id,
+                    None,
+                );
+                match (video_match, subtitle_match) {
+                    (Some(video), Some(subtitle)) => {
+                        let new_name = self.generate_subtitle_name(video, subtitle);
+
+                        // Determine if relocation is needed
+                        let requires_relocation = self.config.relocation_mode
+                            != FileRelocationMode::None
+                            && subtitle.path.parent() != video.path.parent();
+
+                        let relocation_target_path = if requires_relocation {
+                            let video_dir = video.path.parent().unwrap();
+                            Some(video_dir.join(&new_name))
+                        } else {
+                            None
+                        };
+
+                        operations.push(MatchOperation {
+                            video_file: (*video).clone(),
+                            subtitle_file: (*subtitle).clone(),
+                            new_subtitle_name: new_name,
+                            confidence: ai_match.confidence,
+                            reasoning: ai_match.match_factors,
+                            relocation_mode: self.config.relocation_mode.clone(),
+                            relocation_target_path,
+                            requires_relocation,
+                        });
+                    }
+                    _ => {
+                        eprintln!(
+                            "⚠️  Cannot find AI-suggested file pair:\n     Video ID: '{}'\n     Subtitle ID: '{}'",
+                            ai_match.video_file_id, ai_match.subtitle_file_id
+                        );
+                        eprintln!("❌ No matching files found that meet the criteria");
+                        eprintln!("🔍 Available file statistics:");
+                        eprintln!("   Video files ({} files):", videos.len());
+                        for video in &videos {
+                            eprintln!("     - ID: {} | {}", video.id, video.name);
+                        }
+                        eprintln!("   Subtitle files ({} files):", subtitles.len());
+                        for subtitle in &subtitles {
+                            eprintln!("     - ID: {} | {}", subtitle.id, subtitle.name);
+                        }
+                    }
+                }
+            }
+        }
+
+        // 7. Save to cache for future use
+        self.save_file_list_cache(&cache_key, &operations).await?;
 
         Ok(operations)
     }
@@ -1215,6 +1359,159 @@ impl MatchEngine {
             }
         }
         Ok(None)
+    }
+
+    /// Calculate cache key for file list operations
+    fn calculate_file_list_cache_key(&self, file_paths: &[PathBuf]) -> Result<String> {
+        use std::collections::BTreeMap;
+        use std::collections::hash_map::DefaultHasher;
+        use std::hash::{Hash, Hasher};
+
+        // Sort paths to ensure consistent key generation
+        let mut path_metadata = BTreeMap::new();
+        for path in file_paths {
+            if let Ok(metadata) = path.metadata() {
+                let canonical = path.canonicalize().unwrap_or_else(|_| path.to_path_buf());
+                path_metadata.insert(
+                    canonical.to_string_lossy().to_string(),
+                    (metadata.len(), metadata.modified().ok()),
+                );
+            }
+        }
+
+        // Include config hash to invalidate cache when configuration changes
+        let config_hash = self.calculate_config_hash()?;
+
+        let mut hasher = DefaultHasher::new();
+        path_metadata.hash(&mut hasher);
+        config_hash.hash(&mut hasher);
+
+        Ok(format!("filelist_{:016x}", hasher.finish()))
+    }
+
+    /// Check cache for file list operations
+    async fn check_file_list_cache(&self, cache_key: &str) -> Result<Option<Vec<MatchOperation>>> {
+        let cache_file_path = self.get_cache_file_path()?;
+        let cache_data = CacheData::load(&cache_file_path).ok();
+
+        if let Some(cache_data) = cache_data {
+            if cache_data.directory == cache_key {
+                // Rebuild match operation list for file list cache
+                let mut ops = Vec::new();
+                for item in cache_data.match_operations {
+                    // For file list operations, we reconstruct operations from cached data
+                    let video_path = PathBuf::from(&item.video_file);
+                    let subtitle_path = PathBuf::from(&item.subtitle_file);
+
+                    if video_path.exists() && subtitle_path.exists() {
+                        // Create minimal MediaFile objects for the operation
+                        let video_meta = video_path.metadata()?;
+                        let subtitle_meta = subtitle_path.metadata()?;
+
+                        let video_file = MediaFile {
+                            id: generate_file_id(&video_path, video_meta.len()),
+                            path: video_path.clone(),
+                            file_type: MediaFileType::Video,
+                            size: video_meta.len(),
+                            name: video_path
+                                .file_name()
+                                .unwrap()
+                                .to_string_lossy()
+                                .to_string(),
+                            extension: video_path
+                                .extension()
+                                .unwrap_or_default()
+                                .to_string_lossy()
+                                .to_lowercase(),
+                            relative_path: video_path
+                                .file_name()
+                                .unwrap()
+                                .to_string_lossy()
+                                .to_string(),
+                        };
+
+                        let subtitle_file = MediaFile {
+                            id: generate_file_id(&subtitle_path, subtitle_meta.len()),
+                            path: subtitle_path.clone(),
+                            file_type: MediaFileType::Subtitle,
+                            size: subtitle_meta.len(),
+                            name: subtitle_path
+                                .file_name()
+                                .unwrap()
+                                .to_string_lossy()
+                                .to_string(),
+                            extension: subtitle_path
+                                .extension()
+                                .unwrap_or_default()
+                                .to_string_lossy()
+                                .to_lowercase(),
+                            relative_path: subtitle_path
+                                .file_name()
+                                .unwrap()
+                                .to_string_lossy()
+                                .to_string(),
+                        };
+
+                        ops.push(MatchOperation {
+                            video_file,
+                            subtitle_file,
+                            new_subtitle_name: item.new_subtitle_name,
+                            confidence: item.confidence,
+                            reasoning: item.reasoning,
+                            relocation_mode: self.config.relocation_mode.clone(),
+                            relocation_target_path: None, // Will be recalculated if needed
+                            requires_relocation: false,   // Will be recalculated if needed
+                        });
+                    }
+                }
+                return Ok(Some(ops));
+            }
+        }
+        Ok(None)
+    }
+
+    /// Save cache for file list operations
+    async fn save_file_list_cache(
+        &self,
+        cache_key: &str,
+        operations: &[MatchOperation],
+    ) -> Result<()> {
+        let cache_file_path = self.get_cache_file_path()?;
+        let config_hash = self.calculate_config_hash()?;
+
+        let mut cache_items = Vec::new();
+        for op in operations {
+            cache_items.push(OpItem {
+                video_file: op.video_file.path.to_string_lossy().to_string(),
+                subtitle_file: op.subtitle_file.path.to_string_lossy().to_string(),
+                new_subtitle_name: op.new_subtitle_name.clone(),
+                confidence: op.confidence,
+                reasoning: op.reasoning.clone(),
+            });
+        }
+
+        let cache_data = CacheData {
+            cache_version: "1.0".to_string(),
+            directory: cache_key.to_string(),
+            file_snapshot: vec![], // Not used for file list cache
+            match_operations: cache_items,
+            created_at: std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_secs(),
+            ai_model_used: self.config.ai_model.clone(),
+            config_hash,
+            original_relocation_mode: format!("{:?}", self.config.relocation_mode),
+            original_backup_enabled: self.config.backup_enabled,
+        };
+
+        // Save cache data to file
+        let cache_dir = cache_file_path.parent().unwrap();
+        std::fs::create_dir_all(cache_dir)?;
+        let cache_json = serde_json::to_string_pretty(&cache_data)?;
+        std::fs::write(&cache_file_path, cache_json)?;
+
+        Ok(())
     }
 
     /// Save dry-run cache results
