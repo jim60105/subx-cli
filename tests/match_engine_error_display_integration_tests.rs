@@ -67,8 +67,14 @@ async fn test_rename_operation_success_and_error_messages() {
         },
     );
 
-    // Use match_files to test the entire process, which internally calls rename_file
-    let result = engine.match_files(temp_path, false).await;
+    // Perform matching using unified file-list based approach (no files here)
+    let file_paths: Vec<std::path::PathBuf> = subx_cli::core::matcher::FileDiscovery::new()
+        .scan_directory(temp_path, false)
+        .unwrap()
+        .iter()
+        .map(|f| f.path.clone())
+        .collect();
+    let result = engine.match_file_list(&file_paths).await;
 
     // Since there are no video files, there will be no match results, but the operation should complete successfully
     assert!(result.is_ok());
@@ -103,8 +109,14 @@ async fn test_file_relocation_operations_with_success_indicators() {
         },
     );
 
-    // Use match_files to test the entire process
-    let result = engine.match_files(temp_path, false).await;
+    // Perform matching using unified file-list based approach (no files here)
+    let file_paths: Vec<std::path::PathBuf> = subx_cli::core::matcher::FileDiscovery::new()
+        .scan_directory(temp_path, false)
+        .unwrap()
+        .iter()
+        .map(|f| f.path.clone())
+        .collect();
+    let result = engine.match_file_list(&file_paths).await;
 
     // Since there are no files, there will be no match results, but the operation should complete successfully
     assert!(result.is_ok());

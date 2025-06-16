@@ -336,20 +336,8 @@ pub async fn execute_with_client(
         ));
     }
 
-    // Determine the appropriate matching strategy:
-    // 1. If the user specified explicit files via -i AND no directory path, use file-list-based matching
-    // 2. If the user specified a directory path AND no explicit files, use directory-based matching
-    // 3. For mixed input (both directory and files), use file-list-based matching
-    let operations = if !args.input_paths.is_empty() {
-        // User specified explicit files via -i, use file-list-based matching
-        engine.match_file_list(&files).await?
-    } else if let Some(main_path) = &args.path {
-        // User specified only a directory path, use directory-based matching for optimal cache behavior
-        engine.match_files(main_path, args.recursive).await?
-    } else {
-        // This should not happen due to CLI validation, but just in case
-        engine.match_file_list(&files).await?
-    };
+    // Perform matching using unified file-list based approach
+    let operations = engine.match_file_list(&files).await?;
 
     // Display formatted results table to user
     display_match_results(&operations, args.dry_run);

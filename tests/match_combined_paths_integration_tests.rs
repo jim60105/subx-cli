@@ -173,18 +173,9 @@ async fn test_match_with_only_input_paths() {
     let mock_helper = MockOpenAITestHelper::new().await;
     debug!("Created mock AI helper at: {}", mock_helper.base_url());
 
-    // Mock responses for each directory
+    // Mock a single response for combined input paths
     mock_helper
-        .mock_chat_completion_with_expectation(
-            &MatchResponseGenerator::successful_match_with_ids(&video1.id, &subtitle1.id),
-            1,
-        )
-        .await;
-    mock_helper
-        .mock_chat_completion_with_expectation(
-            &MatchResponseGenerator::successful_match_with_ids(&video2.id, &subtitle2.id),
-            1,
-        )
+        .mock_chat_completion_with_expectation(&MatchResponseGenerator::multiple_matches(), 1)
         .await;
 
     let config_service = TestConfigBuilder::new()
@@ -287,18 +278,9 @@ async fn test_match_with_file_and_directory_inputs() {
     let mock_helper = MockOpenAITestHelper::new().await;
     debug!("Created mock AI helper at: {}", mock_helper.base_url());
 
-    // Mock responses for each directory
+    // Mock a single response for mixed file and directory inputs
     mock_helper
-        .mock_chat_completion_with_expectation(
-            &MatchResponseGenerator::successful_match_with_ids(&video1.id, &subtitle1.id),
-            1,
-        )
-        .await;
-    mock_helper
-        .mock_chat_completion_with_expectation(
-            &MatchResponseGenerator::successful_match_with_ids(&video2.id, &subtitle2.id),
-            1,
-        )
+        .mock_chat_completion_with_expectation(&MatchResponseGenerator::multiple_matches(), 1)
         .await;
 
     let config_service = TestConfigBuilder::new()

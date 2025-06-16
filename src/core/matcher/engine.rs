@@ -13,11 +13,11 @@
 //! ```
 
 use crate::services::ai::{AIProvider, AnalysisRequest, ContentSample, MatchResult};
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 
 use crate::Result;
 use crate::core::language::LanguageDetector;
-use crate::core::matcher::cache::{CacheData, OpItem, SnapshotItem};
+use crate::core::matcher::cache::{CacheData, OpItem};
 use crate::core::matcher::discovery::generate_file_id;
 use crate::core::matcher::{FileDiscovery, MediaFile, MediaFileType};
 
@@ -588,162 +588,6 @@ impl MatchEngine {
         }
     }
 
-    /// Matches video and subtitle files under the given directory.
-    ///
-    /// # Arguments
-    ///
-    /// * `path` - Directory to scan for media files.
-    /// * `recursive` - Whether to include subdirectories.
-    ///
-    /// # Returns
-    ///
-    /// A list of `MatchOperation` entries that meet the confidence threshold.
-    pub async fn match_files(&self, path: &Path, recursive: bool) -> Result<Vec<MatchOperation>> {
-        // 1. Explore files
-        let files = self.discovery.scan_directory(path, recursive)?;
-
-        let videos: Vec<_> = files
-            .iter()
-            .filter(|f| matches!(f.file_type, MediaFileType::Video))
-            .collect();
-        let subtitles: Vec<_> = files
-            .iter()
-            .filter(|f| matches!(f.file_type, MediaFileType::Subtitle))
-            .collect();
-
-        if videos.is_empty() || subtitles.is_empty() {
-            return Ok(Vec::new());
-        }
-
-        // 2. Try to reuse results from Dry-run cache
-        if let Some(ops) = self.check_cache(path, recursive).await? {
-            return Ok(ops);
-        }
-
-        // 3. Content sampling
-        let content_samples = if self.config.enable_content_analysis {
-            self.extract_content_samples(&subtitles).await?
-        } else {
-            Vec::new()
-        };
-
-        // 4. AI analysis request
-        // Generate AI analysis request: include file IDs for precise matching
-        let video_files: Vec<String> = videos
-            .iter()
-            .map(|v| format!("ID:{} | Name:{} | Path:{}", v.id, v.name, v.relative_path))
-            .collect();
-        let subtitle_files: Vec<String> = subtitles
-            .iter()
-            .map(|s| format!("ID:{} | Name:{} | Path:{}", s.id, s.name, s.relative_path))
-            .collect();
-
-        let analysis_request = AnalysisRequest {
-            video_files,
-            subtitle_files,
-            content_samples,
-        };
-
-        let match_result = self.ai_client.analyze_content(analysis_request).await?;
-
-        // Debug: Log AI analysis results
-        eprintln!("🔍 AI Analysis Results:");
-        eprintln!("   - Total matches: {}", match_result.matches.len());
-        eprintln!(
-            "   - Confidence threshold: {:.2}",
-            self.config.confidence_threshold
-        );
-        for ai_match in &match_result.matches {
-            eprintln!(
-                "   - {} -> {} (confidence: {:.2})",
-                ai_match.video_file_id, ai_match.subtitle_file_id, ai_match.confidence
-            );
-        }
-
-        // 5. Assemble match operation list
-        let mut operations = Vec::new();
-
-        for ai_match in match_result.matches {
-            if ai_match.confidence >= self.config.confidence_threshold {
-                let video_match =
-                    Self::find_media_file_by_id_or_path(&videos, &ai_match.video_file_id, None);
-                let subtitle_match = Self::find_media_file_by_id_or_path(
-                    &subtitles,
-                    &ai_match.subtitle_file_id,
-                    None,
-                );
-                match (video_match, subtitle_match) {
-                    (Some(video), Some(subtitle)) => {
-                        let new_name = self.generate_subtitle_name(video, subtitle);
-
-                        // Determine if relocation is needed
-                        let requires_relocation = self.config.relocation_mode
-                            != FileRelocationMode::None
-                            && subtitle.path.parent() != video.path.parent();
-
-                        let relocation_target_path = if requires_relocation {
-                            let video_dir = video.path.parent().unwrap();
-                            Some(video_dir.join(&new_name))
-                        } else {
-                            None
-                        };
-
-                        operations.push(MatchOperation {
-                            video_file: (*video).clone(),
-                            subtitle_file: (*subtitle).clone(),
-                            new_subtitle_name: new_name,
-                            confidence: ai_match.confidence,
-                            reasoning: ai_match.match_factors,
-                            relocation_mode: self.config.relocation_mode.clone(),
-                            relocation_target_path,
-                            requires_relocation,
-                        });
-                    }
-                    (None, Some(_)) => {
-                        eprintln!(
-                            "⚠️  Cannot find AI-suggested video file ID: '{}'",
-                            ai_match.video_file_id
-                        );
-                        self.log_available_files(&videos, "video");
-                    }
-                    (Some(_), None) => {
-                        eprintln!(
-                            "⚠️  Cannot find AI-suggested subtitle file ID: '{}'",
-                            ai_match.subtitle_file_id
-                        );
-                        self.log_available_files(&subtitles, "subtitle");
-                    }
-                    (None, None) => {
-                        eprintln!("⚠️  Cannot find AI-suggested file pair:");
-                        eprintln!("     Video ID: '{}'", ai_match.video_file_id);
-                        eprintln!("     Subtitle ID: '{}'", ai_match.subtitle_file_id);
-                    }
-                }
-            } else {
-                eprintln!(
-                    "ℹ️  AI match confidence too low ({:.2}): {} <-> {}",
-                    ai_match.confidence, ai_match.video_file_id, ai_match.subtitle_file_id
-                );
-            }
-        }
-
-        // Check if no operations were generated and provide debugging info
-        if operations.is_empty() {
-            eprintln!("\n❌ No matching files found that meet the criteria");
-            eprintln!("🔍 Available file statistics:");
-            eprintln!("   Video files ({} files):", videos.len());
-            for v in &videos {
-                eprintln!("     - ID: {} | {}", v.id, v.relative_path);
-            }
-            eprintln!("   Subtitle files ({} files):", subtitles.len());
-            for s in &subtitles {
-                eprintln!("     - ID: {} | {}", s.id, s.relative_path);
-            }
-        }
-
-        Ok(operations)
-    }
-
     /// Matches video and subtitle files from a specified list of files.
     ///
     /// This method processes a user-provided list of files, filtering them into
@@ -1273,93 +1117,6 @@ impl MatchEngine {
 
         Ok(())
     }
-    /// Calculate file snapshot for specified directory for cache comparison
-    fn calculate_file_snapshot(
-        &self,
-        directory: &Path,
-        recursive: bool,
-    ) -> Result<Vec<SnapshotItem>> {
-        let files = self.discovery.scan_directory(directory, recursive)?;
-        let mut snapshot = Vec::new();
-        for f in files {
-            let metadata = std::fs::metadata(&f.path)?;
-            let mtime = metadata
-                .modified()
-                .ok()
-                .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
-                .map(|d| d.as_secs())
-                .unwrap_or(0);
-            snapshot.push(SnapshotItem {
-                name: f.name.clone(),
-                size: f.size,
-                mtime,
-                file_type: match f.file_type {
-                    MediaFileType::Video => "video".to_string(),
-                    MediaFileType::Subtitle => "subtitle".to_string(),
-                },
-            });
-        }
-        Ok(snapshot)
-    }
-
-    /// Check dry-run cache, return previous calculated match operations if hit
-    pub async fn check_cache(
-        &self,
-        directory: &Path,
-        recursive: bool,
-    ) -> Result<Option<Vec<MatchOperation>>> {
-        let current_snapshot = self.calculate_file_snapshot(directory, recursive)?;
-        let cache_file_path = self.get_cache_file_path()?;
-
-        let cache_data = CacheData::load(&cache_file_path).ok();
-        if let Some(cache_data) = cache_data {
-            let current_config_hash = self.calculate_config_hash()?;
-
-            if cache_data.directory == directory.to_string_lossy()
-                && cache_data.file_snapshot == current_snapshot
-                && cache_data.config_hash == current_config_hash
-            {
-                // Rebuild match operation list
-                let files = self.discovery.scan_directory(directory, recursive)?;
-                let mut ops = Vec::new();
-                for item in cache_data.match_operations {
-                    if let (Some(video), Some(subtitle)) = (
-                        files.iter().find(|f| {
-                            f.name == item.video_file && matches!(f.file_type, MediaFileType::Video)
-                        }),
-                        files.iter().find(|f| {
-                            f.name == item.subtitle_file
-                                && matches!(f.file_type, MediaFileType::Subtitle)
-                        }),
-                    ) {
-                        // Recalculate relocation requirements based on current configuration
-                        let requires_relocation = self.config.relocation_mode
-                            != FileRelocationMode::None
-                            && subtitle.path.parent() != video.path.parent();
-                        let relocation_target_path = if requires_relocation {
-                            let video_dir = video.path.parent().unwrap();
-                            Some(video_dir.join(&item.new_subtitle_name))
-                        } else {
-                            None
-                        };
-
-                        ops.push(MatchOperation {
-                            video_file: (*video).clone(),
-                            subtitle_file: (*subtitle).clone(),
-                            new_subtitle_name: item.new_subtitle_name.clone(),
-                            confidence: item.confidence,
-                            reasoning: item.reasoning.clone(),
-                            relocation_mode: self.config.relocation_mode.clone(),
-                            relocation_target_path,
-                            requires_relocation,
-                        });
-                    }
-                }
-                return Ok(Some(ops));
-            }
-        }
-        Ok(None)
-    }
 
     /// Calculate cache key for file list operations
     fn calculate_file_list_cache_key(&self, file_paths: &[PathBuf]) -> Result<String> {
@@ -1511,47 +1268,6 @@ impl MatchEngine {
         let cache_json = serde_json::to_string_pretty(&cache_data)?;
         std::fs::write(&cache_file_path, cache_json)?;
 
-        Ok(())
-    }
-
-    /// Save dry-run cache results
-    pub async fn save_cache(
-        &self,
-        directory: &Path,
-        recursive: bool,
-        operations: &[MatchOperation],
-    ) -> Result<()> {
-        let cache_data = CacheData {
-            cache_version: "1.0".to_string(),
-            directory: directory.to_string_lossy().to_string(),
-            file_snapshot: self.calculate_file_snapshot(directory, recursive)?,
-            match_operations: operations
-                .iter()
-                .map(|op| OpItem {
-                    video_file: op.video_file.name.clone(),
-                    subtitle_file: op.subtitle_file.name.clone(),
-                    new_subtitle_name: op.new_subtitle_name.clone(),
-                    confidence: op.confidence,
-                    reasoning: op.reasoning.clone(),
-                })
-                .collect(),
-            created_at: std::time::SystemTime::now()
-                .duration_since(std::time::UNIX_EPOCH)
-                .map(|d| d.as_secs())
-                .unwrap_or(0),
-            ai_model_used: self.config.ai_model.clone(),
-            // Record relocation mode and backup settings when cache was generated
-            original_relocation_mode: format!("{:?}", self.config.relocation_mode),
-            original_backup_enabled: self.config.backup_enabled,
-            config_hash: self.calculate_config_hash()?,
-        };
-        let path = self.get_cache_file_path()?;
-        if let Some(parent) = path.parent() {
-            std::fs::create_dir_all(parent)?;
-        }
-        let content =
-            serde_json::to_string_pretty(&cache_data).map_err(|e| SubXError::Other(e.into()))?;
-        std::fs::write(path, content)?;
         Ok(())
     }
 

@@ -6,6 +6,8 @@ use subx_cli::services::ai::{
 };
 use tempfile::TempDir;
 
+use std::path::PathBuf;
+
 /// Mock AI client that returns file ID-based matches
 struct MockAIClientWithIds;
 
@@ -106,7 +108,9 @@ async fn test_file_id_based_matching_integration() {
     };
 
     let engine = MatchEngine::new(Box::new(MockAIClientWithIds), config);
-    let operations = engine.match_files(root, false).await.unwrap();
+    // Perform matching using unified file-list based approach
+    let file_paths: Vec<PathBuf> = files.iter().map(|f| f.path.clone()).collect();
+    let operations = engine.match_file_list(&file_paths).await.unwrap();
 
     // Verify that operations were created (not the "No matching file pairs found" case)
     assert!(

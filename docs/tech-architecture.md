@@ -653,7 +653,7 @@ mod tests {
             .returning(|_| Ok(MatchResult::new(0.95)));
         
         let engine = MatchEngine::new(Box::new(mock_ai), &config_service);
-        let result = engine.match_files(&test_files).await.unwrap();
+        let result = engine.match_file_list(&test_files).await.unwrap();
         
         assert_eq!(result.confidence, 0.95);
     }
