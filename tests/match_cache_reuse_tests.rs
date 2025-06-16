@@ -17,7 +17,7 @@ static TEST_MUTEX: tokio::sync::Mutex<()> = tokio::sync::Mutex::const_new(());
 async fn test_cache_reuse_preserves_copy_mode() {
     // Initialize logger for debugging
     let _ = env_logger::try_init();
-    
+
     // Use async mutex to avoid environment variable race conditions while avoiding await while holding lock
     let _guard = TEST_MUTEX.lock().await;
     debug!("Starting test_cache_reuse_preserves_copy_mode");
@@ -40,8 +40,16 @@ async fn test_cache_reuse_preserves_copy_mode() {
     // Verify files exist and get their actual sizes
     let video_path = test_root.join("movie.mp4");
     let subtitle_path = test_root.join("movie.srt");
-    debug!("Video file exists: {}, size: {:?}", video_path.exists(), fs::metadata(&video_path).map(|m| m.len()));
-    debug!("Subtitle file exists: {}, size: {:?}", subtitle_path.exists(), fs::metadata(&subtitle_path).map(|m| m.len()));
+    debug!(
+        "Video file exists: {}, size: {:?}",
+        video_path.exists(),
+        fs::metadata(&video_path).map(|m| m.len())
+    );
+    debug!(
+        "Subtitle file exists: {}, size: {:?}",
+        subtitle_path.exists(),
+        fs::metadata(&subtitle_path).map(|m| m.len())
+    );
 
     // Scan files to get actual file IDs (non-recursive to match the command args)
     use subx_cli::core::matcher::FileDiscovery;
@@ -49,7 +57,10 @@ async fn test_cache_reuse_preserves_copy_mode() {
     let files = discovery.scan_directory(test_root, false).unwrap();
     debug!("Scanned directory, found {} files", files.len());
     for file in &files {
-        debug!("  File: {} (id: {}, extension: {:?})", file.name, file.id, file.extension);
+        debug!(
+            "  File: {} (id: {}, extension: {:?})",
+            file.name, file.id, file.extension
+        );
     }
 
     let video_file = files.iter().find(|f| f.name.ends_with(".mp4")).unwrap();
@@ -123,7 +134,7 @@ async fn test_cache_reuse_preserves_copy_mode() {
 async fn test_cache_reuse_preserves_move_mode() {
     // Initialize logger for debugging
     let _ = env_logger::try_init();
-    
+
     // Use async mutex to avoid environment variable race conditions while avoiding await while holding lock
     let _guard = TEST_MUTEX.lock().await;
     debug!("Starting test_cache_reuse_preserves_move_mode");
@@ -146,8 +157,16 @@ async fn test_cache_reuse_preserves_move_mode() {
     // Verify files exist and get their actual sizes
     let video_path = test_root.join("movie2.mp4");
     let subtitle_path = test_root.join("movie2.srt");
-    debug!("Video file exists: {}, size: {:?}", video_path.exists(), fs::metadata(&video_path).map(|m| m.len()));
-    debug!("Subtitle file exists: {}, size: {:?}", subtitle_path.exists(), fs::metadata(&subtitle_path).map(|m| m.len()));
+    debug!(
+        "Video file exists: {}, size: {:?}",
+        video_path.exists(),
+        fs::metadata(&video_path).map(|m| m.len())
+    );
+    debug!(
+        "Subtitle file exists: {}, size: {:?}",
+        subtitle_path.exists(),
+        fs::metadata(&subtitle_path).map(|m| m.len())
+    );
 
     // Scan files to get actual file IDs (non-recursive to match the command args)
     use subx_cli::core::matcher::FileDiscovery;
@@ -155,7 +174,10 @@ async fn test_cache_reuse_preserves_move_mode() {
     let files = discovery.scan_directory(test_root, false).unwrap();
     debug!("Scanned directory, found {} files", files.len());
     for file in &files {
-        debug!("  File: {} (id: {}, extension: {:?})", file.name, file.id, file.extension);
+        debug!(
+            "  File: {} (id: {}, extension: {:?})",
+            file.name, file.id, file.extension
+        );
     }
 
     let video_file = files.iter().find(|f| f.name.ends_with(".mp4")).unwrap();

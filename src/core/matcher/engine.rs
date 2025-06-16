@@ -618,6 +618,7 @@ impl MatchEngine {
         if let Some(ops) = self.check_cache(path, recursive).await? {
             return Ok(ops);
         }
+
         // 3. Content sampling
         let content_samples = if self.config.enable_content_analysis {
             self.extract_content_samples(&subtitles).await?
@@ -635,6 +636,7 @@ impl MatchEngine {
             .iter()
             .map(|s| format!("ID:{} | Name:{} | Path:{}", s.id, s.name, s.relative_path))
             .collect();
+
         let analysis_request = AnalysisRequest {
             video_files,
             subtitle_files,
