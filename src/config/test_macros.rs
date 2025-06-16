@@ -61,6 +61,12 @@ macro_rules! test_production_config_with_env {
 
         let mut env_provider = $crate::config::TestEnvironmentProvider::new();
 
+        // Set a non-existent config path to avoid interference from existing config files
+        env_provider.set_var(
+            "SUBX_CONFIG_PATH",
+            "/tmp/test_config_macro_does_not_exist.toml",
+        );
+
         // Convert environment variable mapping to strings and set them in the provider
         for (key, value) in $env_vars {
             env_provider.set_var(key, value);
@@ -105,6 +111,12 @@ macro_rules! test_production_config_with_openai_env {
         use std::sync::Arc;
 
         let mut env_provider = $crate::config::TestEnvironmentProvider::new();
+
+        // Set a non-existent config path to avoid interference from existing config files
+        env_provider.set_var(
+            "SUBX_CONFIG_PATH",
+            "/tmp/test_config_openai_macro_does_not_exist.toml",
+        );
 
         // Set OPENAI_API_KEY (if provided)
         if let Some(api_key) = $api_key {
@@ -154,6 +166,12 @@ macro_rules! create_production_config_service_with_env {
         use std::sync::Arc;
 
         let mut env_provider = $crate::config::TestEnvironmentProvider::new();
+
+        // Set a non-existent config path to avoid interference from existing config files
+        env_provider.set_var(
+            "SUBX_CONFIG_PATH",
+            "/tmp/test_config_create_macro_does_not_exist.toml",
+        );
 
         for (key, value) in $env_vars {
             env_provider.set_var(key, value);

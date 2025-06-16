@@ -147,9 +147,16 @@ impl ProductionConfigService {
     /// # Arguments
     /// * `env_provider` - Environment variable provider
     pub fn with_env_provider(env_provider: Arc<dyn EnvironmentProvider>) -> Result<Self> {
+        // Check if a custom config path is specified in the environment provider
+        let config_file_path = if let Some(custom_path) = env_provider.get_var("SUBX_CONFIG_PATH") {
+            PathBuf::from(custom_path)
+        } else {
+            Self::user_config_path()
+        };
+
         let config_builder = ConfigCrate::builder()
             .add_source(File::with_name("config/default").required(false))
-            .add_source(File::from(Self::user_config_path()).required(false))
+            .add_source(File::from(config_file_path).required(false))
             .add_source(Environment::with_prefix("SUBX").separator("_"));
 
         Ok(Self {
@@ -770,6 +777,12 @@ mod tests {
         let mut env_provider = TestEnvironmentProvider::new();
         env_provider.set_var("OPENAI_API_KEY", "sk-test-openai-key-env");
 
+        // Use a non-existent config path to avoid interference from existing config files
+        env_provider.set_var(
+            "SUBX_CONFIG_PATH",
+            "/tmp/test_config_that_does_not_exist.toml",
+        );
+
         let service = ProductionConfigService::with_env_provider(Arc::new(env_provider))
             .expect("Failed to create config service");
 
@@ -802,6 +815,12 @@ mod tests {
         env_provider.set_var("OPENAI_API_KEY", "sk-test-key-both");
         env_provider.set_var("OPENAI_BASE_URL", "https://both.openai.com/v1");
 
+        // Use a non-existent config path to avoid interference from existing config files
+        env_provider.set_var(
+            "SUBX_CONFIG_PATH",
+            "/tmp/test_config_both_that_does_not_exist.toml",
+        );
+
         let service = ProductionConfigService::with_env_provider(Arc::new(env_provider))
             .expect("Failed to create config service");
 
@@ -814,7 +833,13 @@ mod tests {
     #[test]
     fn test_production_config_service_no_openai_env_vars() {
         // Test the case with no OPENAI environment variables
-        let env_provider = TestEnvironmentProvider::new(); // Empty provider
+        let mut env_provider = TestEnvironmentProvider::new(); // Empty provider
+
+        // Use a non-existent config path to avoid interference from existing config files
+        env_provider.set_var(
+            "SUBX_CONFIG_PATH",
+            "/tmp/test_config_no_openai_that_does_not_exist.toml",
+        );
 
         let service = ProductionConfigService::with_env_provider(Arc::new(env_provider))
             .expect("Failed to create config service");
