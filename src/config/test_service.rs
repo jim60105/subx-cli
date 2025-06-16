@@ -148,6 +148,7 @@ impl ConfigService for TestConfigService {
             ["ai", "max_tokens"] => Ok(config.ai.max_tokens.to_string()),
             ["ai", "retry_attempts"] => Ok(config.ai.retry_attempts.to_string()),
             ["ai", "retry_delay_ms"] => Ok(config.ai.retry_delay_ms.to_string()),
+            ["ai", "request_timeout_seconds"] => Ok(config.ai.request_timeout_seconds.to_string()),
             ["formats", "default_output"] => Ok(config.formats.default_output.clone()),
             ["formats", "default_encoding"] => Ok(config.formats.default_encoding.clone()),
             ["formats", "preserve_styling"] => Ok(config.formats.preserve_styling.to_string()),
@@ -264,6 +265,10 @@ impl TestConfigService {
             ["ai", "retry_delay_ms"] => {
                 let v = validate_u64_range(value, 100, 30000)?;
                 config.ai.retry_delay_ms = v;
+            }
+            ["ai", "request_timeout_seconds"] => {
+                let v = validate_u64_range(value, 10, 600)?;
+                config.ai.request_timeout_seconds = v;
             }
             ["formats", "default_output"] => {
                 validate_enum(value, &["srt", "ass", "vtt", "webvtt"])?;

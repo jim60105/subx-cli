@@ -57,7 +57,7 @@ fn test_ai_request_timeout_validation() {
         result
             .unwrap_err()
             .to_string()
-            .contains("must be at least 10 seconds")
+            .contains("Value 5 is out of range [10, 600]")
     );
 
     // 測試無效值 - 太大
@@ -67,6 +67,6 @@ fn test_ai_request_timeout_validation() {
         result
             .unwrap_err()
             .to_string()
-            .contains("should not exceed 600 seconds")
+            .contains("Value 700 is out of range [10, 600]")
     );
 }
