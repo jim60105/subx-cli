@@ -7,7 +7,7 @@ use subx_cli::core::sync::{SyncEngine, SyncMethod};
 use tempfile::TempDir;
 
 #[tokio::test]
-#[ignore] // 性能測試，平時不執行
+#[ignore] // Performance test, not executed normally
 async fn test_sync_engine_performance_comparison() {
     let temp_dir = TempDir::new().unwrap();
     let audio_path = temp_dir.path().join("large_test.wav");

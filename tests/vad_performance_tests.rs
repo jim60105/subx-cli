@@ -4,12 +4,12 @@ use subx_cli::services::vad::LocalVadDetector;
 use tempfile::TempDir;
 
 #[tokio::test]
-#[ignore] // 標記為性能測試，平時不執行
+#[ignore] // Marked as performance test, not executed normally
 async fn test_vad_performance_large_audio() {
     let temp_dir = TempDir::new().unwrap();
     let audio_path = temp_dir.path().join("large_audio.wav");
 
-    // 建立 10 分鐘的測試音訊
+    // Create 10 minutes of test audio
     create_long_audio_file(&audio_path, 600);
 
     let config = VadConfig::default();
@@ -19,7 +19,7 @@ async fn test_vad_performance_large_audio() {
     let result = detector.detect_speech(&audio_path).await.unwrap();
     let processing_time = start_time.elapsed();
 
-    // 驗證性能要求
+    // Verify performance requirements
     assert!(
         processing_time.as_secs() < 30,
         "Processing took too long: {:?}",
@@ -45,16 +45,16 @@ fn create_long_audio_file(path: &std::path::Path, duration_seconds: u32) {
     for i in 0..total_samples {
         let t = i as f32 / 16000.0;
 
-        // 每 10 秒建立一個語音片段
+        // Create speech segment every 10 seconds
         let is_speech_time = (t % 10.0) >= 2.0 && (t % 10.0) <= 5.0;
 
         let sample = if is_speech_time {
-            // 語音信號
+            // Speech signal
             (0.3 * (2.0 * std::f32::consts::PI * 400.0 * t).sin()
                 + 0.2 * (2.0 * std::f32::consts::PI * 800.0 * t).sin())
                 * 32767.0
         } else {
-            // 背景雜音
+            // Background noise
             ((t * 9973.0).sin() * 0.01) * 32767.0
         };
 

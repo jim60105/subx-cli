@@ -3,7 +3,7 @@ use std::collections::hash_map::DefaultHasher;
 use std::hash::{Hash, Hasher};
 use std::hint::black_box;
 
-/// 生成檔案的確定性唯一識別碼
+/// Generate a deterministic unique identifier for a file
 fn generate_file_id(relative_path: &str, file_size: u64) -> String {
     let mut hasher = DefaultHasher::new();
     relative_path.hash(&mut hasher);
@@ -16,7 +16,7 @@ fn bench_file_id_generation(c: &mut Criterion) {
     c.bench_function("file_id_generation_single", |b| {
         b.iter(|| {
             generate_file_id(
-                black_box("test/directory/very_long_filename_with_unicode_字幕檔案.mkv"),
+                black_box("test/directory/very_long_filename_with_unicode_subtitles.mkv"),
                 black_box(1024 * 1024 * 1024), // 1GB
             )
         })
@@ -44,9 +44,9 @@ fn bench_file_id_generation(c: &mut Criterion) {
         })
     });
 
-    // 測試不同長度的檔案路徑
+    // Test different file path lengths
     c.bench_function("file_id_generation_long_path", |b| {
-        let long_path = "very/long/directory/structure/with/many/nested/folders/and/unicode/characters/影片/字幕/季節一/第一集/最終檔案名稱.mkv";
+        let long_path = "very/long/directory/structure/with/many/nested/folders/and/unicode/characters/videos/subtitles/season_one/episode_one/final_filename.mkv";
         b.iter(|| {
             generate_file_id(black_box(long_path), black_box(5000000000)) // 5GB
         })
@@ -64,7 +64,7 @@ fn bench_id_collision_resistance(c: &mut Criterion) {
             for i in 0..10000 {
                 let id = generate_file_id(
                     black_box(&format!("test_dir_{}/file_{:06}.mkv", i / 1000, i)),
-                    black_box(1000000 + (i * 137) as u64), // 使用質數避免規律性
+                    black_box(1000000 + (i * 137) as u64), // Use prime number to avoid patterns
                 );
 
                 if !ids.insert(id) {
@@ -72,7 +72,7 @@ fn bench_id_collision_resistance(c: &mut Criterion) {
                 }
             }
 
-            black_box(collisions) // 預期為 0
+            black_box(collisions) // Expected to be 0
         })
     });
 }

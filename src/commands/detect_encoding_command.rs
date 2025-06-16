@@ -206,7 +206,7 @@ pub fn detect_encoding_command(args: &DetectEncodingArgs) -> Result<()> {
     // Process each file individually to provide isolated error handling
     for path in paths {
         if !path.exists() {
-            error!("路徑不存在: {}", path.display());
+            error!("Path does not exist: {}", path.display());
             continue;
         }
         let file_str = path.to_string_lossy();
@@ -216,12 +216,12 @@ pub fn detect_encoding_command(args: &DetectEncodingArgs) -> Result<()> {
                     .file_name()
                     .and_then(|n| n.to_str())
                     .unwrap_or(&file_str);
-                println!("檔案: {}", name);
+                println!("File: {}", name);
                 println!(
-                    "  編碼: {:?} (信心度: {:.1}%) BOM: {}",
+                    "  Encoding: {:?} (Confidence: {:.1}%) BOM: {}",
                     info.charset,
                     info.confidence * 100.0,
-                    if info.bom_detected { "是" } else { "否" }
+                    if info.bom_detected { "Yes" } else { "No" }
                 );
                 let sample = if args.verbose {
                     info.sample_text.clone()
@@ -230,9 +230,9 @@ pub fn detect_encoding_command(args: &DetectEncodingArgs) -> Result<()> {
                 } else {
                     info.sample_text.clone()
                 };
-                println!("  範例文本: {}\n", sample);
+                println!("  Sample text: {}\n", sample);
             }
-            Err(e) => error!("無法偵測 {} 的編碼: {}", path.display(), e),
+            Err(e) => error!("Unable to detect encoding for {}: {}", path.display(), e),
         }
     }
     Ok(())

@@ -106,7 +106,7 @@ pub struct DetectEncodingArgs {
     #[arg(short, long)]
     pub verbose: bool,
 
-    /// 指定要處理的檔案或目錄路徑（新增參數，與 file_paths 互斥）
+    /// Specify file or directory paths to process (new parameter, mutually exclusive with file_paths)
     #[arg(
         short = 'i',
         long = "input",
@@ -115,7 +115,7 @@ pub struct DetectEncodingArgs {
     )]
     pub input_paths: Vec<PathBuf>,
 
-    /// 遞迴處理子目錄（新增參數）
+    /// Recursively process subdirectories (new parameter)
     #[arg(short, long)]
     pub recursive: bool,
 
@@ -216,7 +216,7 @@ mod tests {
 }
 
 impl DetectEncodingArgs {
-    /// 取得所有輸入路徑，合併 file_paths 和 input_paths 參數
+    /// Get all input paths, combining file_paths and input_paths parameters
     pub fn get_input_handler(&self) -> Result<InputPathHandler, SubXError> {
         let merged_paths = InputPathHandler::merge_paths_from_multiple_sources(
             &[],
@@ -228,7 +228,7 @@ impl DetectEncodingArgs {
             .with_extensions(&["srt", "ass", "vtt", "ssa", "sub", "txt"]))
     }
 
-    /// 取得所有要處理的檔案路徑
+    /// Get all file paths to process
     pub fn get_file_paths(&self) -> Result<Vec<PathBuf>, SubXError> {
         if !self.input_paths.is_empty() {
             let handler = InputPathHandler::from_args(&self.input_paths, self.recursive)?

@@ -5,32 +5,32 @@ use subx_cli::services::vad::{LocalVadDetector, VadSyncDetector};
 use tempfile::TempDir;
 
 #[tokio::test]
-#[ignore = "需要音訊處理環境，在某些 CI 環境中可能失敗"]
+#[ignore = "Requires audio processing environment, may fail in some CI environments"]
 async fn test_vad_sync_detection_integration() {
     let temp_dir = TempDir::new().unwrap();
 
-    // 建立測試音訊檔案
+    // Create test audio file
     let audio_path = temp_dir.path().join("test_video.wav");
     create_test_audio_with_timed_speech(&audio_path);
 
-    // 建立測試字幕
+    // Create test subtitle
     let subtitle = create_test_subtitle_with_known_timing();
 
-    // 建立 VAD 同步檢測器
+    // Create VAD sync detector
     let config = VadConfig::default();
     let detector = VadSyncDetector::new(config).unwrap();
 
-    // 執行同步檢測
+    // Execute sync detection
     let result = detector
         .detect_sync_offset(
             &audio_path,
             &subtitle,
-            30, // 30 秒分析窗口
+            30, // 30-second analysis window
         )
         .await
         .unwrap();
 
-    // 驗證結果
+    // Verify results
     assert!(result.confidence > 0.5);
     assert_eq!(
         result.method_used,
@@ -40,11 +40,11 @@ async fn test_vad_sync_detection_integration() {
 }
 
 #[tokio::test]
-#[ignore = "需要音訊處理環境，在某些 CI 環境中可能失敗"]
+#[ignore = "Requires audio processing environment, may fail in some CI environments"]
 async fn test_vad_audio_format_compatibility() {
     let temp_dir = TempDir::new().unwrap();
 
-    // 測試不同的音訊格式和參數
+    // Test different audio formats and parameters
     let test_cases = vec![
         (8000, 1),  // 8kHz mono
         (16000, 1), // 16kHz mono
@@ -72,7 +72,7 @@ async fn test_vad_audio_format_compatibility() {
 }
 
 fn create_test_audio_with_timed_speech(path: &std::path::Path) {
-    // 建立包含已知時間點語音的測試音訊
+    // Create test audio with speech at known time points
     let spec = hound::WavSpec {
         channels: 1,
         sample_rate: 16000,
@@ -81,20 +81,20 @@ fn create_test_audio_with_timed_speech(path: &std::path::Path) {
     };
 
     let mut writer = hound::WavWriter::create(path, spec).unwrap();
-    let duration_seconds = 60; // 1 分鐘
+    let duration_seconds = 60; // 1 minute
     let total_samples = 16000 * duration_seconds;
 
     for i in 0..total_samples {
         let t = i as f32 / 16000.0;
 
-        // 在第 30 秒附近（分析窗口中心）建立語音
+        // Create speech around 30 seconds (analysis window center)
         let sample = if t >= 29.5 && t <= 32.0 {
-            // 語音信號
+            // Speech signal
             (0.4 * (2.0 * std::f32::consts::PI * 300.0 * t).sin()
                 + 0.3 * (2.0 * std::f32::consts::PI * 600.0 * t).sin())
                 * 32767.0
         } else {
-            // 背景雜音
+            // Background noise
             ((t * 7919.0).sin() * 0.005) * 32767.0
         };
 
@@ -108,7 +108,7 @@ fn create_test_subtitle_with_known_timing() -> Subtitle {
     Subtitle {
         entries: vec![SubtitleEntry::new(
             1,
-            Duration::from_secs(30), // 第一句在第 30 秒
+            Duration::from_secs(30), // First sentence at 30 seconds
             Duration::from_secs(32),
             "Test dialogue".to_string(),
         )],
@@ -134,10 +134,10 @@ fn create_test_audio_with_format(path: &std::path::Path, sample_rate: u32, chann
 
         for _ch in 0..channels {
             let sample = if t >= 0.5 && t <= 1.5 {
-                // 語音信號
+                // Speech signal
                 (0.3 * (2.0 * std::f32::consts::PI * 440.0 * t).sin()) * 32767.0
             } else {
-                // 靜音
+                // Silence
                 0.0
             };
 

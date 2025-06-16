@@ -51,7 +51,7 @@ pub struct MatchArgs {
     /// MP4, MKV, AVI, etc. Supported subtitle formats include SRT, ASS, VTT, etc.
     pub path: Option<PathBuf>,
 
-    /// 指定要處理的檔案或目錄路徑（新增參數），可以多次使用
+    /// Specify file or directory paths to process (new parameter), can be used multiple times
     #[arg(short = 'i', long = "input", value_name = "PATH")]
     pub input_paths: Vec<PathBuf>,
 
@@ -128,7 +128,7 @@ impl MatchArgs {
         Ok(())
     }
 
-    /// 取得所有輸入路徑，合併 path 和 input_paths 參數
+    /// Get all input paths, combining path and input_paths parameters
     pub fn get_input_handler(&self) -> Result<InputPathHandler, SubXError> {
         let optional_paths = vec![self.path.clone()];
         let merged_paths = InputPathHandler::merge_paths_from_multiple_sources(

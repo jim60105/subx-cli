@@ -5,14 +5,14 @@ use tempfile::TempDir;
 use subx_cli::cli::{SyncArgs, SyncMethodArg};
 use subx_cli::core::sync::SyncMethod;
 
-/// 測試新同步架構的完整整合功能
+/// Test comprehensive integration functionality of the new sync architecture
 ///
-/// 這個測試套件驗證移除 Whisper 後的同步功能：
-/// - 新的 CLI 參數結構  
-/// - VAD 同步引擎
-/// - 方法選擇策略
-/// - 批次處理
-/// - 錯誤處理機制
+/// This test suite verifies sync functionality after removing Whisper:
+/// - New CLI parameter structure  
+/// - VAD sync engine
+/// - Method selection strategy
+/// - Batch processing
+/// - Error handling mechanisms
 
 #[test]
 fn test_sync_args_with_vad_method() {
@@ -20,7 +20,7 @@ fn test_sync_args_with_vad_method() {
     let video_path = temp_dir.path().join("test.mp4");
     let subtitle_path = temp_dir.path().join("test.srt");
 
-    // 創建測試檔案
+    // Create test files
     fs::write(&video_path, b"fake video content").unwrap();
     create_test_subtitle(&subtitle_path);
 
@@ -40,11 +40,11 @@ fn test_sync_args_with_vad_method() {
         dry_run: false,
         force: false,
         batch: false,
-        range: None,     // 已棄用的字段
-        threshold: None, // 已棄用的字段
+        range: None,     // Deprecated field
+        threshold: None, // Deprecated field
     };
 
-    // 驗證參數解析正確
+    // Verify parameter parsing is correct
     assert_eq!(args.method, Some(SyncMethodArg::Vad));
     assert_eq!(args.window, 45);
     assert_eq!(args.vad_sensitivity, Some(0.8));
@@ -80,10 +80,10 @@ fn test_sync_args_with_vad_default_settings() {
         threshold: None,
     };
 
-    // 驗證 VAD 參數正確設置
+    // Verify VAD parameters are set correctly
     assert_eq!(args.method, Some(SyncMethodArg::Vad));
-    assert_eq!(args.vad_sensitivity, None); // 使用預設值
-    assert_eq!(args.vad_chunk_size, None); // 使用預設值
+    assert_eq!(args.vad_sensitivity, None); // Use default value
+    assert_eq!(args.vad_chunk_size, None); // Use default value
 }
 
 #[test]
@@ -94,7 +94,7 @@ fn test_sync_args_with_manual_offset() {
 
     #[allow(deprecated)]
     let args = SyncArgs {
-        video: None, // 手動偏移不需要視訊檔案
+        video: None, // Manual offset doesn't require video file
         subtitle: Some(subtitle_path.clone()),
         input_paths: vec![],
         recursive: false,
@@ -112,7 +112,7 @@ fn test_sync_args_with_manual_offset() {
         threshold: None,
     };
 
-    // 驗證手動偏移設置
+    // Verify manual offset settings
     assert_eq!(args.offset, Some(2.5));
     assert_eq!(args.video, None);
     assert_eq!(args.method, Some(SyncMethodArg::Manual));
@@ -134,7 +134,7 @@ fn test_sync_args_batch_mode() {
         input_paths: vec![],
         recursive: false,
         offset: None,
-        method: Some(SyncMethodArg::Vad), // 使用 Vad 而不是 Auto
+        method: Some(SyncMethodArg::Vad), // Use Vad instead of Auto
         window: 30,
         vad_sensitivity: None,
         vad_chunk_size: None,
@@ -147,7 +147,7 @@ fn test_sync_args_batch_mode() {
         threshold: None,
     };
 
-    // 驗證批次模式設置
+    // Verify batch mode settings
     assert!(args.batch);
     assert_eq!(args.method, Some(SyncMethodArg::Vad));
 }
@@ -158,14 +158,14 @@ fn test_sync_args_validation() {
     let subtitle_path = temp_dir.path().join("test.srt");
     create_test_subtitle(&subtitle_path);
 
-    // 測試手動方法需要 offset 參數
+    // Test manual method requires offset parameter
     #[allow(deprecated)]
     let args = SyncArgs {
         video: None,
         subtitle: Some(subtitle_path.clone()),
         input_paths: vec![],
         recursive: false,
-        offset: None, // 缺少 offset
+        offset: None, // Missing offset
         method: Some(SyncMethodArg::Manual),
         window: 30,
         vad_sensitivity: None,
@@ -185,10 +185,10 @@ fn test_sync_args_validation() {
         "Manual method without offset should fail validation"
     );
 
-    // 測試有效的手動偏移
+    // Test valid manual offset
     #[allow(deprecated)]
     let valid_args = SyncArgs {
-        offset: Some(2.5), // 提供 offset
+        offset: Some(2.5), // Provide offset
         ..args
     };
 
@@ -199,13 +199,13 @@ fn test_sync_args_validation() {
     );
 }
 
-// 之前這裡有一個需要音訊環境的整合測試，
-// 但由於環境依賴複雜，已移除。
-// 實際的整合測試已在其他測試檔案中涵蓋。
+// Previously there was an integration test requiring audio environment here,
+// but it was removed due to complex environment dependencies.
+// Actual integration tests are covered in other test files.
 
 #[test]
 fn test_sync_method_conversion() {
-    // 測試 CLI 枚舉到核心枚舉的轉換
+    // Test CLI enum to core enum conversion
     let vad_arg = SyncMethodArg::Vad;
     let vad_method: SyncMethod = vad_arg.into();
     assert_eq!(vad_method, SyncMethod::LocalVad);
@@ -215,7 +215,7 @@ fn test_sync_method_conversion() {
     assert_eq!(manual_method, SyncMethod::Manual);
 }
 
-// Helper functions - 實際的整合測試在其他檔案中
+// Helper functions - Actual integration tests are in other files
 
 fn create_test_subtitle(path: &Path) {
     let subtitle_content = r#"1

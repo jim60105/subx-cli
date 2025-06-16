@@ -6,7 +6,7 @@ use subx_cli::core::sync::{SyncEngine, SyncMethod};
 use tempfile::TempDir;
 
 #[tokio::test]
-#[ignore = "需要音訊處理環境，在某些 CI 環境中可能失敗"]
+#[ignore = "Requires audio processing environment, may fail in some CI environments"]
 async fn test_sync_engine_with_vad_only() {
     let temp_dir = TempDir::new().unwrap();
 
@@ -31,7 +31,7 @@ async fn test_sync_engine_with_vad_only() {
 }
 
 #[tokio::test]
-#[ignore = "需要音訊處理環境，在某些 CI 環境中可能失敗"]
+#[ignore = "Requires audio processing environment, may fail in some CI environments"]
 async fn test_auto_method_selection_fallback() {
     let temp_dir = TempDir::new().unwrap();
     let audio_path = temp_dir.path().join("test.wav");
@@ -45,7 +45,7 @@ async fn test_auto_method_selection_fallback() {
     let config_service = TestConfigService::new(config);
     let engine = SyncEngine::new(config_service.config().sync.clone()).unwrap();
 
-    // 自动选择方法时传入 None，并测试回退到本地 VAD
+    // Auto method selection with None input, test fallback to local VAD
     let result = engine
         .detect_sync_offset(&audio_path, &subtitle, None)
         .await

@@ -67,11 +67,11 @@ pub struct SyncArgs {
         required_unless_present_any = ["input_paths", "batch"]
     )]
     pub subtitle: Option<PathBuf>,
-    /// 指定要處理的檔案或目錄路徑（新增參數），可以多次使用
+    /// Specify file or directory paths to process (new parameter), can be used multiple times
     #[arg(short = 'i', long = "input", value_name = "PATH")]
     pub input_paths: Vec<PathBuf>,
 
-    /// 遞迴處理子目錄（新增參數）
+    /// Recursively process subdirectories (new parameter)
     #[arg(short, long)]
     pub recursive: bool,
 
@@ -247,8 +247,8 @@ Need help? Run: subx sync --help"
         self.offset.is_none()
     }
 
-    /// 取得所有輸入路徑，合併 video, subtitle 和 input_paths 參數
-    /// 注意：對於 sync 命令，video 和 subtitle 都是有效的輸入路徑
+    /// Get all input paths, combining video, subtitle and input_paths parameters
+    /// Note: For sync command, both video and subtitle are valid input paths
     pub fn get_input_handler(&self) -> Result<InputPathHandler, SubXError> {
         let optional_paths = vec![self.video.clone(), self.subtitle.clone()];
         let merged_paths = InputPathHandler::merge_paths_from_multiple_sources(
@@ -261,7 +261,7 @@ Need help? Run: subx sync --help"
             .with_extensions(&["mp4", "mkv", "avi", "mov", "srt", "ass", "vtt", "sub"]))
     }
 
-    /// 取得同步模式：單檔或批次
+    /// Get sync mode: single file or batch
     pub fn get_sync_mode(&self) -> Result<SyncMode, SubXError> {
         if !self.input_paths.is_empty() || self.batch {
             let paths = if !self.input_paths.is_empty() {
@@ -288,17 +288,17 @@ Need help? Run: subx sync --help"
     }
 }
 
-/// 同步模式：單檔或批次
+/// Sync mode: single file or batch
 #[derive(Debug)]
 pub enum SyncMode {
-    /// 單檔同步模式，指定影片與字幕檔案
+    /// Single file sync mode, specify video and subtitle files
     Single {
-        /// 影片檔案路徑
+        /// Video file path
         video: PathBuf,
-        /// 字幕檔案路徑
+        /// Subtitle file path
         subtitle: PathBuf,
     },
-    /// 批次同步模式，使用 InputPathHandler 處理多個路徑
+    /// Batch sync mode, using InputPathHandler to process multiple paths
     Batch(InputPathHandler),
 }
 

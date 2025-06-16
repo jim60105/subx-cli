@@ -114,34 +114,36 @@ pub enum SubXError {
     #[error("{0}")]
     CommandExecution(String),
 
-    /// 未指定輸入路徑
-    #[error("未指定輸入路徑")]
+    /// No input path was specified for the operation.
+    #[error("No input path specified")]
     NoInputSpecified,
 
-    /// 無效的路徑
-    #[error("無效的路徑: {0}")]
+    /// The provided path is invalid or malformed.
+    #[error("Invalid path: {0}")]
     InvalidPath(std::path::PathBuf),
 
-    /// 路徑不存在
-    #[error("路徑不存在: {0}")]
+    /// The specified path does not exist on the filesystem.
+    #[error("Path not found: {0}")]
     PathNotFound(std::path::PathBuf),
 
-    /// 無法讀取目錄
-    #[error("無法讀取目錄: {path}")]
+    /// Unable to read the specified directory.
+    #[error("Unable to read directory: {path}")]
     DirectoryReadError {
-        /// 目錄路徑
+        /// The directory path that could not be read
         path: std::path::PathBuf,
-        /// 原始 I/O 錯誤
+        /// The underlying I/O error
         #[source]
         source: std::io::Error,
     },
 
-    /// 同步設定無效：請指定影片和字幕檔案，或使用 -i 參數進行批次處理
-    #[error("同步設定無效：請指定影片和字幕檔案，或使用 -i 參數進行批次處理")]
+    /// Invalid synchronization configuration: please specify video and subtitle files, or use -i parameter for batch processing.
+    #[error(
+        "Invalid sync configuration: please specify video and subtitle files, or use -i parameter for batch processing"
+    )]
     InvalidSyncConfiguration,
 
-    /// 不支援的檔案類型
-    #[error("不支援的檔案類型: {0}")]
+    /// Unsupported file type encountered.
+    #[error("Unsupported file type: {0}")]
     UnsupportedFileType(String),
 
     /// Catch-all error variant wrapping any other failure.
