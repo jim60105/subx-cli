@@ -42,8 +42,7 @@
 | `vad.speech_merge_gap_ms` | u32 | 200 | **呼叫樹:**<br>• `SyncCommand::execute()` → `SyncEngine::new()` → `VadSyncDetector::new()` → `LocalVadDetector::new()`<br>• `LocalVadDetector::merge_close_segments()` 合併相近語音段 (line 166) → `src/services/vad/detector.rs:166`<br>• 決定相近語音段的合併閾值，影響最終語音段數量 | 語音段合併間隔，合併時間間隔短的語音段 | `subx-cli sync` | ✅ 使用中 |
 
 **注意**: 以下配置項目已被棄用，保留僅為向後相容性：
-- `correlation_threshold` (已棄用)
-- `dialogue_detection_threshold` (已棄用)  
+<!-- 已移除舊項目: correlation_threshold, dialogue_detection_threshold -->
 - `min_dialogue_duration_ms` (已棄用)
 - `dialogue_merge_gap_ms` (已棄用)
 - `enable_dialogue_detection` (已棄用)
@@ -136,4 +135,4 @@
 3. 新增 `sync.default_method` 的配置方法支援
 4. 確保 `config get` 和 `config set` 命令的一致性
 
-**註**: 舊的 sync 配置項目 (correlation_threshold 等) 已標記為 `#[deprecated]` 和 `#[serde(skip)]`，建議移除其在 `set_config_value` 中的支援
+**註**: 同步配置 CLI 現已完整支援 `sync.default_method` 及所有 VAD 相關配置，並已移除對已棄用項目（correlation_threshold, dialogue_detection_threshold）的 `set_config_value` 支援。

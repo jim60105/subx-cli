@@ -344,13 +344,37 @@ impl ProductionConfigService {
                 let v = validate_float_range(value, 0.0, 300.0)?;
                 config.sync.max_offset_seconds = v;
             }
-            ["sync", "correlation_threshold"] => {
-                let v = validate_float_range(value, 0.0, 1.0)?;
-                config.sync.correlation_threshold = v;
+            ["sync", "default_method"] => {
+                validate_enum(value, &["auto", "vad"])?;
+                config.sync.default_method = value.to_string();
             }
-            ["sync", "dialogue_detection_threshold"] => {
+            ["sync", "vad", "enabled"] => {
+                let v = parse_bool(value)?;
+                config.sync.vad.enabled = v;
+            }
+            ["sync", "vad", "sensitivity"] => {
                 let v = validate_float_range(value, 0.0, 1.0)?;
-                config.sync.dialogue_detection_threshold = v;
+                config.sync.vad.sensitivity = v;
+            }
+            ["sync", "vad", "chunk_size"] => {
+                let v = validate_usize_range(value, 1, usize::MAX)?;
+                config.sync.vad.chunk_size = v;
+            }
+            ["sync", "vad", "sample_rate"] => {
+                validate_enum(value, &["8000", "16000", "22050", "44100", "48000"])?;
+                config.sync.vad.sample_rate = value.parse().unwrap();
+            }
+            ["sync", "vad", "padding_chunks"] => {
+                let v = validate_uint_range(value, 0, u32::MAX)?;
+                config.sync.vad.padding_chunks = v;
+            }
+            ["sync", "vad", "min_speech_duration_ms"] => {
+                let v = validate_uint_range(value, 0, u32::MAX)?;
+                config.sync.vad.min_speech_duration_ms = v;
+            }
+            ["sync", "vad", "speech_merge_gap_ms"] => {
+                let v = validate_uint_range(value, 0, u32::MAX)?;
+                config.sync.vad.speech_merge_gap_ms = v;
             }
             ["sync", "min_dialogue_duration_ms"] => {
                 let v = validate_uint_range(value, 100, 5000)?;
@@ -527,19 +551,59 @@ impl ConfigService for ProductionConfigService {
             ["ai", "model"] => Ok(config.ai.model.clone()),
             ["ai", "api_key"] => Ok(config.ai.api_key.clone().unwrap_or_default()),
             ["ai", "base_url"] => Ok(config.ai.base_url.clone()),
+            ["ai", "max_sample_length"] => Ok(config.ai.max_sample_length.to_string()),
             ["ai", "temperature"] => Ok(config.ai.temperature.to_string()),
             ["ai", "max_tokens"] => Ok(config.ai.max_tokens.to_string()),
+            ["ai", "retry_attempts"] => Ok(config.ai.retry_attempts.to_string()),
+            ["ai", "retry_delay_ms"] => Ok(config.ai.retry_delay_ms.to_string()),
+
             ["formats", "default_output"] => Ok(config.formats.default_output.clone()),
             ["formats", "default_encoding"] => Ok(config.formats.default_encoding.clone()),
             ["formats", "preserve_styling"] => Ok(config.formats.preserve_styling.to_string()),
+            ["formats", "encoding_detection_confidence"] => {
+                Ok(config.formats.encoding_detection_confidence.to_string())
+            }
+
+            ["sync", "default_method"] => Ok(config.sync.default_method.clone()),
             ["sync", "max_offset_seconds"] => Ok(config.sync.max_offset_seconds.to_string()),
-            ["sync", "correlation_threshold"] => Ok(config.sync.correlation_threshold.to_string()),
-            ["sync", "audio_sample_rate"] => Ok(config.sync.audio_sample_rate.to_string()),
+            ["sync", "vad", "enabled"] => Ok(config.sync.vad.enabled.to_string()),
+            ["sync", "vad", "sensitivity"] => Ok(config.sync.vad.sensitivity.to_string()),
+            ["sync", "vad", "chunk_size"] => Ok(config.sync.vad.chunk_size.to_string()),
+            ["sync", "vad", "sample_rate"] => Ok(config.sync.vad.sample_rate.to_string()),
+            ["sync", "vad", "padding_chunks"] => Ok(config.sync.vad.padding_chunks.to_string()),
+            ["sync", "vad", "min_speech_duration_ms"] => {
+                Ok(config.sync.vad.min_speech_duration_ms.to_string())
+            }
+            ["sync", "vad", "speech_merge_gap_ms"] => {
+                Ok(config.sync.vad.speech_merge_gap_ms.to_string())
+            }
+
             ["general", "backup_enabled"] => Ok(config.general.backup_enabled.to_string()),
             ["general", "max_concurrent_jobs"] => {
                 Ok(config.general.max_concurrent_jobs.to_string())
             }
+            ["general", "task_timeout_seconds"] => {
+                Ok(config.general.task_timeout_seconds.to_string())
+            }
+            ["general", "enable_progress_bar"] => {
+                Ok(config.general.enable_progress_bar.to_string())
+            }
+            ["general", "worker_idle_timeout_seconds"] => {
+                Ok(config.general.worker_idle_timeout_seconds.to_string())
+            }
+
             ["parallel", "max_workers"] => Ok(config.parallel.max_workers.to_string()),
+            ["parallel", "task_queue_size"] => Ok(config.parallel.task_queue_size.to_string()),
+            ["parallel", "enable_task_priorities"] => {
+                Ok(config.parallel.enable_task_priorities.to_string())
+            }
+            ["parallel", "auto_balance_workers"] => {
+                Ok(config.parallel.auto_balance_workers.to_string())
+            }
+            ["parallel", "overflow_strategy"] => {
+                Ok(format!("{:?}", config.parallel.overflow_strategy))
+            }
+
             _ => Err(SubXError::config(format!(
                 "Unknown configuration key: {}",
                 key

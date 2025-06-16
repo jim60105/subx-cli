@@ -47,9 +47,11 @@
 //! subx-cli config set ai.api_key "sk-1234567890abcdef"
 //! subx-cli config set ai.base_url "https://api.openai.com/v1"
 //!
-//! # Configure audio processing
+//! # Configure audio processing and VAD settings
 //! subx-cli config set sync.max_offset_seconds 15.0
-//! subx-cli config set sync.correlation_threshold 0.85
+//! subx-cli config set sync.default_method vad
+//! subx-cli config set sync.vad.enabled true
+//! subx-cli config set sync.vad.sensitivity 0.8
 //!
 //! # Set performance options
 //! subx-cli config set parallel.max_workers 4
