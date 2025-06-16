@@ -7,6 +7,38 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.7.0] - 2025-06-16
+### Added
+- Added: Unified input path parameter (-i/--input) support across all CLI commands (match, convert, sync, detect-encoding).
+- Added: Recursive directory scanning functionality with --recursive flag for batch operations.
+- Added: Batch mode support for sync and convert commands enabling efficient processing of multiple files.
+- Added: File-centric match architecture for processing user-specified files directly instead of parent directories.
+- Added: Enhanced audio transcoding support with Symphonia library for multiple audio formats (MP4, MKV/WebM, OGG).
+- Added: Local Voice Activity Detection (VAD) for subtitle synchronization without external API dependencies.
+- Added: Comprehensive test infrastructure improvements with over 300 new integration tests.
+- Added: SubX theme audio/video assets for enhanced testing and demonstration.
+
+### Changed
+- Changed: Complete documentation migration from Chinese to English across all source code and comments.
+- Changed: Unified file handling architecture across all commands for consistent behavior.
+- Changed: Enhanced error handling in audio decoder with proper Symphonia API error classification.
+- Changed: Improved CLI argument structure with better validation and user experience.
+- Changed: Upgraded audio processing pipeline to support multiple container and codec formats.
+- Changed: Enhanced match command to respect user-specified file inputs exactly as provided.
+
+### Fixed
+- Fixed: "No matching file pairs found" issue in match command when AI correctly identified matches.
+- Fixed: Audio decoder error handling to properly manage recoverable vs fatal Symphonia decode errors.
+- Fixed: Sync command video file requirement when using manual --offset parameter.
+- Fixed: Audio processing panic when aus crate returns empty samples array.
+- Fixed: File ID generation consistency using absolute paths for reliable caching.
+- Fixed: CLI parameter conflicts in sync command by removing ambiguous short options.
+
+### Removed
+- Removed: aus audio processing library dependency in favor of Symphonia-based transcoding.
+- Removed: Legacy audio analyzer and dialogue detector components.
+- Removed: Deprecated sync configuration items and related error handling.
+
 ## [0.6.0] - 2025-06-13
 ### Added
 - Added: Configuration set command with `config set` functionality and comprehensive validation system.
@@ -159,7 +191,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Initial release of SubX CLI tool
 - Rust-based intelligent subtitle processing
 
-[Unreleased]: https://github.com/SubX-Project/SubX/compare/v0.6.0...HEAD
+[Unreleased]: https://github.com/SubX-Project/SubX/compare/v0.7.0...HEAD
+[0.7.0]: https://github.com/SubX-Project/SubX/compare/v0.6.0...v0.7.0
 [0.6.0]: https://github.com/SubX-Project/SubX/compare/v0.5.0...v0.6.0
 [0.5.0]: https://github.com/SubX-Project/SubX/compare/v0.4.1...v0.5.0
 [0.4.1]: https://github.com/SubX-Project/SubX/compare/v0.4.0...v0.4.1
