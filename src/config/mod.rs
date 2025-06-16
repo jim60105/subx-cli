@@ -99,13 +99,14 @@ pub struct Config {
     pub loaded_from: Option<PathBuf>,
 }
 
-/// AI service provider configuration.
+/// AI service configuration parameters.
 ///
-/// Contains all settings required for AI provider integration,
-/// including authentication, model selection, and retry behavior.
+/// This structure defines all configuration options for AI providers,
+/// including authentication, model parameters, retry behavior, and timeouts.
 ///
 /// # Examples
 ///
+/// Creating a default configuration:
 /// ```rust
 /// use subx_cli::config::AIConfig;
 ///
@@ -134,6 +135,10 @@ pub struct AIConfig {
     pub retry_attempts: u32,
     /// Retry interval in milliseconds.
     pub retry_delay_ms: u64,
+    /// HTTP request timeout in seconds.
+    /// This controls how long to wait for a response from the AI service.
+    /// For slow networks or complex requests, you may need to increase this value.
+    pub request_timeout_seconds: u64,
 }
 
 impl Default for AIConfig {
@@ -148,6 +153,9 @@ impl Default for AIConfig {
             max_tokens: 10000,
             retry_attempts: 3,
             retry_delay_ms: 1000,
+            // Set to 120 seconds to handle slow networks and complex AI requests
+            // This is especially important for users with high-latency connections
+            request_timeout_seconds: 120,
         }
     }
 }

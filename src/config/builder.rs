@@ -118,6 +118,16 @@ impl TestConfigBuilder {
         self
     }
 
+    /// Set the AI request timeout.
+    ///
+    /// # Arguments
+    ///
+    /// * `timeout_seconds` - Request timeout in seconds
+    pub fn with_ai_request_timeout(mut self, timeout_seconds: u64) -> Self {
+        self.config.ai.request_timeout_seconds = timeout_seconds;
+        self
+    }
+
     // Sync Configuration Methods
 
     /// Set the synchronization method.

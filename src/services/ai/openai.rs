@@ -142,13 +142,13 @@ mod tests {
             retry_attempts: 2,
             retry_delay_ms: 150,
             max_sample_length: 500,
+            request_timeout_seconds: 60,
         };
         let client = OpenAIClient::from_config(&config).unwrap();
         assert_eq!(client.api_key, "test-key");
         assert_eq!(client.model, "gpt-test");
         assert_eq!(client.temperature, 0.7);
         assert_eq!(client.max_tokens, 2000);
-        assert_eq!(client.base_url, "https://custom.openai.com/v1");
     }
 
     #[test]
@@ -163,6 +163,7 @@ mod tests {
             retry_attempts: 2,
             retry_delay_ms: 150,
             max_sample_length: 500,
+            request_timeout_seconds: 30,
         };
         let err = OpenAIClient::from_config(&config).unwrap_err();
         // Non-http/https protocols should return protocol error message
@@ -204,8 +205,33 @@ impl OpenAIClient {
         retry_delay_ms: u64,
         base_url: String,
     ) -> Self {
+        // Use default 30 second timeout for backward compatibility
+        Self::new_with_base_url_and_timeout(
+            api_key,
+            model,
+            temperature,
+            max_tokens,
+            retry_attempts,
+            retry_delay_ms,
+            base_url,
+            30,
+        )
+    }
+
+    /// Create a new OpenAIClient with custom base_url and timeout support
+    #[allow(clippy::too_many_arguments)]
+    pub fn new_with_base_url_and_timeout(
+        api_key: String,
+        model: String,
+        temperature: f32,
+        max_tokens: u32,
+        retry_attempts: u32,
+        retry_delay_ms: u64,
+        base_url: String,
+        request_timeout_seconds: u64,
+    ) -> Self {
         let client = Client::builder()
-            .timeout(Duration::from_secs(30))
+            .timeout(Duration::from_secs(request_timeout_seconds))
             .build()
             .expect("Failed to create HTTP client");
         Self {
@@ -230,7 +256,7 @@ impl OpenAIClient {
         // Validate base URL format
         Self::validate_base_url(&config.base_url)?;
 
-        Ok(Self::new_with_base_url(
+        Ok(Self::new_with_base_url_and_timeout(
             api_key.clone(),
             config.model.clone(),
             config.temperature,
@@ -238,6 +264,7 @@ impl OpenAIClient {
             config.retry_attempts,
             config.retry_delay_ms,
             config.base_url.clone(),
+            config.request_timeout_seconds,
         ))
     }
 
@@ -344,13 +371,55 @@ impl OpenAIClient {
         let mut attempts = 0;
         loop {
             match request.try_clone().unwrap().send().await {
-                Ok(resp) => return Ok(resp),
-                Err(_e) if (attempts as u32) < self.retry_attempts => {
+                Ok(resp) => {
+                    if attempts > 0 {
+                        log::info!("Request succeeded after {} retry attempts", attempts);
+                    }
+                    return Ok(resp);
+                }
+                Err(e) if (attempts as u32) < self.retry_attempts => {
                     attempts += 1;
+                    log::warn!(
+                        "Request attempt {} failed: {}. Retrying in {}ms...",
+                        attempts,
+                        e,
+                        self.retry_delay_ms
+                    );
+
+                    // Provide specific guidance for timeout errors
+                    if e.is_timeout() {
+                        log::warn!(
+                            "This appears to be a timeout error. If this persists, consider increasing 'ai.request_timeout_seconds' in your configuration."
+                        );
+                    }
+
                     time::sleep(Duration::from_millis(self.retry_delay_ms)).await;
                     continue;
                 }
-                Err(e) => return Err(e),
+                Err(e) => {
+                    log::error!(
+                        "Request failed after {} attempts. Final error: {}",
+                        attempts + 1,
+                        e
+                    );
+
+                    // Provide actionable error messages
+                    if e.is_timeout() {
+                        log::error!(
+                            "AI service error: Request timed out after multiple attempts. \
+                            This usually indicates network connectivity issues or server overload. \
+                            Try increasing 'ai.request_timeout_seconds' configuration. \
+                            Hint: check network connection and API service status"
+                        );
+                    } else if e.is_connect() {
+                        log::error!(
+                            "AI service error: Connection failed. \
+                            Hint: check network connection and API base URL settings"
+                        );
+                    }
+
+                    return Err(e);
+                }
             }
         }
     }

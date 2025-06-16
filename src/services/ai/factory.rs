@@ -164,6 +164,7 @@ mod tests {
             max_tokens: 1000,
             retry_attempts: 1,
             retry_delay_ms: 10,
+            request_timeout_seconds: 30,
         };
         // Should successfully create OpenAIClient instance
         let res = AIClientFactory::create_client(&config);
@@ -182,6 +183,7 @@ mod tests {
             max_tokens: 1000,
             retry_attempts: 1,
             retry_delay_ms: 10,
+            request_timeout_seconds: 30,
         };
         // Unsupported provider should return error
         let res = AIClientFactory::create_client(&config);

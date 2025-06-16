@@ -17,6 +17,7 @@
 | `max_tokens` | u32 | 10000 | **呼叫樹:**<br>• `MatchCommand::execute()` (line 170) → `src/commands/match_command.rs:170`<br>• `MatchCommand::execute_with_config()` (line 206) → `src/commands/match_command.rs:206`<br>• `AIClientFactory::create_client()` → `OpenAIClient::from_config()` (line 236) → `src/services/ai/openai.rs:236`<br>• `OpenAIClient::chat_completion()` HTTP 請求中使用 (line 270) → `src/services/ai/openai.rs:270` | 控制 AI 回應的最大 token 數量限制 | `subx-cli match` | ✅ 使用中 |
 | `retry_attempts` | u32 | 3 | **呼叫樹:**<br>• `MatchCommand::execute()` (line 170) → `src/commands/match_command.rs:170`<br>• `MatchCommand::execute_with_config()` (line 206) → `src/commands/match_command.rs:206`<br>• `AIClientFactory::create_client()` → `OpenAIClient::from_config()` (line 237) → `src/services/ai/openai.rs:237`<br>• `OpenAIClient::make_request_with_retry()` 重試邏輯 (line 348) → `src/services/ai/openai.rs:348` | API 請求失敗時的重試次數 | `subx-cli match` | ✅ 使用中 |
 | `retry_delay_ms` | u64 | 1000 | **呼叫樹:**<br>• `MatchCommand::execute()` (line 170) → `src/commands/match_command.rs:170`<br>• `MatchCommand::execute_with_config()` (line 206) → `src/commands/match_command.rs:206`<br>• `AIClientFactory::create_client()` → `OpenAIClient::from_config()` (line 238) → `src/services/ai/openai.rs:238`<br>• `OpenAIClient::make_request_with_retry()` 延遲邏輯 (line 350) → `src/services/ai/openai.rs:350` | API 重試之間的延遲時間 | `subx-cli match` | ✅ 使用中 |
+| `request_timeout_seconds` | u64 | 120 | **呼叫樹:**<br>• `MatchCommand::execute()` (line 170) → `src/commands/match_command.rs:170`<br>• `MatchCommand::execute_with_config()` (line 206) → `src/commands/match_command.rs:206`<br>• `AIClientFactory::create_client()` → `OpenAIClient::from_config()` (line 267) → `src/services/ai/openai.rs:267`<br>• `OpenAIClient::new_with_base_url_and_timeout()` 設定 HTTP 客戶端超時 (line 234) → `src/services/ai/openai.rs:234`<br>• `Client::builder().timeout(Duration::from_secs(request_timeout_seconds))` 在 HTTP 客戶端中實際設定超時 (line 234) → `src/services/ai/openai.rs:234`<br>• `ConfigService::get_config_value()` 與 `set_config_value()` 支援 (line 543, 327-329) → `src/config/service.rs:543,327-329`<br>• `AIValidator::validate()` 驗證範圍 10-600 秒 (line 56-63) → `src/config/validator.rs:56-63` | HTTP 請求超時時間，適用於慢速網路或複雜請求。完整的從配置到 HTTP 客戶端設定的路徑，包含驗證與錯誤處理 | `subx-cli match` | ✅ 使用中 |
 
 ### 格式配置 (`[formats]`)
 
@@ -95,7 +96,7 @@
 ### 已棄用但保留的配置 (7 項)
 - **同步配置**: `correlation_threshold`, `dialogue_detection_threshold`, `min_dialogue_duration_ms`, `dialogue_merge_gap_ms`, `enable_dialogue_detection`, `audio_sample_rate`, `auto_detect_sample_rate` - 已標記為 `#[deprecated]` 並且確認沒有在業務邏輯中被使用，但保留以維持向後相容性
 
-**最後更新**: 2025-06-16 - 完成配置文件更新：修正 `max_offset_seconds` 實際使用狀態，更新呼叫樹行號，確認所有配置方法支援完整性，修正同步引擎錯誤訊息為英文
+**最後更新**: 2025-06-16 - 完成配置文件更新：新增 `ai.request_timeout_seconds` 配置選項以支援可調整的 HTTP 請求超時，修正網路延遲問題
 
 ## 配置一致性問題
 
@@ -103,15 +104,15 @@
 
 `ProductionConfigService::get_config_value()` 和 `set_config_value()` 方法現已支援所有配置項目：
 
-**get_config_value 支援的配置鍵 (31 項)** → `src/config/service.rs:523-572`：
-- AI: provider, model, api_key, base_url, max_sample_length, temperature, max_tokens, retry_attempts, retry_delay_ms (9 項)
+**get_config_value 支援的配置鍵 (32 項)** → `src/config/service.rs:523-572`：
+- AI: provider, model, api_key, base_url, max_sample_length, temperature, max_tokens, retry_attempts, retry_delay_ms, request_timeout_seconds (10 項)
 - 格式: default_output, default_encoding, preserve_styling, encoding_detection_confidence (4 項)
 - 同步: default_method, max_offset_seconds, vad.enabled, vad.sensitivity, vad.chunk_size, vad.sample_rate, vad.padding_chunks, vad.min_speech_duration_ms, vad.speech_merge_gap_ms (9 項)
 - 一般: backup_enabled, max_concurrent_jobs, task_timeout_seconds, enable_progress_bar, worker_idle_timeout_seconds (5 項)
 - 並行: max_workers, task_queue_size, enable_task_priorities, auto_balance_workers, overflow_strategy (5 項)
 
-**set_config_value 支援的配置鍵 (31 項)** → `src/config/service.rs:283-416`：
-- AI: provider, model, api_key, base_url, max_sample_length, temperature, max_tokens, retry_attempts, retry_delay_ms (9 項)
+**set_config_value 支援的配置鍵 (32 項)** → `src/config/service.rs:283-416`：
+- AI: provider, model, api_key, base_url, max_sample_length, temperature, max_tokens, retry_attempts, retry_delay_ms, request_timeout_seconds (10 項)
 - 格式: default_output, preserve_styling, default_encoding, encoding_detection_confidence (4 項)
 - 同步: default_method, max_offset_seconds, vad.enabled, vad.sensitivity, vad.chunk_size, vad.sample_rate, vad.padding_chunks, vad.min_speech_duration_ms, vad.speech_merge_gap_ms (9 項)
 - 一般: backup_enabled, max_concurrent_jobs, task_timeout_seconds, enable_progress_bar, worker_idle_timeout_seconds (5 項)

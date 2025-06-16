@@ -52,6 +52,19 @@ impl ConfigValidator for AIValidator {
             return Err(SubXError::config("Retry count cannot exceed 10 times"));
         }
 
+        // Check request timeout
+        if config.ai.request_timeout_seconds < 10 {
+            return Err(SubXError::config(
+                "Request timeout must be at least 10 seconds to allow for network latency",
+            ));
+        }
+
+        if config.ai.request_timeout_seconds > 600 {
+            return Err(SubXError::config(
+                "Request timeout should not exceed 600 seconds (10 minutes) to avoid excessive waiting",
+            ));
+        }
+
         Ok(())
     }
 }
