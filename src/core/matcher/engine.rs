@@ -1209,6 +1209,18 @@ impl MatchEngine {
                                 .to_string(),
                         };
 
+                        // Recalculate relocation information based on current configuration
+                        let requires_relocation = self.config.relocation_mode
+                            != FileRelocationMode::None
+                            && subtitle_file.path.parent() != video_file.path.parent();
+
+                        let relocation_target_path = if requires_relocation {
+                            let video_dir = video_file.path.parent().unwrap();
+                            Some(video_dir.join(&item.new_subtitle_name))
+                        } else {
+                            None
+                        };
+
                         ops.push(MatchOperation {
                             video_file,
                             subtitle_file,
@@ -1216,8 +1228,8 @@ impl MatchEngine {
                             confidence: item.confidence,
                             reasoning: item.reasoning,
                             relocation_mode: self.config.relocation_mode.clone(),
-                            relocation_target_path: None, // Will be recalculated if needed
-                            requires_relocation: false,   // Will be recalculated if needed
+                            relocation_target_path,
+                            requires_relocation,
                         });
                     }
                 }
