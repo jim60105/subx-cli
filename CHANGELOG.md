@@ -7,6 +7,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.9.0] - 2025-06-16
+### Added
+- Added: Comprehensive configuration analysis and validation for max_offset_seconds usage throughout the codebase.
+- Added: Full VAD (Voice Activity Detection) CLI support with get/set operations for all VAD-related configuration parameters.
+- Added: AI sync and VAD settings exposure including max_sample_length, max_tokens, retry_attempts, and retry_delay_ms.
+- Added: Cargo package size optimization by excluding unnecessary files (assets/, .github/, tests/) reducing package size by ~15MB.
+- Added: Enhanced sync engine with max_offset_seconds enforcement for both manual and VAD-based operations.
+- Added: Comprehensive integration tests for offset validation and VAD configuration consistency.
+- Added: Support for manual-only sync mode (subtitle without video file).
+
+### Changed
+- Changed: Translated all Chinese documentation comments and error messages to English for consistency.
+- Changed: Updated configuration documentation with accurate line numbers and call trees for all 30 configuration items.
+- Changed: Improved error messages in sync command with detailed validation feedback.
+- Changed: Enhanced config get/set command consistency supporting identical key sets.
+
+### Fixed
+- Fixed: Critical configuration inconsistency where 16 configuration items could be set but not retrieved via CLI.
+- Fixed: VAD configurations completely missing from config get/set commands.
+- Fixed: Config value consistency tests for proper float formatting.
+- Fixed: Sync command validation to respect configured maximum offset limits.
+
 ## [0.8.0] - 2025-06-16
 ### Added
 - Added: max_tokens configuration support for OpenAI responses with configurable range (1-100000).
@@ -206,7 +228,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Initial release of SubX CLI tool
 - Rust-based intelligent subtitle processing
 
-[Unreleased]: https://github.com/SubX-Project/SubX/compare/v0.8.0...HEAD
+[Unreleased]: https://github.com/SubX-Project/SubX/compare/v0.9.0...HEAD
+[0.9.0]: https://github.com/SubX-Project/SubX/compare/v0.8.0...v0.9.0
 [0.8.0]: https://github.com/SubX-Project/SubX/compare/v0.7.0...v0.8.0
 [0.7.0]: https://github.com/SubX-Project/SubX/compare/v0.6.0...v0.7.0
 [0.6.0]: https://github.com/SubX-Project/SubX/compare/v0.5.0...v0.6.0
