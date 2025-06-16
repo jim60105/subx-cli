@@ -129,7 +129,9 @@ pub enum SubXError {
     /// 無法讀取目錄
     #[error("無法讀取目錄: {path}")]
     DirectoryReadError {
+        /// 目錄路徑
         path: std::path::PathBuf,
+        /// 原始 I/O 錯誤
         #[source]
         source: std::io::Error,
     },

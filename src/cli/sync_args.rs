@@ -292,7 +292,12 @@ Need help? Run: subx sync --help"
 #[derive(Debug)]
 pub enum SyncMode {
     /// 單檔同步模式，指定影片與字幕檔案
-    Single { video: PathBuf, subtitle: PathBuf },
+    Single {
+        /// 影片檔案路徑
+        video: PathBuf,
+        /// 字幕檔案路徑
+        subtitle: PathBuf,
+    },
     /// 批次同步模式，使用 InputPathHandler 處理多個路徑
     Batch(InputPathHandler),
 }
