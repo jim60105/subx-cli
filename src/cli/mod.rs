@@ -55,149 +55,38 @@ pub use ui::{
 };
 
 /// Main CLI application structure defining the top-level interface.
-///
-/// This structure encapsulates the entire command-line interface for SubX,
-/// providing access to all available subcommands and global options.
-///
-/// # Subcommands
-///
-/// - `match` - AI-powered subtitle file matching and intelligent renaming
-/// - `convert` - Format conversion between different subtitle standards
-/// - `sync` - Audio-subtitle synchronization with timing adjustment
-/// - `detect-encoding` - Character encoding detection and conversion
-/// - `config` - Configuration management and inspection utilities
-/// - `generate-completion` - Shell completion script generation
-/// - `cache` - Cache inspection and dry-run management
-///
-/// # Examples
-///
-/// ```rust,no_run
-/// use subx_cli::cli::Cli;
-/// use clap::Parser;
-///
-/// // Parse CLI arguments from specific args instead of std::env
-/// let cli = Cli::parse_from(&["subx", "config", "show"]);
-///
-/// // Access the selected subcommand
-/// match cli.command {
-///     // Handle different commands...
-///     _ => {}
-/// }
-/// ```
-///
-/// # Global Options
-///
-/// Currently, global options are handled within individual subcommands.
-/// Future versions may include global flags such as verbosity control
-/// or configuration file overrides.
 #[derive(Parser, Debug)]
 #[command(name = "subx-cli")]
 #[command(about = "Intelligent subtitle processing CLI tool")]
 #[command(version = env!("CARGO_PKG_VERSION"))]
 pub struct Cli {
-    /// The subcommand to execute.
-    ///
-    /// Each subcommand provides specialized functionality for different
-    /// aspects of subtitle processing and management.
+    /// The subcommand to execute
     #[command(subcommand)]
     pub command: Commands,
 }
 
 /// Available subcommands for the SubX CLI application.
-///
-/// Each variant represents a specific operation that can be performed
-/// by the SubX tool, with associated argument structures that define
-/// the parameters and options for that operation.
-///
-/// # Command Categories
-///
-/// ## Core Processing Commands
-/// - `Match` - AI-powered subtitle matching and renaming
-/// - `Convert` - Format conversion between subtitle standards
-/// - `Sync` - Audio-subtitle synchronization and timing adjustment
-///
-/// ## Utility Commands  
-/// - `DetectEncoding` - Character encoding detection and conversion
-/// - `Config` - Configuration management and inspection
-/// - `Cache` - Cache management and dry-run inspection
-/// - `GenerateCompletion` - Shell completion script generation
-///
-/// # Examples
-///
-/// ```rust
-/// use subx_cli::cli::{Commands, MatchArgs};
-/// use std::path::PathBuf;
-///
-/// // Traditional way using path parameter
-/// let match_command = Commands::Match(MatchArgs {
-///     path: Some(PathBuf::from("videos/")),
-///     dry_run: true,
-///     confidence: 80,
-///     recursive: false,
-///     backup: false,
-///     copy: false,
-///     move_files: false,
-///     input_paths: vec![],
-/// });
-///
-/// // Using new -i parameter for multi-path processing
-/// let multi_input_command = Commands::Match(MatchArgs {
-///     path: None,
-///     dry_run: false,
-///     confidence: 90,
-///     recursive: true,
-///     backup: true,
-///     copy: false,
-///     move_files: false,
-///     input_paths: vec![
-///         PathBuf::from("videos/"),
-///         PathBuf::from("movies/"),
-///     ],
-/// });
-/// ```
 #[derive(Subcommand, Debug)]
 pub enum Commands {
-    /// AI-powered subtitle file matching and intelligent renaming.
-    ///
-    /// Uses artificial intelligence to analyze video and subtitle files,
-    /// matching them based on content similarity and automatically
-    /// renaming subtitle files to match their corresponding videos.
+    /// AI-powered subtitle file matching and intelligent renaming
     Match(MatchArgs),
 
-    /// Convert subtitle files between different formats.
-    ///
-    /// Supports conversion between popular subtitle formats including
-    /// SRT, ASS, VTT, and others with format-specific options.
+    /// Convert subtitle files between different formats
     Convert(ConvertArgs),
 
-    /// Detect and convert character encoding of subtitle files.
-    ///
-    /// Automatically detects the character encoding of subtitle files
-    /// and optionally converts them to UTF-8 for better compatibility.
+    /// Detect and convert character encoding of subtitle files
     DetectEncoding(DetectEncodingArgs),
 
-    /// Synchronize subtitle timing with audio tracks.
-    ///
-    /// Analyzes audio content and adjusts subtitle timing to match
-    /// dialogue and speech patterns in the audio track.
+    /// Synchronize subtitle timing with audio tracks
     Sync(SyncArgs),
 
-    /// Manage and inspect application configuration.
-    ///
-    /// Provides tools for viewing, validating, and managing SubX
-    /// configuration settings from various sources.
+    /// Manage and inspect application configuration
     Config(ConfigArgs),
 
-    /// Generate shell completion scripts.
-    ///
-    /// Creates completion scripts for various shells (bash, zsh, fish)
-    /// to enable tab completion for SubX commands and arguments.
+    /// Generate shell completion scripts
     GenerateCompletion(GenerateCompletionArgs),
 
-    /// Manage cache and inspect dry-run results.
-    ///
-    /// Provides utilities for examining cached results, clearing cache
-    /// data, and inspecting the effects of dry-run operations.
+    /// Manage cache and inspect dry-run results
     Cache(CacheArgs),
 }
 

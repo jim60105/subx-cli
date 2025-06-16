@@ -33,50 +33,9 @@ use clap::{Args, ValueEnum};
 use std::path::PathBuf;
 
 /// Command-line arguments for subtitle format conversion.
-///
-/// The convert command transforms subtitle files between different formats
-/// while preserving timing information and content structure. It supports
-/// both single file and batch directory processing.
-///
-/// # Examples
-///
-/// ```rust
-/// use subx_cli::cli::ConvertArgs;
-/// use subx_cli::cli::OutputSubtitleFormat;
-/// use std::path::PathBuf;
-///
-/// // Single file conversion (traditional way)
-/// let args = ConvertArgs {
-///     input: Some(PathBuf::from("input.srt")),
-///     format: Some(OutputSubtitleFormat::Ass),
-///     output: Some(PathBuf::from("output.ass")),
-///     keep_original: true,
-///     encoding: "utf-8".to_string(),
-///     input_paths: vec![],
-///     recursive: false,
-/// };
-///
-/// // Batch conversion (using -i parameter)
-/// let batch_args = ConvertArgs {
-///     input: None,
-///     format: Some(OutputSubtitleFormat::Vtt),
-///     output: None,
-///     keep_original: true,
-///     encoding: "utf-8".to_string(),
-///     input_paths: vec![
-///         PathBuf::from("./subtitles/"),
-///         PathBuf::from("./more_subs/"),
-///     ],
-///     recursive: true,
-/// };
-/// ```
 #[derive(Args, Debug)]
 pub struct ConvertArgs {
-    /// Input file or directory path containing subtitle files.
-    ///
-    /// For single file conversion, specify the exact file path.
-    /// For batch processing, specify a directory path and all
-    /// supported subtitle files will be processed.
+    /// Input file or directory path containing subtitle files
     pub input: Option<PathBuf>,
 
     /// Specify file or directory paths to process (new parameter), can be used multiple times
@@ -87,60 +46,19 @@ pub struct ConvertArgs {
     #[arg(short, long)]
     pub recursive: bool,
 
-    /// Target output format for converted subtitles.
-    ///
-    /// If not specified, the default format from configuration
-    /// will be used. Supported formats include SRT, ASS, VTT, and SUB.
-    ///
-    /// # Examples
-    ///
-    /// ```bash
-    /// --format srt    # Convert to SubRip format
-    /// --format ass    # Convert to Advanced SubStation Alpha
-    /// --format vtt    # Convert to WebVTT format
-    /// --format sub    # Convert to MicroDVD/SubViewer format
-    /// ```
+    /// Target output format for converted subtitles
     #[arg(long, value_enum)]
     pub format: Option<OutputSubtitleFormat>,
 
-    /// Output file path for the converted subtitle.
-    ///
-    /// If not specified for single file conversion, the output will use
-    /// the same name as input with the appropriate extension.
-    /// For batch processing, files are saved with new extensions in the
-    /// same directory or a format-specific subdirectory.
+    /// Output file path for the converted subtitle
     #[arg(short, long)]
     pub output: Option<PathBuf>,
 
-    /// Preserve the original files after conversion.
-    ///
-    /// By default, original files are preserved. Use this flag to explicitly
-    /// keep originals during batch processing operations.
+    /// Preserve the original files after conversion
     #[arg(long)]
     pub keep_original: bool,
 
-    /// Character encoding for input and output files.
-    ///
-    /// Specifies the character encoding to use when reading input files
-    /// and writing output files. UTF-8 is the default and recommended
-    /// encoding for maximum compatibility.
-    ///
-    /// # Supported Encodings
-    ///
-    /// - UTF-8 (default, recommended)
-    /// - UTF-16LE, UTF-16BE
-    /// - Windows-1252 (Western European)
-    /// - ISO-8859-1 (Latin-1)
-    /// - GBK, GB2312 (Chinese)
-    /// - Shift_JIS (Japanese)
-    ///
-    /// # Examples
-    ///
-    /// ```bash
-    /// --encoding utf-8        # UTF-8 encoding (default)
-    /// --encoding windows-1252 # Windows Western European
-    /// --encoding gbk          # Chinese GBK encoding
-    /// ```
+    /// Character encoding for input and output files
     #[arg(long, default_value = "utf-8")]
     pub encoding: String,
 }

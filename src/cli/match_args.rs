@@ -7,111 +7,36 @@ use clap::Args;
 use std::path::PathBuf;
 
 /// Arguments for AI-powered subtitle file matching and renaming.
-///
-/// This structure defines all command-line options available for the `match`
-/// subcommand, which uses artificial intelligence to analyze video and subtitle
-/// files and automatically rename subtitles to match their corresponding videos.
-///
-/// # Operation Modes
-///
-/// - **Normal Mode**: Performs actual file operations
-/// - **Dry Run Mode**: Simulates operations without making changes (`--dry-run`)
-/// - **Recursive Mode**: Processes subdirectories (`--recursive`)
-/// - **Backup Mode**: Creates backups before renaming (`--backup`)
-/// - **Copy Mode**: Copy matched subtitle files to video folders (`--copy`)
-/// - **Move Mode**: Move matched subtitle files to video folders (`--move`)
-///
-/// # AI Matching Process
-///
-/// 1. Scans the target directory for video and subtitle files
-/// 2. Extracts content samples from both file types
-/// 3. Uses AI to analyze content similarity
-/// 4. Matches files based on confidence threshold
-/// 5. Renames subtitle files to match video file names
-/// 6. Optionally relocates subtitle files to video directories
-///
-/// # Examples
-///
-/// ```bash
-/// # Basic matching in current directory
-/// subx match ./videos
-///
-/// # Dry run with high confidence threshold
-/// subx match ./videos --dry-run --confidence 90
-///
-/// # Recursive matching with backup and copy to video folders
-/// subx match ./media --recursive --backup --copy
-/// ```
 #[derive(Args, Debug)]
 pub struct MatchArgs {
-    /// Target directory path containing video and subtitle files.
-    ///
-    /// The directory should contain both video files and subtitle files
-    /// that need to be matched and renamed. Supported video formats include
-    /// MP4, MKV, AVI, etc. Supported subtitle formats include SRT, ASS, VTT, etc.
+    /// Target directory path containing video and subtitle files
     pub path: Option<PathBuf>,
 
     /// Specify file or directory paths to process (new parameter), can be used multiple times
     #[arg(short = 'i', long = "input", value_name = "PATH")]
     pub input_paths: Vec<PathBuf>,
 
-    /// Enable dry-run mode to preview operations without making changes.
-    ///
-    /// When enabled, the command will analyze files and show what operations
-    /// would be performed, but won't actually rename any files. This is useful
-    /// for testing matching accuracy before committing to changes.
+    /// Enable dry-run mode to preview operations without making changes
     #[arg(long)]
     pub dry_run: bool,
 
-    /// Minimum confidence threshold for file matching (0-100).
-    ///
-    /// Only file pairs with similarity confidence above this threshold
-    /// will be matched and renamed. Higher values result in more conservative
-    /// matching with fewer false positives, while lower values are more
-    /// aggressive but may include incorrect matches.
-    ///
-    /// # Recommended Values
-    /// - 90-100: Very conservative, highest accuracy
-    /// - 80-89: Balanced approach (default)
-    /// - 70-79: More aggressive matching
-    /// - Below 70: Not recommended for automatic operations
+    /// Minimum confidence threshold for file matching (0-100)
     #[arg(long, default_value = "80", value_parser = clap::value_parser!(u8).range(0..=100))]
     pub confidence: u8,
 
-    /// Recursively process subdirectories.
-    ///
-    /// When enabled, the matching process will descend into subdirectories
-    /// and process video and subtitle files found there. Each subdirectory
-    /// is processed independently, so files are only matched within the
-    /// same directory level.
+    /// Recursively process subdirectories
     #[arg(short, long)]
     pub recursive: bool,
 
-    /// Create backup copies of original files before renaming.
-    ///
-    /// When enabled, original subtitle files are copied to `.bak` files
-    /// before being renamed. This provides a safety net in case the
-    /// matching algorithm makes incorrect decisions.
+    /// Create backup copies of original files before renaming
     #[arg(long)]
     pub backup: bool,
 
-    /// Copy matched subtitle files to the same folder as their corresponding video files.
-    ///
-    /// When enabled along with recursive search, subtitle files that are matched
-    /// with video files in different directories will be copied to the video file's
-    /// directory. This ensures that media players can automatically load subtitles.
-    /// The original subtitle files are preserved in their original locations.
-    /// Cannot be used together with --move.
+    /// Copy matched subtitle files to the same folder as their corresponding video files
     #[arg(long, short = 'c')]
     pub copy: bool,
 
-    /// Move matched subtitle files to the same folder as their corresponding video files.
-    ///
-    /// When enabled along with recursive search, subtitle files that are matched
-    /// with video files in different directories will be moved to the video file's
-    /// directory. This ensures that media players can automatically load subtitles.
-    /// The original subtitle files are removed from their original locations.
-    /// Cannot be used together with --copy.
+    /// Move matched subtitle files to the same folder as their corresponding video files
     #[arg(long = "move", short = 'm')]
     pub move_files: bool,
 }

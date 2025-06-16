@@ -16,9 +16,6 @@
 //! Direct time offset specification for precise manual synchronization.
 
 /// Synchronization method selection for CLI arguments.
-///
-/// Defines the available synchronization methods that can be specified
-/// via command-line arguments.
 #[derive(Debug, Clone, ValueEnum, PartialEq)]
 pub enum SyncMethodArg {
     /// Use local voice activity detection only
@@ -42,10 +39,6 @@ use clap::{Args, ValueEnum};
 use std::path::{Path, PathBuf};
 
 /// Refactored sync command arguments supporting multiple sync methods.
-///
-/// Provides comprehensive subtitle-audio synchronization functionality including
-/// OpenAI Whisper API, local VAD detection, and manual offset methods.
-/// Supports method selection, parameter customization, and intelligent fallback mechanisms.
 #[derive(Args, Debug, Clone)]
 pub struct SyncArgs {
     /// Video file path for audio analysis.
