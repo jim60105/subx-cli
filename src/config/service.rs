@@ -341,7 +341,7 @@ impl ProductionConfigService {
                 config.formats.encoding_detection_confidence = v;
             }
             ["sync", "max_offset_seconds"] => {
-                let v = validate_float_range(value, 0.1, 3600.0)?; // 與 validator.rs 中的範圍一致
+                let v = validate_float_range(value, 0.1, 3600.0)?; // Range consistent with validator.rs
                 config.sync.max_offset_seconds = v;
             }
             ["sync", "default_method"] => {

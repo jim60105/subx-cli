@@ -48,7 +48,7 @@ async fn run_single(
             additional_info: None,
         }
     } else {
-        // 自動同步需要視頻檔案
+        // Automatic sync requires video file
         let video_path = args.video.as_ref().ok_or_else(|| {
             SubXError::CommandExecution(
                 "Video file path is required for automatic sync".to_string(),
@@ -140,17 +140,17 @@ pub async fn execute(args: SyncArgs, config_service: &dyn ConfigService) -> Resu
     if let Some(manual_offset) = args.offset {
         if manual_offset.abs() > config.sync.max_offset_seconds {
             return Err(SubXError::config(format!(
-                "指定的偏移量 {:.2}s 超過配置的最大允許值 {:.2}s。\n\n\
-                請使用以下方法之一解決此問題：\n\
-                1. 使用較小的偏移量：--offset {:.2}\n\
-                2. 調整配置：subx-cli config set sync.max_offset_seconds {:.2}\n\
-                3. 使用自動檢測：移除 --offset 參數",
+                "The specified offset {:.2}s exceeds the configured maximum allowed value {:.2}s.\n\n\
+                Please use one of the following methods to resolve this issue:\n\
+                1. Use a smaller offset: --offset {:.2}\n\
+                2. Adjust configuration: subx-cli config set sync.max_offset_seconds {:.2}\n\
+                3. Use automatic detection: remove the --offset parameter",
                 manual_offset,
                 config.sync.max_offset_seconds,
-                config.sync.max_offset_seconds * 0.9, // 建議值稍小於限制
+                config.sync.max_offset_seconds * 0.9, // Recommended value slightly below limit
                 manual_offset
                     .abs()
-                    .max(config.sync.max_offset_seconds * 1.5)  // 建議增加到合適的值
+                    .max(config.sync.max_offset_seconds * 1.5) // Recommend increasing to appropriate value
             )));
         }
     }

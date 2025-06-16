@@ -124,7 +124,7 @@ impl SyncEngine {
         // Validate offset against max_offset_seconds configuration
         if offset_seconds.abs() > self.config.max_offset_seconds {
             return Err(SubXError::config(format!(
-                "偏移量 {:.2}s 超過最大允許值 {:.2}s。請檢查配置 sync.max_offset_seconds 或使用更小的偏移量。",
+                "Offset {:.2}s exceeds maximum allowed value {:.2}s. Please check the sync.max_offset_seconds configuration or use a smaller offset.",
                 offset_seconds, self.config.max_offset_seconds
             )));
         }
@@ -199,7 +199,7 @@ impl SyncEngine {
         if result.offset_seconds.abs() > self.config.max_offset_seconds {
             // Provide warning but don't completely fail, allow user to decide
             result.warnings.push(format!(
-                "檢測到的偏移量 {:.2}s 超過配置的最大值 {:.2}s。建議檢查音訊品質或調整 sync.max_offset_seconds 配置。",
+                "Detected offset {:.2}s exceeds configured maximum value {:.2}s. Consider checking audio quality or adjusting sync.max_offset_seconds configuration.",
                 result.offset_seconds, self.config.max_offset_seconds
             ));
 

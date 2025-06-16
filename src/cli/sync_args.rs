@@ -283,11 +283,11 @@ Need help? Run: subx sync --help"
                 subtitle: subtitle.clone(),
             })
         } else if let Some(subtitle) = self.subtitle.as_ref() {
-            // 手動模式只需要字幕檔案
+            // Manual mode only requires subtitle file
             if self.offset.is_some() || matches!(self.method, Some(SyncMethodArg::Manual)) {
-                // 為手動模式建立虛擬視頻路徑
+                // Create virtual video path for manual mode
                 Ok(SyncMode::Single {
-                    video: PathBuf::from(""), // 虛擬視頻路徑，不會被使用
+                    video: PathBuf::from(""), // Virtual video path, won't be used
                     subtitle: subtitle.clone(),
                 })
             } else {

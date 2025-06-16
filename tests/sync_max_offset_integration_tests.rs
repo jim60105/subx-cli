@@ -45,9 +45,9 @@ async fn test_manual_offset_exceeds_max_limit() -> Result<()> {
     // 應該返回錯誤
     assert!(result.is_err());
     let error_msg = result.unwrap_err().to_string();
-    assert!(error_msg.contains("超過配置的最大允許值"));
-    assert!(error_msg.contains("30.0"));
-    assert!(error_msg.contains("45.0"));
+    assert!(error_msg.contains("exceeds the configured maximum allowed value"));
+    assert!(error_msg.contains("30.00"));
+    assert!(error_msg.contains("45.00"));
 
     Ok(())
 }
@@ -108,8 +108,8 @@ async fn test_sync_engine_manual_offset_validation() -> Result<()> {
     assert!(result.is_err());
 
     let error_msg = result.unwrap_err().to_string();
-    assert!(error_msg.contains("偏移量"));
-    assert!(error_msg.contains("超過最大允許值"));
+    assert!(error_msg.contains("Offset"));
+    assert!(error_msg.contains("exceeds maximum allowed value"));
 
     // 測試在限制內的偏移量
     let result = sync_engine.apply_manual_offset(&mut subtitle, 10.0);

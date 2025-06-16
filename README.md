@@ -385,16 +385,17 @@ Configuration Support:
 Options:
   <VIDEO>               Video file path (supports MP4, MKV/WebM, OGG, WAV audio input)
   <SUBTITLE>            Subtitle file path
-  --offset <SECONDS>    Manually specify offset
+  --offset <SECONDS>    Manually specify offset (must not exceed sync.max_offset_seconds config)
   --batch               Batch processing mode
-  --range <SECONDS>     Offset detection range (default: max_offset_seconds from config)
-  --threshold <THRESHOLD>  Correlation threshold (0-1, default: correlation_threshold from config)
+  --method <METHOD>     Sync method (auto|vad, default: from sync.default_method config)
+  --vad-sensitivity <SENSITIVITY>    VAD detection sensitivity (0.0-1.0, overrides config)
+  --vad-chunk-size <SIZE>           VAD chunk size (overrides config)
 
 Audio Format Support:
   - MP4, MKV/WebM, OGG, WAV containers (automatically transcoded to WAV for analysis)
 
 Configuration Support:
-  - Sync Settings: Default sync method, maximum offset range, correlation threshold, etc.
+  - Sync Settings: Default sync method, maximum offset range, etc.
   - VAD Processing: Sensitivity, chunk size, sample rate, padding chunks, min speech duration, speech merge gap, etc.
 ```
 
