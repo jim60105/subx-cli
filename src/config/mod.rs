@@ -500,9 +500,9 @@ mod config_tests {
         vad.chunk_size = 500;
         assert!(vad.validate().is_err());
 
-        // Invalid sample rate
+        // Invalid sample rate (unsupported rate)
         vad = VadConfig::default();
-        vad.sample_rate = 22050;
+        vad.sample_rate = 12345;
         assert!(vad.validate().is_err());
     }
 

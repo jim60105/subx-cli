@@ -142,10 +142,10 @@ impl VadConfig {
 
         // Validate sample_rate
         match self.sample_rate {
-            8000 | 16000 | 32000 | 44100 | 48000 => {}
+            8000 | 16000 | 22050 | 32000 | 44100 | 48000 => {}
             _ => {
                 return Err(SubXError::config(
-                    "sync.vad.sample_rate must be one of: 8000, 16000, 32000, 44100, 48000",
+                    "sync.vad.sample_rate must be one of: 8000, 16000, 22050, 32000, 44100, 48000",
                 ));
             }
         }
