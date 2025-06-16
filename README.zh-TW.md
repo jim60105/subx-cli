@@ -48,7 +48,7 @@ cargo install subx-cli
 git clone https://github.com/jim60105/subx-cli.git
 cd subx-cli
 cargo build --release
-sudo cp target/release/subx-cli /usr/local/bin/
+sudo cp target/release/subx-cli/usr/local/bin/
 ```
 
 ## 快速開始
@@ -62,9 +62,6 @@ export OPENAI_API_KEY="your-api-key-here"
 subx-cli config set sync.vad.sensitivity 0.8
 subx-cli config set sync.vad.enabled true
 
-# 配置同步方法 (auto, vad)
-subx-cli config set sync.default_method auto
-
 # 啟用一般備份功能
 subx-cli config set general.backup_enabled true
 
@@ -77,7 +74,7 @@ subx-cli config set parallel.task_queue_size 1000
 
 **字幕匹配與重命名**
 ```bash
-# 處理單個資料夾（傳統方式）
+# 處理單個資料夾
 subx-cli match /path/to/media/folder
 
 # 使用 -i 參數處理多個輸入來源
@@ -107,16 +104,16 @@ subx-cli match --recursive --move --backup /path/to/media/folder
 
 **格式轉換**
 ```bash
-# 單檔案轉換（傳統方式）
+# 單檔案轉換
 subx-cli convert subtitle.ass --format srt
 
-# 使用 -i 參數批量轉換多個目錄
+# 使用 -i 參數批次轉換多個目錄
 subx-cli convert -i ./srt_files -i ./more_subtitles --format vtt
 
-# 批量轉換並遞迴掃描目錄
+# 批次轉換並遞迴掃描目錄
 subx-cli convert -i ./srt_files -i ./more_subtitles --format vtt --recursive
 
-# 批量轉換（傳統方式）
+# 批次轉換
 subx-cli convert --format srt /path/to/subtitles/
 
 # 轉換並保留原檔案
@@ -129,7 +126,7 @@ subx-cli convert -i movie1.srt -i ./batch_dir -i movie2.ass --format srt --recur
 **時間軸校正**
 
 ```bash
-# 自動 VAD 同步（需要音訊/視頻檔案）
+# 自動 VAD 同步（需要音訊 / 影片檔案）
 subx-cli sync video.mp4 subtitle.srt
 
 # 手動同步（僅需字幕檔案）
@@ -138,25 +135,25 @@ subx-cli sync --offset 2.5 subtitle.srt
 # 明確指定 VAD 方法並自訂靈敏度
 subx-cli sync --vad-sensitivity 0.8 video.mp4 subtitle.srt
 
-# 批量處理模式（傳統方式 - 處理整個目錄）
+# 批次處理模式（處理整個目錄）
 subx-cli sync --batch /path/to/media/folder
 
-# 使用 -i 參數批量處理多個目錄
+# 使用 -i 參數批次處理多個目錄
 subx-cli sync -i ./movies_directory --batch
 
-# 批量處理並遞迴掃描目錄
+# 批次處理並遞迴掃描目錄
 subx-cli sync -i ./movies_directory --batch --recursive
 
 # 進階：多個目錄並指定同步方法
 subx-cli sync -i ./movies1 -i ./movies2 -i ./tv_shows --recursive --batch --method vad
 
-# 批量模式並顯示詳細輸出和 dry-run
+# 批次模式並顯示詳細輸出和 dry-run
 subx-cli sync -i ./media --batch --recursive --dry-run --verbose
 ```
 
 **字元編碼檢測**
 ```bash
-# 傳統方式 - 直接指定檔案
+# 直接指定檔案
 subx-cli detect-encoding *.srt
 
 # 使用 -i 參數處理目錄（平面掃描）
@@ -202,10 +199,10 @@ cd ~/Media/
 subx-cli match -i ./Downloads/Movies -i ./Downloads/TV_Shows -i ./Backup/Subs --recursive --dry-run --copy
 subx-cli match -i ./Downloads/Movies -i ./Downloads/TV_Shows -i ./Backup/Subs --recursive --copy
 
-# 3. 批量轉換所有字幕格式為 SRT 並遞迴掃描
+# 3. 批次轉換所有字幕格式為 SRT 並遞迴掃描
 subx-cli convert -i ./Movies -i ./TV_Shows --format srt --recursive --keep-original
 
-# 4. 批量同步所有媒體檔案
+# 4. 批次同步所有媒體檔案
 subx-cli sync -i ./Movies -i ./TV_Shows --batch --recursive --method vad
 
 # 5. 檢查所有字幕檔案編碼
@@ -214,25 +211,25 @@ subx-cli detect-encoding -i ./Movies -i ./TV_Shows --recursive --verbose
 
 ### 檔案整理應用場景
 ```bash
-# 場景 1：保留原始字幕位置，複製到影片資料夾（傳統方式）
+# 場景 1：保留原始字幕位置，複製到影片資料夾
 subx-cli match --recursive --copy /media/collection/
 
 # 場景 1b：使用多個輸入來源進行複製操作
 subx-cli match -i /media/movies -i /media/tv_shows -i /backup/subtitles --recursive --copy
 
-# 場景 2：移動字幕到影片資料夾，清理原始位置（傳統方式）
+# 場景 2：移動字幕到影片資料夾，清理原始位置
 subx-cli match --recursive --move /media/collection/
 
 # 場景 2b：使用多個輸入來源進行移動操作
 subx-cli match -i /media/movies -i /media/tv_shows -i /backup/subtitles --recursive --move
 
-# 場景 3：預覽檔案整理操作（傳統方式）
+# 場景 3：預覽檔案整理操作
 subx-cli match --dry-run --copy --recursive /media/collection/
 
 # 場景 3b：使用多個輸入來源預覽
 subx-cli match -i /media/movies -i /media/tv_shows -i /backup/subtitles --recursive --dry-run --copy
 
-# 場景 4：使用備份保護進行檔案整理（傳統方式）
+# 場景 4：使用備份保護進行檔案整理
 subx-cli match --move --backup --recursive /media/collection/
 
 # 場景 4b：多個來源使用備份保護
@@ -257,7 +254,7 @@ media/
     │   └── ForrestGump_English.srt
     └── chinese/
         ├── 駭客任務_中文字幕.srt
-        └── 阿甘正傳.繁中.srt
+        └── 阿甘正傳. 繁中.srt
 
 使用 --copy 選項處理後（AI 智慧匹配）：
 media/
@@ -379,7 +376,7 @@ subx-cli config set ai.retry_attempts 3
   <VIDEO>               影片檔案路徑 (支援 MP4、MKV/WebM、OGG、WAV 音訊輸入)
   <SUBTITLE>            字幕檔案路徑
   --offset <SECONDS>    手動指定偏移量 (不可超過 sync.max_offset_seconds 配置)
-  --batch               批量處理模式
+  --batch               批次處理模式
   --method <METHOD>     同步方法 (auto|vad，預設值: 來自 sync.default_method 配置)
   --vad-sensitivity <SENSITIVITY>    VAD 檢測靈敏度 (0.0-1.0，覆蓋配置)
   --vad-chunk-size <SIZE>           VAD 區塊大小 (覆蓋配置)
@@ -430,7 +427,7 @@ A: 確保檔案名包含足夠的識別資訊（如劇名、季數、集數）�
 
 ### Q: 時間軸同步失敗？
 
-A: 確保音訊/視頻檔案可存取，並檢查檔案格式是否支援。如果 VAD 同步不理想，可以嘗試：
+A: 確保音訊 / 影片檔案可存取，並檢查檔案格式是否支援。如果 VAD 同步不理想，可以嘗試：
 - 調整 VAD 靈敏度：`subx-cli config set sync.vad.sensitivity 0.8`（較高值適用於安靜音訊）
 - 針對困難案例使用手動偏移：`subx-cli sync --offset <seconds> subtitle.srt`
 - 檢查 VAD 配置：`subx-cli config set sync.vad.enabled true`
@@ -480,7 +477,7 @@ A: 先清除快取 `subx-cli cache clear`，再重新執行 match 命令。
 
 A: 增加逾時時間：`subx-cli config set general.task_timeout_seconds 7200`  # 設定為 2 小時
 
-### Q: 檔案整理（複製/移動）操作失敗？
+### Q: 檔案整理（複製 / 移動）操作失敗？
 
 A: 檢查以下常見問題：
 - 確保目標影片目錄具有寫入權限
@@ -490,17 +487,17 @@ A: 檢查以下常見問題：
 
 ### Q: 可以同時使用 --copy 和 --move 嗎？
 
-A: 不可以，這兩個選項互斥。請選擇 `--copy` 保留原始檔案或 `--move` 清理原始位置。
+A: 不可以，這兩個選項互斥。請選擇 `--copy` 保留原始檔案或 `--move` 移動檔案。
 
-### Q: 為什麼有些字幕沒有被複製/移動到影片資料夾？
+### Q: 為什麼有些字幕沒有被複製 / 移動到影片資料夾？
 
-A: 複製/移動操作只在以下條件下執行：
+A: 複製 / 移動操作只在以下條件下執行：
 - 字幕和影片檔案位於不同目錄
 - AI 匹配信心度超過閾值（預設 80%）
 - 目標位置不存在相同名稱的檔案
 使用 `--dry-run` 查看將要執行的操作。
 
-### Q: 如何處理複製/移動操作中的檔名衝突？
+### Q: 如何處理複製 / 移動操作中的檔名衝突？
 
 A: 系統會自動處理衝突：
 - 比較檔案內容當名稱相同時

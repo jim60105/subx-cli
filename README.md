@@ -68,9 +68,6 @@ export OPENAI_API_KEY="your-api-key-here"
 subx-cli config set sync.vad.sensitivity 0.8
 subx-cli config set sync.vad.enabled true
 
-# Configure sync method (auto, vad)
-subx-cli config set sync.default_method auto
-
 # Enable general backup feature
 subx-cli config set general.backup_enabled true
 
@@ -83,7 +80,7 @@ subx-cli config set parallel.task_queue_size 1000
 
 **Subtitle Matching and Renaming**
 ```bash
-# Process a single folder (traditional way)
+# Process a single folder
 subx-cli match /path/to/media/folder
 
 # Process multiple input sources using -i parameter
@@ -113,7 +110,7 @@ subx-cli match --recursive --move --backup /path/to/media/folder
 
 **Format Conversion**
 ```bash
-# Convert single file (traditional way)
+# Convert single file
 subx-cli convert subtitle.ass --format srt
 
 # Batch conversion using -i parameter for multiple directories
@@ -122,7 +119,7 @@ subx-cli convert -i ./srt_files -i ./more_subtitles --format vtt
 # Batch conversion with recursive directory scanning
 subx-cli convert -i ./srt_files -i ./more_subtitles --format vtt --recursive
 
-# Batch conversion (traditional way)
+# Batch conversion
 subx-cli convert --format srt /path/to/subtitles/
 
 # Convert while keeping original file
@@ -144,7 +141,7 @@ subx-cli sync --offset 2.5 subtitle.srt
 # VAD with custom sensitivity
 subx-cli sync --vad-sensitivity 0.8 video.mp4 subtitle.srt
 
-# Batch processing mode (traditional way - processes entire directories)
+# Batch processing mode (processes entire directories)
 subx-cli sync --batch /path/to/media/folder
 
 # Batch processing using -i parameter for multiple directories
@@ -162,7 +159,7 @@ subx-cli sync -i ./media --batch --recursive --dry-run --verbose
 
 **Character Encoding Detection**
 ```bash
-# Traditional way - specify files directly
+# Specify files directly
 subx-cli detect-encoding *.srt
 
 # Using -i parameter for directory processing (flat)
@@ -220,25 +217,25 @@ subx-cli detect-encoding -i ./Movies -i ./TV_Shows --recursive --verbose
 
 ### File Organization Scenarios
 ```bash
-# Scenario 1: Keep original subtitles in place, copy to video folders (traditional)
+# Scenario 1: Keep original subtitles in place, copy to video folders
 subx-cli match --recursive --copy /media/collection/
 
 # Scenario 1b: Multiple input sources with copy operation
 subx-cli match -i /media/movies -i /media/tv_shows -i /backup/subtitles --recursive --copy
 
-# Scenario 2: Move subtitles to video folders, clean up original locations (traditional)
+# Scenario 2: Move subtitles to video folders, clean up original locations
 subx-cli match --recursive --move /media/collection/
 
 # Scenario 2b: Multiple input sources with move operation
 subx-cli match -i /media/movies -i /media/tv_shows -i /backup/subtitles --recursive --move
 
-# Scenario 3: Preview file organization operations (traditional)
+# Scenario 3: Preview file organization operations
 subx-cli match --dry-run --copy --recursive /media/collection/
 
 # Scenario 3b: Preview with multiple input sources
 subx-cli match -i /media/movies -i /media/tv_shows -i /backup/subtitles --recursive --dry-run --copy
 
-# Scenario 4: Organize files with backup protection (traditional)
+# Scenario 4: Organize files with backup protection
 subx-cli match --move --backup --recursive /media/collection/
 
 # Scenario 4b: Multiple sources with backup protection
