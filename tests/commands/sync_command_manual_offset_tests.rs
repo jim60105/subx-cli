@@ -11,7 +11,7 @@ async fn test_manual_sync_without_video_file() {
     let temp = TempDir::new().unwrap();
     let subtitle_path = temp.path().join("test.srt");
 
-    // 建立測試字幕檔案
+    // Create test subtitle file
     let srt_content = r#"1
 00:00:01,000 --> 00:00:03,000
 測試字幕 1
@@ -40,9 +40,9 @@ async fn test_manual_sync_without_video_file() {
     let config_service = Arc::new(TestConfigService::new());
     let result = sync_command::execute_with_config(args, config_service).await;
 
-    assert!(result.is_ok(), "手動同步應該成功執行");
+    assert!(result.is_ok(), "Manual sync should execute successfully");
 
-    // 驗證字幕時間軸已調整
+    // Verify subtitle timeline has been adjusted
     let updated_content = fs::read_to_string(&subtitle_path).unwrap();
     assert!(updated_content.contains("00:00:03,500")); // 1s + 2.5s
     assert!(updated_content.contains("00:00:06,500")); // 4s + 2.5s
@@ -70,7 +70,7 @@ async fn test_auto_sync_requires_video_file() {
     };
 
     let result = args.validate();
-    assert!(result.is_err(), "自動模式缺少視頻檔案應該產生錯誤");
+    assert!(result.is_err(), "Auto mode missing video file should produce error");
 }
 
 #[tokio::test]
@@ -79,7 +79,7 @@ async fn test_backward_compatibility() {
     let video_path = temp.path().join("video.mp4");
     let subtitle_path = temp.path().join("test.srt");
 
-    // 建立空的測試檔案
+    // Create empty test files
     fs::write(&video_path, b"").unwrap();
     fs::write(&subtitle_path, "1\n00:00:01,000 --> 00:00:03,000\nTest").unwrap();
 
@@ -100,5 +100,5 @@ async fn test_backward_compatibility() {
     };
 
     let result = args.validate();
-    assert!(result.is_ok(), "向後相容性應該保持");
+    assert!(result.is_ok(), "Backward compatibility should be maintained");
 }

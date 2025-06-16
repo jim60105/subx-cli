@@ -2,20 +2,20 @@ use subx_cli::config::{Config, ConfigService, TestConfigService};
 
 #[test]
 fn test_ai_request_timeout_configuration() {
-    // 測試預設超時值
+    // Test default timeout value
     let config = Config::default();
     assert_eq!(config.ai.request_timeout_seconds, 120);
 
-    // 測試配置服務支援
+    // Test configuration service support
     let service = TestConfigService::with_defaults();
 
-    // 測試獲取配置值
+    // Test getting configuration value
     let timeout_value = service
         .get_config_value("ai.request_timeout_seconds")
         .unwrap();
     assert_eq!(timeout_value, "120");
 
-    // 測試設定配置值
+    // Test setting configuration value
     service
         .set_config_value("ai.request_timeout_seconds", "180")
         .unwrap();
@@ -24,7 +24,7 @@ fn test_ai_request_timeout_configuration() {
         .unwrap();
     assert_eq!(new_timeout_value, "180");
 
-    // 測試配置驗證
+    // Test configuration validation
     let config = service.get_config().unwrap();
     assert_eq!(config.ai.request_timeout_seconds, 180);
 }
@@ -33,7 +33,7 @@ fn test_ai_request_timeout_configuration() {
 fn test_ai_request_timeout_validation() {
     let service = TestConfigService::with_defaults();
 
-    // 測試有效值
+    // Test valid values
     assert!(
         service
             .set_config_value("ai.request_timeout_seconds", "60")
@@ -50,7 +50,7 @@ fn test_ai_request_timeout_validation() {
             .is_ok()
     );
 
-    // 測試無效值 - 太小
+    // Test invalid values - too small
     let result = service.set_config_value("ai.request_timeout_seconds", "5");
     assert!(result.is_err());
     assert!(
@@ -60,7 +60,7 @@ fn test_ai_request_timeout_validation() {
             .contains("Value 5 is out of range [10, 600]")
     );
 
-    // 測試無效值 - 太大
+    // Test invalid values - too large
     let result = service.set_config_value("ai.request_timeout_seconds", "700");
     assert!(result.is_err());
     assert!(

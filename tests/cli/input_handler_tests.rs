@@ -1,4 +1,4 @@
-//! 單元測試：InputPathHandler 檔案與目錄處理
+//! Unit tests: InputPathHandler file and directory handling
 
 use crate::cli::InputPathHandler;
 use crate::error::SubXError;

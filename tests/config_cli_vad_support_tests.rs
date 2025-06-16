@@ -3,7 +3,7 @@ use subx_cli::{
     test_with_config,
 };
 
-// 確保所有可設定的配置項目都可被 get/set
+// Ensure all configurable items can be get/set
 #[test]
 fn test_config_get_set_consistency() {
     test_with_config!(
@@ -61,7 +61,7 @@ fn test_config_get_set_consistency() {
     );
 }
 
-// 測試 VAD 配置的完整 get/set 循環
+// Test complete get/set cycle for VAD configuration
 #[test]
 fn test_vad_config_cli_support() {
     test_with_config!(
@@ -138,7 +138,7 @@ fn test_vad_config_cli_support() {
     );
 }
 
-// 測試 VAD 配置的驗證邏輯
+// Test VAD configuration validation logic
 #[test]
 fn test_vad_config_validation() {
     test_with_config!(

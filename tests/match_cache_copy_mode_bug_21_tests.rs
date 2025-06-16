@@ -1,9 +1,9 @@
-//! 整合測試：驗證 Bug 21 - Match 指令 Copy 模式快取目標目錄錯誤問題的修復
+//! Integration tests: Verify Bug 21 - Match command Copy mode cache target directory error fix
 //!
-//! 測試場景：
-//! 1. 執行 dry-run 產生快取
-//! 2. 執行實際的 copy 操作
-//! 3. 驗證檔案被複製到正確的目錄（視訊檔案目錄而非字幕目錄）
+//! Test scenarios:
+//! 1. Execute dry-run to generate cache
+//! 2. Execute actual copy operation
+//! 3. Verify files are copied to the correct directory (video file directory, not subtitle directory)
 
 use log::debug;
 use std::fs;
@@ -16,36 +16,36 @@ mod common;
 use common::mock_openai_helper::MockOpenAITestHelper;
 use common::test_data_generators::MatchResponseGenerator;
 
-// 使用異步互斥鎖避免環境變數競爭條件
+// Use async mutex to avoid environment variable race conditions
 static TEST_MUTEX: tokio::sync::Mutex<()> = tokio::sync::Mutex::const_new(());
 
 #[tokio::test]
 async fn test_bug_21_match_cache_copy_mode_correct_target_directory() {
-    // 初始化日誌記錄
+    // Initialize logging
     let _ = env_logger::try_init();
 
-    // 使用異步互斥鎖避免環境變數競爭條件
+    // Use async mutex to avoid environment variable race conditions
     let _guard = TEST_MUTEX.lock().await;
-    debug!("開始測試 Bug 21: match 快取 copy 模式正確目標目錄");
+    debug!("Starting Bug 21 test: match cache copy mode correct target directory");
 
-    // 建立測試目錄結構
+    // Create test directory structure
     let temp_dir = TempDir::new().unwrap();
     let test_root = temp_dir.path();
-    debug!("建立測試目錄: {:?}", test_root);
+    debug!("Create test directory: {:?}", test_root);
 
-    // 設定快取目錄
+    // Set cache directory
     unsafe {
         std::env::set_var("XDG_CONFIG_HOME", test_root);
     }
-    debug!("設定 XDG_CONFIG_HOME 為: {:?}", test_root);
+    debug!("Set XDG_CONFIG_HOME to: {:?}", test_root);
 
-    // 建立分離的視訊和字幕目錄結構
+    // Create separate video and subtitle directory structure
     let video_dir = test_root.join("videos");
     let subtitle_dir = test_root.join("subtitles");
     fs::create_dir_all(&video_dir).unwrap();
     fs::create_dir_all(&subtitle_dir).unwrap();
 
-    // 建立測試檔案
+    // Create test files
     let video_file = video_dir.join("movie.mp4");
     let subtitle_file = subtitle_dir.join("movie.srt");
     fs::write(&video_file, "fake video content").unwrap();
@@ -55,32 +55,32 @@ async fn test_bug_21_match_cache_copy_mode_correct_target_directory() {
     )
     .unwrap();
 
-    debug!("建立測試檔案:");
-    debug!("  視訊檔案: {}", video_file.display());
-    debug!("  字幕檔案: {}", subtitle_file.display());
+    debug!("Create test files:");
+    debug!("  Video file: {}", video_file.display());
+    debug!("  Subtitle file: {}", subtitle_file.display());
 
-    // 掃描檔案獲取實際的檔案 ID
+    // Scan files to get actual file IDs
     use subx_cli::core::matcher::FileDiscovery;
     let discovery = FileDiscovery::new();
     let files = discovery.scan_directory(test_root, true).unwrap();
-    debug!("掃描目錄，找到 {} 個檔案", files.len());
+    debug!("Scanned directory, found {} files", files.len());
 
     let video_file_info = files.iter().find(|f| f.name.ends_with(".mp4")).unwrap();
     let subtitle_file_info = files.iter().find(|f| f.name.ends_with(".srt")).unwrap();
     debug!(
-        "找到視訊檔案: {} (id: {})",
+        "Found video file: {} (id: {})",
         video_file_info.name, video_file_info.id
     );
     debug!(
-        "找到字幕檔案: {} (id: {})",
+        "Found subtitle file: {} (id: {})",
         subtitle_file_info.name, subtitle_file_info.id
     );
 
-    // 建立模擬 AI 服務，設定僅預期一次 API 呼叫
+    // Create mock AI service, set to expect only one API call
     let mock_helper = MockOpenAITestHelper::new().await;
-    debug!("建立模擬 AI 助手於: {}", mock_helper.base_url());
+    debug!("Create mock AI helper at: {}", mock_helper.base_url());
 
-    // 設定僅預期一次 API 呼叫（用於第一次執行）
+    // Set to expect only one API call (for the first execution)
     mock_helper
         .mock_chat_completion_with_expectation(
             &MatchResponseGenerator::successful_match_with_ids(
@@ -90,15 +90,15 @@ async fn test_bug_21_match_cache_copy_mode_correct_target_directory() {
             1,
         )
         .await;
-    debug!("設定模擬預期為 1 次 API 呼叫");
+    debug!("Set mock expectation to 1 API call");
 
     let config_service = TestConfigBuilder::new()
         .with_mock_ai_server(&mock_helper.base_url())
         .build_service();
-    debug!("建立設定服務與模擬 AI 伺服器");
+    debug!("Create config service with mock AI server");
 
-    // 第一次執行：dry-run 建立快取
-    debug!("執行第一次 match 指令 (dry-run) 以建立快取");
+    // First execution: dry-run to create cache
+    debug!("Execute first match command (dry-run) to create cache");
     let args_dry_run = MatchArgs {
         input_paths: vec![],
         recursive: true,
@@ -112,19 +112,19 @@ async fn test_bug_21_match_cache_copy_mode_correct_target_directory() {
     match_command::execute(args_dry_run, &config_service)
         .await
         .unwrap();
-    debug!("第一次 match 指令執行完成");
+    debug!("First match command execution completed");
 
-    // 驗證原始檔案仍然存在
-    assert!(video_file.exists(), "視訊檔案應該仍然存在");
-    assert!(subtitle_file.exists(), "字幕檔案應該仍然存在");
+    // Verify original files still exist
+    assert!(video_file.exists(), "Video file should still exist");
+    assert!(subtitle_file.exists(), "Subtitle file should still exist");
 
-    // 第二次執行：實際的 copy 操作（使用快取）
-    debug!("執行第二次 match 指令 (copy 模式，應該使用快取)");
+    // Second execution: actual copy operation (using cache)
+    debug!("Execute second match command (copy mode, should use cache)");
     let args_copy = MatchArgs {
         input_paths: vec![],
         recursive: true,
         path: Some(test_root.to_path_buf()),
-        dry_run: false, // 實際執行
+        dry_run: false, // Actual execution
         confidence: 80,
         backup: false,
         copy: true,
@@ -133,71 +133,76 @@ async fn test_bug_21_match_cache_copy_mode_correct_target_directory() {
     match_command::execute(args_copy, &config_service)
         .await
         .unwrap();
-    debug!("第二次 match 指令執行完成");
+    debug!("Second match command execution completed");
 
-    // 關鍵驗證：檢查檔案是否被複製到正確的目錄
+    // Key verification: Check if files are copied to the correct directory
     let expected_copy_location = video_dir.join("movie.srt");
-    let wrong_location = subtitle_dir.join("movie.srt"); // 原始位置（不應該有新檔案）
+    let wrong_location = subtitle_dir.join("movie.srt"); // Original location (should not have new files)
 
-    debug!("驗證檔案位置:");
-    debug!("  預期的複製位置: {}", expected_copy_location.display());
-    debug!("  錯誤的位置: {}", wrong_location.display());
+    debug!("Verify file locations:");
+    debug!(
+        "  Expected copy location: {}",
+        expected_copy_location.display()
+    );
+    debug!("  Wrong location: {}", wrong_location.display());
 
-    // 主要驗證：檔案應該被複製到視訊目錄
+    // Main verification: File should be copied to video directory
     assert!(
         expected_copy_location.exists(),
-        "字幕檔案應該被複製到視訊檔案目錄: {}",
+        "Subtitle file should be copied to video file directory: {}",
         expected_copy_location.display()
     );
 
-    // 驗證原始檔案仍然存在（copy 模式）
+    // Verify original file still exists (copy mode)
     assert!(
         subtitle_file.exists(),
-        "原始字幕檔案應該仍然存在: {}",
+        "Original subtitle file should still exist: {}",
         subtitle_file.display()
     );
 
-    // 驗證複製的檔案內容正確
+    // Verify copied file content is correct
     let original_content = fs::read_to_string(&subtitle_file).unwrap();
     let copied_content = fs::read_to_string(&expected_copy_location).unwrap();
     assert_eq!(
         original_content, copied_content,
-        "複製的檔案內容應該與原始檔案相同"
+        "Copied file content should match original file"
     );
 
-    // 驗證模擬伺服器僅接收到一次請求
-    debug!("驗證模擬預期");
+    // Verify mock server received only one request
+    debug!("Verify mock expectations");
     mock_helper.verify_expectations().await;
-    debug!("模擬預期驗證成功");
+    debug!("Mock expectation verification successful");
 
-    debug!("✅ Bug 21 修復驗證成功：copy 模式下快取正確保持目標目錄");
+    debug!(
+        "✅ Bug 21 fix verification successful: cache correctly maintains target directory in copy mode"
+    );
 }
 
 #[tokio::test]
 async fn test_bug_21_comparison_dry_run_vs_actual_execution() {
-    // 初始化日誌記錄
+    // Initialize logging
     let _ = env_logger::try_init();
 
-    // 使用異步互斥鎖避免環境變數競爭條件
+    // Use async mutex to avoid environment variable race conditions
     let _guard = TEST_MUTEX.lock().await;
-    debug!("開始測試 Bug 21: dry-run 與實際執行的一致性比較");
+    debug!("Starting Bug 21 test: dry-run vs actual execution consistency comparison");
 
-    // 建立測試目錄結構
+    // Create test directory structure
     let temp_dir = TempDir::new().unwrap();
     let test_root = temp_dir.path();
 
-    // 設定快取目錄
+    // Set cache directory
     unsafe {
         std::env::set_var("XDG_CONFIG_HOME", test_root);
     }
 
-    // 建立分離的視訊和字幕目錄結構
+    // Create separate video and subtitle directory structure
     let video_dir = test_root.join("videos");
     let subtitle_dir = test_root.join("subtitles");
     fs::create_dir_all(&video_dir).unwrap();
     fs::create_dir_all(&subtitle_dir).unwrap();
 
-    // 建立測試檔案
+    // Create test files
     let video_file = video_dir.join("test_movie.mp4");
     let subtitle_file = subtitle_dir.join("test_subtitle.srt");
     fs::write(&video_file, "fake video content").unwrap();
@@ -207,7 +212,7 @@ async fn test_bug_21_comparison_dry_run_vs_actual_execution() {
     )
     .unwrap();
 
-    // 掃描檔案獲取實際的檔案 ID
+    // Scan files to get actual file IDs
     use subx_cli::core::matcher::FileDiscovery;
     let discovery = FileDiscovery::new();
     let files = discovery.scan_directory(test_root, true).unwrap();
@@ -215,7 +220,7 @@ async fn test_bug_21_comparison_dry_run_vs_actual_execution() {
     let video_file_info = files.iter().find(|f| f.name.ends_with(".mp4")).unwrap();
     let subtitle_file_info = files.iter().find(|f| f.name.ends_with(".srt")).unwrap();
 
-    // 建立模擬 AI 服務，設定僅預期一次 API 呼叫
+    // Create mock AI service, set to expect only one API call
     let mock_helper = MockOpenAITestHelper::new().await;
     mock_helper
         .mock_chat_completion_with_expectation(
@@ -231,8 +236,8 @@ async fn test_bug_21_comparison_dry_run_vs_actual_execution() {
         .with_mock_ai_server(&mock_helper.base_url())
         .build_service();
 
-    // 第一次執行：dry-run 建立快取
-    debug!("執行 dry-run 建立快取");
+    // First execution: dry-run to create cache
+    debug!("Execute dry-run to create cache");
     let args_dry_run = MatchArgs {
         input_paths: vec![],
         recursive: true,
@@ -247,15 +252,15 @@ async fn test_bug_21_comparison_dry_run_vs_actual_execution() {
         .await
         .unwrap();
 
-    // 驗證 dry-run 後沒有檔案被實際移動或複製
+    // Verify no files are actually moved or copied after dry-run
     let expected_copy_location = video_dir.join("test_movie.srt");
     assert!(
         !expected_copy_location.exists(),
-        "dry-run 不應該建立實際檔案"
+        "dry-run should not create actual files"
     );
 
-    // 第二次執行：實際執行（使用快取）
-    debug!("執行實際 copy 操作");
+    // Second execution: actual copy operation (using cache)
+    debug!("Execute actual copy operation");
     let args_actual = MatchArgs {
         input_paths: vec![],
         recursive: true,
@@ -270,52 +275,52 @@ async fn test_bug_21_comparison_dry_run_vs_actual_execution() {
         .await
         .unwrap();
 
-    // 驗證實際執行後檔案被正確複製
+    // Verify actual execution copied files to correct location
     assert!(
         expected_copy_location.exists(),
-        "實際執行應該複製檔案到正確位置: {}",
+        "Actual execution should copy files to correct location: {}",
         expected_copy_location.display()
     );
 
-    // 驗證檔案內容一致
+    // Verify file content consistency
     let original_content = fs::read_to_string(&subtitle_file).unwrap();
     let copied_content = fs::read_to_string(&expected_copy_location).unwrap();
     assert_eq!(original_content, copied_content);
 
-    // 驗證原始檔案仍然存在（copy 模式）
-    assert!(subtitle_file.exists(), "原始檔案應該仍然存在");
+    // Verify original file still exists (copy mode)
+    assert!(subtitle_file.exists(), "Original file should still exist");
 
-    // 驗證模擬伺服器僅接收到一次請求
+    // Verify mock server received only one request
     mock_helper.verify_expectations().await;
 
-    debug!("✅ dry-run 與實際執行一致性驗證成功");
+    debug!("✅ dry-run vs actual execution consistency verification successful");
 }
 
 #[tokio::test]
 async fn test_bug_21_move_mode_cache_correctness() {
-    // 初始化日誌記錄
+    // Initialize logging
     let _ = env_logger::try_init();
 
-    // 使用異步互斥鎖避免環境變數競爭條件
+    // Use async mutex to avoid environment variable race conditions
     let _guard = TEST_MUTEX.lock().await;
-    debug!("開始測試 Bug 21: move 模式快取正確性（對照測試）");
+    debug!("Starting Bug 21 test: move mode cache correctness (comparison test)");
 
-    // 建立測試目錄結構
+    // Create test directory structure
     let temp_dir = TempDir::new().unwrap();
     let test_root = temp_dir.path();
 
-    // 設定快取目錄
+    // Set cache directory
     unsafe {
         std::env::set_var("XDG_CONFIG_HOME", test_root);
     }
 
-    // 建立分離的視訊和字幕目錄結構
+    // Create separate video and subtitle directory structure
     let video_dir = test_root.join("videos");
     let subtitle_dir = test_root.join("subtitles");
     fs::create_dir_all(&video_dir).unwrap();
     fs::create_dir_all(&subtitle_dir).unwrap();
 
-    // 建立測試檔案
+    // Create test files
     let video_file = video_dir.join("move_test.mp4");
     let subtitle_file = subtitle_dir.join("move_test.srt");
     fs::write(&video_file, "fake video content").unwrap();
@@ -325,7 +330,7 @@ async fn test_bug_21_move_mode_cache_correctness() {
     )
     .unwrap();
 
-    // 掃描檔案獲取實際的檔案 ID
+    // Scan files to get actual file IDs
     use subx_cli::core::matcher::FileDiscovery;
     let discovery = FileDiscovery::new();
     let files = discovery.scan_directory(test_root, true).unwrap();
@@ -333,7 +338,7 @@ async fn test_bug_21_move_mode_cache_correctness() {
     let video_file_info = files.iter().find(|f| f.name.ends_with(".mp4")).unwrap();
     let subtitle_file_info = files.iter().find(|f| f.name.ends_with(".srt")).unwrap();
 
-    // 建立模擬 AI 服務
+    // Create mock AI service
     let mock_helper = MockOpenAITestHelper::new().await;
     mock_helper
         .mock_chat_completion_with_expectation(
@@ -349,8 +354,8 @@ async fn test_bug_21_move_mode_cache_correctness() {
         .with_mock_ai_server(&mock_helper.base_url())
         .build_service();
 
-    // 第一次執行：dry-run 建立快取（move 模式）
-    debug!("執行 move 模式 dry-run 建立快取");
+    // First execution: dry-run to create cache (move mode)
+    debug!("Execute move mode dry-run to create cache");
     let args_dry_run = MatchArgs {
         input_paths: vec![],
         recursive: true,
@@ -365,8 +370,8 @@ async fn test_bug_21_move_mode_cache_correctness() {
         .await
         .unwrap();
 
-    // 第二次執行：實際 move 操作（使用快取）
-    debug!("執行實際 move 操作");
+    // Second execution: actual move operation (using cache)
+    debug!("Execute actual move operation");
     let args_move = MatchArgs {
         input_paths: vec![],
         recursive: true,
@@ -381,23 +386,23 @@ async fn test_bug_21_move_mode_cache_correctness() {
         .await
         .unwrap();
 
-    // 驗證檔案被移動到正確位置
+    // Verify files are moved to correct location
     let expected_move_location = video_dir.join("move_test.srt");
     assert!(
         expected_move_location.exists(),
-        "字幕檔案應該被移動到視訊檔案目錄: {}",
+        "Subtitle file should be moved to video file directory: {}",
         expected_move_location.display()
     );
 
-    // 驗證原始檔案不再存在（move 模式）
+    // Verify original file no longer exists (move mode)
     assert!(
         !subtitle_file.exists(),
-        "原始字幕檔案應該已被移動: {}",
+        "Original subtitle file should have been moved: {}",
         subtitle_file.display()
     );
 
-    // 驗證模擬伺服器僅接收到一次請求
+    // Verify mock server received only one request
     mock_helper.verify_expectations().await;
 
-    debug!("✅ move 模式快取正確性驗證成功");
+    debug!("✅ move mode cache correctness verification successful");
 }

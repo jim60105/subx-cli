@@ -15,7 +15,7 @@ fn test_get_config_value_ai_configurations() -> Result<()> {
 
     let service = TestConfigService::new(config);
 
-    // 測試所有 AI 配置項目
+    // Test all AI configuration items
     assert_eq!(service.get_config_value("ai.provider")?, "test_provider");
     assert_eq!(service.get_config_value("ai.model")?, "test_model");
     assert_eq!(service.get_config_value("ai.api_key")?, "test_key");
@@ -41,7 +41,7 @@ fn test_get_config_value_vad_configurations() -> Result<()> {
 
     let service = TestConfigService::new(config);
 
-    // 測試所有 VAD 配置項目
+    // Test all VAD configuration items
     assert_eq!(service.get_config_value("sync.vad.enabled")?, "true");
     assert_eq!(service.get_config_value("sync.vad.sensitivity")?, "0.9");
     assert_eq!(service.get_config_value("sync.vad.chunk_size")?, "1024");
@@ -70,7 +70,7 @@ fn test_get_config_value_parallel_configurations() -> Result<()> {
 
     let service = TestConfigService::new(config);
 
-    // 測試所有並行配置項目
+    // Test all parallel configuration items
     assert_eq!(service.get_config_value("parallel.max_workers")?, "12");
     assert_eq!(
         service.get_config_value("parallel.task_queue_size")?,
@@ -96,30 +96,30 @@ fn test_get_config_value_parallel_configurations() -> Result<()> {
 fn test_get_set_config_value_consistency() -> Result<()> {
     let service = TestConfigService::with_defaults();
 
-    // 測試所有支援的配置鍵
+    // Test all supported configuration keys
     let test_cases = vec![
-        // AI 配置 (9 項)
+        // AI configuration (9 items)
         ("ai.provider", "openai"),
         ("ai.model", "gpt-4"),
         (
             "ai.api_key",
             "sk-test-1234567890123456789012345678901234567890",
-        ), // 使用有效格式的 API key
+        ), // Use valid format API key
         ("ai.base_url", "https://api.test.com"),
         ("ai.temperature", "0.7"),
         ("ai.max_sample_length", "8000"),
         ("ai.max_tokens", "4000"),
         ("ai.retry_attempts", "3"),
         ("ai.retry_delay_ms", "1500"),
-        // 格式配置 (4 項)
+        // format configuration (4 items)
         ("formats.default_output", "vtt"),
         ("formats.preserve_styling", "true"),
         ("formats.default_encoding", "utf-8"),
         ("formats.encoding_detection_confidence", "0.9"),
-        // 同步配置 (2 項)
-        ("sync.max_offset_seconds", "90"), // 使用整數格式以避免浮點數表示問題
+        // sync configuration (2 items)
+        ("sync.max_offset_seconds", "90"), // Use integer format to avoid floating point representation issues
         ("sync.default_method", "vad"),
-        // VAD 配置 (7 項)
+        // VAD configuration (7 items)
         ("sync.vad.enabled", "true"),
         ("sync.vad.sensitivity", "0.8"),
         ("sync.vad.chunk_size", "512"),
@@ -127,13 +127,13 @@ fn test_get_set_config_value_consistency() -> Result<()> {
         ("sync.vad.padding_chunks", "4"),
         ("sync.vad.min_speech_duration_ms", "120"),
         ("sync.vad.speech_merge_gap_ms", "180"),
-        // 一般配置 (5 項)
+        // general configuration (5 items)
         ("general.backup_enabled", "true"),
         ("general.max_concurrent_jobs", "8"),
         ("general.task_timeout_seconds", "600"),
         ("general.enable_progress_bar", "false"),
         ("general.worker_idle_timeout_seconds", "120"),
-        // 並行配置 (5 項)
+        // parallel configuration (5 items)
         ("parallel.max_workers", "6"),
         ("parallel.task_queue_size", "1500"),
         ("parallel.enable_task_priorities", "true"),
@@ -142,7 +142,7 @@ fn test_get_set_config_value_consistency() -> Result<()> {
     ];
 
     for (key, value) in test_cases {
-        // 測試 set 然後 get
+        // Test set then get
         service.set_config_value(key, value)?;
 
         let retrieved = service.get_config_value(key)?;
@@ -156,7 +156,7 @@ fn test_get_set_config_value_consistency() -> Result<()> {
 fn test_unsupported_config_key_error() -> Result<()> {
     let service = TestConfigService::with_defaults();
 
-    // 測試不支援的配置鍵
+    // Test unsupported configuration keys
     let result = service.get_config_value("unknown.key");
     assert!(result.is_err());
 
@@ -170,11 +170,11 @@ fn test_unsupported_config_key_error() -> Result<()> {
 fn test_max_offset_seconds_get_set() -> Result<()> {
     let service = TestConfigService::with_defaults();
 
-    // 測試設定和獲取 max_offset_seconds
+    // Test setting and getting max_offset_seconds
     service.set_config_value("sync.max_offset_seconds", "120")?;
     assert_eq!(service.get_config_value("sync.max_offset_seconds")?, "120");
 
-    // 測試設定較小的值
+    // Test setting smaller value
     service.set_config_value("sync.max_offset_seconds", "30")?;
     assert_eq!(service.get_config_value("sync.max_offset_seconds")?, "30");
 
