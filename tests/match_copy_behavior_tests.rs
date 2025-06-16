@@ -41,6 +41,10 @@ async fn test_copy_mode_preserves_original_file() {
         .unwrap();
 
     // Create mock AI service
+    println!(
+        "Setting up mock with Video ID: {} and Subtitle ID: {}",
+        &video_file.id, &subtitle_file.id
+    );
     let mock_helper = MockOpenAITestHelper::new().await;
     mock_helper
         .mock_chat_completion_success(&MatchResponseGenerator::successful_match_with_ids(
@@ -49,9 +53,10 @@ async fn test_copy_mode_preserves_original_file() {
         ))
         .await;
 
+    // Debug: check what get_input_handler returns
     let args = MatchArgs {
         input_paths: vec![],
-        recursive: false,
+        recursive: true, // Fixed: need recursive to find files in subdirectories
         path: Some(root.to_path_buf()),
         dry_run: false,
         confidence: 80,
@@ -59,6 +64,23 @@ async fn test_copy_mode_preserves_original_file() {
         copy: true,
         move_files: false,
     };
+    let input_handler = args.get_input_handler().unwrap();
+    let directories = input_handler.get_directories();
+    println!("Input handler directories: {:?}", directories);
+
+    // Debug: check what files would be found in the execution
+    let discovery = subx_cli::core::matcher::FileDiscovery::new();
+    for dir in &directories {
+        let execution_files = discovery.scan_directory(dir, args.recursive).unwrap();
+        println!(
+            "Files found during execution scan in {:?} (recursive={}):",
+            dir, args.recursive
+        );
+        for file in &execution_files {
+            println!("  {:?}: {:?} (ID: {})", file.file_type, file.path, file.id);
+        }
+    }
+
     let config_service = TestConfigBuilder::new()
         .with_mock_ai_server(&mock_helper.base_url())
         .build_service();
@@ -115,7 +137,7 @@ async fn test_copy_mode_with_rename() {
 
     let args = MatchArgs {
         input_paths: vec![],
-        recursive: false,
+        recursive: true, // Fixed: need recursive to find files in subdirectories
         path: Some(root.to_path_buf()),
         dry_run: false,
         confidence: 80,

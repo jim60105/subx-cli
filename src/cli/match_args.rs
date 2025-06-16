@@ -128,19 +128,17 @@ impl MatchArgs {
         Ok(())
     }
 
-    /// 取得所有輸入路徑，優先使用 -i 參數
+    /// 取得所有輸入路徑，合併 path 和 input_paths 參數
     pub fn get_input_handler(&self) -> Result<InputPathHandler, SubXError> {
-        if !self.input_paths.is_empty() {
-            Ok(
-                InputPathHandler::from_args(&self.input_paths, self.recursive)?
-                    .with_extensions(&["mp4", "mkv", "avi", "mov", "srt", "ass", "vtt", "sub"]),
-            )
-        } else if let Some(p) = &self.path {
-            Ok(InputPathHandler::from_args(&[p.clone()], self.recursive)?
-                .with_extensions(&["mp4", "mkv", "avi", "mov", "srt", "ass", "vtt", "sub"]))
-        } else {
-            Err(SubXError::NoInputSpecified)
-        }
+        let optional_paths = vec![self.path.clone()];
+        let merged_paths = InputPathHandler::merge_paths_from_multiple_sources(
+            &optional_paths,
+            &self.input_paths,
+            &[],
+        )?;
+
+        Ok(InputPathHandler::from_args(&merged_paths, self.recursive)?
+            .with_extensions(&["mp4", "mkv", "avi", "mov", "srt", "ass", "vtt", "sub"]))
     }
 }
 

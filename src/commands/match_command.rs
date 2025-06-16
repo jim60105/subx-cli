@@ -324,48 +324,19 @@ pub async fn execute_with_client(
     // Initialize the matching engine with AI client and configuration
     let engine = MatchEngine::new(ai_client, match_config);
 
-    // Collect all target directories for match command
-    // For match command, we need to process directories, not individual files
-    let target_directories = if !args.input_paths.is_empty() {
-        // If input_paths are specified, extract unique parent directories
-        let mut dirs = std::collections::HashSet::new();
-        for path in &args.input_paths {
-            if path.is_dir() {
-                dirs.insert(path.clone());
-            } else if path.is_file() {
-                if let Some(parent) = path.parent() {
-                    dirs.insert(parent.to_path_buf());
-                }
-            }
-        }
-        dirs.into_iter().collect::<Vec<_>>()
-    } else if let Some(path) = &args.path {
-        // If path is specified, use it directly if it's a directory
-        if path.is_dir() {
-            vec![path.clone()]
-        } else if path.is_file() {
-            // If it's a file, use its parent directory
-            if let Some(parent) = path.parent() {
-                vec![parent.to_path_buf()]
-            } else {
-                return Err(SubXError::CommandExecution(
-                    "Cannot determine parent directory".to_string(),
-                ));
-            }
-        } else {
-            return Err(SubXError::CommandExecution(
-                "Path does not exist".to_string(),
-            ));
-        }
-    } else {
+    // Use the get_input_handler method to get all input paths
+    let input_handler = args.get_input_handler()?;
+    let directories = input_handler.get_directories();
+
+    if directories.is_empty() {
         return Err(SubXError::CommandExecution(
-            "No input path specified".to_string(),
+            "No directories found to process".to_string(),
         ));
-    };
+    }
 
     // Execute the matching algorithm for each directory
     let mut operations = Vec::new();
-    for directory in &target_directories {
+    for directory in &directories {
         let ops = engine.match_files(directory, args.recursive).await?;
         operations.extend(ops);
     }
@@ -374,7 +345,7 @@ pub async fn execute_with_client(
     display_match_results(&operations, args.dry_run);
 
     // Save or execute operations based on dry-run flag
-    for directory in &target_directories {
+    for directory in &directories {
         if args.dry_run {
             engine
                 .save_cache(directory, args.recursive, &operations)

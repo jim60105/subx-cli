@@ -216,6 +216,18 @@ mod tests {
 }
 
 impl DetectEncodingArgs {
+    /// 取得所有輸入路徑，合併 file_paths 和 input_paths 參數
+    pub fn get_input_handler(&self) -> Result<InputPathHandler, SubXError> {
+        let merged_paths = InputPathHandler::merge_paths_from_multiple_sources(
+            &[],
+            &self.input_paths,
+            &self.file_paths,
+        )?;
+
+        Ok(InputPathHandler::from_args(&merged_paths, self.recursive)?
+            .with_extensions(&["srt", "ass", "vtt", "ssa", "sub", "txt"]))
+    }
+
     /// 取得所有要處理的檔案路徑
     pub fn get_file_paths(&self) -> Result<Vec<PathBuf>, SubXError> {
         if !self.input_paths.is_empty() {

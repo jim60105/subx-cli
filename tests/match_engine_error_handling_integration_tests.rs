@@ -12,12 +12,13 @@ use common::mock_openai_helper::MockOpenAITestHelper;
 
 /// Basic file setup for error handling tests.
 fn create_test_files(root: &Path) {
-    let video_dir = root.join("videos");
-    let subtitle_dir = root.join("subtitles");
-    fs::create_dir_all(&video_dir).unwrap();
-    fs::create_dir_all(&subtitle_dir).unwrap();
-    fs::write(video_dir.join("movie.mp4"), "video").unwrap();
-    fs::write(subtitle_dir.join("movie.srt"), "subtitle").unwrap();
+    // Create files in the same directory to ensure they can be matched
+    fs::write(root.join("movie.mp4"), "video").unwrap();
+    fs::write(
+        root.join("movie.srt"),
+        "1\n00:00:01,000 --> 00:00:02,000\nTest subtitle content\n",
+    )
+    .unwrap();
 }
 
 #[tokio::test]

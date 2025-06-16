@@ -112,6 +112,70 @@ pub struct InputPathHandler {
 }
 
 impl InputPathHandler {
+    /// 從多個來源合併路徑，建立統一的路徑清單
+    ///
+    /// 這個方法提供一個統一的界面，讓各個 CLI 命令可以將不同格式的路徑參數
+    /// 合併成一個統一的 PathBuf 向量。
+    ///
+    /// # 參數
+    ///
+    /// * `optional_paths` - 可選的路徑清單 (例如 `path`, `input`, `video`, `subtitle` 等)
+    /// * `multiple_paths` - 多重路徑清單 (例如 `input_paths`)
+    /// * `string_paths` - 字串格式的路徑清單 (例如 `file_paths`)
+    ///
+    /// # 回傳
+    ///
+    /// 回傳合併後的 PathBuf 向量，如果所有輸入都是空的則回傳錯誤
+    ///
+    /// # 例子
+    ///
+    /// ```rust
+    /// use subx_cli::cli::InputPathHandler;
+    /// use std::path::PathBuf;
+    ///
+    /// // 合併不同來源的路徑
+    /// let optional = vec![Some(PathBuf::from("single.srt"))];
+    /// let multiple = vec![PathBuf::from("dir1"), PathBuf::from("dir2")];
+    /// let strings = vec!["file1.srt".to_string(), "file2.ass".to_string()];
+    ///
+    /// let merged = InputPathHandler::merge_paths_from_multiple_sources(
+    ///     &optional,
+    ///     &multiple,
+    ///     &strings
+    /// )?;
+    ///
+    /// // merged 現在包含所有路徑
+    /// assert_eq!(merged.len(), 5);
+    /// # Ok::<(), subx_cli::error::SubXError>(())
+    /// ```
+    pub fn merge_paths_from_multiple_sources(
+        optional_paths: &[Option<PathBuf>],
+        multiple_paths: &[PathBuf],
+        string_paths: &[String],
+    ) -> Result<Vec<PathBuf>, SubXError> {
+        let mut all_paths = Vec::new();
+
+        // 加入可選路徑 (過濾掉 None)
+        for p in optional_paths.iter().flatten() {
+            all_paths.push(p.clone());
+        }
+
+        // 加入多重路徑
+        all_paths.extend(multiple_paths.iter().cloned());
+
+        // 加入字串路徑 (轉換為 PathBuf)
+        for path_str in string_paths {
+            all_paths.push(PathBuf::from(path_str));
+        }
+
+        // 檢查是否有任何路徑被指定
+        if all_paths.is_empty() {
+            return Err(SubXError::NoInputSpecified);
+        }
+
+        Ok(all_paths)
+    }
+
     /// 從命令列參數建立 InputPathHandler
     pub fn from_args(input_args: &[PathBuf], recursive: bool) -> Result<Self, SubXError> {
         let handler = Self {
@@ -137,6 +201,53 @@ impl InputPathHandler {
             }
         }
         Ok(())
+    }
+
+    /// 取得所有指定的目錄路徑
+    ///
+    /// 這個方法會回傳所有指定的目錄路徑，供需要逐目錄處理的命令使用。
+    /// 如果指定的路徑包含檔案，則會回傳該檔案所在的目錄。
+    ///
+    /// # 回傳
+    ///
+    /// 去重後的目錄路徑清單
+    ///
+    /// # 例子
+    ///
+    /// ```rust
+    /// use subx_cli::cli::InputPathHandler;
+    /// use std::path::PathBuf;
+    /// # use tempfile::TempDir;
+    /// # use std::fs;
+    ///
+    /// # let tmp = TempDir::new().unwrap();
+    /// # let test_dir = tmp.path();
+    /// # let file1 = test_dir.join("test1.srt");
+    /// # fs::write(&file1, "test content").unwrap();
+    ///
+    /// let paths = vec![file1.clone(), test_dir.to_path_buf()];
+    /// let handler = InputPathHandler::from_args(&paths, false)?;
+    /// let directories = handler.get_directories();
+    ///
+    /// // 應該包含 test_dir (去重後)
+    /// assert_eq!(directories.len(), 1);
+    /// assert_eq!(directories[0], test_dir);
+    /// # Ok::<(), subx_cli::error::SubXError>(())
+    /// ```
+    pub fn get_directories(&self) -> Vec<PathBuf> {
+        let mut directories = std::collections::HashSet::new();
+
+        for path in &self.paths {
+            if path.is_dir() {
+                directories.insert(path.clone());
+            } else if path.is_file() {
+                if let Some(parent) = path.parent() {
+                    directories.insert(parent.to_path_buf());
+                }
+            }
+        }
+
+        directories.into_iter().collect()
     }
 
     /// 展開檔案與目錄，並收集所有符合過濾條件的檔案列表

@@ -147,20 +147,17 @@ pub struct ConvertArgs {
 
 impl ConvertArgs {
     /// 取得所有輸入路徑
+    /// 取得所有輸入路徑，合併 input 和 input_paths 參數
     pub fn get_input_handler(&self) -> Result<InputPathHandler, SubXError> {
-        if !self.input_paths.is_empty() {
-            Ok(
-                InputPathHandler::from_args(&self.input_paths, self.recursive)?
-                    .with_extensions(&["srt", "ass", "vtt", "sub", "ssa"]),
-            )
-        } else if let Some(input) = &self.input {
-            Ok(
-                InputPathHandler::from_args(&[input.clone()], self.recursive)?
-                    .with_extensions(&["srt", "ass", "vtt", "sub", "ssa"]),
-            )
-        } else {
-            Err(SubXError::NoInputSpecified)
-        }
+        let optional_paths = vec![self.input.clone()];
+        let merged_paths = InputPathHandler::merge_paths_from_multiple_sources(
+            &optional_paths,
+            &self.input_paths,
+            &[],
+        )?;
+
+        Ok(InputPathHandler::from_args(&merged_paths, self.recursive)?
+            .with_extensions(&["srt", "ass", "vtt", "sub", "ssa"]))
     }
 }
 

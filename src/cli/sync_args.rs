@@ -247,6 +247,20 @@ Need help? Run: subx sync --help"
         self.offset.is_none()
     }
 
+    /// 取得所有輸入路徑，合併 video, subtitle 和 input_paths 參數
+    /// 注意：對於 sync 命令，video 和 subtitle 都是有效的輸入路徑
+    pub fn get_input_handler(&self) -> Result<InputPathHandler, SubXError> {
+        let optional_paths = vec![self.video.clone(), self.subtitle.clone()];
+        let merged_paths = InputPathHandler::merge_paths_from_multiple_sources(
+            &optional_paths,
+            &self.input_paths,
+            &[],
+        )?;
+
+        Ok(InputPathHandler::from_args(&merged_paths, self.recursive)?
+            .with_extensions(&["mp4", "mkv", "avi", "mov", "srt", "ass", "vtt", "sub"]))
+    }
+
     /// 取得同步模式：單檔或批次
     pub fn get_sync_mode(&self) -> Result<SyncMode, SubXError> {
         if !self.input_paths.is_empty() || self.batch {
