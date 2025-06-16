@@ -324,19 +324,30 @@ pub async fn execute_with_client(
     // Initialize the matching engine with AI client and configuration
     let engine = MatchEngine::new(ai_client, match_config);
 
-    // Use the get_input_handler method to get all input paths
+    // Use the get_input_handler method to get all input files
     let input_handler = args.get_input_handler()?;
-    let directories = input_handler.get_directories();
+    let files = input_handler
+        .collect_files()
+        .map_err(|e| SubXError::CommandExecution(format!("Failed to collect files: {}", e)))?;
 
-    if directories.is_empty() {
+    if files.is_empty() {
         return Err(SubXError::CommandExecution(
-            "No directories found to process".to_string(),
+            "No files found to process".to_string(),
         ));
+    }
+
+    // Convert files back to unique directories for MatchEngine compatibility
+    // This ensures we use collect_files() as required, but maintain compatibility with MatchEngine
+    let mut directories = std::collections::HashMap::new();
+    for file in files {
+        if let Some(parent) = file.parent() {
+            directories.entry(parent.to_path_buf()).or_insert_with(Vec::new).push(file);
+        }
     }
 
     // Execute the matching algorithm for each directory
     let mut operations = Vec::new();
-    for directory in &directories {
+    for directory in directories.keys() {
         let ops = engine.match_files(directory, args.recursive).await?;
         operations.extend(ops);
     }
@@ -345,7 +356,7 @@ pub async fn execute_with_client(
     display_match_results(&operations, args.dry_run);
 
     // Save or execute operations based on dry-run flag
-    for directory in &directories {
+    for directory in directories.keys() {
         if args.dry_run {
             engine
                 .save_cache(directory, args.recursive, &operations)
