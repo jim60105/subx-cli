@@ -137,6 +137,27 @@ pub enum ProcessingOperation {
         /// Path to the target video folder where the subtitle will be moved
         target: std::path::PathBuf,
     },
+    /// Copy a file with a new name (local copy)
+    CopyWithRename {
+        /// Source file path
+        source: std::path::PathBuf,
+        /// Target file path
+        target: std::path::PathBuf,
+    },
+    /// Create a backup of a file
+    CreateBackup {
+        /// Original file path
+        source: std::path::PathBuf,
+        /// Backup file path
+        backup: std::path::PathBuf,
+    },
+    /// Rename (move) a file
+    RenameFile {
+        /// Original file path
+        source: std::path::PathBuf,
+        /// New file path after rename
+        target: std::path::PathBuf,
+    },
 }
 
 #[async_trait]
@@ -202,6 +223,39 @@ impl Task for FileProcessingTask {
                     Err(e) => TaskResult::Failed(format!("Move failed: {}", e)),
                 }
             }
+            ProcessingOperation::CopyWithRename { source, target } => {
+                match self
+                    .execute_copy_with_rename_operation(source, target)
+                    .await
+                {
+                    Ok(_) => TaskResult::Success(format!(
+                        "Copied: {} -> {}",
+                        source.display(),
+                        target.display()
+                    )),
+                    Err(e) => TaskResult::Failed(format!("Copy failed: {}", e)),
+                }
+            }
+            ProcessingOperation::CreateBackup { source, backup } => {
+                match self.execute_create_backup_operation(source, backup).await {
+                    Ok(_) => TaskResult::Success(format!(
+                        "Backup created: {} -> {}",
+                        source.display(),
+                        backup.display()
+                    )),
+                    Err(e) => TaskResult::Failed(format!("Backup failed: {}", e)),
+                }
+            }
+            ProcessingOperation::RenameFile { source, target } => {
+                match self.execute_rename_file_operation(source, target).await {
+                    Ok(_) => TaskResult::Success(format!(
+                        "Renamed: {} -> {}",
+                        source.display(),
+                        target.display()
+                    )),
+                    Err(e) => TaskResult::Failed(format!("Rename failed: {}", e)),
+                }
+            }
         }
     }
 
@@ -213,6 +267,9 @@ impl Task for FileProcessingTask {
             ProcessingOperation::ValidateFormat => "validate",
             ProcessingOperation::CopyToVideoFolder { .. } => "copy_to_video_folder",
             ProcessingOperation::MoveToVideoFolder { .. } => "move_to_video_folder",
+            ProcessingOperation::CopyWithRename { .. } => "copy_with_rename",
+            ProcessingOperation::CreateBackup { .. } => "create_backup",
+            ProcessingOperation::RenameFile { .. } => "rename_file",
         }
     }
 
@@ -235,6 +292,9 @@ impl Task for FileProcessingTask {
                 ProcessingOperation::ValidateFormat => size_mb * 0.05,
                 ProcessingOperation::CopyToVideoFolder { .. } => size_mb * 0.01, // Fast copy
                 ProcessingOperation::MoveToVideoFolder { .. } => size_mb * 0.005, // Even faster move
+                ProcessingOperation::CopyWithRename { .. } => size_mb * 0.01,
+                ProcessingOperation::CreateBackup { .. } => size_mb * 0.01,
+                ProcessingOperation::RenameFile { .. } => size_mb * 0.005,
             };
             Some(std::time::Duration::from_secs_f64(secs))
         } else {
@@ -270,6 +330,19 @@ impl Task for FileProcessingTask {
             }
             ProcessingOperation::MoveToVideoFolder { source, target } => {
                 format!("Move {} to {}", source.display(), target.display())
+            }
+            ProcessingOperation::CopyWithRename { source, target } => {
+                format!(
+                    "CopyWithRename {} to {}",
+                    source.display(),
+                    target.display()
+                )
+            }
+            ProcessingOperation::CreateBackup { source, backup } => {
+                format!("CreateBackup {} to {}", source.display(), backup.display())
+            }
+            ProcessingOperation::RenameFile { source, target } => {
+                format!("Rename {} to {}", source.display(), target.display())
             }
         }
     }
@@ -361,6 +434,45 @@ impl FileProcessingTask {
         Err("Could not resolve filename conflict".into())
     }
 
+    /// Execute a copy with rename operation (local copy) using CIFS-safe copy
+    async fn execute_copy_with_rename_operation(
+        &self,
+        source: &Path,
+        target: &Path,
+    ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+        if let Some(parent) = target.parent() {
+            std::fs::create_dir_all(parent)?;
+        }
+        copy_file_cifs_safe(source, target)?;
+        Ok(())
+    }
+
+    /// Execute a create backup operation using CIFS-safe copy
+    async fn execute_create_backup_operation(
+        &self,
+        source: &Path,
+        backup: &Path,
+    ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+        if let Some(parent) = backup.parent() {
+            std::fs::create_dir_all(parent)?;
+        }
+        copy_file_cifs_safe(source, backup)?;
+        Ok(())
+    }
+
+    /// Execute a file rename operation
+    async fn execute_rename_file_operation(
+        &self,
+        source: &Path,
+        target: &Path,
+    ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+        if let Some(parent) = target.parent() {
+            std::fs::create_dir_all(parent)?;
+        }
+        std::fs::rename(source, target)?;
+        Ok(())
+    }
+
     async fn convert_format(&self, _from: &str, _to: &str) -> crate::Result<std::path::PathBuf> {
         // Stub convert: simply return input path
         Ok(self.input_path.clone())
@@ -417,6 +529,21 @@ impl std::hash::Hash for ProcessingOperation {
                 source.hash(state);
                 target.hash(state);
             }
+            ProcessingOperation::CopyWithRename { source, target } => {
+                "copy_with_rename".hash(state);
+                source.hash(state);
+                target.hash(state);
+            }
+            ProcessingOperation::CreateBackup { source, backup } => {
+                "create_backup".hash(state);
+                source.hash(state);
+                backup.hash(state);
+            }
+            ProcessingOperation::RenameFile { source, target } => {
+                "rename_file".hash(state);
+                source.hash(state);
+                target.hash(state);
+            }
         }
     }
 }
@@ -441,6 +568,67 @@ mod tests {
         };
         let result = task.execute().await;
         assert!(matches!(result, TaskResult::Success(_)));
+    }
+
+    #[tokio::test]
+    async fn test_file_processing_task_copy_with_rename() {
+        let tmp = TempDir::new().unwrap();
+        let src = tmp.path().join("orig.txt");
+        let dst = tmp.path().join("copy.txt");
+        tokio::fs::write(&src, b"hello").await.unwrap();
+        let task = FileProcessingTask::new(
+            src.clone(),
+            Some(dst.clone()),
+            ProcessingOperation::CopyWithRename {
+                source: src.clone(),
+                target: dst.clone(),
+            },
+        );
+        let result = task.execute().await;
+        assert!(matches!(result, TaskResult::Success(_)));
+        let data = tokio::fs::read(&dst).await.unwrap();
+        assert_eq!(data, b"hello");
+    }
+
+    #[tokio::test]
+    async fn test_file_processing_task_create_backup() {
+        let tmp = TempDir::new().unwrap();
+        let src = tmp.path().join("orig.txt");
+        let backup = tmp.path().join("orig.txt.bak");
+        tokio::fs::write(&src, b"backup").await.unwrap();
+        let task = FileProcessingTask::new(
+            src.clone(),
+            Some(backup.clone()),
+            ProcessingOperation::CreateBackup {
+                source: src.clone(),
+                backup: backup.clone(),
+            },
+        );
+        let result = task.execute().await;
+        assert!(matches!(result, TaskResult::Success(_)));
+        let data = tokio::fs::read(&backup).await.unwrap();
+        assert_eq!(data, b"backup");
+    }
+
+    #[tokio::test]
+    async fn test_file_processing_task_rename_file() {
+        let tmp = TempDir::new().unwrap();
+        let src = tmp.path().join("a.txt");
+        let dst = tmp.path().join("b.txt");
+        tokio::fs::write(&src, b"rename").await.unwrap();
+        let task = FileProcessingTask::new(
+            src.clone(),
+            Some(dst.clone()),
+            ProcessingOperation::RenameFile {
+                source: src.clone(),
+                target: dst.clone(),
+            },
+        );
+        let result = task.execute().await;
+        assert!(matches!(result, TaskResult::Success(_)));
+        assert!(!tokio::fs::metadata(&src).await.is_ok());
+        let data = tokio::fs::read(&dst).await.unwrap();
+        assert_eq!(data, b"rename");
     }
 
     /// Test task lifecycle and status transitions

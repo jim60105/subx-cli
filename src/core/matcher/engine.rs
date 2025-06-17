@@ -22,6 +22,7 @@ use crate::core::matcher::discovery::generate_file_id;
 use crate::core::matcher::{FileDiscovery, MediaFile, MediaFileType};
 
 use crate::core::fs_util::copy_file_cifs_safe;
+use crate::core::parallel::{FileProcessingTask, ProcessingOperation, Task, TaskResult};
 use crate::error::SubXError;
 use dirs;
 use serde_json;
@@ -811,23 +812,29 @@ impl MatchEngine {
                     }
                 }
             } else {
-                match op.relocation_mode {
-                    FileRelocationMode::Copy => {
-                        if op.requires_relocation {
-                            self.execute_copy_operation(op).await?;
-                        } else {
-                            // In copy mode, create a local copy with new name
-                            self.execute_local_copy(op).await?;
-                        }
-                    }
-                    FileRelocationMode::Move => {
-                        self.rename_file(op).await?;
-                        if op.requires_relocation {
-                            self.execute_relocation_operation(op).await?;
-                        }
-                    }
-                    FileRelocationMode::None => {
-                        self.rename_file(op).await?;
+                // Delegate file operations to FileProcessingTask
+                let mut tasks = Vec::new();
+                // Backup source if move and enabled
+                if op.relocation_mode == FileRelocationMode::Move && self.config.backup_enabled {
+                    tasks.push(
+                        self.create_backup_task(
+                            &op.subtitle_file.path,
+                            &op.subtitle_file.extension,
+                        ),
+                    );
+                }
+                // Copy or local copy with rename
+                if op.relocation_mode == FileRelocationMode::Copy {
+                    tasks.push(self.create_copy_task(op));
+                }
+                // Rename original file if any
+                if op.relocation_mode != FileRelocationMode::Copy {
+                    tasks.push(self.create_rename_task(op));
+                }
+                // Execute all tasks sequentially
+                for t in tasks {
+                    if let TaskResult::Failed(err) = t.execute().await {
+                        return Err(SubXError::FileOperationFailed(err));
                     }
                 }
             }
@@ -966,75 +973,17 @@ impl MatchEngine {
         Ok(())
     }
 
-    /// Execute copy operation followed by rename of the copied file
-    /// Execute copy operation - copies original file to target location without modifying original
-    async fn execute_copy_operation(&self, op: &MatchOperation) -> Result<()> {
-        if let Some(target_path) = &op.relocation_target_path {
-            // Resolve filename conflicts
-            let final_target = self.resolve_filename_conflict(target_path.clone())?;
-            if let Some(parent) = final_target.parent() {
-                std::fs::create_dir_all(parent)?;
-            }
-            // Backup target file if it exists and backup is enabled
-            if self.config.backup_enabled && final_target.exists() {
-                let backup_path = final_target.with_extension(format!(
-                    "{}.backup",
-                    final_target
-                        .extension()
-                        .and_then(|s| s.to_str())
-                        .unwrap_or("")
-                ));
-                copy_file_cifs_safe(&final_target, &backup_path)?;
-            }
-            // Copy original subtitle to target location
-            // In copy mode, the original file remains unchanged
-            copy_file_cifs_safe(&op.subtitle_file.path, &final_target)?;
-
-            // Display copy operation result
-            if final_target.exists() {
-                println!(
-                    "  ✓ Copied: {} -> {}",
-                    op.subtitle_file.name,
-                    final_target.file_name().unwrap().to_string_lossy()
-                );
-            }
+    /// Rename subtitle file by delegating to FileProcessingTask
+    async fn rename_file(&self, op: &MatchOperation) -> Result<()> {
+        let task = self.create_rename_task(op);
+        match task.execute().await {
+            TaskResult::Success(_) => Ok(()),
+            TaskResult::Failed(err) => Err(SubXError::FileOperationFailed(err)),
+            other => Err(SubXError::FileOperationFailed(format!(
+                "Unexpected rename result: {:?}",
+                other
+            ))),
         }
-        Ok(())
-    }
-
-    /// Execute local copy operation - creates a copy with new name in the same directory
-    async fn execute_local_copy(&self, op: &MatchOperation) -> Result<()> {
-        if op.new_subtitle_name != op.subtitle_file.name {
-            let target_path = op.subtitle_file.path.with_file_name(&op.new_subtitle_name);
-
-            // Handle filename conflicts
-            let final_target = self.resolve_filename_conflict(target_path)?;
-
-            // Backup target file if it exists and backup is enabled
-            if self.config.backup_enabled && final_target.exists() {
-                let backup_path = final_target.with_extension(format!(
-                    "{}.backup",
-                    final_target
-                        .extension()
-                        .and_then(|s| s.to_str())
-                        .unwrap_or("")
-                ));
-                copy_file_cifs_safe(&final_target, &backup_path)?;
-            }
-
-            // Copy original file to new name in same directory
-            copy_file_cifs_safe(&op.subtitle_file.path, &final_target)?;
-
-            // Display copy operation result
-            if final_target.exists() {
-                println!(
-                    "  ✓ Copied: {} -> {}",
-                    op.subtitle_file.name,
-                    final_target.file_name().unwrap().to_string_lossy()
-                );
-            }
-        }
-        Ok(())
     }
 
     /// Resolve filename conflicts by adding numeric suffix
@@ -1042,27 +991,21 @@ impl MatchEngine {
         if !target.exists() {
             return Ok(target);
         }
-
-        // Use AutoRename strategy
         match self.config.conflict_resolution {
             ConflictResolution::Skip => {
                 eprintln!(
                     "Warning: Skipping relocation due to existing file: {}",
                     target.display()
                 );
-                Ok(target) // Return original path but operation will be skipped
+                Ok(target)
             }
             ConflictResolution::AutoRename => {
-                // Extract filename components
                 let file_stem = target
                     .file_stem()
                     .and_then(|s| s.to_str())
                     .unwrap_or("file");
                 let extension = target.extension().and_then(|s| s.to_str()).unwrap_or("");
-
                 let parent = target.parent().unwrap_or_else(|| std::path::Path::new("."));
-
-                // Try adding numeric suffixes
                 for i in 1..1000 {
                     let new_name = if extension.is_empty() {
                         format!("{}.{}", file_stem, i)
@@ -1074,49 +1017,61 @@ impl MatchEngine {
                         return Ok(new_path);
                     }
                 }
-
                 Err(SubXError::FileOperationFailed(
                     "Could not resolve filename conflict".to_string(),
                 ))
             }
             ConflictResolution::Prompt => {
-                // For now, fall back to AutoRename
-                // In a future version, this could prompt the user
                 eprintln!("Warning: Conflict resolution prompt not implemented, using auto-rename");
                 self.resolve_filename_conflict(target)
             }
         }
     }
 
-    async fn rename_file(&self, op: &MatchOperation) -> Result<()> {
-        let old_path = &op.subtitle_file.path;
-        let new_path = old_path.with_file_name(&op.new_subtitle_name);
-
-        // Backup file
-        if self.config.backup_enabled {
-            let backup_path =
-                old_path.with_extension(format!("{}.backup", op.subtitle_file.extension));
-            copy_file_cifs_safe(old_path, &backup_path)?;
-        }
-
-        std::fs::rename(old_path, &new_path)?;
-
-        // Verify the file exists after rename and display appropriate indicator
-        if new_path.exists() {
-            println!(
-                "  ✓ Renamed: {} -> {}",
-                old_path.file_name().unwrap_or_default().to_string_lossy(),
-                op.new_subtitle_name
-            );
+    /// Create a task to copy (or rename) a file with new name
+    fn create_copy_task(&self, op: &MatchOperation) -> FileProcessingTask {
+        let source = if op.new_subtitle_name == op.subtitle_file.name {
+            op.subtitle_file.path.clone()
         } else {
-            eprintln!(
-                "  ✗ Rename failed: {} -> {} (target file does not exist after operation)",
-                old_path.file_name().unwrap_or_default().to_string_lossy(),
-                op.new_subtitle_name
-            );
-        }
+            op.subtitle_file.path.with_file_name(&op.new_subtitle_name)
+        };
+        let target_base = op.relocation_target_path.clone().unwrap();
+        let final_target = self.resolve_filename_conflict(target_base).unwrap();
+        FileProcessingTask::new(
+            source.clone(),
+            Some(final_target.clone()),
+            ProcessingOperation::CopyWithRename {
+                source,
+                target: final_target,
+            },
+        )
+    }
 
-        Ok(())
+    /// Create a task to backup a file
+    fn create_backup_task(&self, source: &std::path::Path, ext: &str) -> FileProcessingTask {
+        let backup_path = source.with_extension(format!("{}.backup", ext));
+        FileProcessingTask::new(
+            source.to_path_buf(),
+            Some(backup_path.clone()),
+            ProcessingOperation::CreateBackup {
+                source: source.to_path_buf(),
+                backup: backup_path,
+            },
+        )
+    }
+
+    /// Create a task to rename (move) a file
+    fn create_rename_task(&self, op: &MatchOperation) -> FileProcessingTask {
+        let old = op.subtitle_file.path.clone();
+        let new_path = old.with_file_name(&op.new_subtitle_name);
+        FileProcessingTask::new(
+            old.clone(),
+            Some(new_path.clone()),
+            ProcessingOperation::RenameFile {
+                source: old,
+                target: new_path,
+            },
+        )
     }
 
     /// Calculate cache key for file list operations
