@@ -4,6 +4,7 @@
 //! components with proper configuration injection, eliminating the need for
 //! global configuration access within individual components.
 
+use crate::services::ai::openai::OpenAIClient;
 use crate::services::vad::{LocalVadDetector, VadAudioProcessor, VadSyncDetector};
 use crate::{
     Result,
@@ -154,17 +155,46 @@ impl ComponentFactory {
 /// # Errors
 ///
 /// Returns an error if the provider type is unsupported or creation fails.
+/// Validate AI configuration parameters.
+fn validate_ai_config(ai_config: &crate::config::AIConfig) -> Result<()> {
+    if ai_config.api_key.as_deref().unwrap_or("").trim().is_empty() {
+        return Err(SubXError::config(
+            "AI API key is required. Set ai.api_key in configuration or use environment variable."
+                .to_string(),
+        ));
+    }
+    if ai_config.model.trim().is_empty() {
+        return Err(SubXError::config(
+            "AI model is required. Set ai.model in configuration.".to_string(),
+        ));
+    }
+    if ai_config.temperature < 0.0 || ai_config.temperature > 2.0 {
+        return Err(SubXError::config(
+            "AI temperature must be between 0.0 and 2.0.".to_string(),
+        ));
+    }
+    if ai_config.max_tokens == 0 {
+        return Err(SubXError::config(
+            "AI max_tokens must be greater than 0.".to_string(),
+        ));
+    }
+    Ok(())
+}
+
+/// Create an AI provider from AI configuration.
+///
+/// This function creates the appropriate AI provider based on the
+/// provider type specified in the configuration.
 pub fn create_ai_provider(ai_config: &crate::config::AIConfig) -> Result<Box<dyn AIProvider>> {
     match ai_config.provider.as_str() {
         "openai" => {
-            // For now, just create a mock provider since the actual implementation might not be ready
-            Err(SubXError::config(
-                "AI provider creation not yet implemented",
-            ))
+            validate_ai_config(ai_config)?;
+            let client = OpenAIClient::from_config(ai_config)?;
+            Ok(Box::new(client))
         }
-        _ => Err(SubXError::config(format!(
-            "Unsupported AI provider: {}",
-            ai_config.provider
+        other => Err(SubXError::config(format!(
+            "Unsupported AI provider: {}. Supported providers: openai",
+            other
         ))),
     }
 }
@@ -236,6 +266,47 @@ mod tests {
         let config_service = TestConfigService::default();
         let factory = ComponentFactory::new(&config_service).unwrap();
         let result = factory.create_audio_processor();
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_create_ai_provider_openai_success() {
+        let mut config_service = TestConfigService::default();
+        config_service.set_ai_settings_and_key("openai", "gpt-4.1-mini", "test-api-key");
+        let factory = ComponentFactory::new(&config_service).unwrap();
+        let result = factory.create_ai_provider();
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_create_ai_provider_missing_api_key() {
+        let mut config_service = TestConfigService::default();
+        config_service.set_ai_settings_and_key("openai", "gpt-4.1-mini", "");
+        let factory = ComponentFactory::new(&config_service).unwrap();
+        let result = factory.create_ai_provider();
+        assert!(result.is_err());
+        let error_msg = result.err().unwrap().to_string();
+        assert!(error_msg.contains("API key is required"));
+    }
+
+    #[test]
+    fn test_create_ai_provider_unsupported_provider() {
+        let mut config_service = TestConfigService::default();
+        config_service.set_ai_settings_and_key("unsupported-provider", "model", "key");
+        let factory = ComponentFactory::new(&config_service).unwrap();
+        let result = factory.create_ai_provider();
+        assert!(result.is_err());
+        let error_msg = result.err().unwrap().to_string();
+        assert!(error_msg.contains("Unsupported AI provider"));
+    }
+
+    #[test]
+    fn test_create_ai_provider_with_custom_base_url() {
+        let mut config_service = TestConfigService::default();
+        config_service.set_ai_settings_and_key("openai", "gpt-4.1-mini", "test-api-key");
+        config_service.config_mut().ai.base_url = "https://custom-api.com/v1".to_string();
+        let factory = ComponentFactory::new(&config_service).unwrap();
+        let result = factory.create_ai_provider();
         assert!(result.is_ok());
     }
 }

@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+-### Added
+- Implemented `ComponentFactory::create_ai_provider()` to support OpenAI provider instantiation from configuration
+- Added `validate_ai_config` helper for AI configuration validation and error handling
+- Added support for custom OpenAI API base URL via `ai.base_url` configuration
+- Extended `TestConfigService` with `set_ai_settings_and_key` and `set_ai_settings_with_base_url` for easier AI configuration in tests
+
+-### Fixed
+- Updated `TestConfigService` to remove deprecated annotations and added AI configuration methods
 ### Changed
 - Integrated sync-related component creation from `SyncServiceFactory` into `ComponentFactory`, removed `SyncServiceFactory`.
 - Added `ComponentFactory::create_vad_sync_detector`, `create_vad_detector`, and `create_audio_processor` methods.

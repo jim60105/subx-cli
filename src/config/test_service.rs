@@ -1,4 +1,3 @@
-#![allow(deprecated)]
 //! Test configuration service for isolated testing.
 //!
 //! This module provides a configuration service implementation specifically
@@ -21,6 +20,30 @@ pub struct TestConfigService {
 }
 
 impl TestConfigService {
+    /// Set AI provider, model, and API key for testing.
+    pub fn set_ai_settings_and_key(&self, provider: &str, model: &str, api_key: &str) {
+        let mut cfg = self.config.lock().unwrap();
+        cfg.ai.provider = provider.to_string();
+        cfg.ai.model = model.to_string();
+        cfg.ai.api_key = if api_key.is_empty() {
+            None
+        } else {
+            Some(api_key.to_string())
+        };
+    }
+
+    /// Set AI provider, model, API key, and custom base URL for testing.
+    pub fn set_ai_settings_with_base_url(
+        &self,
+        provider: &str,
+        model: &str,
+        api_key: &str,
+        base_url: &str,
+    ) {
+        self.set_ai_settings_and_key(provider, model, api_key);
+        let mut cfg = self.config.lock().unwrap();
+        cfg.ai.base_url = base_url.to_string();
+    }
     /// Create a new test configuration service with the provided configuration.
     ///
     /// # Arguments

@@ -126,6 +126,14 @@ pub struct ComponentFactory {
     config: Config,
 }
 
+impl ComponentFactory {
+    /// Create an AI provider based on AI configuration.
+    ///
+    /// Currently supports OpenAI provider with API key, model, temperature,
+    /// max_tokens, retry logic, and optional custom base URL configuration.
+    pub fn create_ai_provider(&self) -> Result<Box<dyn AIProvider>>;
+}
+
 // src/core/services.rs
 pub struct ServiceContainer {
     config_service: Arc<dyn ConfigService>,
