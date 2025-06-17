@@ -133,12 +133,6 @@ impl ComponentFactory {
     /// max_tokens, retry logic, and optional custom base URL configuration.
     pub fn create_ai_provider(&self) -> Result<Box<dyn AIProvider>>;
 }
-
-// src/core/services.rs
-pub struct ServiceContainer {
-    config_service: Arc<dyn ConfigService>,
-    component_factory: ComponentFactory,
-}
 ```
 
 #### 3.2 Match Engine (`src/core/matcher/`)
