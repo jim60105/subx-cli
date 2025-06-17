@@ -4,6 +4,9 @@
 //! including AI matching, format conversion, synchronization, encoding detection,
 //! configuration management, and cache operations.
 //!
+//! The `dispatcher` module provides centralized command routing to eliminate
+//! code duplication between CLI and library API interfaces.
+//!
 //! # Examples
 //!
 //! ```rust,ignore
@@ -20,5 +23,6 @@ pub mod cache_command;
 pub mod config_command;
 pub mod convert_command;
 pub mod detect_encoding_command;
+pub mod dispatcher;
 pub mod match_command;
 pub mod sync_command;

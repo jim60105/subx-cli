@@ -7,6 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- Enhanced App struct as a dedicated library API for programmatic usage
+- Added centralized command dispatcher to eliminate code duplication between CLI and library interfaces
+- Added convenient methods for common operations (`match_files`, `convert_files`, `sync_files`, `sync_files_with_offset`)
+- Comprehensive documentation for programmatic SubX usage with clear examples
+- Support for both Arc and borrowed reference patterns in command dispatcher
+
+### Changed
+- Eliminated code duplication between CLI and library interfaces
+- Improved App struct with extensive documentation and usage examples
+- Enhanced error handling consistency across CLI and library API paths
+- Clarified App struct's role as a library API vs CLI interface
+
+### Fixed
+- Resolved duplicate command dispatch logic between `cli::run_with_config()` and `App::handle_command()`
+- Fixed command validation consistency across different execution paths
+
 -### Added
 - Implemented `ComponentFactory::create_ai_provider()` to support OpenAI provider instantiation from configuration
 - Added `validate_ai_config` helper for AI configuration validation and error handling
@@ -15,6 +32,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 -### Fixed
 - Updated `TestConfigService` to remove deprecated annotations and added AI configuration methods
+
 ### Changed
 - Integrated sync-related component creation from `SyncServiceFactory` into `ComponentFactory`, removed `SyncServiceFactory`.
 - Added `ComponentFactory::create_vad_sync_detector`, `create_vad_detector`, and `create_audio_processor` methods.

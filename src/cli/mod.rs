@@ -150,36 +150,6 @@ pub async fn run_with_config(
 ) -> crate::Result<()> {
     let cli = Cli::parse();
 
-    match cli.command {
-        Commands::Match(args) => {
-            args.validate()
-                .map_err(crate::error::SubXError::CommandExecution)?;
-            crate::commands::match_command::execute(args, config_service).await?;
-        }
-        Commands::Convert(args) => {
-            crate::commands::convert_command::execute(args, config_service).await?;
-        }
-        Commands::Sync(args) => {
-            crate::commands::sync_command::execute(args, config_service).await?;
-        }
-        Commands::Config(args) => {
-            crate::commands::config_command::execute(args, config_service).await?;
-        }
-        Commands::GenerateCompletion(args) => {
-            let mut cmd = <Cli as clap::CommandFactory>::command();
-            let cmd_name = cmd.get_name().to_string();
-            let mut stdout = std::io::stdout();
-            clap_complete::generate(args.shell, &mut cmd, cmd_name, &mut stdout);
-        }
-        Commands::Cache(args) => {
-            crate::commands::cache_command::execute(args).await?;
-        }
-        Commands::DetectEncoding(args) => {
-            crate::commands::detect_encoding_command::detect_encoding_command_with_config(
-                args,
-                config_service,
-            )?;
-        }
-    }
-    Ok(())
+    // Use the centralized dispatcher to avoid code duplication
+    crate::commands::dispatcher::dispatch_command_with_ref(cli.command, config_service).await
 }
