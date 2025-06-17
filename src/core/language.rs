@@ -56,6 +56,7 @@ impl LanguageDetector {
     ///
     /// Initializes internal dictionaries and regex patterns for detection.
     pub fn new() -> Self {
+        //! Do not translate these language codes to English rustdoc!!!
         let mut language_codes = HashMap::new();
         // Traditional Chinese
         language_codes.insert("tc".to_string(), "tc".to_string());

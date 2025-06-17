@@ -23,6 +23,7 @@ pub mod cache_command;
 pub mod config_command;
 pub mod convert_command;
 pub mod detect_encoding_command;
+/// Central command dispatcher for unified command execution across CLI and library interfaces.
 pub mod dispatcher;
 pub mod match_command;
 pub mod sync_command;

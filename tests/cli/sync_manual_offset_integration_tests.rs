@@ -21,7 +21,7 @@ fn test_manual_sync_cli_interface() {
         .arg(&subtitle_path)
         .assert()
         .success()
-        .stdout(predicate::str::contains("手動偏移套用完成"));
+        .stdout(predicate::str::contains("Using manual offset:"));
 }
 
 #[test]
@@ -35,5 +35,5 @@ fn test_auto_sync_missing_video_error() {
         .arg(&subtitle_path)
         .assert()
         .failure()
-        .stderr(predicate::str::contains("視頻檔案在自動同步模式下是必填的"));
+        .stderr(predicate::str::contains("Video file path is required for automatic sync"));
 }

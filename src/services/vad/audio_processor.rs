@@ -67,24 +67,25 @@ impl VadAudioProcessor {
     /// - Audio format is unsupported
     /// - Resampling fails
     /// - Format conversion fails
-    ///   直接載入並準備音訊檔案，用於 VAD 處理，支援多種格式。
+    ///
+    /// Directly loads and prepares audio files for VAD processing, supporting multiple formats.
     pub async fn load_and_prepare_audio_direct(
         &self,
         audio_path: &Path,
     ) -> Result<ProcessedAudioData> {
-        // 1. 使用 DirectAudioLoader 載入樣本與音訊資訊
+        // 1. Use DirectAudioLoader to load samples and audio information
         let loader = DirectAudioLoader::new()?;
         let (samples, info) = loader.load_audio_samples(audio_path)?;
         let audio_data = ProcessedAudioData { samples, info };
 
-        // 2. 重採樣（如需）
+        // 2. Resample if needed
         let resampled = if audio_data.info.sample_rate != self.target_sample_rate {
             self.resample_audio(&audio_data)?
         } else {
             audio_data
         };
 
-        // 3. 轉換為單聲道（如需）
+        // 3. Convert to mono if needed
         let mono = if resampled.info.channels > 1 {
             self.convert_to_mono(&resampled)?
         } else {

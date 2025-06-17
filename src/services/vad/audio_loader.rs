@@ -1,6 +1,6 @@
-//! 直接音訊載入器：使用 Symphonia 直接解碼多種音訊格式並取得 i16 樣本資料。
+//! Direct audio loader: Uses Symphonia to directly decode various audio formats and obtain i16 sample data.
 //!
-//! 支援 MP4、MKV、OGG、WAV 等格式，回傳樣本資料與音訊資訊。
+//! Supports MP4, MKV, OGG, WAV and other formats, returning sample data and audio information.
 use crate::services::vad::detector::AudioInfo;
 use crate::{Result, error::SubXError};
 use std::fs::File;
@@ -14,7 +14,7 @@ use symphonia::core::probe::Hint;
 use symphonia::core::probe::Probe;
 use symphonia::default::{get_codecs, get_probe};
 
-/// 直接音訊載入器，使用 Symphonia 解碼取得原始樣本資料。
+/// Direct audio loader using Symphonia to decode and obtain raw sample data.
 pub struct DirectAudioLoader {
     probe: &'static Probe,
     codecs: &'static CodecRegistry,
@@ -26,19 +26,22 @@ mod tests {
 
     #[tokio::test]
     async fn test_direct_mp4_loading() {
-        // 使用 assets/SubX - The Subtitle Revolution.mp4 測試直接音訊載入
-        let loader = DirectAudioLoader::new().expect("初始化 DirectAudioLoader 失敗");
+        // Test direct audio loading using assets/SubX - The Subtitle Revolution.mp4
+        let loader = DirectAudioLoader::new().expect("Failed to initialize DirectAudioLoader");
         let (samples, info) = loader
             .load_audio_samples("assets/SubX - The Subtitle Revolution.mp4")
-            .expect("load_audio_samples 失敗");
-        assert!(!samples.is_empty(), "樣本資料不應為空");
-        assert!(info.sample_rate > 0, "sample_rate 應大於 0");
-        assert!(info.total_samples > 0, "total_samples 應大於 0");
+            .expect("load_audio_samples failed");
+        assert!(!samples.is_empty(), "Sample data should not be empty");
+        assert!(info.sample_rate > 0, "sample_rate should be greater than 0");
+        assert!(
+            info.total_samples > 0,
+            "total_samples should be greater than 0"
+        );
     }
 }
 
 impl DirectAudioLoader {
-    /// 建立新的音訊載入器實例。
+    /// Creates a new audio loader instance.
     pub fn new() -> Result<Self> {
         Ok(Self {
             probe: get_probe(),
@@ -46,7 +49,7 @@ impl DirectAudioLoader {
         })
     }
 
-    /// 從音訊檔案路徑載入 i16 樣本與音訊資訊。
+    /// Loads i16 samples and audio information from an audio file path.
     pub fn load_audio_samples<P: AsRef<Path>>(&self, path: P) -> Result<(Vec<i16>, AudioInfo)> {
         let path_ref = path.as_ref();
         // Open the media source.
@@ -70,7 +73,7 @@ impl DirectAudioLoader {
             .map_err(|e| SubXError::audio_processing(format!("Failed to probe format: {}", e)))?;
         let mut format = probed.format;
 
-        // 選擇第一個包含 sample_rate 的音訊軌道作為音訊來源。
+        // Select the first audio track that contains sample_rate as the audio source.
         let track = format
             .tracks()
             .iter()
@@ -110,7 +113,7 @@ impl DirectAudioLoader {
             samples.extend_from_slice(sample_buf.samples());
         }
 
-        // 計算音訊總樣本與長度
+        // Calculate total samples and audio duration
         let total_samples = samples.len();
         let duration_seconds = total_samples as f64 / (sample_rate as f64 * channels as f64);
 

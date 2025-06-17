@@ -60,7 +60,7 @@
 //!     let vad_config = VadConfig::default();
 //!     let detector = LocalVadDetector::new(vad_config)?;
 //!
-//!     // 直接處理各種音訊格式，無需轉碼
+//!     // Directly process various audio formats without transcoding
 //!     let result = detector.detect_speech("video.mp4").await?;
 //!
 //!     println!("Detected {} speech segments", result.speech_segments.len());
