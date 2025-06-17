@@ -67,7 +67,7 @@ impl VadAudioProcessor {
     /// - Audio format is unsupported
     /// - Resampling fails
     /// - Format conversion fails
-    /// 直接載入並準備音訊檔案，用於 VAD 處理，支援多種格式。
+    ///   直接載入並準備音訊檔案，用於 VAD 處理，支援多種格式。
     pub async fn load_and_prepare_audio_direct(
         &self,
         audio_path: &Path,
@@ -92,11 +92,6 @@ impl VadAudioProcessor {
         };
 
         Ok(mono)
-    }
-
-    #[deprecated(note = "Use load_and_prepare_audio_direct instead")]
-    pub async fn load_and_prepare_audio(&self, audio_path: &Path) -> Result<ProcessedAudioData> {
-        self.load_and_prepare_audio_direct(audio_path).await
     }
 
     fn load_wav_file(&self, path: &Path) -> Result<ProcessedAudioData> {
