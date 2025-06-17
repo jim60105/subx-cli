@@ -17,7 +17,7 @@
 //! - Support for multiple audio formats and sample rates
 //! - Privacy-focused design with no data transmission
 
-mod audio_loader;
+pub mod audio_loader;
 mod audio_processor;
 mod detector;
 mod sync_detector;

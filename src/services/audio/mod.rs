@@ -50,14 +50,14 @@
 //! ```rust,ignore
 //! use subx_cli::services::vad::LocalVadDetector;
 //! use subx_cli::config::VadConfig;
-//! 
+//!
 //! async fn synchronize_audio() -> subx_cli::Result<()> {
 //!     let vad_config = VadConfig::default();
 //!     let detector = LocalVadDetector::new(vad_config)?;
-//! 
+//!
 //!     // 直接處理各種音訊格式，無需轉碼
 //!     let result = detector.detect_speech("video.mp4").await?;
-//! 
+//!
 //!     println!("Detected {} speech segments", result.speech_segments.len());
 //!     Ok(())
 //! }
