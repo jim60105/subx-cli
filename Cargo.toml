@@ -103,7 +103,7 @@ md5 = "0.7"
 
 # Configuration management dependencies: path resolution and multi-core detection
 # Audio processing
-symphonia = { version = "0.5", features = ["all-codecs", "all-formats"] }
+symphonia = { version = "0.5", features = ["all"] }
 
 # Whisper API 整合所需
 tokio-util = { version = "0.7", features = ["codec"] }
