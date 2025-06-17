@@ -7,35 +7,37 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.0] - 2025-06-18
 ### Added
-- Enhanced App struct as a dedicated library API for programmatic usage
-- Added centralized command dispatcher to eliminate code duplication between CLI and library interfaces
-- Added convenient methods for common operations (`match_files`, `convert_files`, `sync_files`, `sync_files_with_offset`)
-- Comprehensive documentation for programmatic SubX usage with clear examples
-- Support for both Arc and borrowed reference patterns in command dispatcher
+- Added: Dedicated App struct as a programmatic API for library usage, enabling direct embedding and automation.
+- Added: Centralized command dispatcher to eliminate duplication between CLI and library interfaces.
+- Added: AI provider factory pattern (ComponentFactory) with OpenAI support and flexible configuration.
+- Added: Direct audio loading for VAD synchronization, supporting multiple audio formats via Symphonia.
+- Added: Comprehensive test coverage for dispatcher, App API, VAD, cache, CLI argument parsing, and shell completion.
+- Added: Nextest-based test runner integration for faster, parallelized test execution.
 
 ### Changed
-- Eliminated code duplication between CLI and library interfaces
-- Improved App struct with extensive documentation and usage examples
-- Enhanced error handling consistency across CLI and library API paths
-- Clarified App struct's role as a library API vs CLI interface
+- Changed: Unified all service and factory logic under ComponentFactory, removing legacy ServiceContainer, AIClientFactory, and SyncServiceFactory.
+- Changed: Refactored configuration validation into layered modules for maintainability and clarity.
+- Changed: Improved error messages and validation feedback throughout the CLI and sync engine.
+- Changed: Streamlined CI/CD scripts, increased test and coverage timeouts, and updated documentation to recommend nextest.
+- Changed: All documentation comments and public APIs are now in English, following project guidelines.
+
+### Removed
+- Removed: AudioTranscoder module and all related transcoding logic (now handled directly by VAD audio loader).
+- Removed: ServiceContainer, AIClientFactory, and SyncServiceFactory (replaced by unified ComponentFactory).
+- Removed: Deprecated and unused code paths, including debug symlink creation in tests.
 
 ### Fixed
-- Resolved duplicate command dispatch logic between `cli::run_with_config()` and `App::handle_command()`
-- Fixed command validation consistency across different execution paths
+- Fixed: Cache target directory error in match command copy/move modes (Bug 21).
+- Fixed: CIFS filesystem copy permission error by switching to safe file copy logic.
+- Fixed: Broken intra-doc links in config validation modules.
+- Fixed: Configuration validation errors and improved test isolation for all config-related tests.
 
--### Added
-- Implemented `ComponentFactory::create_ai_provider()` to support OpenAI provider instantiation from configuration
-- Added `validate_ai_config` helper for AI configuration validation and error handling
-- Added support for custom OpenAI API base URL via `ai.base_url` configuration
-- Extended `TestConfigService` with `set_ai_settings_and_key` and `set_ai_settings_with_base_url` for easier AI configuration in tests
-
--### Fixed
-- Updated `TestConfigService` to remove deprecated annotations and added AI configuration methods
-
-### Changed
-- Integrated sync-related component creation from `SyncServiceFactory` into `ComponentFactory`, removed `SyncServiceFactory`.
-- Added `ComponentFactory::create_vad_sync_detector`, `create_vad_detector`, and `create_audio_processor` methods.
+### Documentation
+- Documentation: Added and refined rustdoc for all public modules, including VAD and dispatcher.
+- Documentation: Updated technical architecture and removed outdated ServiceContainer references.
+- Documentation: All documentation comments are now in English; Chinese text retained only in test case strings.
 
 ## [0.10.0] - 2025-06-16
 ### Added
