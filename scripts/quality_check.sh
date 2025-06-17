@@ -268,7 +268,7 @@ main() {
     passed_checks=$((passed_checks + 1))
 
     # 7. Unit tests
-    run_test_with_conditional_output "Unit Tests" "cargo nextest run --profile default"
+    run_test_with_conditional_output "Unit Tests" "cargo nextest run --profile default -E 'kind(lib)' --ignore-default-filter"
 
     # 8. Integration tests  
     run_test_with_conditional_output "Integration Tests" "cargo nextest run --profile default --test '*'"
