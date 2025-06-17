@@ -23,9 +23,7 @@ pub mod fs_util;
 pub mod language;
 pub mod matcher;
 pub mod parallel;
-pub mod services;
 pub mod sync;
 
 // Re-export commonly used types
 pub use factory::ComponentFactory;
-pub use services::ServiceContainer;
