@@ -63,7 +63,7 @@ impl LocalVadDetector {
         // 1. Load and preprocess audio
         let audio_data = self
             .audio_processor
-            .load_and_prepare_audio(audio_path)
+            .load_and_prepare_audio_direct(audio_path)
             .await?;
 
         // 2. Create VAD instance

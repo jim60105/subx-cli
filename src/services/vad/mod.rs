@@ -18,6 +18,7 @@
 //! - Privacy-focused design with no data transmission
 
 mod audio_processor;
+mod audio_loader;
 mod detector;
 mod sync_detector;
 

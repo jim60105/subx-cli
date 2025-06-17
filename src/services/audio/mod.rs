@@ -101,9 +101,6 @@
 //! - **Disk Cache**: ~10-100MB per analyzed audio file
 //! - **Network Usage**: Minimal (only for initial model loading)
 
-pub mod transcoder;
-pub use transcoder::AudioTranscoder;
-
 /// Audio energy envelope for waveform analysis.
 ///
 /// Represents the amplitude envelope of an audio signal over time,

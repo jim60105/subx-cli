@@ -1,4 +1,5 @@
 use super::AudioInfo;
+use crate::services::vad::audio_loader::DirectAudioLoader;
 use crate::{Result, error::SubXError};
 use hound::{SampleFormat, WavReader};
 use rubato::{Resampler, SincFixedIn, SincInterpolationParameters, SincInterpolationType};
@@ -66,25 +67,36 @@ impl VadAudioProcessor {
     /// - Audio format is unsupported
     /// - Resampling fails
     /// - Format conversion fails
+    /// 直接載入並準備音訊檔案，用於 VAD 處理，支援多種格式。
+    pub async fn load_and_prepare_audio_direct(
+        &self,
+        audio_path: &Path,
+    ) -> Result<ProcessedAudioData> {
+        // 1. 使用 DirectAudioLoader 載入樣本與音訊資訊
+        let loader = DirectAudioLoader::new()?;
+        let (samples, info) = loader.load_audio_samples(audio_path)?;
+        let audio_data = ProcessedAudioData { samples, info };
+
+        // 2. 重採樣（如需）
+        let resampled = if audio_data.info.sample_rate != self.target_sample_rate {
+            self.resample_audio(&audio_data)?
+        } else {
+            audio_data
+        };
+
+        // 3. 轉換為單聲道（如需）
+        let mono = if resampled.info.channels > 1 {
+            self.convert_to_mono(&resampled)?
+        } else {
+            resampled
+        };
+
+        Ok(mono)
+    }
+
+    #[deprecated(note = "Use load_and_prepare_audio_direct instead")]
     pub async fn load_and_prepare_audio(&self, audio_path: &Path) -> Result<ProcessedAudioData> {
-        // 1. Load audio file
-        let raw_audio_data = self.load_wav_file(audio_path)?;
-
-        // 2. Convert sample rate (if needed)
-        let resampled_data = if raw_audio_data.info.sample_rate != self.target_sample_rate {
-            self.resample_audio(&raw_audio_data)?
-        } else {
-            raw_audio_data
-        };
-
-        // 3. Convert to mono (if needed)
-        let mono_data = if resampled_data.info.channels > 1 {
-            self.convert_to_mono(&resampled_data)?
-        } else {
-            resampled_data
-        };
-
-        Ok(mono_data)
+        self.load_and_prepare_audio_direct(audio_path).await
     }
 
     fn load_wav_file(&self, path: &Path) -> Result<ProcessedAudioData> {
