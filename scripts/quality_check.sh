@@ -268,10 +268,10 @@ main() {
     passed_checks=$((passed_checks + 1))
 
     # 7. Unit tests
-    run_test_with_conditional_output "Unit Tests" "cargo test"
+    run_test_with_conditional_output "Unit Tests" "cargo nextest run --profile default"
 
     # 8. Integration tests  
-    run_test_with_conditional_output "Integration Tests" "cargo test --test '*'"
+    run_test_with_conditional_output "Integration Tests" "cargo nextest run --profile default --test '*'"
 
     # Cleanup
     # (Temporary files are cleaned up in their respective sections)

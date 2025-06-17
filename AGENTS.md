@@ -17,10 +17,11 @@
   * Follow the testing principles and practices outlined in `docs/testing-guidelines.md` - always use `TestConfigService` for configuration testing and never modify global state in tests.
   * Refrain from parsing `Cargo.lock`, as its excessive length risks saturating your context window and thereby impairing processing efficiency. Refrain from manually modify `Cargo.lock` as it is automatically generated.
   * Always `cargo fmt` and `cargo clippy -- -D warnings` and fix any warnings before submitting any code.
-  * Always execute `timeout 40 scripts/quality_check.sh` to check code quality. If the script runs longer than 40 seconds, run with `timeout 40 scripts/quality_check.sh -v` to get more details.
+  * Always execute `timeout 240 scripts/quality_check.sh` to check code quality. If the script runs longer than 240 seconds, run with `timeout 240 scripts/quality_check.sh -v` to get more details.
+  * Use `cargo nextest run` for running tests instead of `cargo test` for better performance and parallel execution.
   * Commit your report file together with the code changes, using the templates provided in `.github/reports/`.
   * Git commit after completing your work, using the conventional commit format for the title and a brief description in the body. Always commit with `--signoff` and `--no-gpg-sign`. Write the commit in English.
-  * Use `timeout 40 scripts/check_coverage.sh -T` to check code coverage.
+  * Use `timeout 240 scripts/check_coverage.sh -T` to check code coverage.
 
 ---
 

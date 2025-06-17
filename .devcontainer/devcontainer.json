@@ -13,7 +13,7 @@
 	],
 
 	// Use 'postCreateCommand' to run commands after the container is created.
-	"postCreateCommand": "sudo apt update && sudo apt install -y bc && cd ~ && git clone --depth 1 --filter=blob:none --sparse https://github.com/openai/codex.git && git -C codex sparse-checkout set codex-rs && cargo install --path codex/codex-rs/cli && rustup default stable && rustup component add clippy && rustup component add rustfmt && rustup component add llvm-tools-preview && cargo install cargo-llvm-cov",
+	"postCreateCommand": "sudo apt update && sudo apt install -y bc && cd ~ && git clone --depth 1 --filter=blob:none --sparse https://github.com/openai/codex.git && git -C codex sparse-checkout set codex-rs && cargo install --path codex/codex-rs/cli && rustup default stable && rustup component add clippy && rustup component add rustfmt && rustup component add llvm-tools-preview && cargo install cargo-llvm-cov && cargo install cargo-nextest --locked",
 
 	"containerEnv": {
 		"LC_ALL": "C",

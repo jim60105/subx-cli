@@ -621,11 +621,11 @@ fn test_with_proper_config() {
 
 ### Debugging Test Issues
 
-1. **Run tests individually**: `cargo test test_name -- --exact`
-2. **Enable debug logging**: `RUST_LOG=debug cargo test`
+1. **Run tests individually**: `cargo nextest run test_name`
+2. **Enable debug logging**: `RUST_LOG=debug cargo nextest run`
 3. **Check for anti-patterns**: Review [Critical Anti-Patterns](#️-critical-anti-patterns-to-avoid) section
 4. **Verify isolation**: Ensure tests don't create shared files or state
-5. **Test in parallel**: `cargo test -- --test-threads=8` to catch race conditions
+5. **Test in parallel**: `cargo nextest run --test-threads=8` to catch race conditions
 
 ### Performance Debugging
 

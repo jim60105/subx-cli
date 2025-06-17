@@ -73,6 +73,10 @@ check_dependencies() {
         missing_deps+=("cargo-llvm-cov")
     fi
 
+    if ! cargo nextest --version &>/dev/null; then
+        missing_deps+=("cargo-nextest")
+    fi
+
     if [ ${#missing_deps[@]} -ne 0 ]; then
         echo -e "${RED}❌ Missing required dependencies:${NC}" >&2
         for dep in "${missing_deps[@]}"; do
@@ -80,6 +84,7 @@ check_dependencies() {
         done
         echo -e "\n${YELLOW}Installation commands:${NC}" >&2
         echo -e "   cargo install cargo-llvm-cov" >&2
+        echo -e "   cargo install cargo-nextest --locked" >&2
         echo -e "   # Ubuntu/Debian: sudo apt install jq bc" >&2
         echo -e "   # macOS: brew install jq bc" >&2
         exit 1
@@ -289,7 +294,7 @@ check_coverage() {
     # Generate coverage report
     local coverage_json
     local coverage_cmd_output
-    if ! coverage_cmd_output=$(cargo llvm-cov --all-features --workspace --json --summary-only -q 2>&1); then
+    if ! coverage_cmd_output=$(cargo llvm-cov nextest --all-features --workspace --json --summary-only 2>&1); then
         echo -e "${RED}❌ Unable to generate coverage report${NC}" >&2
         echo -e "${YELLOW}Error message: ${coverage_cmd_output}${NC}" >&2
         echo -e "${YELLOW}Please ensure the project contains tests and can be compiled${NC}" >&2

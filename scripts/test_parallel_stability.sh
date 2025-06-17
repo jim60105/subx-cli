@@ -24,7 +24,7 @@ echo "開始並行測試穩定性驗證..."
 
 # 高並行度測試
 echo "執行高並行度測試..."
-if ! cargo test --workspace --all-features -- --test-threads=16; then
+if ! cargo nextest run --workspace --all-features --test-threads=16; then
     echo "❌ 高並行度測試失敗"
     exit 1
 fi
@@ -34,7 +34,7 @@ echo "重複執行中等並行度測試確認穩定性..."
 FAILED_COUNT=0
 for i in {1..10}; do
     echo "測試執行 $i/10"
-    if ! cargo test --workspace --all-features -- --test-threads=8 > /dev/null 2>&1; then
+    if ! cargo nextest run --workspace --all-features --test-threads=8 > /dev/null 2>&1; then
         echo "❌ 測試在第 $i 次執行時失敗"
         FAILED_COUNT=$((FAILED_COUNT + 1))
     fi
@@ -47,7 +47,7 @@ fi
 
 # 預設並行度測試
 echo "執行預設並行度測試..."
-if ! cargo test --workspace --all-features; then
+if ! cargo nextest run --workspace --all-features; then
     echo "❌ 預設並行度測試失敗"
     exit 1
 fi
