@@ -1,82 +1,194 @@
-//! Configuration validation module providing validation rules and constraints.
+//! High-level configuration validation for configuration sections.
 //!
-//! This module provides comprehensive validation functionality for configuration
-//! values, ensuring that all settings meet business requirements and system
-//! constraints before being used by the application.
+//! This module provides validation for complete configuration sections and
+//! the entire configuration structure. It builds upon the low-level validation
+//! functions from the [`validation`] module.
+//!
+//! # Architecture
+//!
+//! - [`validation`] - Low-level validation functions for individual values
+//! - [`validator`] (this module) - High-level configuration section validators
+//! - [`field_validator`] - Key-value validation for configuration service
 
+use super::validation::*;
 use crate::Result;
 use crate::config::Config;
-use crate::config::{SyncConfig, VadConfig};
+use crate::config::{
+    AIConfig, FormatsConfig, GeneralConfig, ParallelConfig, SyncConfig, VadConfig,
+};
 use crate::error::SubXError;
 
-/// Trait defining the validation interface for configuration sections.
-pub trait ConfigValidator {
-    /// Validate the configuration and return any errors found.
-    fn validate(&self, config: &Config) -> Result<()>;
+/// Validate the complete configuration.
+///
+/// This function validates all configuration sections and their
+/// interdependencies.
+///
+/// # Arguments
+/// * `config` - The configuration to validate
+///
+/// # Errors
+/// Returns the first validation error encountered.
+pub fn validate_config(config: &Config) -> Result<()> {
+    validate_ai_config(&config.ai)?;
+    validate_sync_config(&config.sync)?;
+    validate_general_config(&config.general)?;
+    validate_formats_config(&config.formats)?;
+    validate_parallel_config(&config.parallel)?;
+
+    // Cross-section validation
+    validate_config_consistency(config)?;
+
+    Ok(())
 }
 
-/// AI configuration validator.
-pub struct AIValidator;
+/// Validate AI configuration section.
+pub fn validate_ai_config(ai_config: &AIConfig) -> Result<()> {
+    validate_non_empty_string(&ai_config.provider, "AI provider")?;
 
-impl ConfigValidator for AIValidator {
-    fn validate(&self, config: &Config) -> Result<()> {
-        // Check AI provider
-        match config.ai.provider.as_str() {
-            "openai" | "anthropic" => {}
-            _ => {
-                return Err(SubXError::config(format!(
-                    "Unsupported AI provider: {}",
-                    config.ai.provider
-                )));
-            }
-        }
-
-        // Check API key format for OpenAI
-        if config.ai.provider == "openai" {
-            if let Some(api_key) = config.ai.api_key.as_deref() {
-                if !api_key.starts_with("sk-") && !api_key.is_empty() {
-                    return Err(SubXError::config("OpenAI API key must start with 'sk-'"));
+    // Validate provider-specific settings
+    match ai_config.provider.as_str() {
+        "openai" => {
+            if let Some(api_key) = &ai_config.api_key {
+                if !api_key.is_empty() {
+                    validate_api_key(api_key)?;
+                    if !api_key.starts_with("sk-") {
+                        return Err(SubXError::config("OpenAI API key must start with 'sk-'"));
+                    }
                 }
             }
-        }
+            validate_ai_model(&ai_config.model)?;
+            validate_temperature(ai_config.temperature)?;
+            validate_positive_number(ai_config.max_tokens as f64)?;
 
-        // Check temperature range
-        if config.ai.temperature < 0.0 || config.ai.temperature > 2.0 {
-            return Err(SubXError::config(
-                "Temperature value must be between 0.0 and 2.0",
-            ));
+            if !ai_config.base_url.is_empty() {
+                validate_url_format(&ai_config.base_url)?;
+            }
         }
-
-        // Check retry attempts
-        if config.ai.retry_attempts > 10 {
-            return Err(SubXError::config("Retry count cannot exceed 10 times"));
+        "anthropic" => {
+            if let Some(api_key) = &ai_config.api_key {
+                if !api_key.is_empty() {
+                    validate_api_key(api_key)?;
+                }
+            }
+            validate_ai_model(&ai_config.model)?;
+            validate_temperature(ai_config.temperature)?;
         }
-
-        // Check request timeout
-        if config.ai.request_timeout_seconds < 10 {
-            return Err(SubXError::config(
-                "Request timeout must be at least 10 seconds to allow for network latency",
-            ));
+        _ => {
+            return Err(SubXError::config(format!(
+                "Unsupported AI provider: {}. Supported providers: openai, anthropic",
+                ai_config.provider
+            )));
         }
-
-        if config.ai.request_timeout_seconds > 600 {
-            return Err(SubXError::config(
-                "Request timeout should not exceed 600 seconds (10 minutes) to avoid excessive waiting",
-            ));
-        }
-
-        Ok(())
     }
+
+    // Validate retry settings
+    validate_positive_number(ai_config.retry_attempts as f64)?;
+    if ai_config.retry_attempts > 10 {
+        return Err(SubXError::config("Retry count cannot exceed 10 times"));
+    }
+
+    // Validate timeout settings
+    validate_range(ai_config.request_timeout_seconds as f64, 10.0, 600.0)
+        .map_err(|_| SubXError::config("Request timeout must be between 10 and 600 seconds"))?;
+
+    Ok(())
 }
 
-/// Sync configuration validator.
-pub struct SyncValidator;
+/// Validate sync configuration section.
+pub fn validate_sync_config(sync_config: &SyncConfig) -> Result<()> {
+    // Delegate to SyncConfig's validation with enhancements
+    sync_config.validate()
+}
 
-impl ConfigValidator for SyncValidator {
-    fn validate(&self, config: &Config) -> Result<()> {
-        // Delegate to SyncConfig's own validation logic
-        config.sync.validate()
+/// Validate general configuration section.
+pub fn validate_general_config(general_config: &GeneralConfig) -> Result<()> {
+    // Validate concurrent jobs
+    validate_positive_number(general_config.max_concurrent_jobs as f64)?;
+    if general_config.max_concurrent_jobs > 64 {
+        return Err(SubXError::config(
+            "Maximum concurrent jobs should not exceed 64",
+        ));
     }
+
+    // Validate timeout settings
+    validate_range(general_config.task_timeout_seconds as f64, 30.0, 3600.0)
+        .map_err(|_| SubXError::config("Task timeout must be between 30 and 3600 seconds"))?;
+
+    validate_range(
+        general_config.worker_idle_timeout_seconds as f64,
+        10.0,
+        3600.0,
+    )
+    .map_err(|_| SubXError::config("Worker idle timeout must be between 10 and 3600 seconds"))?;
+
+    Ok(())
+}
+
+/// Validate formats configuration section.
+pub fn validate_formats_config(formats_config: &FormatsConfig) -> Result<()> {
+    // Check default output format
+    validate_non_empty_string(&formats_config.default_output, "Default output format")?;
+    validate_enum(
+        &formats_config.default_output,
+        &["srt", "ass", "vtt", "webvtt"],
+    )?;
+
+    // Check default encoding
+    validate_non_empty_string(&formats_config.default_encoding, "Default encoding")?;
+    validate_enum(
+        &formats_config.default_encoding,
+        &["utf-8", "gbk", "big5", "shift_jis"],
+    )?;
+
+    // Check encoding detection confidence
+    validate_range(formats_config.encoding_detection_confidence, 0.0, 1.0).map_err(|_| {
+        SubXError::config("Encoding detection confidence must be between 0.0 and 1.0")
+    })?;
+
+    Ok(())
+}
+
+/// Validate parallel processing configuration.
+pub fn validate_parallel_config(parallel_config: &ParallelConfig) -> Result<()> {
+    // Check max workers
+    validate_positive_number(parallel_config.max_workers as f64)?;
+    if parallel_config.max_workers > 64 {
+        return Err(SubXError::config("Maximum workers should not exceed 64"));
+    }
+
+    // Check task queue size
+    validate_positive_number(parallel_config.task_queue_size as f64)?;
+    if parallel_config.task_queue_size < 100 {
+        return Err(SubXError::config("Task queue size should be at least 100"));
+    }
+
+    Ok(())
+}
+
+/// Validate configuration consistency across sections.
+fn validate_config_consistency(config: &Config) -> Result<()> {
+    // Example: Ensure AI is properly configured if using AI features
+    if config.ai.provider == "openai" {
+        if let Some(api_key) = &config.ai.api_key {
+            if api_key.is_empty() {
+                return Err(SubXError::config(
+                    "OpenAI provider is selected but API key is empty",
+                ));
+            }
+        }
+        // Note: We don't require API key for default config to allow basic operation
+    }
+
+    // Ensure reasonable resource allocation
+    if config.parallel.max_workers > config.general.max_concurrent_jobs {
+        log::warn!(
+            "Parallel max_workers ({}) exceeds general max_concurrent_jobs ({})",
+            config.parallel.max_workers,
+            config.general.max_concurrent_jobs
+        );
+    }
+
+    Ok(())
 }
 
 impl SyncConfig {
@@ -98,22 +210,10 @@ impl SyncConfig {
     /// - VAD configuration validation fails
     pub fn validate(&self) -> Result<()> {
         // Validate default_method
-        match self.default_method.as_str() {
-            "vad" | "auto" | "manual" => {}
-            _ => {
-                return Err(SubXError::config(
-                    "sync.default_method must be one of: vad, auto, manual",
-                ));
-            }
-        }
+        validate_enum(&self.default_method, &["vad", "auto", "manual"])?;
 
         // Validate max_offset_seconds
-        if self.max_offset_seconds <= 0.0 {
-            return Err(SubXError::config(
-                "sync.max_offset_seconds must be greater than 0. Recommended range: 30.0 to 300.0 seconds.",
-            ));
-        }
-
+        validate_positive_number(self.max_offset_seconds)?;
         if self.max_offset_seconds > 3600.0 {
             return Err(SubXError::config(
                 "sync.max_offset_seconds should not exceed 3600 seconds (1 hour). If a larger value is needed, please verify the sync requirements are reasonable.",
@@ -159,93 +259,31 @@ impl VadConfig {
     /// - `sample_rate` is not one of the supported rates
     pub fn validate(&self) -> Result<()> {
         // Validate sensitivity
-        if self.sensitivity < 0.0 || self.sensitivity > 1.0 {
-            return Err(SubXError::config(
-                "sync.vad.sensitivity must be between 0.0 and 1.0",
-            ));
-        }
+        validate_range(self.sensitivity, 0.0, 1.0)
+            .map_err(|_| SubXError::config("sync.vad.sensitivity must be between 0.0 and 1.0"))?;
 
         // Validate chunk_size (must be power of 2 and reasonable size)
-        if self.chunk_size < 256 || self.chunk_size > 2048 || !self.chunk_size.is_power_of_two() {
-            return Err(SubXError::config(
-                "sync.vad.chunk_size must be a power of 2 between 256 and 2048",
-            ));
-        }
+        validate_range(self.chunk_size, 256, 2048)
+            .map_err(|_| SubXError::config("sync.vad.chunk_size must be between 256 and 2048"))?;
+        validate_power_of_two(self.chunk_size)
+            .map_err(|_| SubXError::config("sync.vad.chunk_size must be a power of 2"))?;
 
         // Validate sample_rate
-        match self.sample_rate {
-            8000 | 16000 | 22050 | 32000 | 44100 | 48000 => {}
-            _ => {
-                return Err(SubXError::config(
-                    "sync.vad.sample_rate must be one of: 8000, 16000, 22050, 32000, 44100, 48000",
-                ));
-            }
-        }
-
-        Ok(())
-    }
-}
-
-/// Formats configuration validator.
-pub struct FormatsValidator;
-
-impl ConfigValidator for FormatsValidator {
-    fn validate(&self, config: &Config) -> Result<()> {
-        // Check default output format
-        if config.formats.default_output.is_empty() {
-            return Err(SubXError::config("Default output format cannot be empty"));
-        }
-
-        // Check default encoding
-        if config.formats.default_encoding.is_empty() {
-            return Err(SubXError::config("Default encoding cannot be empty"));
-        }
-
-        // Check encoding detection confidence
-        if config.formats.encoding_detection_confidence < 0.0
-            || config.formats.encoding_detection_confidence > 1.0
-        {
+        let valid_rates = &[8000, 16000, 22050, 32000, 44100, 48000];
+        if !valid_rates.contains(&self.sample_rate) {
             return Err(SubXError::config(
-                "Encoding detection confidence must be between 0.0 and 1.0",
+                "sync.vad.sample_rate must be one of: 8000, 16000, 22050, 32000, 44100, 48000",
             ));
         }
 
         Ok(())
     }
-}
-
-/// Parallel configuration validator.
-pub struct ParallelValidator;
-
-impl ConfigValidator for ParallelValidator {
-    fn validate(&self, config: &Config) -> Result<()> {
-        // Check max workers
-        if config.parallel.max_workers == 0 {
-            return Err(SubXError::config(
-                "Maximum concurrent workers must be greater than 0",
-            ));
-        }
-
-        Ok(())
-    }
-}
-
-/// Validate the complete configuration.
-///
-/// This function runs all configuration validators and returns the first
-/// error encountered, or Ok(()) if all validation passes.
-pub fn validate_config(config: &Config) -> Result<()> {
-    AIValidator.validate(config)?;
-    SyncValidator.validate(config)?;
-    FormatsValidator.validate(config)?;
-    ParallelValidator.validate(config)?;
-    Ok(())
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::config::Config;
+    use crate::config::{AIConfig, Config, SyncConfig, VadConfig};
 
     #[test]
     fn test_validate_default_config() {
@@ -254,23 +292,77 @@ mod tests {
     }
 
     #[test]
-    fn test_invalid_ai_provider() {
-        let mut config = Config::default();
-        config.ai.provider = "invalid".to_string();
-        assert!(validate_config(&config).is_err());
+    fn test_validate_ai_config_valid() {
+        let mut ai_config = AIConfig::default();
+        ai_config.provider = "openai".to_string();
+        ai_config.api_key = Some("sk-test123456789".to_string());
+        ai_config.temperature = 0.8;
+        assert!(validate_ai_config(&ai_config).is_ok());
     }
 
     #[test]
-    fn test_invalid_temperature() {
-        let mut config = Config::default();
-        config.ai.temperature = 3.0; // Too high
-        assert!(validate_config(&config).is_err());
+    fn test_validate_ai_config_invalid_provider() {
+        let mut ai_config = AIConfig::default();
+        ai_config.provider = "invalid".to_string();
+        assert!(validate_ai_config(&ai_config).is_err());
     }
 
     #[test]
-    fn test_invalid_vad_sensitivity() {
+    fn test_validate_ai_config_invalid_temperature() {
+        let mut ai_config = AIConfig::default();
+        ai_config.provider = "openai".to_string();
+        ai_config.temperature = 3.0; // Too high
+        assert!(validate_ai_config(&ai_config).is_err());
+    }
+
+    #[test]
+    fn test_validate_ai_config_invalid_openai_key() {
+        let mut ai_config = AIConfig::default();
+        ai_config.provider = "openai".to_string();
+        ai_config.api_key = Some("invalid-key".to_string());
+        assert!(validate_ai_config(&ai_config).is_err());
+    }
+
+    #[test]
+    fn test_validate_sync_config_valid() {
+        let sync_config = SyncConfig::default();
+        assert!(validate_sync_config(&sync_config).is_ok());
+    }
+
+    #[test]
+    fn test_validate_vad_config_invalid_sensitivity() {
+        let mut vad_config = VadConfig::default();
+        vad_config.sensitivity = 1.5; // Too high (should be 0.0-1.0)
+        assert!(vad_config.validate().is_err());
+    }
+
+    #[test]
+    fn test_validate_vad_config_invalid_chunk_size() {
+        let mut vad_config = VadConfig::default();
+        vad_config.chunk_size = 300; // Not power of 2
+        assert!(vad_config.validate().is_err());
+    }
+
+    #[test]
+    fn test_validate_vad_config_invalid_sample_rate() {
+        let mut vad_config = VadConfig::default();
+        vad_config.sample_rate = 12000; // Not supported
+        assert!(vad_config.validate().is_err());
+    }
+
+    #[test]
+    fn test_validate_config_consistency() {
         let mut config = Config::default();
-        config.sync.vad.sensitivity = 1.5; // Too high (should be 0.0-1.0)
+        config.ai.provider = "openai".to_string();
+        config.ai.api_key = Some("".to_string()); // Empty API key should fail
         assert!(validate_config(&config).is_err());
+
+        // Valid case with proper API key
+        config.ai.api_key = Some("sk-valid123".to_string());
+        assert!(validate_config(&config).is_ok());
+
+        // Valid case with no API key (default state)
+        config.ai.api_key = None;
+        assert!(validate_config(&config).is_ok());
     }
 }

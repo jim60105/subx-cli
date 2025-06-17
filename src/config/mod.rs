@@ -13,6 +13,28 @@
 //! - [`TestConfigService`] - Test implementation with controlled behavior
 //! - [`TestConfigBuilder`] - Builder pattern for test configurations
 //!
+//! # Validation System
+//!
+//! The configuration system provides a layered validation architecture:
+//!
+//! - [`validation`] - Low-level validation functions for individual values
+//! - [`validator`] - High-level configuration section validators
+//! - [`field_validator`] - Key-value validation for configuration service
+//!
+//! ## Architecture
+//!
+//! ```text
+//! ConfigService
+//!      ↓
+//! field_validator (key-value validation)
+//!      ↓
+//! validation (primitive validation functions)
+//!
+//! validator (section validation)
+//!      ↓
+//! validation (primitive validation functions)
+//! ```
+//!
 //! # Examples
 //!
 //! ```rust
@@ -41,6 +63,7 @@ use std::path::PathBuf;
 // Configuration service system
 pub mod builder;
 pub mod environment;
+pub mod field_validator;
 pub mod service;
 pub mod test_macros;
 pub mod test_service;
@@ -538,3 +561,7 @@ pub use builder::TestConfigBuilder;
 pub use environment::{EnvironmentProvider, SystemEnvironmentProvider, TestEnvironmentProvider};
 pub use service::{ConfigService, ProductionConfigService};
 pub use test_service::TestConfigService;
+
+// Re-export commonly used validation functions
+pub use field_validator::validate_field;
+pub use validator::validate_config;

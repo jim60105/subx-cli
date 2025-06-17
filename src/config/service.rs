@@ -278,7 +278,25 @@ impl ProductionConfigService {
     }
 
     /// Validate and set a configuration value.
+    ///
+    /// This method now delegates validation to the field_validator module.
     fn validate_and_set_value(&self, config: &mut Config, key: &str, value: &str) -> Result<()> {
+        use crate::config::field_validator;
+
+        // Use the dedicated field validator
+        field_validator::validate_field(key, value)?;
+
+        // Set the value in the configuration
+        self.set_value_internal(config, key, value)?;
+
+        // Validate the entire configuration after the change
+        self.validate_configuration(config)?;
+
+        Ok(())
+    }
+
+    /// Internal method to set configuration values without validation.
+    fn set_value_internal(&self, config: &mut Config, key: &str, value: &str) -> Result<()> {
         use crate::config::OverflowStrategy;
         use crate::config::validation::*;
         use crate::error::SubXError;
@@ -286,12 +304,10 @@ impl ProductionConfigService {
         let parts: Vec<&str> = key.split('.').collect();
         match parts.as_slice() {
             ["ai", "provider"] => {
-                validate_enum(value, &["openai", "anthropic", "local"])?;
                 config.ai.provider = value.to_string();
             }
             ["ai", "api_key"] => {
                 if !value.is_empty() {
-                    validate_api_key(value)?;
                     config.ai.api_key = Some(value.to_string());
                 } else {
                     config.ai.api_key = None;
@@ -301,35 +317,33 @@ impl ProductionConfigService {
                 config.ai.model = value.to_string();
             }
             ["ai", "base_url"] => {
-                validate_url(value)?;
                 config.ai.base_url = value.to_string();
             }
             ["ai", "max_sample_length"] => {
-                let v = validate_usize_range(value, 100, 10000)?;
+                let v = value.parse().unwrap(); // Validation already done
                 config.ai.max_sample_length = v;
             }
             ["ai", "temperature"] => {
-                let v = validate_float_range(value, 0.0, 1.0)?;
+                let v = value.parse().unwrap(); // Validation already done
                 config.ai.temperature = v;
             }
             ["ai", "max_tokens"] => {
-                let v = validate_uint_range(value, 1, 100000)?;
+                let v = value.parse().unwrap(); // Validation already done
                 config.ai.max_tokens = v;
             }
             ["ai", "retry_attempts"] => {
-                let v = validate_uint_range(value, 1, 10)?;
+                let v = value.parse().unwrap(); // Validation already done
                 config.ai.retry_attempts = v;
             }
             ["ai", "retry_delay_ms"] => {
-                let v = validate_u64_range(value, 100, 30000)?;
+                let v = value.parse().unwrap(); // Validation already done
                 config.ai.retry_delay_ms = v;
             }
             ["ai", "request_timeout_seconds"] => {
-                let v = validate_u64_range(value, 10, 600)?;
+                let v = value.parse().unwrap(); // Validation already done
                 config.ai.request_timeout_seconds = v;
             }
             ["formats", "default_output"] => {
-                validate_enum(value, &["srt", "ass", "vtt", "webvtt"])?;
                 config.formats.default_output = value.to_string();
             }
             ["formats", "preserve_styling"] => {
@@ -337,19 +351,17 @@ impl ProductionConfigService {
                 config.formats.preserve_styling = v;
             }
             ["formats", "default_encoding"] => {
-                validate_enum(value, &["utf-8", "gbk", "big5", "shift_jis"])?;
                 config.formats.default_encoding = value.to_string();
             }
             ["formats", "encoding_detection_confidence"] => {
-                let v = validate_float_range(value, 0.0, 1.0)?;
+                let v = value.parse().unwrap(); // Validation already done
                 config.formats.encoding_detection_confidence = v;
             }
             ["sync", "max_offset_seconds"] => {
-                let v = validate_float_range(value, 0.1, 3600.0)?; // Range consistent with validator.rs
+                let v = value.parse().unwrap(); // Validation already done
                 config.sync.max_offset_seconds = v;
             }
             ["sync", "default_method"] => {
-                validate_enum(value, &["auto", "vad"])?;
                 config.sync.default_method = value.to_string();
             }
             ["sync", "vad", "enabled"] => {
@@ -357,27 +369,26 @@ impl ProductionConfigService {
                 config.sync.vad.enabled = v;
             }
             ["sync", "vad", "sensitivity"] => {
-                let v = validate_float_range(value, 0.0, 1.0)?;
+                let v = value.parse().unwrap(); // Validation already done
                 config.sync.vad.sensitivity = v;
             }
             ["sync", "vad", "chunk_size"] => {
-                let v = validate_usize_range(value, 1, usize::MAX)?;
+                let v = value.parse().unwrap(); // Validation already done
                 config.sync.vad.chunk_size = v;
             }
             ["sync", "vad", "sample_rate"] => {
-                validate_enum(value, &["8000", "16000", "22050", "44100", "48000"])?;
                 config.sync.vad.sample_rate = value.parse().unwrap();
             }
             ["sync", "vad", "padding_chunks"] => {
-                let v = validate_uint_range(value, 0, u32::MAX)?;
+                let v = value.parse().unwrap(); // Validation already done
                 config.sync.vad.padding_chunks = v;
             }
             ["sync", "vad", "min_speech_duration_ms"] => {
-                let v = validate_uint_range(value, 0, u32::MAX)?;
+                let v = value.parse().unwrap(); // Validation already done
                 config.sync.vad.min_speech_duration_ms = v;
             }
             ["sync", "vad", "speech_merge_gap_ms"] => {
-                let v = validate_uint_range(value, 0, u32::MAX)?;
+                let v = value.parse().unwrap(); // Validation already done
                 config.sync.vad.speech_merge_gap_ms = v;
             }
             ["general", "backup_enabled"] => {
@@ -385,11 +396,11 @@ impl ProductionConfigService {
                 config.general.backup_enabled = v;
             }
             ["general", "max_concurrent_jobs"] => {
-                let v = validate_usize_range(value, 1, 64)?;
+                let v = value.parse().unwrap(); // Validation already done
                 config.general.max_concurrent_jobs = v;
             }
             ["general", "task_timeout_seconds"] => {
-                let v = validate_u64_range(value, 30, 3600)?;
+                let v = value.parse().unwrap(); // Validation already done
                 config.general.task_timeout_seconds = v;
             }
             ["general", "enable_progress_bar"] => {
@@ -397,15 +408,15 @@ impl ProductionConfigService {
                 config.general.enable_progress_bar = v;
             }
             ["general", "worker_idle_timeout_seconds"] => {
-                let v = validate_u64_range(value, 10, 3600)?;
+                let v = value.parse().unwrap(); // Validation already done
                 config.general.worker_idle_timeout_seconds = v;
             }
             ["parallel", "max_workers"] => {
-                let v = validate_usize_range(value, 1, 64)?;
+                let v = value.parse().unwrap(); // Validation already done
                 config.parallel.max_workers = v;
             }
             ["parallel", "task_queue_size"] => {
-                let v = validate_usize_range(value, 100, 10000)?;
+                let v = value.parse().unwrap(); // Validation already done
                 config.parallel.task_queue_size = v;
             }
             ["parallel", "enable_task_priorities"] => {
@@ -417,12 +428,11 @@ impl ProductionConfigService {
                 config.parallel.auto_balance_workers = v;
             }
             ["parallel", "overflow_strategy"] => {
-                validate_enum(value, &["Block", "Drop", "Expand"])?;
                 config.parallel.overflow_strategy = match value {
                     "Block" => OverflowStrategy::Block,
                     "Drop" => OverflowStrategy::Drop,
                     "Expand" => OverflowStrategy::Expand,
-                    _ => unreachable!(),
+                    _ => unreachable!(), // Validation already done
                 };
             }
             _ => {
@@ -433,6 +443,12 @@ impl ProductionConfigService {
             }
         }
         Ok(())
+    }
+
+    /// Validate the entire configuration.
+    fn validate_configuration(&self, config: &Config) -> Result<()> {
+        use crate::config::validator;
+        validator::validate_config(config)
     }
 
     /// Save configuration to file with specific config object.
