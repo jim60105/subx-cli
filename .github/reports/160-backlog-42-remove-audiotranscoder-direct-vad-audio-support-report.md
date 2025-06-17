@@ -1,6 +1,6 @@
 ---
 title: "Job Report: Backlog #42 - 移除 AudioTranscoder 並實現 VAD 直接音訊格式支援"
-date: "2025-06-17T13:32:43Z"
+date: "2025-06-17T14:06:50Z"
 ---
 
 # Backlog #42 - 移除 AudioTranscoder 並實現 VAD 直接音訊格式支援 工作報告
@@ -19,29 +19,21 @@ date: "2025-06-17T13:32:43Z"
 
 ## 二、實作內容
 
-### 2.1 新增 DirectAudioLoader
-- 建立 `DirectAudioLoader`，使用 Symphonia API 直接解碼並回傳 i16 樣本與音訊資訊
-- 新增檔案【F:src/services/vad/audio_loader.rs†L1-L36】
+### 2.1 實作 DirectAudioLoader::load_audio_samples
+- 在 `src/services/vad/audio_loader.rs` 實作 `load_audio_samples`，使用 Symphonia 解碼容器格式並回傳 i16 樣本與音訊資訊
+- 更新檔案【F:src/services/vad/audio_loader.rs†L33-L105】
 
-### 2.2 重構 VadAudioProcessor
-- 新增 `load_and_prepare_audio_direct` 方法，替代舊有 WAV-only 載入流程
-- 標記原 `load_and_prepare_audio` 為已廢棄，改為轉呼叫新方法
-- 更新檔案【F:src/services/vad/audio_processor.rs†L70-L100】
+### 2.2 更新使用範例
+- 更新 `src/services/audio/mod.rs` 範例為 LocalVadDetector 直接處理音訊格式
+- 更新檔案【F:src/services/audio/mod.rs†L49-L64】
 
-### 2.3 更新 LocalVadDetector
-- 修改檢測流程，改用直接載入方法，不再依賴 WAV 轉碼
-- 更新檔案【F:src/services/vad/detector.rs†L57-L61】
+### 2.3 更新服務模組範例
+- 更新 `src/services/mod.rs` 範例為 LocalVadDetector 直接處理音訊格式
+- 更新檔案【F:src/services/mod.rs†L56-L71】
 
-### 2.4 移除 AudioTranscoder 相關程式碼
-- 刪除 `src/services/audio/transcoder.rs`，移除模組匯出
-- 更新 `src/services/audio/mod.rs`，移除 `AudioTranscoder` 定義
-- 更新 Cargo.toml，移除 `tempfile` 依賴
-- 更新檔案【F:src/services/audio/mod.rs†L1-L3】【F:Cargo.toml†L57-L58】
-
-### 2.5 新增測試與基準
-- 新增公用測試骨架 `tests/vad_direct_audio_loading_tests.rs` (暫時標記為忽略)
-- 新增基準測試骨架 `benches/vad_performance_comparison.rs`
-- 更新檔案【F:tests/vad_direct_audio_loading_tests.rs†L1-L20】【F:benches/vad_performance_comparison.rs†L1-L15】
+### 2.4 更新 README 音訊支援說明
+- 修改 README feature bullet 為直接解碼多種音訊容器格式
+- 更新檔案【F:README.md†L25-L25】
 
 ## 三、技術細節
 

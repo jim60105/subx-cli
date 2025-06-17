@@ -46,37 +46,19 @@
 //!
 //! # Usage Examples
 //!
-//! ## Basic Audio Analysis
+//! ## Audio Synchronization
 //! ```rust,ignore
-//! use subx_cli::services::audio::AudioTranscoder;
-//! use subx_cli::Result;
-//!
-//! async fn analyze_audio_file() -> Result<()> {
-//!     // Initialize audio processing components
-//!     let transcoder = AudioTranscoder::new()?;
-//!     
-//!     // Transcode audio from video file
-//!     let wav_path = transcoder.transcode_to_wav("movie.mp4").await?;
-//!     
-//!     // Audio analysis would be performed here
-//!     println!("Transcoded audio file: {}", wav_path.display());
-//!     
-//!     Ok(())
-//! }
-//! ```
-//!
-//! ## Advanced Synchronization Workflow
-//! ```rust,ignore
-//! use subx_cli::services::audio::{AudioTranscoder, AudioEnvelope};
-//!
-//! async fn synchronize_subtitles() -> Result<()> {
-//!     
-//!     // Process audio for subtitle synchronization
-//!     let transcoded_path = transcoder.transcode_to_wav("episode.mkv").await?;
-//!     
-//!     // Audio analysis would be performed here for synchronization
-//!     println!("Audio processing complete for: {}", transcoded_path.display());
-//!     
+//! use subx_cli::services::vad::LocalVadDetector;
+//! use subx_cli::config::VadConfig;
+//! 
+//! async fn synchronize_audio() -> subx_cli::Result<()> {
+//!     let vad_config = VadConfig::default();
+//!     let detector = LocalVadDetector::new(vad_config)?;
+//! 
+//!     // 直接處理各種音訊格式，無需轉碼
+//!     let result = detector.detect_speech("video.mp4").await?;
+//! 
+//!     println!("Detected {} speech segments", result.speech_segments.len());
 //!     Ok(())
 //! }
 //! ```

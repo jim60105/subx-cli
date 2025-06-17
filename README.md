@@ -22,7 +22,7 @@ AI subtitle processing CLI tool, which automatically matches, renames, and conve
 - 🤖 **AI Smart Matching** - Uses AI technology to automatically identify video-subtitle correspondence and rename files
 - 📁 **File Organization** - Automatically copy or move matched subtitle files to video folders for seamless playback
 - 🔄 **Format Conversion** - Supports conversion between mainstream subtitle formats like SRT, ASS, VTT, SUB
-- 🔊 **Audio Transcoding** - Auto-transcode diverse audio container formats (MP4, MKV, WebM, OGG) to WAV for synchronization analysis
+- 🔊 **Audio Synchronization** - Directly decode various audio container formats (MP4, MKV, WebM, OGG, WAV) for VAD-based synchronization without intermediate transcoding
 - ⏰ **Timeline Correction** - Automatically detects and corrects subtitle timing offset issues
 - 🏃 **Batch Processing** - Process entire folders of media files at once
 - 🔍 **Dry-run Mode** - Preview operation results for safety and reliability
