@@ -18,12 +18,12 @@
 //! - Privacy-focused design with no data transmission
 
 pub mod audio_loader;
-mod audio_processor;
-mod detector;
-mod sync_detector;
+pub mod audio_processor;
+pub mod detector;
+pub mod sync_detector;
 
 pub use audio_processor::{ProcessedAudioData, VadAudioProcessor};
-pub use detector::{AudioInfo, LocalVadDetector, SpeechSegment, VadResult};
+pub use detector::{LocalVadDetector, SpeechSegment, VadResult};
 pub use sync_detector::VadSyncDetector;
 
 // Re-export for convenience

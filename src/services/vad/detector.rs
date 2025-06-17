@@ -94,14 +94,12 @@ impl LocalVadDetector {
         let chunk_duration_seconds = self.config.chunk_size as f64 / self.config.sample_rate as f64;
 
         // Use label functionality to identify speech and non-speech segments
+        // Invert sensitivity to threshold: higher sensitivity (closer to 1.0) yields lower threshold
+        let vad_threshold = 1.0 - self.config.sensitivity;
         let labels: Vec<LabeledAudio<i16>> = samples
             .iter()
             .copied()
-            .label(
-                vad,
-                self.config.sensitivity,
-                self.config.padding_chunks as usize,
-            )
+            .label(vad, vad_threshold, self.config.padding_chunks as usize)
             .collect();
 
         let mut current_speech_start: Option<f64> = None;

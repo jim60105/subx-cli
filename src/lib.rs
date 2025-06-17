@@ -540,12 +540,3 @@ impl App {
         self.config_service.get_config()
     }
 }
-
-/// Backward compatibility function that has been replaced by the new CLI interface.
-///
-/// This function has been deprecated. Use `cli::run()` instead.
-#[deprecated(since = "0.2.0", note = "Use cli::run() instead")]
-pub async fn run_with_legacy_config() -> Result<()> {
-    // Use the new CLI interface instead
-    cli::run().await
-}

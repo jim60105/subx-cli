@@ -1,5 +1,5 @@
-use super::AudioInfo;
 use crate::services::vad::audio_loader::DirectAudioLoader;
+use crate::services::vad::detector::AudioInfo;
 use crate::{Result, error::SubXError};
 use hound::{SampleFormat, WavReader};
 use rubato::{Resampler, SincFixedIn, SincInterpolationParameters, SincInterpolationType};
@@ -179,7 +179,7 @@ impl VadAudioProcessor {
             self.target_sample_rate as f64 / audio_data.info.sample_rate as f64,
             2.0, // max_resample_ratio_relative
             params,
-            audio_data.samples.len(),
+            audio_data.samples.len() / audio_data.info.channels as usize,
             audio_data.info.channels as usize,
         )
         .map_err(|e| SubXError::audio_processing(format!("Failed to create resampler: {}", e)))?;

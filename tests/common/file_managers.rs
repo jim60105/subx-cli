@@ -54,29 +54,6 @@ impl TestFileManager {
             self.setup_isolated_environment(path, name).await?;
         }
 
-        // For debugging convenience, create a symbolic link
-        if cfg!(debug_assertions) {
-            #[cfg(unix)]
-            {
-                let debug_path = format!("/tmp/subx_test_{}_{}", name, std::process::id());
-                if let Err(e) = std::os::unix::fs::symlink(path, &debug_path) {
-                    eprintln!("Failed to create debug symlink: {}", e);
-                } else {
-                    println!("Isolated test directory: {}", debug_path);
-                }
-            }
-            #[cfg(windows)]
-            {
-                use std::env;
-                if let Ok(temp_dir) = env::var("TEMP") {
-                    let debug_path =
-                        format!("{}\\subx_test_{}_{}", temp_dir, name, std::process::id());
-                    println!("Isolated test directory: {}", path.display());
-                    println!("Windows debug path reference: {}", debug_path);
-                }
-            }
-        }
-
         self.temp_dirs.push(temp_dir);
 
         // Return the path of the last added temporary directory
