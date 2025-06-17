@@ -20,8 +20,6 @@ use crate::core::language::LanguageDetector;
 use crate::core::matcher::cache::{CacheData, OpItem};
 use crate::core::matcher::discovery::generate_file_id;
 use crate::core::matcher::{FileDiscovery, MediaFile, MediaFileType};
-
-use crate::core::fs_util::copy_file_cifs_safe;
 use crate::core::parallel::{FileProcessingTask, ProcessingOperation, Task, TaskResult};
 use crate::error::SubXError;
 use dirs;
@@ -842,137 +840,6 @@ impl MatchEngine {
         Ok(())
     }
 
-    /// Execute file relocation operation (copy or move)
-    async fn execute_relocation_operation(&self, op: &MatchOperation) -> Result<()> {
-        if !op.requires_relocation {
-            return Ok(());
-        }
-
-        let source_path = if op.new_subtitle_name == op.subtitle_file.name {
-            // File was not renamed, use original path
-            op.subtitle_file.path.clone()
-        } else {
-            // File was renamed, use the new path in the same directory
-            op.subtitle_file.path.with_file_name(&op.new_subtitle_name)
-        };
-
-        if let Some(target_path) = &op.relocation_target_path {
-            // Create target directory if it doesn't exist
-            if let Some(parent) = target_path.parent() {
-                std::fs::create_dir_all(parent)?;
-            }
-
-            // Handle filename conflicts
-            let final_target = self.resolve_filename_conflict(target_path.clone())?;
-
-            match op.relocation_mode {
-                FileRelocationMode::Copy => {
-                    // Create backup of target if enabled
-                    if self.config.backup_enabled && final_target.exists() {
-                        let backup_path = final_target.with_extension(format!(
-                            "{}.backup",
-                            final_target
-                                .extension()
-                                .and_then(|s| s.to_str())
-                                .unwrap_or("")
-                        ));
-                        copy_file_cifs_safe(&final_target, &backup_path)?;
-                    }
-
-                    // Execute copy operation
-                    copy_file_cifs_safe(&source_path, &final_target)?;
-
-                    // Verify the file exists after copy and display appropriate indicator
-                    if final_target.exists() {
-                        println!(
-                            "  ✓ Copied: {} -> {}",
-                            source_path
-                                .file_name()
-                                .unwrap_or_default()
-                                .to_string_lossy(),
-                            final_target
-                                .file_name()
-                                .unwrap_or_default()
-                                .to_string_lossy()
-                        );
-                    } else {
-                        eprintln!(
-                            "  ✗ Copy failed: {} -> {} (target file does not exist after operation)",
-                            source_path
-                                .file_name()
-                                .unwrap_or_default()
-                                .to_string_lossy(),
-                            final_target
-                                .file_name()
-                                .unwrap_or_default()
-                                .to_string_lossy()
-                        );
-                    }
-                }
-                FileRelocationMode::Move => {
-                    // Create backup of original if enabled
-                    if self.config.backup_enabled {
-                        let backup_path = source_path.with_extension(format!(
-                            "{}.backup",
-                            source_path
-                                .extension()
-                                .and_then(|s| s.to_str())
-                                .unwrap_or("")
-                        ));
-                        copy_file_cifs_safe(&source_path, &backup_path)?;
-                    }
-
-                    // Create backup of target if exists and enabled
-                    if self.config.backup_enabled && final_target.exists() {
-                        let backup_path = final_target.with_extension(format!(
-                            "{}.backup",
-                            final_target
-                                .extension()
-                                .and_then(|s| s.to_str())
-                                .unwrap_or("")
-                        ));
-                        copy_file_cifs_safe(&final_target, &backup_path)?;
-                    }
-
-                    // Execute move operation
-                    std::fs::rename(&source_path, &final_target)?;
-
-                    // Verify the file exists after move and display appropriate indicator
-                    if final_target.exists() {
-                        println!(
-                            "  ✓ Moved: {} -> {}",
-                            source_path
-                                .file_name()
-                                .unwrap_or_default()
-                                .to_string_lossy(),
-                            final_target
-                                .file_name()
-                                .unwrap_or_default()
-                                .to_string_lossy()
-                        );
-                    } else {
-                        eprintln!(
-                            "  ✗ Move failed: {} -> {} (target file does not exist after operation)",
-                            source_path
-                                .file_name()
-                                .unwrap_or_default()
-                                .to_string_lossy(),
-                            final_target
-                                .file_name()
-                                .unwrap_or_default()
-                                .to_string_lossy()
-                        );
-                    }
-                }
-                FileRelocationMode::None => {
-                    // No operation needed
-                }
-            }
-        }
-
-        Ok(())
-    }
-
     /// Rename subtitle file by delegating to FileProcessingTask
     async fn rename_file(&self, op: &MatchOperation) -> Result<()> {
         let task = self.create_rename_task(op);
@@ -1030,11 +897,8 @@ impl MatchEngine {
 
     /// Create a task to copy (or rename) a file with new name
     fn create_copy_task(&self, op: &MatchOperation) -> FileProcessingTask {
-        let source = if op.new_subtitle_name == op.subtitle_file.name {
-            op.subtitle_file.path.clone()
-        } else {
-            op.subtitle_file.path.with_file_name(&op.new_subtitle_name)
-        };
+        // In copy mode, always use the original subtitle file as source
+        let source = op.subtitle_file.path.clone();
         let target_base = op.relocation_target_path.clone().unwrap();
         let final_target = self.resolve_filename_conflict(target_base).unwrap();
         FileProcessingTask::new(
@@ -1063,7 +927,14 @@ impl MatchEngine {
     /// Create a task to rename (move) a file
     fn create_rename_task(&self, op: &MatchOperation) -> FileProcessingTask {
         let old = op.subtitle_file.path.clone();
-        let new_path = old.with_file_name(&op.new_subtitle_name);
+        // If relocation is required, use the relocation target path
+        let new_path = if op.requires_relocation && op.relocation_target_path.is_some() {
+            let target_base = op.relocation_target_path.clone().unwrap();
+            self.resolve_filename_conflict(target_base).unwrap()
+        } else {
+            old.with_file_name(&op.new_subtitle_name)
+        };
+
         FileProcessingTask::new(
             old.clone(),
             Some(new_path.clone()),
