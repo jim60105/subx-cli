@@ -19,6 +19,7 @@
 pub mod factory;
 pub mod file_manager;
 pub mod formats;
+pub mod fs_util;
 pub mod language;
 pub mod matcher;
 pub mod parallel;

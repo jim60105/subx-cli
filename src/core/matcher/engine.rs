@@ -21,6 +21,7 @@ use crate::core::matcher::cache::{CacheData, OpItem};
 use crate::core::matcher::discovery::generate_file_id;
 use crate::core::matcher::{FileDiscovery, MediaFile, MediaFileType};
 
+use crate::core::fs_util::copy_file_cifs_safe;
 use crate::error::SubXError;
 use dirs;
 use serde_json;
@@ -868,11 +869,11 @@ impl MatchEngine {
                                 .and_then(|s| s.to_str())
                                 .unwrap_or("")
                         ));
-                        std::fs::copy(&final_target, backup_path)?;
+                        copy_file_cifs_safe(&final_target, &backup_path)?;
                     }
 
                     // Execute copy operation
-                    std::fs::copy(&source_path, &final_target)?;
+                    copy_file_cifs_safe(&source_path, &final_target)?;
 
                     // Verify the file exists after copy and display appropriate indicator
                     if final_target.exists() {
@@ -911,7 +912,7 @@ impl MatchEngine {
                                 .and_then(|s| s.to_str())
                                 .unwrap_or("")
                         ));
-                        std::fs::copy(&source_path, backup_path)?;
+                        copy_file_cifs_safe(&source_path, &backup_path)?;
                     }
 
                     // Create backup of target if exists and enabled
@@ -923,7 +924,7 @@ impl MatchEngine {
                                 .and_then(|s| s.to_str())
                                 .unwrap_or("")
                         ));
-                        std::fs::copy(&final_target, backup_path)?;
+                        copy_file_cifs_safe(&final_target, &backup_path)?;
                     }
 
                     // Execute move operation
@@ -983,11 +984,11 @@ impl MatchEngine {
                         .and_then(|s| s.to_str())
                         .unwrap_or("")
                 ));
-                std::fs::copy(&final_target, backup_path)?;
+                copy_file_cifs_safe(&final_target, &backup_path)?;
             }
             // Copy original subtitle to target location
             // In copy mode, the original file remains unchanged
-            std::fs::copy(&op.subtitle_file.path, &final_target)?;
+            copy_file_cifs_safe(&op.subtitle_file.path, &final_target)?;
 
             // Display copy operation result
             if final_target.exists() {
@@ -1018,11 +1019,11 @@ impl MatchEngine {
                         .and_then(|s| s.to_str())
                         .unwrap_or("")
                 ));
-                std::fs::copy(&final_target, backup_path)?;
+                copy_file_cifs_safe(&final_target, &backup_path)?;
             }
 
             // Copy original file to new name in same directory
-            std::fs::copy(&op.subtitle_file.path, &final_target)?;
+            copy_file_cifs_safe(&op.subtitle_file.path, &final_target)?;
 
             // Display copy operation result
             if final_target.exists() {
@@ -1095,7 +1096,7 @@ impl MatchEngine {
         if self.config.backup_enabled {
             let backup_path =
                 old_path.with_extension(format!("{}.backup", op.subtitle_file.extension));
-            std::fs::copy(old_path, backup_path)?;
+            copy_file_cifs_safe(old_path, &backup_path)?;
         }
 
         std::fs::rename(old_path, &new_path)?;

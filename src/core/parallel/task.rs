@@ -1,4 +1,5 @@
 //! Task definition and utilities for parallel processing
+use crate::core::fs_util::copy_file_cifs_safe;
 use async_trait::async_trait;
 use std::fmt;
 use std::path::Path;
@@ -303,7 +304,7 @@ impl FileProcessingTask {
         let final_target = self.resolve_filename_conflict(target.to_path_buf()).await?;
 
         // Execute copy operation
-        std::fs::copy(source, &final_target)?;
+        copy_file_cifs_safe(source, &final_target)?;
         Ok(())
     }
 
