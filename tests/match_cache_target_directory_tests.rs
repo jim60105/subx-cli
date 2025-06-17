@@ -1,9 +1,9 @@
-//! Integration tests: Verify Bug 21 - Match command Copy mode cache target directory error fix
+//! Integration tests: Match command cache target directory correctness
 //!
 //! Test scenarios:
 //! 1. Execute dry-run to generate cache
-//! 2. Execute actual copy operation
-//! 3. Verify files are copied to the correct directory (video file directory, not subtitle directory)
+//! 2. Execute actual copy/move operations
+//! 3. Verify files are copied/moved to the correct directory (video file directory, not subtitle directory)
 
 use log::debug;
 use std::fs;
@@ -20,13 +20,13 @@ use common::test_data_generators::MatchResponseGenerator;
 static TEST_MUTEX: tokio::sync::Mutex<()> = tokio::sync::Mutex::const_new(());
 
 #[tokio::test]
-async fn test_bug_21_match_cache_copy_mode_correct_target_directory() {
+async fn test_match_cache_copy_mode_target_directory_correctness() {
     // Initialize logging
     let _ = env_logger::try_init();
 
     // Use async mutex to avoid environment variable race conditions
     let _guard = TEST_MUTEX.lock().await;
-    debug!("Starting Bug 21 test: match cache copy mode correct target directory");
+    debug!("Starting test: match cache copy mode target directory correctness");
 
     // Create test directory structure
     let temp_dir = TempDir::new().unwrap();
@@ -173,19 +173,17 @@ async fn test_bug_21_match_cache_copy_mode_correct_target_directory() {
     mock_helper.verify_expectations().await;
     debug!("Mock expectation verification successful");
 
-    debug!(
-        "✅ Bug 21 fix verification successful: cache correctly maintains target directory in copy mode"
-    );
+    debug!("✅ Match cache copy mode target directory correctness test successful");
 }
 
 #[tokio::test]
-async fn test_bug_21_comparison_dry_run_vs_actual_execution() {
+async fn test_match_cache_dry_run_vs_actual_execution_consistency() {
     // Initialize logging
     let _ = env_logger::try_init();
 
     // Use async mutex to avoid environment variable race conditions
     let _guard = TEST_MUTEX.lock().await;
-    debug!("Starting Bug 21 test: dry-run vs actual execution consistency comparison");
+    debug!("Starting test: match cache dry-run vs actual execution consistency");
 
     // Create test directory structure
     let temp_dir = TempDir::new().unwrap();
@@ -293,17 +291,17 @@ async fn test_bug_21_comparison_dry_run_vs_actual_execution() {
     // Verify mock server received only one request
     mock_helper.verify_expectations().await;
 
-    debug!("✅ dry-run vs actual execution consistency verification successful");
+    debug!("✅ Dry-run vs actual execution consistency verification successful");
 }
 
 #[tokio::test]
-async fn test_bug_21_move_mode_cache_correctness() {
+async fn test_match_cache_move_mode_target_directory_correctness() {
     // Initialize logging
     let _ = env_logger::try_init();
 
     // Use async mutex to avoid environment variable race conditions
     let _guard = TEST_MUTEX.lock().await;
-    debug!("Starting Bug 21 test: move mode cache correctness (comparison test)");
+    debug!("Starting test: match cache move mode target directory correctness");
 
     // Create test directory structure
     let temp_dir = TempDir::new().unwrap();
@@ -404,5 +402,5 @@ async fn test_bug_21_move_mode_cache_correctness() {
     // Verify mock server received only one request
     mock_helper.verify_expectations().await;
 
-    debug!("✅ move mode cache correctness verification successful");
+    debug!("✅ Move mode cache target directory correctness verification successful");
 }
