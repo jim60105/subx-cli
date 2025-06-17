@@ -10,7 +10,10 @@
 
   * Maintain the highest standard of quality in all deliverables.
   * Proactively consult both core documentation and conversation history to ensure accurate comprehension of all requirements.
+  * The use of [deprecated] is prohibited. Whenever you want to use [deprecated], simply remove it and directly modify any place where it is used.
   * Instead of concentrating on backward compatibility, greater importance is given to removing unnecessary designs. When a module is no longer utilized, remove it. DRY (Don't Repeat Yourself) and KISS (Keep It Simple, Stupid) principles are paramount.
+  * Any unimplemented code must be marked with `//TODO` comment.
+  * Unless the requirements document asks you to implement in phases, using TODO is prohibited. TODO means there is still unfinished work. You are required to complete your work.
   * Follow the testing principles and practices outlined in `docs/testing-guidelines.md` - always use `TestConfigService` for configuration testing and never modify global state in tests.
   * Refrain from parsing `Cargo.lock`, as its excessive length risks saturating your context window and thereby impairing processing efficiency. Refrain from manually modify `Cargo.lock` as it is automatically generated.
   * Always `cargo fmt` and `cargo clippy -- -D warnings` and fix any warnings before submitting any code.
