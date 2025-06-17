@@ -28,6 +28,9 @@ cd "$PROJECT_ROOT"
 # Initialize verbose mode
 VERBOSE=false
 
+# Initialize nextest profile
+NEXTEST_PROFILE="default"
+
 # Colors for output
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -40,6 +43,7 @@ usage() {
     echo "Usage: $0 [options]"
     echo "Options:"
     echo "  -v, --verbose            Show verbose output"
+    echo "  -p, --profile PROFILE    Set nextest profile (default: default)"
     echo "  -h, --help               Show this help"
     echo ""
     echo "This script performs comprehensive quality assurance checks including:"
@@ -49,9 +53,13 @@ usage() {
     echo "  - Documentation examples testing"
     echo "  - Unit and integration tests"
     echo ""
+    echo "Available nextest profiles: default, ci, quick"
+    echo ""
     echo "Examples:"
     echo "  $0                       Run all quality checks with standard output"
     echo "  $0 -v                    Run all quality checks with verbose output"
+    echo "  $0 -p ci                 Run with CI profile"
+    echo "  $0 -v -p ci              Run with CI profile and verbose output"
 }
 
 # Parse command line arguments
@@ -61,6 +69,24 @@ parse_args() {
         -v | --verbose)
             VERBOSE=true
             shift
+            ;;
+        -p | --profile)
+            if [[ -z "$2" ]]; then
+                echo -e "${RED}Error: --profile requires a value${NC}" >&2
+                usage >&2
+                exit 1
+            fi
+            # Validate profile value
+            case "$2" in
+                default|ci|quick)
+                    NEXTEST_PROFILE="$2"
+                    ;;
+                *)
+                    echo -e "${RED}Error: Invalid profile '$2'. Available profiles: default, ci, quick${NC}" >&2
+                    exit 1
+                    ;;
+            esac
+            shift 2
             ;;
         -h | --help)
             usage
@@ -172,6 +198,8 @@ main() {
     # Show startup message
     echo "🔍 SubX Quality Assurance Check Starting..."
     echo "========================================"
+    echo "🔧 Using nextest profile: ${NEXTEST_PROFILE}"
+    echo "========================================"
     
     # 1. Code compilation check
     if [[ "${VERBOSE}" == "true" ]]; then
@@ -268,10 +296,10 @@ main() {
     passed_checks=$((passed_checks + 1))
 
     # 7. Unit tests
-    run_test_with_conditional_output "Unit Tests" "cargo nextest run --profile default -E 'kind(lib)' --ignore-default-filter"
+    run_test_with_conditional_output "Unit Tests" "cargo nextest run --profile ${NEXTEST_PROFILE} -E 'kind(lib)' --ignore-default-filter"
 
     # 8. Integration tests  
-    run_test_with_conditional_output "Integration Tests" "cargo nextest run --profile default --test '*'"
+    run_test_with_conditional_output "Integration Tests" "cargo nextest run --profile ${NEXTEST_PROFILE} --test '*'"
 
     # Cleanup
     # (Temporary files are cleaned up in their respective sections)

@@ -65,8 +65,8 @@ jobs:
         # Make the code check script executable (if not already)
         chmod +x scripts/quality_check.sh
         
-        # Run the comprehensive code quality check script
-        ./scripts/quality_check.sh -v
+        # Run the comprehensive code quality check script with CI profile
+        ./scripts/quality_check.sh -v -p ci
       env:
         RUST_LOG: debug
 
