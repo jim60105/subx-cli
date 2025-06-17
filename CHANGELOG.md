@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+- Integrated sync-related component creation from `SyncServiceFactory` into `ComponentFactory`, removed `SyncServiceFactory`.
+- Added `ComponentFactory::create_vad_sync_detector`, `create_vad_detector`, and `create_audio_processor` methods.
+
 ## [0.10.0] - 2025-06-16
 ### Added
 - Added: Configurable HTTP request timeout for AI services with range validation (10-600 seconds).

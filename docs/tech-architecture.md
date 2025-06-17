@@ -123,12 +123,13 @@ pub struct Config {
 ```rust
 // src/core/factory.rs
 pub struct ComponentFactory {
-    service_container: ServiceContainer,
+    config: Config,
 }
 
 // src/core/services.rs
 pub struct ServiceContainer {
-    // Service registration and resolution
+    config_service: Arc<dyn ConfigService>,
+    component_factory: ComponentFactory,
 }
 ```
 

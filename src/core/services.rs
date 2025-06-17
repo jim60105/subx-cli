@@ -42,25 +42,6 @@ pub struct ServiceContainer {
     component_factory: ComponentFactory,
 }
 
-/// Sync detection service factory for creating different sync detectors.
-///
-/// This factory creates various sync detection services with the provided
-/// configuration service for dependency injection.
-pub struct SyncServiceFactory {
-    config_service: Box<dyn ConfigService>,
-}
-
-impl SyncServiceFactory {
-    /// Create a new sync service factory.
-    ///
-    /// # Arguments
-    ///
-    /// * `config_service` - Configuration service for dependency injection
-    pub fn new(config_service: Box<dyn ConfigService>) -> Self {
-        Self { config_service }
-    }
-}
-
 impl ServiceContainer {
     /// Create a new service container with the given configuration service.
     ///

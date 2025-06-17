@@ -4,6 +4,7 @@
 //! components with proper configuration injection, eliminating the need for
 //! global configuration access within individual components.
 
+use crate::services::vad::{LocalVadDetector, VadAudioProcessor, VadSyncDetector};
 use crate::{
     Result,
     config::{Config, ConfigService},
@@ -106,6 +107,39 @@ impl ComponentFactory {
     pub fn config(&self) -> &Config {
         &self.config
     }
+
+    /// Create a VAD sync detector with VAD configuration.
+    ///
+    /// Returns a properly configured VadSyncDetector instance using the VAD settings.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if VAD sync detector creation fails.
+    pub fn create_vad_sync_detector(&self) -> Result<VadSyncDetector> {
+        VadSyncDetector::new(self.config.sync.vad.clone())
+    }
+
+    /// Create a local VAD detector for audio processing.
+    ///
+    /// Returns a properly configured LocalVadDetector instance.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if local VAD detector initialization fails.
+    pub fn create_vad_detector(&self) -> Result<LocalVadDetector> {
+        LocalVadDetector::new(self.config.sync.vad.clone())
+    }
+
+    /// Create an audio processor for VAD operations.
+    ///
+    /// Returns a properly configured VadAudioProcessor instance.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if audio processor initialization fails.
+    pub fn create_audio_processor(&self) -> Result<VadAudioProcessor> {
+        VadAudioProcessor::new(self.config.sync.vad.sample_rate, 1)
+    }
 }
 
 /// Create an AI provider from AI configuration.
@@ -179,5 +213,29 @@ mod tests {
             }
             Ok(_) => panic!("Expected error for unsupported provider"),
         }
+    }
+
+    #[test]
+    fn test_create_vad_sync_detector() {
+        let config_service = TestConfigService::default();
+        let factory = ComponentFactory::new(&config_service).unwrap();
+        let result = factory.create_vad_sync_detector();
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_create_vad_detector() {
+        let config_service = TestConfigService::default();
+        let factory = ComponentFactory::new(&config_service).unwrap();
+        let result = factory.create_vad_detector();
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_create_audio_processor() {
+        let config_service = TestConfigService::default();
+        let factory = ComponentFactory::new(&config_service).unwrap();
+        let result = factory.create_audio_processor();
+        assert!(result.is_ok());
     }
 }
