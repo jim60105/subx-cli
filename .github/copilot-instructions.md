@@ -1,6 +1,4 @@
-# Codex Project Instructions (SubX)
-
-* **Project:** SubX - An intelligent subtitle utility implemented as a Rust-based CLI tool.
+* **Project:** SubX - AI subtitle processing CLI tool, which automatically matches, renames, and converts subtitle files.
 
 * **Role:** Act as a technical expert responsible for both development and code review.
 
@@ -10,16 +8,16 @@
 
 * **Key Directives:**
 
-  * Rigorously comply with all user-defined instructions, with particular emphasis on **vocabulary consistency** (e.g., `create` = `建立`, `code` = `程式碼`, `file` = `檔案`, `object` = `物件`).
   * Maintain the highest standard of quality in all deliverables.
   * Proactively consult both core documentation and conversation history to ensure accurate comprehension of all requirements.
-  - Follow the testing principles and practices outlined in `../docs/testing-guidelines.md` - always use `TestConfigService` for configuration testing and maintain complete test isolation.
-  - When editing files, be sure to use the `insert_edit_into_file` tool, and do not directly output the program code to change.
-  - Refrain from parsing `Cargo.lock`, as its excessive length risks saturating your context window and thereby impairing processing efficiency.
-  - Always `cargo fmt` and `cargo clippy -- -D warnings` and fix any warnings before submitting any code.
-  - Always execute `timeout 30 scripts/quality_check.sh` to check code quality. If the script runs longer than 20 seconds, run with `timeout 30 scripts/quality_check.sh -v` to get more details.
-  - When doing Git commit, use the conventional commit format for the title and a brief description in the body. Always commit with `--signoff --no-gpg-sign` and explicitly specify the author on the command: `🤖 GitHub Copilot <github-copilot[bot]@users.noreply.github.com>`. Write the commit in English.
-  - Use `scripts/check_coverage.sh -T` to check code coverage.
+  * Instead of concentrating on backward compatibility, greater importance is given to removing unnecessary designs. When a module is no longer utilized, remove it. DRY (Don't Repeat Yourself) and KISS (Keep It Simple, Stupid) principles are paramount.
+  * Follow the testing principles and practices outlined in `../docs/testing-guidelines.md` - always use `TestConfigService` for configuration testing and maintain complete test isolation.
+  * When editing files, be sure to use the `insert_edit_into_file` tool, and do not directly output the program code to change.
+  * Refrain from parsing `Cargo.lock`, as its excessive length risks saturating your context window and thereby impairing processing efficiency. Refrain from manually modify `Cargo.lock` as it is automatically generated.
+  * Always `cargo fmt` and `cargo clippy -- -D warnings` and fix any warnings before submitting any code.
+  * Always execute `timeout 40 scripts/quality_check.sh` to check code quality. If the script runs longer than 40 seconds, run with `timeout 40 scripts/quality_check.sh -v` to get more details.
+  * When doing Git commit, use the conventional commit format for the title and a brief description in the body. Always commit with `--signoff --no-gpg-sign` and explicitly specify the author on the command: `🤖 GitHub Copilot <github-copilot[bot]@users.noreply.github.com>`. Write the commit in English.
+  * Use `timeout 40 scripts/check_coverage.sh -T` to check code coverage.
 
 # Project Planning Structure
 

@@ -1,8 +1,6 @@
-# Codex Project Instructions (SubX)
+* **Project:** SubX - AI subtitle processing CLI tool, which automatically matches, renames, and converts subtitle files.
 
-* **Project:** SubX - An intelligent subtitle utility implemented as a Rust-based CLI tool.
-
-* **Role:** Act as a technical expert responsible for both development and code review.
+* **Role:** Act as a technical expert responsible for development.
 
 * **Core References:** `README.md`, `docs/tech-architecture.md`, `docs/testing-guidelines.md`
 
@@ -10,16 +8,16 @@
 
 * **Key Directives:**
 
-  * Rigorously comply with all user-defined instructions, with particular emphasis on **vocabulary consistency** (e.g., `create` = `建立`, `code` = `程式碼`, `file` = `檔案`, `object` = `物件`).
   * Maintain the highest standard of quality in all deliverables.
   * Proactively consult both core documentation and conversation history to ensure accurate comprehension of all requirements.
+  * Instead of concentrating on backward compatibility, greater importance is given to removing unnecessary designs. When a module is no longer utilized, remove it. DRY (Don't Repeat Yourself) and KISS (Keep It Simple, Stupid) principles are paramount.
   * Follow the testing principles and practices outlined in `docs/testing-guidelines.md` - always use `TestConfigService` for configuration testing and never modify global state in tests.
-  * Refrain from parsing `Cargo.lock`, as its excessive length risks saturating your context window and thereby impairing processing efficiency.
+  * Refrain from parsing `Cargo.lock`, as its excessive length risks saturating your context window and thereby impairing processing efficiency. Refrain from manually modify `Cargo.lock` as it is automatically generated.
   * Always `cargo fmt` and `cargo clippy -- -D warnings` and fix any warnings before submitting any code.
-  * Always execute `timeout 30 scripts/quality_check.sh` to check code quality. If the script runs longer than 20 seconds, run with `timeout 30 scripts/quality_check.sh -v` to get more details.
+  * Always execute `timeout 40 scripts/quality_check.sh` to check code quality. If the script runs longer than 40 seconds, run with `timeout 40 scripts/quality_check.sh -v` to get more details.
   * Commit your report file together with the code changes, using the templates provided in `.github/reports/`.
   * Git commit after completing your work, using the conventional commit format for the title and a brief description in the body. Always commit with `--signoff` and `--no-gpg-sign`. Write the commit in English.
-  * Use `scripts/check_coverage.sh -T` to check code coverage.
+  * Use `timeout 40 scripts/check_coverage.sh -T` to check code coverage.
 
 ---
 
