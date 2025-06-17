@@ -271,7 +271,7 @@ mod tests {
 
     #[test]
     fn test_create_ai_provider_openai_success() {
-        let mut config_service = TestConfigService::default();
+        let config_service = TestConfigService::default();
         config_service.set_ai_settings_and_key("openai", "gpt-4.1-mini", "test-api-key");
         let factory = ComponentFactory::new(&config_service).unwrap();
         let result = factory.create_ai_provider();
@@ -280,7 +280,7 @@ mod tests {
 
     #[test]
     fn test_create_ai_provider_missing_api_key() {
-        let mut config_service = TestConfigService::default();
+        let config_service = TestConfigService::default();
         config_service.set_ai_settings_and_key("openai", "gpt-4.1-mini", "");
         let factory = ComponentFactory::new(&config_service).unwrap();
         let result = factory.create_ai_provider();
@@ -291,7 +291,7 @@ mod tests {
 
     #[test]
     fn test_create_ai_provider_unsupported_provider() {
-        let mut config_service = TestConfigService::default();
+        let config_service = TestConfigService::default();
         config_service.set_ai_settings_and_key("unsupported-provider", "model", "key");
         let factory = ComponentFactory::new(&config_service).unwrap();
         let result = factory.create_ai_provider();
@@ -302,7 +302,7 @@ mod tests {
 
     #[test]
     fn test_create_ai_provider_with_custom_base_url() {
-        let mut config_service = TestConfigService::default();
+        let config_service = TestConfigService::default();
         config_service.set_ai_settings_and_key("openai", "gpt-4.1-mini", "test-api-key");
         config_service.config_mut().ai.base_url = "https://custom-api.com/v1".to_string();
         let factory = ComponentFactory::new(&config_service).unwrap();

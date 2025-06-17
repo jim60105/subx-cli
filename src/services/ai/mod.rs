@@ -43,46 +43,19 @@
 //!
 //! ## Basic Content Analysis
 //! ```rust,ignore
-//! use subx_cli::services::ai::{AIClientFactory, AnalysisRequest, ContentSample};
+//! use subx_cli::core::ComponentFactory;
+//! use subx_cli::config::ProductionConfigService;
 //! use subx_cli::Result;
+//! use std::sync::Arc;
 //!
 //! async fn analyze_content() -> Result<()> {
-//!     // Create AI client with automatic provider selection
-//!     let ai_client = AIClientFactory::create_client("openai").await?;
+//!     // Create AI client using component factory
+//!     let config_service = Arc::new(ProductionConfigService::new()?);
+//!     let factory = ComponentFactory::new(config_service.as_ref())?;
+//!     let ai_client = factory.create_ai_provider()?;
 //!     
-//!     // Prepare analysis request with content samples
-//!     let request = AnalysisRequest {
-//!         video_files: vec![
-//!             "S01E01 - Pilot.mp4".to_string(),
-//!             "S01E02 - The Next Chapter.mp4".to_string(),
-//!         ],
-//!         subtitle_files: vec![
-//!             "episode_1_english.srt".to_string(),
-//!             "episode_2_english.srt".to_string(),
-//!             "episode_1_spanish.srt".to_string(),
-//!         ],
-//!         content_samples: vec![
-//!             ContentSample {
-//!                 filename: "episode_1_english.srt".to_string(),
-//!                 content_preview: "Hello, my name is John. Welcome to...".to_string(),
-//!                 file_size: 45320,
-//!             },
-//!             // More samples...
-//!         ],
-//!     };
-//!     
-//!     // Perform AI analysis
-//!     let result = ai_client.analyze_content(request).await?;
-//!     
-//!     // Process results with confidence filtering
-//!     for match_item in result.matches {
-//!         if match_item.confidence > 0.8 {
-//!             println!("High confidence match: {} -> {}",
-//!                 match_item.video_file, match_item.subtitle_file);
-//!             println!("Factors: {:?}", match_item.match_factors);
-//!         }
-//!     }
-//!     
+//!     // AI client is ready for content analysis
+//!     println!("AI client created and configured");
 //!     Ok(())
 //! }
 //! ```
@@ -115,24 +88,20 @@
 //!
 //! ## Advanced Provider Configuration
 //! ```rust,ignore
-//! use subx_cli::services::ai::{AIClientFactory, RetryConfig};
+//! use subx_cli::core::ComponentFactory;
+//! use subx_cli::config::ProductionConfigService;
+//! use std::sync::Arc;
 //!
 //! async fn configure_ai_services() -> Result<()> {
-//!     // Configure retry behavior
-//!     let retry_config = RetryConfig {
-//!         max_retries: 3,
-//!         initial_delay: std::time::Duration::from_millis(1000),
-//!         max_delay: std::time::Duration::from_secs(60),
-//!         exponential_base: 2.0,
-//!     };
+//!     // Create component factory with configuration service
+//!     let config_service = Arc::new(ProductionConfigService::new()?);
+//!     let factory = ComponentFactory::new(config_service.as_ref())?;
 //!     
-//!     // Create client with custom configuration
-//!     let client = AIClientFactory::create_client_with_config(
-//!         "openai",
-//!         Some(retry_config)
-//!     ).await?;
+//!     // Create AI client with factory-injected configuration
+//!     let client = factory.create_ai_provider()?;
 //!     
 //!     // Use configured client...
+//!     println!("AI client configured with all settings from config service");
 //!     Ok(())
 //! }
 //! ```
@@ -317,9 +286,6 @@ pub struct AiResponse {
 /// Caching functionality for AI analysis results
 pub mod cache;
 
-/// Factory for creating AI client instances
-pub mod factory;
-
 /// OpenAI integration and client implementation
 pub mod openai;
 
@@ -330,6 +296,5 @@ pub mod prompts;
 pub mod retry;
 
 pub use cache::AICache;
-pub use factory::AIClientFactory;
 pub use openai::OpenAIClient;
 pub use retry::{RetryConfig, retry_with_backoff};

@@ -36,19 +36,17 @@
 //!
 //! ## AI-Powered Matching
 //! ```rust,ignore
-//! use subx_cli::services::ai::{AIClientFactory, AnalysisRequest};
+//! use subx_cli::core::ComponentFactory;
+//! use subx_cli::config::ProductionConfigService;
+//! use std::sync::Arc;
 //!
 //! async fn intelligent_matching() -> subx_cli::Result<()> {
-//!     let ai_client = AIClientFactory::create_client("openai").await?;
+//!     let config_service = Arc::new(ProductionConfigService::new()?);
+//!     let factory = ComponentFactory::new(config_service.as_ref())?;
+//!     let ai_client = factory.create_ai_provider()?;
 //!     
-//!     let request = AnalysisRequest {
-//!         video_files: vec!["movie.mp4".to_string()],
-//!         subtitle_files: vec!["subs1.srt".to_string(), "subs2.srt".to_string()],
-//!         content_samples: vec![/* content samples */],
-//!     };
-//!     
-//!     let result = ai_client.analyze_content(request).await?;
-//!     println!("Best match confidence: {}", result.confidence);
+//!     // AI client is ready to use for analysis
+//!     println!("AI client created successfully");
 //!     Ok(())
 //! }
 //! ```

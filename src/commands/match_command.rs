@@ -65,12 +65,13 @@ use crate::Result;
 use crate::cli::MatchArgs;
 use crate::cli::display_match_results;
 use crate::config::ConfigService;
+use crate::core::ComponentFactory;
 use crate::core::matcher::{FileDiscovery, MatchConfig, MatchEngine, MediaFileType};
 use crate::core::parallel::{
     FileProcessingTask, ProcessingOperation, Task, TaskResult, TaskScheduler,
 };
 use crate::error::SubXError;
-use crate::services::ai::{AIClientFactory, AIProvider};
+use crate::services::ai::AIProvider;
 use indicatif::ProgressDrawTarget;
 
 /// Execute the AI-powered subtitle matching operation with full workflow.
@@ -171,8 +172,9 @@ pub async fn execute(args: MatchArgs, config_service: &dyn ConfigService) -> Res
     // Load configuration from the injected service
     let config = config_service.get_config()?;
 
-    // Create AI client based on configured provider and settings
-    let ai_client = AIClientFactory::create_client(&config.ai)?;
+    // Create AI client using the component factory
+    let factory = ComponentFactory::new(config_service)?;
+    let ai_client = factory.create_ai_provider()?;
 
     // Execute the matching workflow with dependency injection
     execute_with_client(args, ai_client, &config).await
@@ -206,8 +208,9 @@ pub async fn execute_with_config(
     // Load configuration from the injected service
     let config = config_service.get_config()?;
 
-    // Create AI client based on configured provider and settings
-    let ai_client = AIClientFactory::create_client(&config.ai)?;
+    // Create AI client using the component factory
+    let factory = ComponentFactory::new(config_service.as_ref())?;
+    let ai_client = factory.create_ai_provider()?;
 
     // Execute the matching workflow with dependency injection
     execute_with_client(args, ai_client, &config).await
