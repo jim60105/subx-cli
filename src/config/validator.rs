@@ -2,13 +2,13 @@
 //!
 //! This module provides validation for complete configuration sections and
 //! the entire configuration structure. It builds upon the low-level validation
-//! functions from the [`validation`] module.
+//! functions from the [`crate::config::validation`] module.
 //!
 //! # Architecture
 //!
-//! - [`validation`] - Low-level validation functions for individual values
-//! - [`validator`] (this module) - High-level configuration section validators
-//! - [`field_validator`] - Key-value validation for configuration service
+//! - [`crate::config::validation`] - Low-level validation functions for individual values
+//! - [`crate::config::validator`] (this module) - High-level configuration section validators
+//! - [`crate::config::field_validator`] - Key-value validation for configuration service
 
 use super::validation::*;
 use crate::Result;

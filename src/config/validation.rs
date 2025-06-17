@@ -8,9 +8,9 @@
 //! # Architecture
 //!
 //! This module is the foundation of the validation system:
-//! - [`validation`] (this module) - Low-level validation functions
-//! - [`validator`] - High-level configuration section validators
-//! - [`field_validator`] - Key-value validation for configuration service
+//! - [`crate::config::validation`] (this module) - Low-level validation functions
+//! - [`crate::config::validator`] - High-level configuration section validators
+//! - [`crate::config::field_validator`] - Key-value validation for configuration service
 
 use crate::error::{SubXError, SubXResult};
 use std::path::Path;

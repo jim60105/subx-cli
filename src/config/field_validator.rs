@@ -6,9 +6,9 @@
 //!
 //! # Architecture
 //!
-//! - [`validation`] - Low-level validation functions for individual values
-//! - [`validator`] - High-level configuration section validators  
-//! - [`field_validator`] (this module) - Key-value validation for configuration service
+//! - [`crate::config::validation`] - Low-level validation functions for individual values
+//! - [`crate::config::validator`] - High-level configuration section validators  
+//! - [`crate::config::field_validator`] (this module) - Key-value validation for configuration service
 
 use super::validation::*;
 use crate::{Result, error::SubXError};
