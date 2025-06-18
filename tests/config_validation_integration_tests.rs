@@ -30,8 +30,8 @@ fn test_field_validation_integration() {
     // Test sync fields
     assert!(validate_field("sync.vad.sensitivity", "0.7").is_ok());
     assert!(validate_field("sync.vad.sensitivity", "1.5").is_err());
-    assert!(validate_field("sync.vad.chunk_size", "512").is_ok());
-    assert!(validate_field("sync.vad.chunk_size", "300").is_err()); // Not power of 2
+    assert!(validate_field("sync.vad.padding_chunks", "3").is_ok());
+    assert!(validate_field("sync.vad.padding_chunks", "11").is_err()); // Exceeds max
 
     // Test unknown field
     assert!(validate_field("unknown.field", "value").is_err());
@@ -78,8 +78,8 @@ fn test_validation_error_messages() {
     let error_msg = result.unwrap_err().to_string();
     assert!(error_msg.contains("temperature") || error_msg.contains("range"));
 
-    let result = validate_field("sync.vad.chunk_size", "300");
+    let result = validate_field("sync.vad.padding_chunks", "11");
     assert!(result.is_err());
     let error_msg = result.unwrap_err().to_string();
-    assert!(error_msg.contains("power of two") || error_msg.contains("chunk_size"));
+    assert!(error_msg.contains("padding_chunks") || error_msg.contains("range"));
 }

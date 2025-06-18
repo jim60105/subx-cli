@@ -184,7 +184,7 @@ impl LocalVadDetector {
 
     /// Calculate VAD chunk size dynamically based on sample rate.
     /// Uses max(sample_rate/16, 1024).
-    fn calculate_chunk_size(&self, sample_rate: u32) -> usize {
+    pub fn calculate_chunk_size(&self, sample_rate: u32) -> usize {
         let size = sample_rate as usize / 16;
         size.max(1024)
     }

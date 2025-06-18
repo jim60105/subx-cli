@@ -94,29 +94,11 @@ pub fn validate_field(key: &str, value: &str) -> Result<()> {
                 .map_err(|_| SubXError::config("VAD sensitivity must be a number"))?;
             validate_range(sensitivity, 0.0, 1.0)?;
         }
-        "sync.vad.chunk_size" => {
-            let chunk_size: usize = value
-                .parse()
-                .map_err(|_| SubXError::config("VAD chunk size must be a positive integer"))?;
-            validate_range(chunk_size, 256, 2048)?;
-            validate_power_of_two(chunk_size)?;
-        }
-        "sync.vad.sample_rate" => {
-            let sample_rate: u32 = value
-                .parse()
-                .map_err(|_| SubXError::config("Sample rate must be a positive integer"))?;
-            let valid_rates = &[8000, 16000, 22050, 32000, 44100, 48000];
-            if !valid_rates.contains(&sample_rate) {
-                return Err(SubXError::config(
-                    "Sample rate must be one of: 8000, 16000, 22050, 32000, 44100, 48000",
-                ));
-            }
-        }
         "sync.vad.padding_chunks" => {
-            let _chunks: u32 = value
+            let chunks: u32 = value
                 .parse()
                 .map_err(|_| SubXError::config("Padding chunks must be a non-negative integer"))?;
-            // Non-negative validation is implicit in u32 parsing
+            validate_range(chunks, 0, 10)?;
         }
         "sync.vad.min_speech_duration_ms" => {
             let _duration: u32 = value.parse().map_err(|_| {
@@ -275,12 +257,12 @@ mod tests {
         // Valid cases
         assert!(validate_field("sync.default_method", "vad").is_ok());
         assert!(validate_field("sync.vad.sensitivity", "0.5").is_ok());
-        assert!(validate_field("sync.vad.chunk_size", "512").is_ok());
+        assert!(validate_field("sync.vad.padding_chunks", "3").is_ok());
 
         // Invalid cases
         assert!(validate_field("sync.default_method", "invalid").is_err());
         assert!(validate_field("sync.vad.sensitivity", "1.5").is_err());
-        assert!(validate_field("sync.vad.chunk_size", "300").is_err()); // Not power of 2
+        assert!(validate_field("sync.vad.padding_chunks", "11").is_err()); // Exceeds max allowed padding_chunks
     }
 
     #[test]

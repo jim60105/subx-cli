@@ -255,8 +255,6 @@ impl VadConfig {
     ///
     /// This function returns an error if:
     /// - `sensitivity` is outside the valid range (0.0-1.0)
-    /// - `chunk_size` is not a power of 2 or outside valid range
-    /// - `sample_rate` is not one of the supported rates
     pub fn validate(&self) -> Result<()> {
         // Validate sensitivity range
         if !(0.0..=1.0).contains(&self.sensitivity) {
@@ -337,20 +335,6 @@ mod tests {
     fn test_validate_vad_config_invalid_sensitivity() {
         let mut vad_config = VadConfig::default();
         vad_config.sensitivity = 1.5; // Too high (should be 0.0-1.0)
-        assert!(vad_config.validate().is_err());
-    }
-
-    #[test]
-    fn test_validate_vad_config_invalid_chunk_size() {
-        let mut vad_config = VadConfig::default();
-        vad_config.chunk_size = 300; // Not power of 2
-        assert!(vad_config.validate().is_err());
-    }
-
-    #[test]
-    fn test_validate_vad_config_invalid_sample_rate() {
-        let mut vad_config = VadConfig::default();
-        vad_config.sample_rate = 12000; // Not supported
         assert!(vad_config.validate().is_err());
     }
 

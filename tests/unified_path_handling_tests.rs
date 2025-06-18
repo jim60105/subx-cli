@@ -101,7 +101,6 @@ fn test_sync_args_path_merging() {
         method: Some(SyncMethodArg::Vad),
         window: 30,
         vad_sensitivity: None,
-        vad_chunk_size: None,
         output: None,
         verbose: false,
         dry_run: false,

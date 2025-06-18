@@ -25,7 +25,6 @@ mod sync_command_tests {
             method: None,
             window: 30,
             vad_sensitivity: None,
-            vad_chunk_size: None,
             output: None,
             verbose: false,
             dry_run: false,

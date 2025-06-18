@@ -12,8 +12,6 @@ max_offset_seconds = 30.0
 [vad]
 enabled = true
 sensitivity = 0.5
-chunk_size = 256
-sample_rate = 8000
 padding_chunks = 1
 min_speech_duration_ms = 50
 speech_merge_gap_ms = 100
@@ -22,6 +20,7 @@ speech_merge_gap_ms = 100
     assert_eq!(sync.default_method, "vad");
     assert_eq!(sync.max_offset_seconds, 30.0);
     assert!(sync.vad.enabled);
-    assert_eq!(sync.vad.chunk_size, 256);
-    assert_eq!(sync.vad.sample_rate, 8000);
+    assert_eq!(sync.vad.padding_chunks, 1);
+    assert_eq!(sync.vad.min_speech_duration_ms, 50);
+    assert_eq!(sync.vad.speech_merge_gap_ms, 100);
 }

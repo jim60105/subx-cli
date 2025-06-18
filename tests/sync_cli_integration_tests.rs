@@ -31,7 +31,6 @@ fn test_sync_args_basic_parsing() {
         method: Some(SyncMethodArg::Vad),
         window: 30,
         vad_sensitivity: Some(0.8),
-        vad_chunk_size: Some(1024),
         output: None,
         verbose: false,
         dry_run: false,
@@ -45,7 +44,6 @@ fn test_sync_args_basic_parsing() {
     assert_eq!(args.method, Some(SyncMethodArg::Vad));
     assert_eq!(args.window, 30);
     assert_eq!(args.vad_sensitivity, Some(0.8));
-    assert_eq!(args.vad_chunk_size, Some(1024));
 }
 
 /// Test VAD method parameter settings
@@ -68,7 +66,6 @@ fn test_sync_args_vad_method() {
         method: Some(SyncMethodArg::Vad),
         window: 45,
         vad_sensitivity: Some(0.7),
-        vad_chunk_size: Some(512),
         output: None,
         verbose: true,
         dry_run: false,
@@ -81,7 +78,6 @@ fn test_sync_args_vad_method() {
     // Verify VAD parameters
     assert_eq!(args.method, Some(SyncMethodArg::Vad));
     assert_eq!(args.vad_sensitivity, Some(0.7));
-    assert_eq!(args.vad_chunk_size, Some(512));
     assert_eq!(args.window, 45);
     assert!(args.verbose);
 }
@@ -104,7 +100,6 @@ fn test_sync_args_manual_method() {
         method: Some(SyncMethodArg::Manual),
         window: 30,
         vad_sensitivity: None,
-        vad_chunk_size: None,
         output: None,
         verbose: false,
         dry_run: false,
@@ -141,7 +136,6 @@ fn test_sync_args_batch_mode() {
         method: Some(SyncMethodArg::Vad),
         window: 30,
         vad_sensitivity: None,
-        vad_chunk_size: None,
         output: Some(output_dir.clone()),
         verbose: false,
         dry_run: false,

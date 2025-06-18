@@ -33,8 +33,6 @@ fn test_get_config_value_vad_configurations() -> Result<()> {
     let mut config = Config::default();
     config.sync.vad.enabled = true;
     config.sync.vad.sensitivity = 0.9;
-    config.sync.vad.chunk_size = 1024;
-    config.sync.vad.sample_rate = 22050;
     config.sync.vad.padding_chunks = 5;
     config.sync.vad.min_speech_duration_ms = 150;
     config.sync.vad.speech_merge_gap_ms = 250;
@@ -44,8 +42,6 @@ fn test_get_config_value_vad_configurations() -> Result<()> {
     // Test all VAD configuration items
     assert_eq!(service.get_config_value("sync.vad.enabled")?, "true");
     assert_eq!(service.get_config_value("sync.vad.sensitivity")?, "0.9");
-    assert_eq!(service.get_config_value("sync.vad.chunk_size")?, "1024");
-    assert_eq!(service.get_config_value("sync.vad.sample_rate")?, "22050");
     assert_eq!(service.get_config_value("sync.vad.padding_chunks")?, "5");
     assert_eq!(
         service.get_config_value("sync.vad.min_speech_duration_ms")?,
@@ -119,11 +115,9 @@ fn test_get_set_config_value_consistency() -> Result<()> {
         // sync configuration (2 items)
         ("sync.max_offset_seconds", "90"), // Use integer format to avoid floating point representation issues
         ("sync.default_method", "vad"),
-        // VAD configuration (7 items)
+        // VAD configuration (5 items)
         ("sync.vad.enabled", "true"),
         ("sync.vad.sensitivity", "0.8"),
-        ("sync.vad.chunk_size", "512"),
-        ("sync.vad.sample_rate", "16000"),
         ("sync.vad.padding_chunks", "4"),
         ("sync.vad.min_speech_duration_ms", "120"),
         ("sync.vad.speech_merge_gap_ms", "180"),

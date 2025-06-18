@@ -392,13 +392,11 @@ mod tests {
             .with_sync_method("vad")
             .with_vad_enabled(true)
             .with_vad_sensitivity(0.8)
-            .with_vad_sample_rate(32000)
             .build_config();
 
         assert_eq!(config.sync.default_method, "vad");
         assert!(config.sync.vad.enabled);
         assert_eq!(config.sync.vad.sensitivity, 0.8);
-        assert_eq!(config.sync.vad.sample_rate, 32000);
     }
 
     #[test]

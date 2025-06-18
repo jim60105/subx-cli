@@ -28,7 +28,6 @@ async fn test_manual_offset_exceeds_max_limit() -> Result<()> {
         method: Some(subx_cli::cli::SyncMethodArg::Manual),
         window: 30,
         vad_sensitivity: None,
-        vad_chunk_size: None,
         output: None,
         verbose: false,
         dry_run: true,
@@ -73,7 +72,6 @@ async fn test_manual_offset_within_limit() -> Result<()> {
         method: Some(subx_cli::cli::SyncMethodArg::Manual), // Explicitly specify manual mode
         window: 30,
         vad_sensitivity: None,
-        vad_chunk_size: None,
         output: Some(temp.path().join("output.srt")),
         verbose: false,
         dry_run: false,

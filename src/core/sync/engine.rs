@@ -178,12 +178,17 @@ impl SyncEngine {
                     SubXError::audio_processing("Invalid offset results in negative time")
                 })?;
             } else {
-                entry.start_time = entry.start_time.checked_sub(offset_dur).ok_or_else(|| {
-                    SubXError::audio_processing("Invalid offset results in negative time")
-                })?;
-                entry.end_time = entry.end_time.checked_sub(offset_dur).ok_or_else(|| {
-                    SubXError::audio_processing("Invalid offset results in negative time")
-                })?;
+                // For negative offsets, clamp times to zero instead of erroring on underflow
+                entry.start_time = if entry.start_time > offset_dur {
+                    entry.start_time - offset_dur
+                } else {
+                    Duration::ZERO
+                };
+                entry.end_time = if entry.end_time > offset_dur {
+                    entry.end_time - offset_dur
+                } else {
+                    Duration::ZERO
+                };
             }
         }
         debug!(
