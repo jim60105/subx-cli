@@ -95,67 +95,6 @@ impl VadAudioProcessor {
         Ok(mono)
     }
 
-    fn load_wav_file(&self, path: &Path) -> Result<ProcessedAudioData> {
-        let file = File::open(path).map_err(|e| {
-            SubXError::audio_processing(format!("Failed to open audio file: {}", e))
-        })?;
-
-        let reader = WavReader::new(BufReader::new(file))
-            .map_err(|e| SubXError::audio_processing(format!("Failed to read WAV file: {}", e)))?;
-
-        let spec = reader.spec();
-        let sample_rate = spec.sample_rate;
-        let channels = spec.channels;
-
-        // Read all samples and convert to i16
-        let samples: Vec<i16> = match spec.sample_format {
-            SampleFormat::Int => match spec.bits_per_sample {
-                16 => {
-                    let samples: std::result::Result<Vec<i16>, hound::Error> =
-                        reader.into_samples::<i16>().collect();
-                    samples.map_err(|e| {
-                        SubXError::audio_processing(format!("Failed to read samples: {}", e))
-                    })?
-                }
-                32 => {
-                    let samples: std::result::Result<Vec<i32>, hound::Error> =
-                        reader.into_samples::<i32>().collect();
-                    let i32_samples = samples.map_err(|e| {
-                        SubXError::audio_processing(format!("Failed to read i32 samples: {}", e))
-                    })?;
-                    i32_samples.iter().map(|&s| (s >> 16) as i16).collect()
-                }
-                _ => {
-                    return Err(SubXError::audio_processing(format!(
-                        "Unsupported bit depth: {}",
-                        spec.bits_per_sample
-                    )));
-                }
-            },
-            SampleFormat::Float => {
-                let samples: std::result::Result<Vec<f32>, hound::Error> =
-                    reader.into_samples::<f32>().collect();
-                let f32_samples = samples.map_err(|e| {
-                    SubXError::audio_processing(format!("Failed to read f32 samples: {}", e))
-                })?;
-                f32_samples.iter().map(|&s| (s * 32767.0) as i16).collect()
-            }
-        };
-
-        let samples_len = samples.len();
-        let duration_seconds = samples_len as f64 / (sample_rate as f64 * channels as f64);
-
-        Ok(ProcessedAudioData {
-            samples,
-            info: AudioInfo {
-                sample_rate,
-                channels,
-                duration_seconds,
-                total_samples: samples_len,
-            },
-        })
-    }
-
     fn resample_audio(&self, audio_data: &ProcessedAudioData) -> Result<ProcessedAudioData> {
         if audio_data.info.sample_rate == self.target_sample_rate {
             // Cloning via struct initializer to own data
