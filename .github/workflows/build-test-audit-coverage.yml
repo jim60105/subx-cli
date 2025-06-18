@@ -104,7 +104,7 @@ jobs:
         sudo apt-get install -y jq bc
 
     - name: Generate code coverage
-      run: cargo llvm-cov --all-features --workspace --lcov --output-path lcov.info
+      run: cargo llvm-cov nextest --profile ci --all-features --workspace --lcov --output-path lcov.info
 
     - name: Upload to codecov.io
       uses: codecov/codecov-action@v5
@@ -117,7 +117,7 @@ jobs:
         # Make the coverage check script executable
         chmod +x scripts/check_coverage.sh
         
-        # Run coverage threshold check with verbose output
-        ./scripts/check_coverage.sh -T
+        # Run coverage threshold check with verbose output and CI profile
+        ./scripts/check_coverage.sh -T -p ci
       env:
         COVERAGE_THRESHOLD: 75

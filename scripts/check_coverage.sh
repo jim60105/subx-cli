@@ -24,6 +24,8 @@ set -euo pipefail # Strict mode: exit immediately on error
 # Default configuration
 DEFAULT_THRESHOLD=75.0
 COVERAGE_THRESHOLD=${COVERAGE_THRESHOLD:-$DEFAULT_THRESHOLD}
+DEFAULT_NEXTEST_PROFILE="default"
+NEXTEST_PROFILE=${NEXTEST_PROFILE:-$DEFAULT_NEXTEST_PROFILE}
 
 # Color output
 RED='\033[0;31m'
@@ -37,6 +39,7 @@ usage() {
     echo "Usage: $0 [options]"
     echo "Options:"
     echo "  -t, --threshold PERCENT   Set coverage threshold (default: ${DEFAULT_THRESHOLD}%)"
+    echo "  -p, --profile PROFILE     Set nextest profile (default: ${DEFAULT_NEXTEST_PROFILE})"
     echo "  -T, --table              Show coverage table for all files"
     echo "  -f, --file FILENAME      Show coverage for specific file (supports partial matching)"
     echo "  -v, --verbose            Show verbose output"
@@ -44,13 +47,19 @@ usage() {
     echo ""
     echo "Environment variables:"
     echo "  COVERAGE_THRESHOLD       Coverage threshold (default: ${DEFAULT_THRESHOLD}%)"
+    echo "  NEXTEST_PROFILE          Nextest profile (default: ${DEFAULT_NEXTEST_PROFILE})"
+    echo ""
+    echo "Available nextest profiles: default, ci, quick"
     echo ""
     echo "Examples:"
-    echo "  $0                       Check coverage with default threshold"
+    echo "  $0                       Check coverage with default threshold and profile"
     echo "  $0 -t 80                 Set threshold to 80%"
+    echo "  $0 -p ci                 Use CI profile"
+    echo "  $0 -p ci -t 80           Use CI profile with 80% threshold"
     echo "  $0 --table               Show coverage table for all files"
     echo "  $0 -f manager.rs         Show coverage for files matching 'manager.rs'"
     echo "  COVERAGE_THRESHOLD=70 $0  Set threshold to 70% via environment variable"
+    echo "  NEXTEST_PROFILE=ci $0     Set profile to ci via environment variable"
 }
 
 # Check dependencies
@@ -108,6 +117,24 @@ parse_args() {
         case $1 in
         -t | --threshold)
             COVERAGE_THRESHOLD="$2"
+            shift 2
+            ;;
+        -p | --profile)
+            if [[ -z "$2" ]]; then
+                echo -e "${RED}Error: --profile requires a value${NC}" >&2
+                usage >&2
+                exit 1
+            fi
+            # Validate profile value
+            case "$2" in
+                default|ci|quick)
+                    NEXTEST_PROFILE="$2"
+                    ;;
+                *)
+                    echo -e "${RED}Error: Invalid profile '$2'. Available profiles: default, ci, quick${NC}" >&2
+                    exit 1
+                    ;;
+            esac
             shift 2
             ;;
         -T | --table)
@@ -290,11 +317,12 @@ search_file_coverage() {
 # Main coverage check function
 check_coverage() {
     echo -e "${BLUE}🔍 Checking test coverage...${NC}"
+    echo -e "${BLUE}🔧 Using nextest profile: ${NEXTEST_PROFILE}${NC}"
 
     # Generate coverage report
     local coverage_json
     local coverage_cmd_output
-    if ! coverage_cmd_output=$(cargo llvm-cov nextest --all-features --workspace --json --summary-only 2>&1); then
+    if ! coverage_cmd_output=$(cargo llvm-cov nextest --profile "${NEXTEST_PROFILE}" --all-features --workspace --json --summary-only 2>&1); then
         echo -e "${RED}❌ Unable to generate coverage report${NC}" >&2
         echo -e "${YELLOW}Error message: ${coverage_cmd_output}${NC}" >&2
         echo -e "${YELLOW}Please ensure the project contains tests and can be compiled${NC}" >&2
