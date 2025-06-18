@@ -8,6 +8,7 @@ use subx_cli::core::sync::engine::{SyncConfig, SyncMethod};
 use subx_cli::core::formats::{Subtitle, SubtitleEntry, SubtitleFormatType, SubtitleMetadata};
 use subx_cli::services::audio::generate_dialogue_audio;
 use subx_cli::config::TestConfigBuilder;
+use subx_cli::core::formats::manager::FormatManager;
 use tempfile::TempDir;
 use std::time::Duration;
 use std::path::PathBuf;
@@ -60,7 +61,9 @@ Second dialogue (delayed by 1.5 seconds)
     let sync_engine = SyncEngine::new(sync_config);
     
     // 4. Load subtitle file
-    let subtitle = subx_cli::core::formats::load_subtitle_file(&subtitle_file).unwrap();
+    let subtitle = FormatManager::new()
+        .load_subtitle(&subtitle_file)
+        .unwrap();
     
     // 5. Execute synchronization
     let sync_result = sync_engine.sync_subtitle(&audio_file, &subtitle).await.unwrap();

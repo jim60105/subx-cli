@@ -131,36 +131,22 @@ impl SyncEngine {
 
         let start = Instant::now();
         for entry in &mut subtitle.entries {
-            entry.start_time = entry
-                .start_time
-                .checked_add(Duration::from_secs_f32(offset_seconds.abs()))
-                .or_else(|| {
-                    if offset_seconds < 0.0 {
-                        entry
-                            .start_time
-                            .checked_sub(Duration::from_secs_f32(-offset_seconds))
-                    } else {
-                        None
-                    }
-                })
-                .ok_or_else(|| {
+            let offset_dur = Duration::from_secs_f32(offset_seconds.abs());
+            if offset_seconds >= 0.0 {
+                entry.start_time = entry.start_time.checked_add(offset_dur).ok_or_else(|| {
                     SubXError::audio_processing("Invalid offset results in negative time")
                 })?;
-            entry.end_time = entry
-                .end_time
-                .checked_add(Duration::from_secs_f32(offset_seconds.abs()))
-                .or_else(|| {
-                    if offset_seconds < 0.0 {
-                        entry
-                            .end_time
-                            .checked_sub(Duration::from_secs_f32(-offset_seconds))
-                    } else {
-                        None
-                    }
-                })
-                .ok_or_else(|| {
+                entry.end_time = entry.end_time.checked_add(offset_dur).ok_or_else(|| {
                     SubXError::audio_processing("Invalid offset results in negative time")
                 })?;
+            } else {
+                entry.start_time = entry.start_time.checked_sub(offset_dur).ok_or_else(|| {
+                    SubXError::audio_processing("Invalid offset results in negative time")
+                })?;
+                entry.end_time = entry.end_time.checked_sub(offset_dur).ok_or_else(|| {
+                    SubXError::audio_processing("Invalid offset results in negative time")
+                })?;
+            }
         }
         Ok(SyncResult {
             offset_seconds,
@@ -308,6 +294,22 @@ mod tests {
         assert_eq!(result.confidence, 1.0);
 
         let expected_start = original_start + Duration::from_secs_f32(2.5);
+        assert_eq!(subtitle.entries[0].start_time, expected_start);
+    }
+
+    #[tokio::test]
+    async fn test_manual_offset_negative_application() {
+        let config = TestConfigBuilder::new().build_config();
+        let config_service = TestConfigService::new(config);
+        let engine = SyncEngine::new(config_service.get_config().unwrap().sync).unwrap();
+
+        let mut subtitle = create_test_subtitle();
+        let original_start = subtitle.entries[0].start_time;
+
+        let result = engine.apply_manual_offset(&mut subtitle, -2.5).unwrap();
+        assert_eq!(result.offset_seconds, -2.5);
+
+        let expected_start = original_start - Duration::from_secs_f32(2.5);
         assert_eq!(subtitle.entries[0].start_time, expected_start);
     }
 
