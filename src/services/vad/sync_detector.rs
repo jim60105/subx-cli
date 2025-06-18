@@ -89,15 +89,12 @@ impl VadSyncDetector {
         );
 
         // 3. Analyze results: compare first speech segment with first subtitle timing
-        debug!(
-            "[VadSyncDetector] Analyzing VAD result and subtitle alignment..."
-        );
+        debug!("[VadSyncDetector] Analyzing VAD result and subtitle alignment...");
         let analysis_result = self.analyze_vad_result(&vad_result, first_entry)?;
 
         debug!(
             "[VadSyncDetector] Sync offset detection finished | offset_seconds: {:.3}, confidence: {:.3}",
-            analysis_result.offset_seconds,
-            analysis_result.confidence
+            analysis_result.offset_seconds, analysis_result.confidence
         );
         Ok(analysis_result)
     }
@@ -123,9 +120,21 @@ impl VadSyncDetector {
         debug!(
             "[VadSyncDetector] Speech segments count: {} | First segment: start = {:.3}, duration = {:.3}, probability = {:.2}",
             vad_result.speech_segments.len(),
-            vad_result.speech_segments.first().map(|s| s.start_time).unwrap_or(-1.0),
-            vad_result.speech_segments.first().map(|s| s.duration).unwrap_or(-1.0),
-            vad_result.speech_segments.first().map(|s| s.probability).unwrap_or(-1.0)
+            vad_result
+                .speech_segments
+                .first()
+                .map(|s| s.start_time)
+                .unwrap_or(-1.0),
+            vad_result
+                .speech_segments
+                .first()
+                .map(|s| s.duration)
+                .unwrap_or(-1.0),
+            vad_result
+                .speech_segments
+                .first()
+                .map(|s| s.probability)
+                .unwrap_or(-1.0)
         );
 
         // Calculate offset: actual speech start time - expected subtitle start time

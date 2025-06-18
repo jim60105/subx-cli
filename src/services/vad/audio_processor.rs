@@ -1,20 +1,14 @@
+use crate::Result;
 use crate::services::vad::audio_loader::DirectAudioLoader;
 use crate::services::vad::detector::AudioInfo;
-use crate::{Result, error::SubXError};
-use hound::{SampleFormat, WavReader};
-use rubato::{Resampler, SincFixedIn, SincInterpolationParameters, SincInterpolationType};
-use std::fs::File;
-use std::io::BufReader;
 use std::path::Path;
 
 /// Audio processor for VAD operations.
 ///
 /// Handles loading, resampling, and format conversion of audio files
 /// for voice activity detection processing.
-pub struct VadAudioProcessor {
-    target_sample_rate: u32,
-    target_channels: u16,
-}
+/// Audio processor for VAD operations, optimized to use original sample rate and first channel only.
+pub struct VadAudioProcessor {}
 
 /// Processed audio data ready for VAD analysis.
 ///
@@ -39,11 +33,9 @@ impl VadAudioProcessor {
     /// # Returns
     ///
     /// A new `VadAudioProcessor` instance
-    pub fn new(target_sample_rate: u32, target_channels: u16) -> Result<Self> {
-        Ok(Self {
-            target_sample_rate,
-            target_channels,
-        })
+    /// Create a new VAD audio processor.
+    pub fn new() -> Result<Self> {
+        Ok(Self {})
     }
 
     /// Load and prepare audio file for VAD processing.
@@ -69,146 +61,39 @@ impl VadAudioProcessor {
     /// - Format conversion fails
     ///
     /// Directly loads and prepares audio files for VAD processing, supporting multiple formats.
+    /// Load and prepare audio file for VAD processing.
+    ///
+    /// Uses original sample rate and first channel only.
     pub async fn load_and_prepare_audio_direct(
         &self,
         audio_path: &Path,
     ) -> Result<ProcessedAudioData> {
-        // 1. Use DirectAudioLoader to load samples and audio information
+        // 1. Load with DirectAudioLoader
         let loader = DirectAudioLoader::new()?;
         let (samples, info) = loader.load_audio_samples(audio_path)?;
-        let audio_data = ProcessedAudioData { samples, info };
 
-        // 2. Resample if needed
-        let resampled = if audio_data.info.sample_rate != self.target_sample_rate {
-            self.resample_audio(&audio_data)?
+        // 2. Extract first channel if multi-channel, retain original sample rate
+        let mono_samples = if info.channels == 1 {
+            samples
         } else {
-            audio_data
+            self.extract_first_channel(&samples, info.channels as usize)
         };
-
-        // 3. Convert to mono if needed
-        let mono = if resampled.info.channels > 1 {
-            self.convert_to_mono(&resampled)?
-        } else {
-            resampled
+        let mono_info = AudioInfo {
+            sample_rate: info.sample_rate,
+            channels: 1,
+            duration_seconds: mono_samples.len() as f64 / info.sample_rate as f64,
+            total_samples: mono_samples.len(),
         };
-
-        Ok(mono)
-    }
-
-    fn resample_audio(&self, audio_data: &ProcessedAudioData) -> Result<ProcessedAudioData> {
-        if audio_data.info.sample_rate == self.target_sample_rate {
-            // Cloning via struct initializer to own data
-            return Ok(ProcessedAudioData {
-                samples: audio_data.samples.clone(),
-                info: audio_data.info.clone(),
-            });
-        }
-
-        // Configure resampling parameters
-        let params = SincInterpolationParameters {
-            sinc_len: 256,
-            f_cutoff: 0.95,
-            interpolation: SincInterpolationType::Linear,
-            oversampling_factor: 128,
-            window: rubato::WindowFunction::BlackmanHarris2,
-        };
-
-        // Create resampler
-        let mut resampler = SincFixedIn::<f64>::new(
-            self.target_sample_rate as f64 / audio_data.info.sample_rate as f64,
-            2.0, // max_resample_ratio_relative
-            params,
-            audio_data.samples.len() / audio_data.info.channels as usize,
-            audio_data.info.channels as usize,
-        )
-        .map_err(|e| SubXError::audio_processing(format!("Failed to create resampler: {}", e)))?;
-
-        // Convert sample format to f64
-        let input_channels = if audio_data.info.channels == 1 {
-            vec![
-                audio_data
-                    .samples
-                    .iter()
-                    .map(|&s| s as f64 / 32768.0)
-                    .collect(),
-            ]
-        } else {
-            // Process multi-channel audio
-            let mut channels = vec![Vec::new(); audio_data.info.channels as usize];
-            for (i, &sample) in audio_data.samples.iter().enumerate() {
-                channels[i % audio_data.info.channels as usize].push(sample as f64 / 32768.0);
-            }
-            channels
-        };
-
-        // Perform resampling
-        let output_channels = resampler
-            .process(&input_channels, None)
-            .map_err(|e| SubXError::audio_processing(format!("Resampling failed: {}", e)))?;
-
-        // Convert back to i16 format
-        let mut resampled_samples = Vec::new();
-        if audio_data.info.channels == 1 {
-            resampled_samples = output_channels[0]
-                .iter()
-                .map(|&s| (s * 32767.0) as i16)
-                .collect();
-        } else {
-            // Interleave multi-channel samples
-            let max_len = output_channels.iter().map(|ch| ch.len()).max().unwrap_or(0);
-            for i in 0..max_len {
-                for ch in &output_channels {
-                    if i < ch.len() {
-                        resampled_samples.push((ch[i] * 32767.0) as i16);
-                    }
-                }
-            }
-        }
-
-        let samples_len = resampled_samples.len();
-        let duration_seconds =
-            samples_len as f64 / (self.target_sample_rate as f64 * audio_data.info.channels as f64);
-
-        Ok(ProcessedAudioData {
-            samples: resampled_samples,
-            info: AudioInfo {
-                sample_rate: self.target_sample_rate,
-                channels: audio_data.info.channels,
-                duration_seconds,
-                total_samples: samples_len,
-            },
-        })
-    }
-
-    fn convert_to_mono(&self, audio_data: &ProcessedAudioData) -> Result<ProcessedAudioData> {
-        if audio_data.info.channels == 1 {
-            return Ok(ProcessedAudioData {
-                samples: audio_data.samples.clone(),
-                info: audio_data.info.clone(),
-            });
-        }
-
-        let channels = audio_data.info.channels as usize;
-        let mut mono_samples = Vec::new();
-
-        // Convert to mono (average all channels)
-        for chunk in audio_data.samples.chunks_exact(channels) {
-            let sum: i32 = chunk.iter().map(|&s| s as i32).sum();
-            let average = (sum / channels as i32) as i16;
-            mono_samples.push(average);
-        }
-
-        let samples_len = mono_samples.len();
-        let duration_seconds = samples_len as f64 / audio_data.info.sample_rate as f64;
-
         Ok(ProcessedAudioData {
             samples: mono_samples,
-            info: AudioInfo {
-                sample_rate: audio_data.info.sample_rate,
-                channels: 1,
-                duration_seconds,
-                total_samples: samples_len,
-            },
+            info: mono_info,
         })
+    }
+
+    // Removed resampling and multi-channel averaging methods
+
+    /// Extract the first channel samples from interleaved multi-channel data.
+    fn extract_first_channel(&self, samples: &[i16], channels: usize) -> Vec<i16> {
+        samples.iter().step_by(channels).copied().collect()
     }
 }

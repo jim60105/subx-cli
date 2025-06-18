@@ -253,37 +253,19 @@ pub struct AudioProcessor {
 }
 ```
 
-**VAD 處理流程**（已重構）:
-1. **直接檔案處理**: 不再限制於時間窗口，直接分析完整音訊檔案
-2. **語音檢測**: 使用 voice_activity_detector crate 檢測整個檔案的語音活動
-3. **時間對應**: 比較檢測到的第一個語音段與第一句字幕的開始時間
-4. **偏移計算**: 直接計算時間差異，無需音訊片段提取
-5. **隱私保護**: 所有處理都在本地進行，無需網路連接
+#### VAD 處理流程 (最佳化版本)
 
-##### 手動偏移
-- **用戶指定**: 直接提供時間偏移量
-- **精確控制**: 適用於已知偏移量的情況
-- **快速處理**: 無需分析，直接應用偏移
-
-**引擎配置系統**:
-
-```rust
-// 簡化的配置結構
-pub struct SyncConfig {
-    pub max_offset_seconds: f32,
-    pub vad: VadConfig,
-}
-
-pub struct VadConfig {
-    pub enabled: bool,
-    pub sensitivity: f32,
-    pub chunk_size: usize,
-    pub sample_rate: u32,
-    pub padding_chunks: u32,
-    pub min_speech_duration_ms: u32,
-    pub speech_merge_gap_ms: u32,
-}
+```text
+音頻檔案 → DirectAudioLoader → 第一聲道提取 → VAD 分析
+                                   ↓
+                           保持原始採樣率，動態計算 chunk_size
 ```
+
+**最佳化特點**:
+- 無重採樣處理，保持原始音質
+- 只使用第一聲道，減少計算開銷
+- 動態 chunk_size 計算，適應不同採樣率
+- 簡化配置，減少用戶設定複雜度
 
 #### 3.5 Parallel Processing (`src/core/parallel/`)
 

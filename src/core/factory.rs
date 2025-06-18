@@ -139,7 +139,7 @@ impl ComponentFactory {
     ///
     /// Returns an error if audio processor initialization fails.
     pub fn create_audio_processor(&self) -> Result<VadAudioProcessor> {
-        VadAudioProcessor::new(self.config.sync.vad.sample_rate, 1)
+        VadAudioProcessor::new()
     }
 }
 

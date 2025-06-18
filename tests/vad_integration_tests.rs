@@ -68,6 +68,10 @@ async fn test_vad_audio_format_compatibility() {
             sample_rate,
             channels
         );
+        let vad_result = result.unwrap();
+        // 驗證保持原始採樣率並簡化為單聲道
+        assert_eq!(vad_result.audio_info.sample_rate, sample_rate);
+        assert_eq!(vad_result.audio_info.channels, 1);
     }
 }
 

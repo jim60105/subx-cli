@@ -24,7 +24,11 @@ async fn test_sync_first_sentence_with_assets() {
         .load_subtitle(subtitle_path)
         .expect("Failed to load subtitle file");
 
-    println!("[TEST] Starting VAD sync detection: audio = {:?}, subtitle entries = {}", audio_path, subtitle.entries.len());
+    println!(
+        "[TEST] Starting VAD sync detection: audio = {:?}, subtitle entries = {}",
+        audio_path,
+        subtitle.entries.len()
+    );
     // Detect synchronization offset
     let result = sync_engine
         .detect_sync_offset(audio_path, &subtitle, Some(SyncMethod::Auto))

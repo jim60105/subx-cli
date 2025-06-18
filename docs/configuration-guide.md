@@ -88,8 +88,6 @@ max_offset_seconds = 60.0            # Maximum allowed time offset in seconds (f
 [sync.vad]
 enabled = true                       # Enable local VAD method (bool)
 sensitivity = 0.75                   # Speech detection sensitivity (0.0-1.0) (f32)
-chunk_size = 512                     # Audio chunk size in samples (usize)
-sample_rate = 16000                  # Processing sample rate in Hz (u32)
 padding_chunks = 3                   # Padding chunks before and after speech detection (u32)
 min_speech_duration_ms = 100         # Minimum speech duration in milliseconds (u32)
 speech_merge_gap_ms = 200            # Speech segment merge gap in milliseconds (u32)
@@ -110,13 +108,10 @@ The sync engine uses optimized local VAD processing for reliable speech detectio
 [sync.vad]
 # For quiet speech or background noise
 sensitivity = 0.8              # Higher sensitivity for difficult audio
-chunk_size = 1024             # Larger chunks for better accuracy
-sample_rate = 22050           # Higher sample rate for quality
 padding_chunks = 5            # More padding for complex transitions
 
 # For clear speech with minimal noise
 sensitivity = 0.6             # Lower sensitivity to avoid false positives
-chunk_size = 256              # Smaller chunks for faster processing
 min_speech_duration_ms = 50   # Shorter minimum for rapid speech
 speech_merge_gap_ms = 300     # Larger gaps for natural pauses
 ```

@@ -372,13 +372,6 @@ impl ProductionConfigService {
                 let v = value.parse().unwrap(); // Validation already done
                 config.sync.vad.sensitivity = v;
             }
-            ["sync", "vad", "chunk_size"] => {
-                let v = value.parse().unwrap(); // Validation already done
-                config.sync.vad.chunk_size = v;
-            }
-            ["sync", "vad", "sample_rate"] => {
-                config.sync.vad.sample_rate = value.parse().unwrap();
-            }
             ["sync", "vad", "padding_chunks"] => {
                 let v = value.parse().unwrap(); // Validation already done
                 config.sync.vad.padding_chunks = v;
@@ -569,8 +562,6 @@ impl ConfigService for ProductionConfigService {
             ["sync", "max_offset_seconds"] => Ok(config.sync.max_offset_seconds.to_string()),
             ["sync", "vad", "enabled"] => Ok(config.sync.vad.enabled.to_string()),
             ["sync", "vad", "sensitivity"] => Ok(config.sync.vad.sensitivity.to_string()),
-            ["sync", "vad", "chunk_size"] => Ok(config.sync.vad.chunk_size.to_string()),
-            ["sync", "vad", "sample_rate"] => Ok(config.sync.vad.sample_rate.to_string()),
             ["sync", "vad", "padding_chunks"] => Ok(config.sync.vad.padding_chunks.to_string()),
             ["sync", "vad", "min_speech_duration_ms"] => {
                 Ok(config.sync.vad.min_speech_duration_ms.to_string())

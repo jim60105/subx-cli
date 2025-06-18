@@ -258,24 +258,28 @@ impl VadConfig {
     /// - `chunk_size` is not a power of 2 or outside valid range
     /// - `sample_rate` is not one of the supported rates
     pub fn validate(&self) -> Result<()> {
-        // Validate sensitivity
-        validate_range(self.sensitivity, 0.0, 1.0)
-            .map_err(|_| SubXError::config("sync.vad.sensitivity must be between 0.0 and 1.0"))?;
-
-        // Validate chunk_size (must be power of 2 and reasonable size)
-        validate_range(self.chunk_size, 256, 2048)
-            .map_err(|_| SubXError::config("sync.vad.chunk_size must be between 256 and 2048"))?;
-        validate_power_of_two(self.chunk_size)
-            .map_err(|_| SubXError::config("sync.vad.chunk_size must be a power of 2"))?;
-
-        // Validate sample_rate
-        let valid_rates = &[8000, 16000, 22050, 32000, 44100, 48000];
-        if !valid_rates.contains(&self.sample_rate) {
+        // Validate sensitivity range
+        if !(0.0..=1.0).contains(&self.sensitivity) {
             return Err(SubXError::config(
-                "sync.vad.sample_rate must be one of: 8000, 16000, 22050, 32000, 44100, 48000",
+                "VAD sensitivity must be between 0.0 and 1.0",
             ));
         }
-
+        // Validate padding_chunks
+        if self.padding_chunks > 10 {
+            return Err(SubXError::config("VAD padding_chunks must not exceed 10"));
+        }
+        // Validate minimum speech duration
+        if self.min_speech_duration_ms > 5000 {
+            return Err(SubXError::config(
+                "VAD min_speech_duration_ms must not exceed 5000ms",
+            ));
+        }
+        // Validate speech merge gap
+        if self.speech_merge_gap_ms > 2000 {
+            return Err(SubXError::config(
+                "VAD speech_merge_gap_ms must not exceed 2000ms",
+            ));
+        }
         Ok(())
     }
 }

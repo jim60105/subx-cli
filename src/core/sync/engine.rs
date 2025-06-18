@@ -42,7 +42,7 @@ impl SyncEngine {
                         config.vad
                     );
                     Some(det)
-                },
+                }
                 Err(e) => {
                     warn!("[SyncEngine] VAD initialization failed: {}", e);
                     None
@@ -262,8 +262,7 @@ impl SyncEngine {
         } else {
             debug!(
                 "[SyncEngine] VAD sync offset detected | offset_seconds: {:.3}, confidence: {:.3}",
-                result.offset_seconds,
-                result.confidence
+                result.offset_seconds, result.confidence
             );
         }
 

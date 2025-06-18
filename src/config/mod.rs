@@ -275,10 +275,6 @@ pub struct VadConfig {
     pub enabled: bool,
     /// Speech detection sensitivity (0.0-1.0)
     pub sensitivity: f32,
-    /// Audio chunk size in samples
-    pub chunk_size: usize,
-    /// Processing sample rate in Hz
-    pub sample_rate: u32,
     /// Padding chunks before and after speech detection
     pub padding_chunks: u32,
     /// Minimum speech duration in milliseconds
@@ -310,8 +306,6 @@ impl Default for VadConfig {
         Self {
             enabled: true,
             sensitivity: 0.75,
-            chunk_size: 512,
-            sample_rate: 16000,
             padding_chunks: 3,
             min_speech_duration_ms: 100,
             speech_merge_gap_ms: 200,

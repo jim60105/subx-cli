@@ -160,16 +160,6 @@ impl TestConfigBuilder {
         self
     }
 
-    /// Set VAD sample rate.
-    ///
-    /// # Arguments
-    ///
-    /// * `sample_rate` - Audio sample rate in Hz
-    pub fn with_vad_sample_rate(mut self, sample_rate: u32) -> Self {
-        self.config.sync.vad.sample_rate = sample_rate;
-        self
-    }
-
     // Formats Configuration Methods
 
     /// Set the default output format.

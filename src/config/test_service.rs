@@ -182,8 +182,6 @@ impl ConfigService for TestConfigService {
             ["sync", "default_method"] => Ok(config.sync.default_method.clone()),
             ["sync", "vad", "enabled"] => Ok(config.sync.vad.enabled.to_string()),
             ["sync", "vad", "sensitivity"] => Ok(config.sync.vad.sensitivity.to_string()),
-            ["sync", "vad", "chunk_size"] => Ok(config.sync.vad.chunk_size.to_string()),
-            ["sync", "vad", "sample_rate"] => Ok(config.sync.vad.sample_rate.to_string()),
             ["sync", "vad", "padding_chunks"] => Ok(config.sync.vad.padding_chunks.to_string()),
             ["sync", "vad", "min_speech_duration_ms"] => {
                 Ok(config.sync.vad.min_speech_duration_ms.to_string())
@@ -324,14 +322,6 @@ impl TestConfigService {
             ["sync", "vad", "sensitivity"] => {
                 let v = validate_float_range(value, 0.0, 1.0)?;
                 config.sync.vad.sensitivity = v;
-            }
-            ["sync", "vad", "chunk_size"] => {
-                let v = validate_usize_range(value, 1, usize::MAX)?;
-                config.sync.vad.chunk_size = v;
-            }
-            ["sync", "vad", "sample_rate"] => {
-                validate_enum(value, &["8000", "16000", "22050", "44100", "48000"])?;
-                config.sync.vad.sample_rate = value.parse().unwrap();
             }
             ["sync", "vad", "padding_chunks"] => {
                 let v = validate_uint_range(value, 0, u32::MAX)?;

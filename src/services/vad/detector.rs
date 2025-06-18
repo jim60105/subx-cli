@@ -30,11 +30,9 @@ impl LocalVadDetector {
     ///
     /// Returns an error if the audio processor cannot be initialized
     pub fn new(config: VadConfig) -> Result<Self> {
-        // Clone config to avoid moving while initializing audio_processor
-        let cfg_clone = config.clone();
         Ok(Self {
             config,
-            audio_processor: VadAudioProcessor::new(cfg_clone.sample_rate, 1)?,
+            audio_processor: VadAudioProcessor::new()?,
         })
     }
 
@@ -66,15 +64,17 @@ impl LocalVadDetector {
             .load_and_prepare_audio_direct(audio_path)
             .await?;
 
-        // 2. Create VAD instance
+        // 2. Calculate chunk size and create VAD with actual sample rate
+        let chunk_size = self.calculate_chunk_size(audio_data.info.sample_rate);
         let vad = VoiceActivityDetector::builder()
-            .sample_rate(self.config.sample_rate)
-            .chunk_size(self.config.chunk_size)
+            .sample_rate(audio_data.info.sample_rate)
+            .chunk_size(chunk_size)
             .build()
             .map_err(|e| SubXError::audio_processing(format!("Failed to create VAD: {}", e)))?;
 
         // 3. Execute speech detection
-        let speech_segments = self.detect_speech_segments(vad, &audio_data.samples)?;
+        let speech_segments =
+            self.detect_speech_segments(vad, &audio_data.samples, audio_data.info.sample_rate)?;
 
         let processing_duration = start_time.elapsed();
 
@@ -89,9 +89,11 @@ impl LocalVadDetector {
         &self,
         vad: VoiceActivityDetector,
         samples: &[i16],
+        sample_rate: u32,
     ) -> Result<Vec<SpeechSegment>> {
         let mut segments = Vec::new();
-        let chunk_duration_seconds = self.config.chunk_size as f64 / self.config.sample_rate as f64;
+        let chunk_size = self.calculate_chunk_size(sample_rate);
+        let chunk_duration_seconds = chunk_size as f64 / sample_rate as f64;
 
         // Use label functionality to identify speech and non-speech segments
         // Invert sensitivity to threshold: higher sensitivity (closer to 1.0) yields lower threshold
@@ -178,6 +180,13 @@ impl LocalVadDetector {
 
         merged.push(current);
         merged
+    }
+
+    /// Calculate VAD chunk size dynamically based on sample rate.
+    /// Uses max(sample_rate/16, 1024).
+    fn calculate_chunk_size(&self, sample_rate: u32) -> usize {
+        let size = sample_rate as usize / 16;
+        size.max(1024)
     }
 }
 

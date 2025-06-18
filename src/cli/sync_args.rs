@@ -100,15 +100,6 @@ pub struct SyncArgs {
     )]
     pub vad_sensitivity: Option<f32>,
 
-    /// VAD chunk size.
-    #[arg(
-        long,
-        value_name = "SIZE",
-        help = "VAD audio chunk size (number of samples)",
-        value_parser = validate_chunk_size
-    )]
-    pub vad_chunk_size: Option<usize>,
-
     // === Output Options ===
     /// Output file path.
     #[arg(
@@ -179,8 +170,8 @@ Need help? Run: subx sync --help"
                 .to_string());
         }
 
-        // Check VAD parameters are only used with VAD method
-        if self.vad_sensitivity.is_some() || self.vad_chunk_size.is_some() {
+        // Check VAD sensitivity option only used with VAD method
+        if self.vad_sensitivity.is_some() {
             match &self.method {
                 Some(SyncMethodArg::Vad) => {}
                 _ => return Err("VAD options can only be used with --method vad.".to_string()),
@@ -307,19 +298,6 @@ pub enum SyncMode {
 }
 
 // Helper functions
-fn validate_chunk_size(s: &str) -> Result<usize, String> {
-    let size: usize = s.parse().map_err(|_| "Invalid chunk size")?;
-
-    if !(256..=2048).contains(&size) {
-        return Err("Chunk size must be between 256 and 2048".to_string());
-    }
-
-    if !size.is_power_of_two() {
-        return Err("Chunk size must be a power of 2".to_string());
-    }
-
-    Ok(size)
-}
 
 fn create_default_output_path(input: &Path) -> PathBuf {
     let mut output = input.to_path_buf();
@@ -431,22 +409,6 @@ mod tests {
             crate::core::sync::SyncMethod::from(SyncMethodArg::Manual),
             crate::core::sync::SyncMethod::Manual
         );
-    }
-
-    #[test]
-    fn test_validate_chunk_size() {
-        assert!(validate_chunk_size("512").is_ok());
-        assert!(validate_chunk_size("1024").is_ok());
-        assert!(validate_chunk_size("256").is_ok());
-
-        // Too small
-        assert!(validate_chunk_size("128").is_err());
-        // Too large
-        assert!(validate_chunk_size("4096").is_err());
-        // Not a power of 2
-        assert!(validate_chunk_size("500").is_err());
-        // Invalid number
-        assert!(validate_chunk_size("abc").is_err());
     }
 
     #[test]

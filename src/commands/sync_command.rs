@@ -242,7 +242,6 @@ mod tests {
             method: Some(crate::cli::SyncMethodArg::Manual),
             window: 30,
             vad_sensitivity: None,
-            vad_chunk_size: None,
             output: None,
             verbose: false,
             dry_run: true, // Use dry run to avoid file creation
@@ -303,9 +302,6 @@ fn apply_cli_overrides(config: &mut crate::config::SyncConfig, args: &SyncArgs) 
     // Apply VAD-specific overrides
     if let Some(sensitivity) = args.vad_sensitivity {
         config.vad.sensitivity = sensitivity;
-    }
-    if let Some(chunk_size) = args.vad_chunk_size {
-        config.vad.chunk_size = chunk_size;
     }
 
     Ok(())

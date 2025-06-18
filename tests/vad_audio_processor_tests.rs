@@ -10,12 +10,12 @@ async fn test_load_and_prepare_real_audio_file() -> Result<()> {
         .join("assets")
         .join("SubX - The Subtitle Revolution.mp4");
 
-    let vad_config = VadConfig::default();
-    let processor = VadAudioProcessor::new(vad_config.sample_rate, 1)?;
+    let processor = VadAudioProcessor::new()?;
 
     let processed_audio = processor.load_and_prepare_audio_direct(&audio_path).await?;
 
-    assert_eq!(processed_audio.info.sample_rate, vad_config.sample_rate);
+    // 保持原始採樣率
+    assert_eq!(processed_audio.info.sample_rate, 48000);
     assert_eq!(processed_audio.info.channels, 1);
     assert!(!processed_audio.samples.is_empty());
 
@@ -41,8 +41,7 @@ async fn test_load_and_prepare_real_audio_file() -> Result<()> {
 
 #[tokio::test]
 async fn test_load_audio_file_not_found() -> Result<()> {
-    let vad_config = VadConfig::default();
-    let processor = VadAudioProcessor::new(vad_config.sample_rate, 1)?;
+    let processor = VadAudioProcessor::new()?;
     let path = Path::new("non_existent_file.wav");
     let result = processor.load_and_prepare_audio_direct(path).await;
     assert!(result.is_err());
@@ -63,8 +62,7 @@ async fn test_f32_to_i16_conversion_with_dummy_file() -> Result<()> {
     writer.write_sample(0.5f32).unwrap();
     writer.finalize().unwrap();
 
-    let vad_config = VadConfig::default();
-    let processor = VadAudioProcessor::new(vad_config.sample_rate, 1)?;
+    let processor = VadAudioProcessor::new()?;
     let processed_audio = processor.load_and_prepare_audio_direct(&audio_path).await?;
 
     assert_eq!(processed_audio.info.sample_rate, 16000);

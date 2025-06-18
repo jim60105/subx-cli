@@ -27,8 +27,6 @@ fn test_config_get_set_consistency() {
                 "sync.max_offset_seconds",
                 "sync.vad.enabled",
                 "sync.vad.sensitivity",
-                "sync.vad.chunk_size",
-                "sync.vad.sample_rate",
                 "sync.vad.padding_chunks",
                 "sync.vad.min_speech_duration_ms",
                 "sync.vad.speech_merge_gap_ms",
@@ -86,26 +84,6 @@ fn test_vad_config_cli_support() {
             );
 
             config_service
-                .set_config_value("sync.vad.chunk_size", "1024")
-                .unwrap();
-            assert_eq!(
-                config_service
-                    .get_config_value("sync.vad.chunk_size")
-                    .unwrap(),
-                "1024"
-            );
-
-            config_service
-                .set_config_value("sync.vad.sample_rate", "22050")
-                .unwrap();
-            assert_eq!(
-                config_service
-                    .get_config_value("sync.vad.sample_rate")
-                    .unwrap(),
-                "22050"
-            );
-
-            config_service
                 .set_config_value("sync.vad.padding_chunks", "5")
                 .unwrap();
             assert_eq!(
@@ -147,16 +125,6 @@ fn test_vad_config_validation() {
             assert!(
                 config_service
                     .set_config_value("sync.vad.sensitivity", "1.5")
-                    .is_err()
-            );
-            assert!(
-                config_service
-                    .set_config_value("sync.vad.chunk_size", "100")
-                    .is_err()
-            );
-            assert!(
-                config_service
-                    .set_config_value("sync.vad.sample_rate", "12000")
                     .is_err()
             );
         }
