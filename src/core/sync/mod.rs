@@ -31,7 +31,3 @@ pub mod engine;
 
 // Re-export main types
 pub use engine::{MethodSelectionStrategy, SyncEngine, SyncMethod, SyncResult};
-
-// Backward compatibility exports (marked as deprecated)
-#[allow(deprecated)]
-pub use engine::OldSyncConfig;

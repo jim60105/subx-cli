@@ -3,6 +3,7 @@ use crate::config::VadConfig;
 use crate::core::formats::{Subtitle, SubtitleEntry};
 use crate::core::sync::{SyncMethod, SyncResult};
 use crate::{Result, error::SubXError};
+use log::debug;
 use serde_json::json;
 use std::path::Path;
 
@@ -62,15 +63,42 @@ impl VadSyncDetector {
         subtitle: &Subtitle,
         _analysis_window_seconds: u32, // Ignore this parameter, process entire file
     ) -> Result<SyncResult> {
+        debug!(
+            "[VadSyncDetector] Starting sync offset detection | audio_path: {:?}, subtitle entries: {}",
+            audio_path,
+            subtitle.entries.len()
+        );
         // 1. Get expected start time of first subtitle
         let first_entry = self.get_first_subtitle_entry(subtitle)?;
+        debug!(
+            "[VadSyncDetector] First subtitle entry: start_time = {:.3}, end_time = {:.3}",
+            first_entry.start_time.as_secs_f64(),
+            first_entry.end_time.as_secs_f64()
+        );
 
         // 2. Perform VAD analysis on entire audio file
+        debug!(
+            "[VadSyncDetector] Performing VAD analysis on audio file: {:?}",
+            audio_path
+        );
         let vad_result = self.vad_detector.detect_speech(audio_path).await?;
+        debug!(
+            "[VadSyncDetector] VAD analysis complete | speech_segments: {}, processing_time_ms: {}",
+            vad_result.speech_segments.len(),
+            vad_result.processing_duration.as_millis()
+        );
 
         // 3. Analyze results: compare first speech segment with first subtitle timing
+        debug!(
+            "[VadSyncDetector] Analyzing VAD result and subtitle alignment..."
+        );
         let analysis_result = self.analyze_vad_result(&vad_result, first_entry)?;
 
+        debug!(
+            "[VadSyncDetector] Sync offset detection finished | offset_seconds: {:.3}, confidence: {:.3}",
+            analysis_result.offset_seconds,
+            analysis_result.confidence
+        );
         Ok(analysis_result)
     }
 
@@ -88,13 +116,36 @@ impl VadSyncDetector {
     ) -> Result<SyncResult> {
         // Detect first significant speech segment
         let first_speech_time = self.find_first_significant_speech(vad_result)?;
+        debug!(
+            "[VadSyncDetector] Detected first significant speech segment: first_speech_time = {:.3} (seconds)",
+            first_speech_time
+        );
+        debug!(
+            "[VadSyncDetector] Speech segments count: {} | First segment: start = {:.3}, duration = {:.3}, probability = {:.2}",
+            vad_result.speech_segments.len(),
+            vad_result.speech_segments.first().map(|s| s.start_time).unwrap_or(-1.0),
+            vad_result.speech_segments.first().map(|s| s.duration).unwrap_or(-1.0),
+            vad_result.speech_segments.first().map(|s| s.probability).unwrap_or(-1.0)
+        );
 
         // Calculate offset: actual speech start time - expected subtitle start time
         let expected_start = first_entry.start_time.as_secs_f64();
+        debug!(
+            "[VadSyncDetector] Expected subtitle start time: expected_start = {:.3} (seconds)",
+            expected_start
+        );
         let offset_seconds = first_speech_time - expected_start;
+        debug!(
+            "[VadSyncDetector] Calculated offset_seconds = {:.3} (speech - subtitle)",
+            offset_seconds
+        );
 
         // Calculate confidence
         let confidence = self.calculate_confidence(vad_result);
+        debug!(
+            "[VadSyncDetector] Calculated confidence score: {:.3}",
+            confidence
+        );
 
         Ok(SyncResult {
             offset_seconds: offset_seconds as f32,

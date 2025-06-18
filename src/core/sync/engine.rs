@@ -3,6 +3,7 @@
 //! This module provides unified subtitle synchronization functionality using
 //! local VAD (Voice Activity Detection) for voice detection and sync offset calculation.
 
+use log::{debug, warn};
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 use std::path::Path;
@@ -35,22 +36,31 @@ impl SyncEngine {
     pub fn new(config: SyncConfig) -> Result<Self> {
         let vad_detector = if config.vad.enabled {
             match VadSyncDetector::new(config.vad.clone()) {
-                Ok(det) => Some(det),
+                Ok(det) => {
+                    debug!(
+                        "[SyncEngine] VAD detector initialized successfully with config: {:?}",
+                        config.vad
+                    );
+                    Some(det)
+                },
                 Err(e) => {
-                    log::warn!("VAD initialization failed: {}", e);
+                    warn!("[SyncEngine] VAD initialization failed: {}", e);
                     None
                 }
             }
         } else {
+            debug!("[SyncEngine] VAD is disabled in config");
             None
         };
 
         if vad_detector.is_none() {
+            warn!("[SyncEngine] VAD detector is required but not available");
             return Err(SubXError::config(
                 "VAD detector is required but not available",
             ));
         }
 
+        debug!("[SyncEngine] SyncEngine created with VAD detector");
         Ok(Self {
             config,
             vad_detector,
@@ -74,17 +84,31 @@ impl SyncEngine {
         subtitle: &Subtitle,
         method: Option<SyncMethod>,
     ) -> Result<SyncResult> {
+        debug!(
+            "[SyncEngine] detect_sync_offset called | audio_path: {:?}, subtitle entries: {}, method: {:?}",
+            audio_path,
+            subtitle.entries.len(),
+            method
+        );
         let start = Instant::now();
         let m = method.unwrap_or_else(|| self.determine_default_method());
+        debug!("[SyncEngine] Using sync method: {:?}", m);
         let mut res = match m {
             SyncMethod::Auto | SyncMethod::LocalVad => {
                 self.vad_detect_sync_offset(audio_path, subtitle).await?
             }
             SyncMethod::Manual => {
+                debug!("[SyncEngine] Manual method selected but not supported in this context");
                 return Err(SubXError::config("Manual method requires explicit offset"));
             }
         };
         res.processing_duration = start.elapsed();
+        debug!(
+            "[SyncEngine] detect_sync_offset finished | offset_seconds: {:.3}, confidence: {:.3}, duration_ms: {}",
+            res.offset_seconds,
+            res.confidence,
+            res.processing_duration.as_millis()
+        );
         Ok(res)
     }
 
@@ -93,6 +117,11 @@ impl SyncEngine {
         audio_path: &Path,
         subtitle: &Subtitle,
     ) -> Result<SyncResult> {
+        debug!(
+            "[SyncEngine] auto_detect_sync_offset called | audio_path: {:?}, subtitle entries: {}",
+            audio_path,
+            subtitle.entries.len()
+        );
         // Auto mode uses VAD
         if self.vad_detector.is_some() {
             return self.vad_detect_sync_offset(audio_path, subtitle).await;
@@ -121,8 +150,17 @@ impl SyncEngine {
         subtitle: &mut Subtitle,
         offset_seconds: f32,
     ) -> Result<SyncResult> {
+        debug!(
+            "[SyncEngine] apply_manual_offset called | offset_seconds: {:.3}, entries: {}",
+            offset_seconds,
+            subtitle.entries.len()
+        );
         // Validate offset against max_offset_seconds configuration
         if offset_seconds.abs() > self.config.max_offset_seconds {
+            warn!(
+                "[SyncEngine] Offset {:.2}s exceeds maximum allowed value {:.2}s. Aborting.",
+                offset_seconds, self.config.max_offset_seconds
+            );
             return Err(SubXError::config(format!(
                 "Offset {:.2}s exceeds maximum allowed value {:.2}s. Please check the sync.max_offset_seconds configuration or use a smaller offset.",
                 offset_seconds, self.config.max_offset_seconds
@@ -148,6 +186,10 @@ impl SyncEngine {
                 })?;
             }
         }
+        debug!(
+            "[SyncEngine] Manual offset applied to all entries | offset_seconds: {:.3}",
+            offset_seconds
+        );
         Ok(SyncResult {
             offset_seconds,
             confidence: 1.0,
@@ -163,6 +205,10 @@ impl SyncEngine {
     }
 
     fn determine_default_method(&self) -> SyncMethod {
+        debug!(
+            "[SyncEngine] determine_default_method called | config.default_method: {}",
+            self.config.default_method
+        );
         match self.config.default_method.as_str() {
             "vad" => SyncMethod::LocalVad,
             _ => SyncMethod::Auto,
@@ -174,6 +220,11 @@ impl SyncEngine {
         audio_path: &Path,
         subtitle: &Subtitle,
     ) -> Result<SyncResult> {
+        debug!(
+            "[SyncEngine] vad_detect_sync_offset called | audio_path: {:?}, subtitle entries: {}",
+            audio_path,
+            subtitle.entries.len()
+        );
         let det = self
             .vad_detector
             .as_ref()
@@ -183,6 +234,11 @@ impl SyncEngine {
 
         // Validate detected offset against max_offset_seconds configuration
         if result.offset_seconds.abs() > self.config.max_offset_seconds {
+            warn!(
+                "[SyncEngine] Detected offset {:.2}s exceeds configured maximum value {:.2}s. Clamping and warning.",
+                result.offset_seconds, self.config.max_offset_seconds
+            );
+
             // Provide warning but don't completely fail, allow user to decide
             result.warnings.push(format!(
                 "Detected offset {:.2}s exceeds configured maximum value {:.2}s. Consider checking audio quality or adjusting sync.max_offset_seconds configuration.",
@@ -203,6 +259,12 @@ impl SyncEngine {
                 "clamped_offset": result.offset_seconds,
                 "reason": "Exceeded max_offset_seconds configuration"
             }));
+        } else {
+            debug!(
+                "[SyncEngine] VAD sync offset detected | offset_seconds: {:.3}, confidence: {:.3}",
+                result.offset_seconds,
+                result.confidence
+            );
         }
 
         Ok(result)
@@ -350,17 +412,4 @@ mod tests {
             format: SubtitleFormatType::Srt,
         }
     }
-}
-
-/// Backward compatibility - Deprecated legacy SyncConfig structure.
-#[deprecated(note = "Use new SyncConfig with Whisper and VAD support")]
-pub struct OldSyncConfig {
-    /// Maximum search offset in seconds for synchronization.
-    pub max_offset_seconds: f32,
-    /// Minimum correlation threshold for accepting sync results.
-    pub correlation_threshold: f32,
-    /// Dialogue detection threshold for identifying speech segments.
-    pub dialogue_threshold: f32,
-    /// Minimum dialogue segment length in seconds.
-    pub min_dialogue_length: f32,
 }
