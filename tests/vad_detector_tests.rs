@@ -83,7 +83,7 @@ async fn test_sync_vad_detector_with_real_audio() {
     );
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "multi_thread")]
 async fn test_vad_detector_config_sensitivity() {
     let audio_path = get_test_audio_path();
     let processor = VadAudioProcessor::new().unwrap();
@@ -94,25 +94,30 @@ async fn test_vad_detector_config_sensitivity() {
     let audio_data_high = audio_data.clone();
     let audio_data_low = audio_data;
 
-    // High sensitivity
+    // Create detectors
     let mut high_sensitivity_config = VadConfig::default();
     high_sensitivity_config.sensitivity = 0.9;
     let high_sensitivity_detector = LocalVadDetector::new(high_sensitivity_config).unwrap();
-    let high_sensitivity_result = high_sensitivity_detector
-        .detect_speech_from_data(audio_data_high)
-        .await
-        .unwrap();
-
-    // Low sensitivity
+    
     let mut low_sensitivity_config = VadConfig::default();
     low_sensitivity_config.sensitivity = 0.1;
     let low_sensitivity_detector = LocalVadDetector::new(low_sensitivity_config).unwrap();
-    let low_sensitivity_result = low_sensitivity_detector
-        .detect_speech_from_data(audio_data_low)
-        .await
-        .unwrap();
 
-    // Expect fewer or equal segments with lower sensitivity (允許誤差 1 個)
+    // Spawn tasks on different threads
+    let high_task = tokio::spawn(async move {
+        high_sensitivity_detector.detect_speech_from_data(audio_data_high).await
+    });
+    
+    let low_task = tokio::spawn(async move {
+        low_sensitivity_detector.detect_speech_from_data(audio_data_low).await
+    });
+
+    // Wait for both tasks to complete
+    let (high_sensitivity_result, low_sensitivity_result) = tokio::try_join!(high_task, low_task).unwrap();
+    let high_sensitivity_result = high_sensitivity_result.unwrap();
+    let low_sensitivity_result = low_sensitivity_result.unwrap();
+
+    // Expect fewer or equal segments with lower sensitivity (allowing a difference of 1)
     let high_count = high_sensitivity_result.speech_segments.len();
     let low_count = low_sensitivity_result.speech_segments.len();
     assert!(
