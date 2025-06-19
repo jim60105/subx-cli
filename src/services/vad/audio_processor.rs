@@ -70,7 +70,26 @@ impl VadAudioProcessor {
     ) -> Result<ProcessedAudioData> {
         // 1. Load with DirectAudioLoader
         let loader = DirectAudioLoader::new()?;
-        let (samples, info) = loader.load_audio_samples(audio_path)?;
+        let (samples, info) = match loader.load_audio_samples(audio_path) {
+            Ok((samples, info)) => (samples, info),
+            Err(e) => {
+                // If the file is empty, return empty samples
+                if let Ok(metadata) = std::fs::metadata(audio_path) {
+                    if metadata.len() == 0 {
+                        return Ok(ProcessedAudioData {
+                            samples: vec![],
+                            info: AudioInfo {
+                                sample_rate: 16000, // Default value
+                                channels: 1,
+                                duration_seconds: 0.0,
+                                total_samples: 0,
+                            },
+                        });
+                    }
+                }
+                return Err(e);
+            }
+        };
 
         // 2. Extract first channel if multi-channel, retain original sample rate
         let mono_samples = if info.channels == 1 {

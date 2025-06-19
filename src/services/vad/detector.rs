@@ -54,6 +54,12 @@ impl LocalVadDetector {
             "Starting speech detection for ProcessedAudioData: sample_rate={}, duration={}",
             audio_data.info.sample_rate, audio_data.info.duration_seconds
         );
+        // New: return error directly if audio data is empty
+        if audio_data.samples.is_empty() {
+            return Err(SubXError::audio_processing(
+                "Audio data is empty".to_string(),
+            ));
+        }
         let start_time = Instant::now();
 
         // 1.5. Resample if needed (always to 16000 if not 8000/16000)
