@@ -380,10 +380,6 @@ impl ProductionConfigService {
                 let v = value.parse().unwrap(); // Validation already done
                 config.sync.vad.min_speech_duration_ms = v;
             }
-            ["sync", "vad", "speech_merge_gap_ms"] => {
-                let v = value.parse().unwrap(); // Validation already done
-                config.sync.vad.speech_merge_gap_ms = v;
-            }
             ["general", "backup_enabled"] => {
                 let v = parse_bool(value)?;
                 config.general.backup_enabled = v;
@@ -565,9 +561,6 @@ impl ConfigService for ProductionConfigService {
             ["sync", "vad", "padding_chunks"] => Ok(config.sync.vad.padding_chunks.to_string()),
             ["sync", "vad", "min_speech_duration_ms"] => {
                 Ok(config.sync.vad.min_speech_duration_ms.to_string())
-            }
-            ["sync", "vad", "speech_merge_gap_ms"] => {
-                Ok(config.sync.vad.speech_merge_gap_ms.to_string())
             }
 
             ["general", "backup_enabled"] => Ok(config.general.backup_enabled.to_string()),

@@ -14,7 +14,6 @@ enabled = true
 sensitivity = 0.5
 padding_chunks = 1
 min_speech_duration_ms = 50
-speech_merge_gap_ms = 100
 "#;
     let sync: SyncConfig = toml::from_str(&toml_str).expect("Failed to parse sync TOML");
     assert_eq!(sync.default_method, "vad");
@@ -22,5 +21,4 @@ speech_merge_gap_ms = 100
     assert!(sync.vad.enabled);
     assert_eq!(sync.vad.padding_chunks, 1);
     assert_eq!(sync.vad.min_speech_duration_ms, 50);
-    assert_eq!(sync.vad.speech_merge_gap_ms, 100);
 }

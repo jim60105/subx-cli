@@ -186,9 +186,6 @@ impl ConfigService for TestConfigService {
             ["sync", "vad", "min_speech_duration_ms"] => {
                 Ok(config.sync.vad.min_speech_duration_ms.to_string())
             }
-            ["sync", "vad", "speech_merge_gap_ms"] => {
-                Ok(config.sync.vad.speech_merge_gap_ms.to_string())
-            }
             ["general", "backup_enabled"] => Ok(config.general.backup_enabled.to_string()),
             ["general", "task_timeout_seconds"] => {
                 Ok(config.general.task_timeout_seconds.to_string())
@@ -330,10 +327,6 @@ impl TestConfigService {
             ["sync", "vad", "min_speech_duration_ms"] => {
                 let v = validate_uint_range(value, 0, u32::MAX)?;
                 config.sync.vad.min_speech_duration_ms = v;
-            }
-            ["sync", "vad", "speech_merge_gap_ms"] => {
-                let v = validate_uint_range(value, 0, u32::MAX)?;
-                config.sync.vad.speech_merge_gap_ms = v;
             }
             ["sync", "correlation_threshold"] => {
                 let v = validate_float_range(value, 0.0, 1.0)?;

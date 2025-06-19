@@ -29,7 +29,6 @@ fn test_config_get_set_consistency() {
                 "sync.vad.sensitivity",
                 "sync.vad.padding_chunks",
                 "sync.vad.min_speech_duration_ms",
-                "sync.vad.speech_merge_gap_ms",
                 "general.backup_enabled",
                 "general.max_concurrent_jobs",
                 "general.task_timeout_seconds",
@@ -101,16 +100,6 @@ fn test_vad_config_cli_support() {
                     .get_config_value("sync.vad.min_speech_duration_ms")
                     .unwrap(),
                 "50"
-            );
-
-            config_service
-                .set_config_value("sync.vad.speech_merge_gap_ms", "300")
-                .unwrap();
-            assert_eq!(
-                config_service
-                    .get_config_value("sync.vad.speech_merge_gap_ms")
-                    .unwrap(),
-                "300"
             );
         }
     );

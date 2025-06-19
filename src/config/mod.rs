@@ -267,20 +267,41 @@ pub struct SyncConfig {
 
 /// Local Voice Activity Detection configuration.
 ///
-/// Defines parameters for local VAD processing, including sensitivity settings,
-/// audio processing parameters, and speech detection behavior.
+/// This struct defines parameters for local VAD processing, including sensitivity,
+/// audio chunking, and speech segment filtering. Adjust these fields to control
+/// how strictly speech is detected and how short segments are filtered out.
+///
+/// # Fields
+///
+/// - `enabled`: Whether local VAD is enabled
+/// - `sensitivity`: Speech detection sensitivity (0.0-1.0). Lower values are stricter and less likely to classify audio as speech.
+/// - `padding_chunks`: Number of non-speech chunks to include before and after detected speech
+/// - `min_speech_duration_ms`: Minimum duration (ms) for a segment to be considered valid speech
+///
+/// # Examples
+///
+/// ```rust
+/// use subx_cli::config::VadConfig;
+///
+/// let vad = VadConfig::default();
+/// assert!(vad.enabled);
+/// assert_eq!(vad.sensitivity, 0.25);
+/// ```
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct VadConfig {
-    /// Whether to enable local VAD method
+    /// Whether to enable local VAD method.
     pub enabled: bool,
-    /// Speech detection sensitivity (0.0-1.0)
+    /// Speech detection sensitivity (0.0-1.0).
+    ///
+    /// Lower values are stricter: a smaller value means the detector is less likely to classify a chunk as speech.
+    /// For example, 0.25 is more strict than 0.75.
     pub sensitivity: f32,
-    /// Padding chunks before and after speech detection
+    /// Number of non-speech chunks to pad before and after detected speech.
     pub padding_chunks: u32,
-    /// Minimum speech duration in milliseconds
+    /// Minimum speech duration in milliseconds.
+    ///
+    /// Segments shorter than this value will be discarded as noise or non-speech.
     pub min_speech_duration_ms: u32,
-    /// Speech segment merge gap in milliseconds
-    pub speech_merge_gap_ms: u32,
 }
 
 #[allow(deprecated)]
@@ -305,10 +326,9 @@ impl Default for VadConfig {
     fn default() -> Self {
         Self {
             enabled: true,
-            sensitivity: 0.75,
+            sensitivity: 0.25, // 預設改為 0.25，數值越小越嚴格
             padding_chunks: 3,
-            min_speech_duration_ms: 100,
-            speech_merge_gap_ms: 200,
+            min_speech_duration_ms: 300,
         }
     }
 }

@@ -118,7 +118,7 @@ impl VadSyncDetector {
             first_speech_time
         );
         debug!(
-            "[VadSyncDetector] Speech segments count: {} | First segment: start = {:.3}, duration = {:.3}, probability = {:.2}",
+            "[VadSyncDetector] Speech segments count: {} | First segment: start = {:.3}, duration = {:.3}",
             vad_result.speech_segments.len(),
             vad_result
                 .speech_segments
@@ -129,11 +129,6 @@ impl VadSyncDetector {
                 .speech_segments
                 .first()
                 .map(|s| s.duration)
-                .unwrap_or(-1.0),
-            vad_result
-                .speech_segments
-                .first()
-                .map(|s| s.probability)
                 .unwrap_or(-1.0)
         );
 
@@ -156,26 +151,27 @@ impl VadSyncDetector {
             confidence
         );
 
+        let additional_info = Some(json!({
+            "speech_segments_count": vad_result.speech_segments.len(),
+            "first_speech_start": first_speech_time,
+            "expected_subtitle_start": expected_start,
+            "processing_time_ms": vad_result.processing_duration.as_millis(),
+            "audio_duration": vad_result.audio_info.duration_seconds,
+            "detected_segments": vad_result.speech_segments.iter().map(|s| {
+                json!({
+                    "start": s.start_time,
+                    "end": s.end_time,
+                    "duration": s.duration
+                })
+            }).collect::<Vec<_>>(),
+        }));
+
         Ok(SyncResult {
             offset_seconds: offset_seconds as f32,
             confidence,
             method_used: SyncMethod::LocalVad,
             correlation_peak: 0.0,
-            additional_info: Some(json!({
-                "speech_segments_count": vad_result.speech_segments.len(),
-                "first_speech_start": first_speech_time,
-                "expected_subtitle_start": expected_start,
-                "processing_time_ms": vad_result.processing_duration.as_millis(),
-                "audio_duration": vad_result.audio_info.duration_seconds,
-                "detected_segments": vad_result.speech_segments.iter().map(|s| {
-                    json!({
-                        "start": s.start_time,
-                        "end": s.end_time,
-                        "duration": s.duration,
-                        "probability": s.probability
-                    })
-                }).collect::<Vec<_>>(),
-            })),
+            additional_info,
             processing_duration: vad_result.processing_duration,
             warnings: Vec::new(),
         })
@@ -184,8 +180,8 @@ impl VadSyncDetector {
     fn find_first_significant_speech(&self, vad_result: &VadResult) -> Result<f64> {
         // Find the first significant speech segment
         for segment in &vad_result.speech_segments {
-            // Check if segment is long enough and has high enough probability
-            if segment.duration >= 0.1 && segment.probability >= 0.5 {
+            // Check if segment is long enough
+            if segment.duration >= 0.1 {
                 return Ok(segment.start_time);
             }
         }
@@ -223,11 +219,6 @@ impl VadSyncDetector {
                 confidence += 0.1;
             }
             if first_segment.duration >= 1.0 {
-                confidence += 0.05;
-            }
-
-            // Higher probability increases confidence
-            if first_segment.probability >= 0.8 {
                 confidence += 0.05;
             }
         }

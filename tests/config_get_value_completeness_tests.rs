@@ -35,7 +35,6 @@ fn test_get_config_value_vad_configurations() -> Result<()> {
     config.sync.vad.sensitivity = 0.9;
     config.sync.vad.padding_chunks = 5;
     config.sync.vad.min_speech_duration_ms = 150;
-    config.sync.vad.speech_merge_gap_ms = 250;
 
     let service = TestConfigService::new(config);
 
@@ -46,10 +45,6 @@ fn test_get_config_value_vad_configurations() -> Result<()> {
     assert_eq!(
         service.get_config_value("sync.vad.min_speech_duration_ms")?,
         "150"
-    );
-    assert_eq!(
-        service.get_config_value("sync.vad.speech_merge_gap_ms")?,
-        "250"
     );
 
     Ok(())
@@ -120,7 +115,6 @@ fn test_get_set_config_value_consistency() -> Result<()> {
         ("sync.vad.sensitivity", "0.8"),
         ("sync.vad.padding_chunks", "4"),
         ("sync.vad.min_speech_duration_ms", "120"),
-        ("sync.vad.speech_merge_gap_ms", "180"),
         // general configuration (5 items)
         ("general.backup_enabled", "true"),
         ("general.max_concurrent_jobs", "8"),

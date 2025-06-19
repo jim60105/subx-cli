@@ -135,12 +135,9 @@ async fn test_vad_detector_empty_audio() {
 fn test_chunk_size_calculation() {
     let vad_config = VadConfig::default();
     let detector = LocalVadDetector::new(vad_config).unwrap();
-    // 16000/16 = 1000, 使用最小值 1024
-    assert_eq!(detector.calculate_chunk_size(16000), 1024);
-    // 48000/16 = 3000
-    assert_eq!(detector.calculate_chunk_size(48000), 3000);
-    // 8000/16 = 500, 使用最小值 1024
-    assert_eq!(detector.calculate_chunk_size(8000), 1024);
+    assert_eq!(detector.calculate_chunk_size(8000), 512);
+    assert_eq!(detector.calculate_chunk_size(16000), 512);
+    assert_eq!(detector.calculate_chunk_size(48000), 1536);
 }
 
 #[tokio::test]

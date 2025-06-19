@@ -1,6 +1,7 @@
 use super::audio_processor::VadAudioProcessor;
 use crate::config::VadConfig;
 use crate::{Result, error::SubXError};
+use log::{debug, trace, warn};
 use std::path::Path;
 use std::time::{Duration, Instant};
 use voice_activity_detector::{IteratorExt, LabeledAudio, VoiceActivityDetector};
@@ -30,6 +31,7 @@ impl LocalVadDetector {
     ///
     /// Returns an error if the audio processor cannot be initialized
     pub fn new(config: VadConfig) -> Result<Self> {
+        debug!("Initializing LocalVadDetector with config: {:?}", config);
         Ok(Self {
             config,
             audio_processor: VadAudioProcessor::new()?,
@@ -56,27 +58,49 @@ impl LocalVadDetector {
     /// - VAD processing fails
     /// - Audio format is unsupported
     pub async fn detect_speech(&self, audio_path: &Path) -> Result<VadResult> {
+        debug!("Starting speech detection for audio: {:?}", audio_path);
         let start_time = Instant::now();
 
         // 1. Load and preprocess audio
+        trace!("Loading and preprocessing audio file: {:?}", audio_path);
         let audio_data = self
             .audio_processor
             .load_and_prepare_audio_direct(audio_path)
             .await?;
+        debug!(
+            "Audio loaded: sample_rate={}Hz, channels={}, duration={}s, total_samples={}",
+            audio_data.info.sample_rate,
+            audio_data.info.channels,
+            audio_data.info.duration_seconds,
+            audio_data.info.total_samples
+        );
 
         // 2. Calculate chunk size and create VAD with actual sample rate
         let chunk_size = self.calculate_chunk_size(audio_data.info.sample_rate);
+        debug!(
+            "Calculated VAD chunk_size={} for sample_rate={}",
+            chunk_size, audio_data.info.sample_rate
+        );
         let vad = VoiceActivityDetector::builder()
             .sample_rate(audio_data.info.sample_rate)
             .chunk_size(chunk_size)
             .build()
-            .map_err(|e| SubXError::audio_processing(format!("Failed to create VAD: {}", e)))?;
+            .map_err(|e| {
+                warn!("Failed to create VAD instance: {}", e);
+                SubXError::audio_processing(format!("Failed to create VAD: {}", e))
+            })?;
 
         // 3. Execute speech detection
+        trace!("Running speech segment detection");
         let speech_segments =
             self.detect_speech_segments(vad, &audio_data.samples, audio_data.info.sample_rate)?;
 
         let processing_duration = start_time.elapsed();
+        debug!(
+            "Speech detection completed in {:?} seconds, segments found: {}",
+            processing_duration,
+            speech_segments.len()
+        );
 
         Ok(VadResult {
             speech_segments,
@@ -91,28 +115,40 @@ impl LocalVadDetector {
         samples: &[i16],
         sample_rate: u32,
     ) -> Result<Vec<SpeechSegment>> {
+        trace!(
+            "Detecting speech segments: samples={}, sample_rate={}",
+            samples.len(),
+            sample_rate
+        );
         let mut segments = Vec::new();
         let chunk_size = self.calculate_chunk_size(sample_rate);
         let chunk_duration_seconds = chunk_size as f64 / sample_rate as f64;
 
         // Use label functionality to identify speech and non-speech segments
-        // Invert sensitivity to threshold: higher sensitivity (closer to 1.0) yields lower threshold
         let vad_threshold = 1.0 - self.config.sensitivity;
+        debug!(
+            "VAD threshold set to {} (sensitivity={})",
+            vad_threshold, self.config.sensitivity
+        );
         let labels: Vec<LabeledAudio<i16>> = samples
             .iter()
             .copied()
             .label(vad, vad_threshold, self.config.padding_chunks as usize)
             .collect();
+        trace!("Labeling complete, total chunks: {}", labels.len());
 
         let mut current_speech_start: Option<f64> = None;
         let mut chunk_index = 0;
 
         for label in labels {
             let chunk_start_time = chunk_index as f64 * chunk_duration_seconds;
-
             match label {
                 LabeledAudio::Speech(_chunk) => {
                     if current_speech_start.is_none() {
+                        trace!(
+                            "Speech started at {:.3}s (chunk #{})",
+                            chunk_start_time, chunk_index
+                        );
                         current_speech_start = Some(chunk_start_time);
                     }
                 }
@@ -120,20 +156,30 @@ impl LocalVadDetector {
                     if let Some(start_time) = current_speech_start.take() {
                         let end_time = chunk_start_time;
                         let duration = end_time - start_time;
-
+                        trace!(
+                            "Speech ended at {:.3}s (duration {:.3}s)",
+                            end_time, duration
+                        );
                         // Filter out speech segments that are too short
                         if duration >= self.config.min_speech_duration_ms as f64 / 1000.0 {
+                            trace!(
+                                "Detected speech segment: start={:.3}s, end={:.3}s, duration={:.3}s",
+                                start_time, end_time, duration
+                            );
                             segments.push(SpeechSegment {
                                 start_time,
                                 end_time,
-                                probability: self.config.sensitivity, // Use configured sensitivity as probability
                                 duration,
                             });
+                        } else {
+                            trace!(
+                                "Discarded short segment: start={:.3}s, end={:.3}s, duration={:.3}s",
+                                start_time, end_time, duration
+                            );
                         }
                     }
                 }
             }
-
             chunk_index += 1;
         }
 
@@ -141,52 +187,86 @@ impl LocalVadDetector {
         if let Some(start_time) = current_speech_start {
             let end_time = chunk_index as f64 * chunk_duration_seconds;
             let duration = end_time - start_time;
-
+            trace!(
+                "Final speech segment: start={:.3}s, end={:.3}s, duration={:.3}s",
+                start_time, end_time, duration
+            );
             if duration >= self.config.min_speech_duration_ms as f64 / 1000.0 {
+                trace!(
+                    "Detected speech segment: start={:.3}s, end={:.3}s, duration={:.3}s",
+                    start_time, end_time, duration
+                );
                 segments.push(SpeechSegment {
                     start_time,
                     end_time,
-                    probability: self.config.sensitivity,
                     duration,
                 });
-            }
-        }
-
-        // Merge close segments
-        Ok(self.merge_close_segments(segments))
-    }
-
-    fn merge_close_segments(&self, segments: Vec<SpeechSegment>) -> Vec<SpeechSegment> {
-        if segments.is_empty() {
-            return segments;
-        }
-
-        let mut merged = Vec::new();
-        let mut current = segments[0].clone();
-        let merge_threshold = self.config.speech_merge_gap_ms as f64 / 1000.0;
-
-        for segment in segments.into_iter().skip(1) {
-            if segment.start_time - current.end_time <= merge_threshold {
-                // Merge segments
-                current.end_time = segment.end_time;
-                current.duration = current.end_time - current.start_time;
-                current.probability = current.probability.max(segment.probability);
             } else {
-                // Store current segment, start new segment
-                merged.push(current);
-                current = segment;
+                trace!(
+                    "Discarded short final segment: start={:.3}s, end={:.3}s, duration={:.3}s",
+                    start_time, end_time, duration
+                );
             }
         }
 
-        merged.push(current);
-        merged
+        debug!("Speech segments detected: {}", segments.len());
+        Ok(segments)
     }
 
-    /// Calculate VAD chunk size dynamically based on sample rate.
-    /// Uses max(sample_rate/16, 1024).
+    /// Dynamically calculates the optimal VAD chunk size for a given audio sample rate.
+    ///
+    /// This function selects a chunk size (in samples) that is compatible with the VAD model's requirements
+    /// and recommended for common sample rates. For 8000 Hz and 16000 Hz, it uses 512 samples by default,
+    /// which is within the recommended range (512, 768, or 1024). For other sample rates, it uses a 30 ms
+    /// window as the baseline, with a minimum of 1024 samples. The function also ensures that the chunk size
+    /// always satisfies the model's constraint: `sample_rate <= 31.25 * chunk_size`.
+    ///
+    /// # Arguments
+    ///
+    /// - `sample_rate`: The audio sample rate in Hz (e.g., 16000 for 16kHz audio)
+    ///
+    /// # Returns
+    ///
+    /// The chunk size in number of samples, selected for optimal model compatibility.
+    ///
+    /// # Examples
+    ///
+    /// Basic usage:
+    ///
+    /// ```rust
+    /// use subx_cli::services::vad::LocalVadDetector;
+    /// let detector = LocalVadDetector::new(Default::default()).unwrap();
+    /// let chunk_size = detector.calculate_chunk_size(16000);
+    /// assert_eq!(chunk_size, 512);
+    /// ```
+    ///
+    /// # Model Constraint
+    ///
+    /// The returned chunk size always satisfies: `sample_rate <= 31.25 * chunk_size`.
     pub fn calculate_chunk_size(&self, sample_rate: u32) -> usize {
-        let size = sample_rate as usize / 16;
-        size.max(1024)
+        trace!("Calculating chunk size for sample_rate={}", sample_rate);
+        let mut chunk_size = match sample_rate {
+            8000 => 512,  // recommended: 512, 768, 1024
+            16000 => 512, // recommended: 512, 768, 1024
+            _ => {
+                let chunk_ms = 30f32;
+                let size = ((sample_rate as f32) * chunk_ms / 1000.0).round() as usize;
+                size.max(1024)
+            }
+        };
+        let min_chunk_size = ((sample_rate as f64) / 31.25).ceil() as usize;
+        if chunk_size < min_chunk_size {
+            warn!(
+                "Chunk size {} too small for sample_rate {}, adjusting to {}",
+                chunk_size, sample_rate, min_chunk_size
+            );
+            chunk_size = min_chunk_size;
+        }
+        debug!(
+            "Final chunk_size for sample_rate {}: {}",
+            sample_rate, chunk_size
+        );
+        chunk_size
     }
 }
 
@@ -214,8 +294,6 @@ pub struct SpeechSegment {
     pub start_time: f64,
     /// End time of the speech segment in seconds
     pub end_time: f64,
-    /// Confidence probability of speech detection (0.0-1.0)
-    pub probability: f32,
     /// Duration of the speech segment in seconds
     pub duration: f64,
 }

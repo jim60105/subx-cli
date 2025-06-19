@@ -272,12 +272,6 @@ impl VadConfig {
                 "VAD min_speech_duration_ms must not exceed 5000ms",
             ));
         }
-        // Validate speech merge gap
-        if self.speech_merge_gap_ms > 2000 {
-            return Err(SubXError::config(
-                "VAD speech_merge_gap_ms must not exceed 2000ms",
-            ));
-        }
         Ok(())
     }
 }

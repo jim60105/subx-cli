@@ -106,12 +106,6 @@ pub fn validate_field(key: &str, value: &str) -> Result<()> {
             })?;
             // Non-negative validation is implicit in u32 parsing
         }
-        "sync.vad.speech_merge_gap_ms" => {
-            let _gap: u32 = value.parse().map_err(|_| {
-                SubXError::config("Speech merge gap must be a non-negative integer")
-            })?;
-            // Non-negative validation is implicit in u32 parsing
-        }
 
         // Formats configuration fields
         "formats.default_output" => {
@@ -212,7 +206,6 @@ pub fn get_field_description(key: &str) -> &'static str {
         "sync.vad.sample_rate" => "Audio sample rate for VAD processing",
         "sync.vad.padding_chunks" => "Number of padding chunks for VAD",
         "sync.vad.min_speech_duration_ms" => "Minimum speech duration in milliseconds",
-        "sync.vad.speech_merge_gap_ms" => "Gap for merging speech segments in milliseconds",
 
         "formats.default_output" => "Default output format for subtitles",
         "formats.preserve_styling" => "Preserve subtitle styling information",
