@@ -35,7 +35,7 @@ fn test_sync_args_basic_parsing() {
         verbose: false,
         dry_run: false,
         force: false,
-        batch: false,
+        batch: None,
     };
 
     // Verify parameter parsing is correct
@@ -68,7 +68,7 @@ fn test_sync_args_vad_method() {
         verbose: true,
         dry_run: false,
         force: false,
-        batch: false,
+        batch: None,
     };
 
     // Verify VAD parameters
@@ -100,7 +100,7 @@ fn test_sync_args_manual_method() {
         verbose: false,
         dry_run: false,
         force: false,
-        batch: false,
+        batch: None,
     };
 
     // Verify manual offset parameters
@@ -134,11 +134,11 @@ fn test_sync_args_batch_mode() {
         verbose: false,
         dry_run: false,
         force: false,
-        batch: true,
+        batch: Some(None),
     };
 
     // Verify batch mode settings
-    assert!(args.batch);
+    assert!(args.batch.is_some());
     assert_eq!(args.method, Some(SyncMethodArg::Vad));
     assert_eq!(args.output, Some(output_dir));
 }

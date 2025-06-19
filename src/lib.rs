@@ -463,7 +463,7 @@ impl App {
             verbose: false,
             dry_run: false,
             force: false,
-            batch: false,
+            batch: None,
         };
         self.handle_command(cli::Commands::Sync(args)).await
     }
@@ -509,7 +509,7 @@ impl App {
             verbose: false,
             dry_run: false,
             force: false,
-            batch: false,
+            batch: None,
         };
         self.handle_command(cli::Commands::Sync(args)).await
     }

@@ -127,9 +127,16 @@ pub struct SyncArgs {
     #[arg(long, help = "Overwrite existing output file without confirmation")]
     pub force: bool,
 
-    /// Enable batch processing mode.
-    #[arg(short, long, help = "Enable batch processing mode")]
-    pub batch: bool,
+    /// Enable batch processing mode. Can optionally specify a directory path.
+    #[arg(
+        short = 'b',
+        long = "batch",
+        value_name = "DIRECTORY",
+        help = "Enable batch processing mode. Can optionally specify a directory path.",
+        num_args = 0..=1,
+        require_equals = false
+    )]
+    pub batch: Option<Option<PathBuf>>,
     // === Legacy/Hidden Options (Deprecated) ===
 }
 
@@ -152,25 +159,66 @@ impl SyncArgs {
             }
         }
 
-        // Check auto mode requires video or positional path
-        if self.offset.is_none() && self.video.is_none() && self.positional_paths.is_empty() {
-            return Err("Auto sync mode requires video file or positional path.\n\n\
+        // In batch mode, check if we have some input source
+        if self.batch.is_some() {
+            let has_input_paths = !self.input_paths.is_empty();
+            let has_positional = !self.positional_paths.is_empty();
+            let has_video_or_subtitle = self.video.is_some() || self.subtitle.is_some();
+            let has_batch_directory = matches!(&self.batch, Some(Some(_)));
+
+            // Batch mode needs at least one input source
+            if has_input_paths || has_positional || has_video_or_subtitle || has_batch_directory {
+                return Ok(());
+            }
+
+            return Err("Batch mode requires at least one input source.\n\n\
 Usage:\n\
-• Auto sync: subx sync <video> <subtitle> or subx sync <video_path>\n\
-• Manual sync: subx sync --offset <seconds> <subtitle>\n\n\
+• Batch with directory: subx sync -b <directory>\n\
+• Batch with input paths: subx sync -b -i <path>\n\
+• Batch with positional: subx sync -b <path>\n\n\
 Need help? Run: subx sync --help"
                 .to_string());
         }
 
-        // Check VAD sensitivity option only used with VAD method
-        if self.vad_sensitivity.is_some() {
-            match &self.method {
-                Some(SyncMethodArg::Vad) => {}
-                _ => return Err("VAD options can only be used with --method vad.".to_string()),
+        // For single file mode, check if we have enough information
+        let has_video = self.video.is_some();
+        let has_subtitle = self.subtitle.is_some();
+        let has_positional = !self.positional_paths.is_empty();
+        let is_manual = self.offset.is_some();
+
+        // Manual mode only requires subtitle (can be provided via positional args)
+        if is_manual {
+            if has_subtitle || has_positional {
+                return Ok(());
             }
+            return Err("Manual sync mode requires subtitle file.\n\n\
+Usage:\n\
+• Manual sync: subx sync --offset <seconds> <subtitle>\n\
+• Manual sync: subx sync --offset <seconds> -s <subtitle>\n\n\
+Need help? Run: subx sync --help"
+                .to_string());
         }
 
-        Ok(())
+        // Auto mode: needs video, or positional args
+        if has_video || has_positional {
+            // Check VAD sensitivity option only used with VAD method
+            if self.vad_sensitivity.is_some() {
+                match &self.method {
+                    Some(SyncMethodArg::Vad) => {}
+                    _ => return Err("VAD options can only be used with --method vad.".to_string()),
+                }
+            }
+            return Ok(());
+        }
+
+        Err("Auto sync mode requires video file or positional path.\n\n\
+Usage:\n\
+• Auto sync: subx sync <video> <subtitle> or subx sync <video_path>\n\
+• Auto sync: subx sync -v <video> -s <subtitle>\n\
+• Manual sync: subx sync --offset <seconds> <subtitle>\n\
+• Batch mode: subx sync -b [directory]\n\n\
+Need help? Run: subx sync --help"
+            .to_string())
     }
 
     /// Get output file path.
@@ -249,16 +297,28 @@ Need help? Run: subx sync --help"
     /// Get sync mode: single file or batch
     pub fn get_sync_mode(&self) -> Result<SyncMode, SubXError> {
         // Batch mode: process directories or multiple inputs when -b specified
-        if self.batch {
-            let paths = if !self.input_paths.is_empty() {
-                self.input_paths.clone()
-            } else if !self.positional_paths.is_empty() {
-                self.positional_paths.clone()
-            } else if let Some(video) = &self.video {
-                vec![video.clone()]
-            } else {
-                return Err(SubXError::NoInputSpecified);
-            };
+        if self.batch.is_some() {
+            let mut paths = Vec::new();
+
+            // Check if batch has a directory argument
+            if let Some(Some(batch_dir)) = &self.batch {
+                paths.push(batch_dir.clone());
+            }
+
+            // Add other input paths
+            if !self.input_paths.is_empty() {
+                paths.extend(self.input_paths.clone());
+            }
+
+            // Add positional paths if no other paths specified
+            if paths.is_empty() && !self.positional_paths.is_empty() {
+                paths.extend(self.positional_paths.clone());
+            }
+
+            // If still no paths, use current directory
+            if paths.is_empty() {
+                paths.push(PathBuf::from("."));
+            }
 
             let handler = InputPathHandler::from_args(&paths, self.recursive)?
                 .with_extensions(&["mp4", "mkv", "avi", "mov", "srt", "ass", "vtt", "sub"]);
@@ -305,6 +365,15 @@ Need help? Run: subx sync --help"
                         }
                     }
                     _ => {}
+                }
+                // For manual mode, we don't need video file if we have subtitle
+                if self.is_manual_mode() {
+                    if let Some(subtitle_path) = subtitle {
+                        return Ok(SyncMode::Single {
+                            video: PathBuf::new(), // Empty video path for manual mode
+                            subtitle: subtitle_path,
+                        });
+                    }
                 }
                 if let (Some(v), Some(s)) = (video, subtitle) {
                     return Ok(SyncMode::Single {
@@ -410,7 +479,7 @@ mod tests {
             verbose: false,
             dry_run: false,
             force: false,
-            batch: false,
+            batch: None,
         };
         assert_eq!(args.sync_method(), SyncMethod::Manual);
     }
@@ -433,20 +502,42 @@ mod tests {
             _ => panic!("Expected Sync command"),
         };
         assert_eq!(args.input_paths, vec![PathBuf::from("dir")]);
-        assert!(args.batch);
+        assert!(args.batch.is_some());
         assert!(args.recursive);
         assert_eq!(args.video, Some(PathBuf::from("video.mp4")));
     }
 
     #[test]
     fn test_sync_args_invalid_combinations() {
-        // batch mode without video/positional should be caught in validation
+        // batch mode with input paths should be valid now
         let cli = Cli::try_parse_from(["subx-cli", "sync", "--batch", "-i", "dir"]).unwrap();
         let args = match cli.command {
             Commands::Sync(a) => a,
             _ => panic!("Expected Sync command"),
         };
-        assert!(args.validate().is_err());
+
+        // This should now be valid
+        assert!(args.validate().is_ok());
+
+        // Test a truly invalid combination: batch mode with no input sources
+        let args_invalid = SyncArgs {
+            positional_paths: Vec::new(),
+            video: None,
+            subtitle: None,
+            input_paths: Vec::new(),
+            recursive: false,
+            offset: None,
+            method: None,
+            window: 30,
+            vad_sensitivity: None,
+            output: None,
+            verbose: false,
+            dry_run: false,
+            force: false,
+            batch: Some(None), // batch mode but no inputs
+        };
+
+        assert!(args_invalid.validate().is_err());
     }
 
     #[test]
@@ -465,7 +556,7 @@ mod tests {
             verbose: false,
             dry_run: false,
             force: false,
-            batch: false,
+            batch: None,
         };
         assert_eq!(args.sync_method(), SyncMethod::Auto);
     }

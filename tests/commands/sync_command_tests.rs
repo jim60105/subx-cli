@@ -21,7 +21,7 @@ async fn test_audio_sync_workflow_manual_offset() {
         vad_sensitivity: None,
         vad_chunk_size: None,
         output: None,
-        batch: false,
+        batch: None,
         range: None,
         threshold: None,
     };

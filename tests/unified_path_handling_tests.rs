@@ -106,7 +106,7 @@ fn test_sync_args_path_merging() {
         verbose: false,
         dry_run: false,
         force: false,
-        batch: false,
+        batch: None,
     };
 
     let handler = args.get_input_handler().unwrap();

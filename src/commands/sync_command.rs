@@ -223,7 +223,7 @@ pub async fn execute(args: SyncArgs, config_service: &dyn ConfigService) -> Resu
                     }) {
                         let mut single_args = args.clone();
                         single_args.input_paths.clear();
-                        single_args.batch = false;
+                        single_args.batch = None;
                         single_args.recursive = false;
                         single_args.video = Some(path.clone());
                         single_args.subtitle = Some(sub_path.clone());
@@ -289,7 +289,7 @@ mod tests {
             verbose: false,
             dry_run: true, // Use dry run to avoid file creation
             force: true,
-            batch: false, // Disable batch mode
+            batch: None, // Disable batch mode
         };
 
         execute(args, config_service.as_ref()).await?;

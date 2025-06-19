@@ -33,7 +33,7 @@ async fn test_manual_sync_without_video_file() {
         vad_sensitivity: None,
         vad_chunk_size: None,
         output: None,
-        batch: false,
+        batch: None,
         range: None,
         threshold: None,
     };
@@ -64,7 +64,7 @@ async fn test_auto_sync_requires_video_file() {
         vad_sensitivity: None,
         vad_chunk_size: None,
         output: None,
-        batch: false,
+        batch: None,
         range: None,
         threshold: None,
     };
@@ -94,7 +94,7 @@ async fn test_backward_compatibility() {
         vad_sensitivity: None,
         vad_chunk_size: None,
         output: None,
-        batch: false,
+        batch: None,
         range: None,
         threshold: None,
     };

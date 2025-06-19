@@ -38,7 +38,7 @@ fn test_sync_args_with_vad_method() {
         verbose: false,
         dry_run: false,
         force: false,
-        batch: false,
+        batch: None,
     };
 
     // Verify parameter parsing is correct
@@ -70,7 +70,7 @@ fn test_sync_args_with_vad_default_settings() {
         verbose: false,
         dry_run: false,
         force: false,
-        batch: false,
+        batch: None,
     };
 
     // Verify VAD parameters are set correctly
@@ -98,7 +98,7 @@ fn test_sync_args_with_manual_offset() {
         verbose: false,
         dry_run: false,
         force: false,
-        batch: false,
+        batch: None,
     };
 
     // Verify manual offset settings
@@ -130,11 +130,11 @@ fn test_sync_args_batch_mode() {
         verbose: false,
         dry_run: false,
         force: false,
-        batch: true,
+        batch: Some(None),
     };
 
     // Verify batch mode settings
-    assert!(args.batch);
+    assert!(args.batch.is_some());
     assert_eq!(args.method, Some(SyncMethodArg::Vad));
 }
 
@@ -159,7 +159,7 @@ fn test_sync_args_validation() {
         verbose: false,
         dry_run: false,
         force: false,
-        batch: false,
+        batch: None,
     };
 
     let validation_result = args.validate();

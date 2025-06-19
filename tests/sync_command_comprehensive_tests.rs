@@ -30,7 +30,7 @@ mod sync_command_tests {
             verbose: false,
             dry_run: false,
             force: false,
-            batch: false,
+            batch: None,
         }
     }
 
@@ -231,7 +231,7 @@ mod sync_command_tests {
 
         let mut args = create_default_sync_args();
         args.input_paths = vec![temp_path.to_path_buf()];
-        args.batch = true;
+        args.batch = Some(None);
         args.offset = Some(2.0);
 
         let result = execute(args, &config_service).await;
