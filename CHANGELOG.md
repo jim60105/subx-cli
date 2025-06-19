@@ -7,6 +7,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.1.0] - 2025-06-19
+### Added
+- Added: Enhanced logging for audio loading lifecycle, including debug, trace, and warning logs for file handling, probing, track selection, decoding, and error conditions.
+- Added: Nextest profile support for coverage runs and CI, allowing selection of test profiles and improved reporting.
+- Added: Optimized VAD (Voice Activity Detection) audio processing for improved performance and maintainability (Backlog #43).
+
+### Changed
+- Changed: Refactored VAD configuration by removing `speech_merge_gap_ms` and `probability` fields, simplifying segment logic and updating chunk size calculation for clarity and correctness.
+- Changed: Updated all affected tests, documentation, and config handling to reflect VAD config changes.
+- Changed: Enhanced sync engine with detailed debug logs, improved traceability, and robust error/warning reporting for VAD and offset detection.
+- Changed: CI workflow and scripts to support configurable test profiles and improved output clarity.
+
+### Removed
+- Removed: Unused WAV loader and converter, including the entire `load_wav_file` method and related sample-format conversion logic.
+- Removed: Deprecated `OldSyncConfig` type and its re-export in the sync module.
+- Removed: Redundant `target_channels` and related design from VadAudioProcessor.
+
+### Fixed
+- Fixed: Negative offset application in sync engine and added tests for first sentence sync (Bug #23).
+- Fixed: Test failures after VAD config restructure and improved test isolation.
+
+### Documentation
+- Documentation: Updated test instructions to capture nextest logs and clarified workaround for output limitations.
+- Documentation: Improved bug plans for sync command argument flexibility and clarified asset usage for first sentence alignment tests.
+- Documentation: Refined README.zh-TW to clarify direct audio decoding and VAD-based synchronization.
+- Documentation: Old config files with removed fields are still accepted; extra fields are safely ignored for backward compatibility.
+
 ## [1.0.0] - 2025-06-18
 ### Added
 - Added: Dedicated App struct as a programmatic API for library usage, enabling direct embedding and automation.
@@ -276,7 +303,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Initial release of SubX CLI tool
 - Rust-based intelligent subtitle processing
 
-[Unreleased]: https://github.com/SubX-Project/SubX/compare/v0.10.0...HEAD
+[Unreleased]: https://github.com/SubX-Project/SubX/compare/v1.1.0...HEAD
+[1.1.0]: https://github.com/SubX-Project/SubX/compare/v1.0.0...v1.1.0
+[1.0.0]: https://github.com/SubX-Project/SubX/compare/v0.10.0...v1.0.0
 [0.10.0]: https://github.com/SubX-Project/SubX/compare/v0.9.0...v0.10.0
 [0.9.0]: https://github.com/SubX-Project/SubX/compare/v0.8.0...v0.9.0
 [0.8.0]: https://github.com/SubX-Project/SubX/compare/v0.7.0...v0.8.0
