@@ -1,6 +1,6 @@
 [package]
 name = "subx-cli"
-version = "1.1.0"
+version = "1.2.0"
 edition = "2024"
 authors = ["CHEN, CHUN <jim60105@gmail.com>"]
 description = "AI subtitle processing CLI tool, which automatically matches, renames, and converts subtitle files."

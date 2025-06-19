@@ -7,6 +7,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.2.0] - 2025-06-19
+### Added
+- Added: Unified audio processing pipeline with FFT-based Rubato resampler and upgraded Silero VAD to V5 for improved accuracy and performance.
+- Added: Example for MP3 decoding and WAV resampling using Symphonia and Rubato.
+- Added: Increased test timeouts in nextest configuration for more robust CI runs.
+
+### Changed
+- Changed: Audio loader now records last packet timestamp, computes duration from time_base, and infers channels if missing.
+- Changed: VAD API refactored to accept preloaded and optionally resampled audio data, enforcing strict chunk sizes per Silero VAD V5 model.
+- Changed: ProcessedAudioData is now cloneable and preserves original duration in VadAudioProcessor.
+- Changed: Sync detector now loads and optionally crops audio before detection, using the new data-based VAD method.
+
+### Fixed
+- Fixed: Graceful handling of empty audio files—returns default ProcessedAudioData with empty samples and metadata instead of erroring.
+- Fixed: Accurate sample count handling for stereo audio in tests.
+
+### Documentation
+- Documentation: Translated and clarified in-code comments to English for config sensitivity, language code mappings, error conversion, audio loading, resampling, and VAD processing logic.
+
+### Test
+- Test: Sensitivity tests now use Tokio multi-threaded runtime for improved concurrency and reliability.
+
 ## [1.1.0] - 2025-06-19
 ### Added
 - Added: Enhanced logging for audio loading lifecycle, including debug, trace, and warning logs for file handling, probing, track selection, decoding, and error conditions.
@@ -303,17 +325,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Initial release of SubX CLI tool
 - Rust-based intelligent subtitle processing
 
-[Unreleased]: https://github.com/SubX-Project/SubX/compare/v1.1.0...HEAD
-[1.1.0]: https://github.com/SubX-Project/SubX/compare/v1.0.0...v1.1.0
-[1.0.0]: https://github.com/SubX-Project/SubX/compare/v0.10.0...v1.0.0
-[0.10.0]: https://github.com/SubX-Project/SubX/compare/v0.9.0...v0.10.0
-[0.9.0]: https://github.com/SubX-Project/SubX/compare/v0.8.0...v0.9.0
-[0.8.0]: https://github.com/SubX-Project/SubX/compare/v0.7.0...v0.8.0
-[0.7.0]: https://github.com/SubX-Project/SubX/compare/v0.6.0...v0.7.0
-[0.6.0]: https://github.com/SubX-Project/SubX/compare/v0.5.0...v0.6.0
-[0.5.0]: https://github.com/SubX-Project/SubX/compare/v0.4.1...v0.5.0
-[0.4.1]: https://github.com/SubX-Project/SubX/compare/v0.4.0...v0.4.1
-[0.4.0]: https://github.com/SubX-Project/SubX/compare/v0.3.0...v0.4.0
-[0.3.0]: https://github.com/SubX-Project/SubX/compare/v0.2.0...v0.3.0
-[0.2.0]: https://github.com/SubX-Project/SubX/compare/v0.1.0...v0.2.0
-[0.1.0]: https://github.com/SubX-Project/SubX/releases/tag/v0.1.0
+[Unreleased]: https://github.com/jim60105/subx-cli/compare/v1.2.0...HEAD  
+[1.2.0]: https://github.com/jim60105/subx-cli/compare/v1.1.0...v1.2.0  
+[1.1.0]: https://github.com/jim60105/subx-cli/compare/v1.0.0...v1.1.0  
+[1.0.0]: https://github.com/jim60105/subx-cli/releases/tag/v1.0.0

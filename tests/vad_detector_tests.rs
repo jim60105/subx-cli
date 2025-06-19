@@ -98,22 +98,27 @@ async fn test_vad_detector_config_sensitivity() {
     let mut high_sensitivity_config = VadConfig::default();
     high_sensitivity_config.sensitivity = 0.9;
     let high_sensitivity_detector = LocalVadDetector::new(high_sensitivity_config).unwrap();
-    
+
     let mut low_sensitivity_config = VadConfig::default();
     low_sensitivity_config.sensitivity = 0.1;
     let low_sensitivity_detector = LocalVadDetector::new(low_sensitivity_config).unwrap();
 
     // Spawn tasks on different threads
     let high_task = tokio::spawn(async move {
-        high_sensitivity_detector.detect_speech_from_data(audio_data_high).await
+        high_sensitivity_detector
+            .detect_speech_from_data(audio_data_high)
+            .await
     });
-    
+
     let low_task = tokio::spawn(async move {
-        low_sensitivity_detector.detect_speech_from_data(audio_data_low).await
+        low_sensitivity_detector
+            .detect_speech_from_data(audio_data_low)
+            .await
     });
 
     // Wait for both tasks to complete
-    let (high_sensitivity_result, low_sensitivity_result) = tokio::try_join!(high_task, low_task).unwrap();
+    let (high_sensitivity_result, low_sensitivity_result) =
+        tokio::try_join!(high_task, low_task).unwrap();
     let high_sensitivity_result = high_sensitivity_result.unwrap();
     let low_sensitivity_result = low_sensitivity_result.unwrap();
 
