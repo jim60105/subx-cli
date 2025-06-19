@@ -14,7 +14,7 @@ pub struct VadAudioProcessor {}
 ///
 /// Contains the audio samples and metadata after processing
 /// and format conversion.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct ProcessedAudioData {
     /// Audio samples as 16-bit integers
     pub samples: Vec<i16>,
@@ -81,7 +81,7 @@ impl VadAudioProcessor {
         let mono_info = AudioInfo {
             sample_rate: info.sample_rate,
             channels: 1,
-            duration_seconds: mono_samples.len() as f64 / info.sample_rate as f64,
+            duration_seconds: info.duration_seconds,
             total_samples: mono_samples.len(),
         };
         Ok(ProcessedAudioData {

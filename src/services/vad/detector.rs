@@ -2,7 +2,6 @@ use super::audio_processor::VadAudioProcessor;
 use crate::config::VadConfig;
 use crate::{Result, error::SubXError};
 use log::{debug, trace, warn};
-use std::path::Path;
 use std::time::{Duration, Instant};
 use voice_activity_detector::{IteratorExt, LabeledAudio, VoiceActivityDetector};
 
@@ -38,42 +37,44 @@ impl LocalVadDetector {
         })
     }
 
-    /// Detect speech activity in an audio file.
-    ///
-    /// Processes the entire audio file to identify speech segments
-    /// with timestamps and confidence scores.
+    /// Detect speech activity in a ProcessedAudioData (for partial audio analysis).
     ///
     /// # Arguments
     ///
-    /// * `audio_path` - Path to the audio file to analyze
+    /// * `audio_data` - Pre-processed audio data (can be cropped)
     ///
     /// # Returns
     ///
     /// VAD analysis results including speech segments and metadata
-    ///
-    /// # Errors
-    ///
-    /// Returns an error if:
-    /// - Audio file cannot be loaded
-    /// - VAD processing fails
-    /// - Audio format is unsupported
-    pub async fn detect_speech(&self, audio_path: &Path) -> Result<VadResult> {
-        debug!("Starting speech detection for audio: {:?}", audio_path);
+    pub async fn detect_speech_from_data(
+        &self,
+        mut audio_data: crate::services::vad::audio_processor::ProcessedAudioData,
+    ) -> Result<VadResult> {
+        debug!(
+            "Starting speech detection for ProcessedAudioData: sample_rate={}, duration={}",
+            audio_data.info.sample_rate, audio_data.info.duration_seconds
+        );
         let start_time = Instant::now();
 
-        // 1. Load and preprocess audio
-        trace!("Loading and preprocessing audio file: {:?}", audio_path);
-        let audio_data = self
-            .audio_processor
-            .load_and_prepare_audio_direct(audio_path)
-            .await?;
-        debug!(
-            "Audio loaded: sample_rate={}Hz, channels={}, duration={}s, total_samples={}",
-            audio_data.info.sample_rate,
-            audio_data.info.channels,
-            audio_data.info.duration_seconds,
-            audio_data.info.total_samples
-        );
+        // 1.5. Resample if needed (always to 16000 if not 8000/16000)
+        if audio_data.info.sample_rate != 8000 && audio_data.info.sample_rate != 16000 {
+            debug!(
+                "Resampling audio from {}Hz to 16000Hz...",
+                audio_data.info.sample_rate
+            );
+            use crate::services::vad::resample::resample_to_target_rate;
+            let resampled =
+                resample_to_target_rate(&audio_data.samples, audio_data.info.sample_rate, 16000)?;
+            let new_len = resampled.len();
+            audio_data.samples = resampled;
+            audio_data.info.sample_rate = 16000;
+            audio_data.info.duration_seconds = new_len as f64 / 16000.0;
+            audio_data.info.total_samples = new_len;
+            debug!(
+                "Resampling complete: new sample_rate=16000, total_samples={}, duration={:.3}s",
+                new_len, audio_data.info.duration_seconds
+            );
+        }
 
         // 2. Calculate chunk size and create VAD with actual sample rate
         let chunk_size = self.calculate_chunk_size(audio_data.info.sample_rate);
@@ -111,7 +112,7 @@ impl LocalVadDetector {
 
     fn detect_speech_segments(
         &self,
-        vad: VoiceActivityDetector,
+        mut vad: VoiceActivityDetector,
         samples: &[i16],
         sample_rate: u32,
     ) -> Result<Vec<SpeechSegment>> {
@@ -133,7 +134,7 @@ impl LocalVadDetector {
         let labels: Vec<LabeledAudio<i16>> = samples
             .iter()
             .copied()
-            .label(vad, vad_threshold, self.config.padding_chunks as usize)
+            .label(&mut vad, vad_threshold, self.config.padding_chunks as usize)
             .collect();
         trace!("Labeling complete, total chunks: {}", labels.len());
 
@@ -213,60 +214,56 @@ impl LocalVadDetector {
         Ok(segments)
     }
 
-    /// Dynamically calculates the optimal VAD chunk size for a given audio sample rate.
+    /// Dynamically calculates the optimal VAD chunk size for a given audio sample rate using the Silero VAD V5 model.
     ///
-    /// This function selects a chunk size (in samples) that is compatible with the VAD model's requirements
-    /// and recommended for common sample rates. For 8000 Hz and 16000 Hz, it uses 512 samples by default,
-    /// which is within the recommended range (512, 768, or 1024). For other sample rates, it uses a 30 ms
-    /// window as the baseline, with a minimum of 1024 samples. The function also ensures that the chunk size
-    /// always satisfies the model's constraint: `sample_rate <= 31.25 * chunk_size`.
+    /// This function selects a chunk size (in samples) compatible with the Silero VAD V5 model's strict requirements.
+    /// For 8 kHz audio, only a 256-sample window is supported. For 16 kHz audio, only a 512-sample window is supported.
+    /// For sample rates that are a multiple of 16 kHz (e.g., 32 kHz, 48 kHz), a 512-sample window is also used, as required by the model.
     ///
     /// # Arguments
     ///
-    /// - `sample_rate`: The audio sample rate in Hz (e.g., 16000 for 16kHz audio)
+    /// - `sample_rate`: The audio sample rate in Hz (e.g., 8000, 16000)
     ///
     /// # Returns
     ///
-    /// The chunk size in number of samples, selected for optimal model compatibility.
+    /// The chunk size in number of samples, as required by the Silero VAD V5 model.
+    ///
+    /// # Model Reference
+    ///
+    /// This logic follows the requirements of the [Silero VAD V5 model.](https://github.com/snakers4/silero-vad/releases/tag/v5.0)
+    ///
+    /// # Panics
+    ///
+    /// This function will panic if the sample rate is not supported by the model.
     ///
     /// # Examples
-    ///
-    /// Basic usage:
     ///
     /// ```rust
     /// use subx_cli::services::vad::LocalVadDetector;
     /// let detector = LocalVadDetector::new(Default::default()).unwrap();
-    /// let chunk_size = detector.calculate_chunk_size(16000);
-    /// assert_eq!(chunk_size, 512);
+    /// assert_eq!(detector.calculate_chunk_size(8000), 256);
+    /// assert_eq!(detector.calculate_chunk_size(16000), 512);
     /// ```
-    ///
-    /// # Model Constraint
-    ///
-    /// The returned chunk size always satisfies: `sample_rate <= 31.25 * chunk_size`.
     pub fn calculate_chunk_size(&self, sample_rate: u32) -> usize {
         trace!("Calculating chunk size for sample_rate={}", sample_rate);
-        let mut chunk_size = match sample_rate {
-            8000 => 512,  // recommended: 512, 768, 1024
-            16000 => 512, // recommended: 512, 768, 1024
-            _ => {
-                let chunk_ms = 30f32;
-                let size = ((sample_rate as f32) * chunk_ms / 1000.0).round() as usize;
-                size.max(1024)
-            }
+        let chunk_size = match sample_rate {
+            8000 => 256,
+            16000 => 512,
+            _ => panic!(
+                "Unsupported VAD sample_rate={}. Only 8kHz/256, 16kHz/512 are allowed.",
+                sample_rate
+            ),
         };
-        let min_chunk_size = ((sample_rate as f64) / 31.25).ceil() as usize;
-        if chunk_size < min_chunk_size {
-            warn!(
-                "Chunk size {} too small for sample_rate {}, adjusting to {}",
-                chunk_size, sample_rate, min_chunk_size
-            );
-            chunk_size = min_chunk_size;
-        }
         debug!(
             "Final chunk_size for sample_rate {}: {}",
             sample_rate, chunk_size
         );
         chunk_size
+    }
+
+    /// 取得內部 VadAudioProcessor 實例（for advanced use, e.g. partial audio cropping）
+    pub fn audio_processor(&self) -> &VadAudioProcessor {
+        &self.audio_processor
     }
 }
 

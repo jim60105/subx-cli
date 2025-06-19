@@ -23,7 +23,12 @@ async fn test_vad_detector_with_real_audio() {
     let audio_path = get_test_audio_path();
     let vad_config = VadConfig::default();
     let detector = LocalVadDetector::new(vad_config).unwrap();
-    let result = detector.detect_speech(&audio_path).await.unwrap();
+    let processor = VadAudioProcessor::new().unwrap();
+    let audio_data = processor
+        .load_and_prepare_audio_direct(&audio_path)
+        .await
+        .unwrap();
+    let result = detector.detect_speech_from_data(audio_data).await.unwrap();
 
     // Basic validation based on known characteristics of the audio file
     assert!(
@@ -47,16 +52,17 @@ async fn test_vad_detector_with_real_audio() {
 #[tokio::test]
 async fn test_sync_vad_detector_with_real_audio() {
     let audio_path = get_test_audio_path();
-    let vad_config = VadConfig::default();
+    let mut vad_config = VadConfig::default();
+    vad_config.sensitivity = 0.5;
     let detector = VadSyncDetector::new(vad_config).unwrap();
 
     let metadata = SubtitleMetadata::new(SubtitleFormatType::Srt);
     let mut subtitle = Subtitle::new(SubtitleFormatType::Srt, metadata);
     subtitle.entries.push(SubtitleEntry {
         index: 1,
-        start_time: Duration::from_secs_f64(5.0),
-        end_time: Duration::from_secs_f64(8.0),
-        text: "Hello world".to_string(),
+        start_time: Duration::from_secs_f64(9.797),
+        end_time: Duration::from_secs_f64(12.093),
+        text: "Files scattered everywhere".to_string(),
         styling: None,
     });
 
@@ -80,13 +86,20 @@ async fn test_sync_vad_detector_with_real_audio() {
 #[tokio::test]
 async fn test_vad_detector_config_sensitivity() {
     let audio_path = get_test_audio_path();
+    let processor = VadAudioProcessor::new().unwrap();
+    let audio_data = processor
+        .load_and_prepare_audio_direct(&audio_path)
+        .await
+        .unwrap();
+    let audio_data_high = audio_data.clone();
+    let audio_data_low = audio_data;
 
     // High sensitivity
     let mut high_sensitivity_config = VadConfig::default();
     high_sensitivity_config.sensitivity = 0.9;
     let high_sensitivity_detector = LocalVadDetector::new(high_sensitivity_config).unwrap();
     let high_sensitivity_result = high_sensitivity_detector
-        .detect_speech(&audio_path)
+        .detect_speech_from_data(audio_data_high)
         .await
         .unwrap();
 
@@ -95,16 +108,16 @@ async fn test_vad_detector_config_sensitivity() {
     low_sensitivity_config.sensitivity = 0.1;
     let low_sensitivity_detector = LocalVadDetector::new(low_sensitivity_config).unwrap();
     let low_sensitivity_result = low_sensitivity_detector
-        .detect_speech(&audio_path)
+        .detect_speech_from_data(audio_data_low)
         .await
         .unwrap();
 
-    // Expect more or equal segments with lower sensitivity (允許誤差 1 個)
+    // Expect fewer or equal segments with lower sensitivity (允許誤差 1 個)
     let high_count = high_sensitivity_result.speech_segments.len();
     let low_count = low_sensitivity_result.speech_segments.len();
     assert!(
-        low_count + 1 >= high_count,
-        "Lower sensitivity should detect more or equal segments (low: {}, high: {})",
+        low_count <= high_count + 1,
+        "Lower sensitivity should detect fewer or equal segments (low: {}, high: {})",
         low_count,
         high_count
     );
@@ -125,7 +138,16 @@ async fn test_vad_detector_empty_audio() {
 
     let vad_config = VadConfig::default();
     let detector = LocalVadDetector::new(vad_config).unwrap();
-    let result = detector.detect_speech(&empty_audio_path).await;
+    let processor = VadAudioProcessor::new().unwrap();
+    let audio_data_result = processor
+        .load_and_prepare_audio_direct(&empty_audio_path)
+        .await;
+    assert!(
+        audio_data_result.is_ok(),
+        "Audio processor should return Ok (even if empty)"
+    );
+    let audio_data = audio_data_result.unwrap();
+    let result = detector.detect_speech_from_data(audio_data).await;
 
     // This should fail because the audio is empty/invalid
     assert!(result.is_err());
@@ -135,9 +157,12 @@ async fn test_vad_detector_empty_audio() {
 fn test_chunk_size_calculation() {
     let vad_config = VadConfig::default();
     let detector = LocalVadDetector::new(vad_config).unwrap();
-    assert_eq!(detector.calculate_chunk_size(8000), 512);
+    assert_eq!(detector.calculate_chunk_size(8000), 256);
     assert_eq!(detector.calculate_chunk_size(16000), 512);
-    assert_eq!(detector.calculate_chunk_size(48000), 1536);
+    let result = std::panic::catch_unwind(|| {
+        detector.calculate_chunk_size(48000);
+    });
+    assert!(result.is_err(), "calculate_chunk_size(48000) should panic");
 }
 
 #[tokio::test]

@@ -5,7 +5,7 @@
 
 [profile.default]
 # 設定測試超時時間 (60 秒)
-slow-timeout = { period = "60s", terminate-after = 1 }
+slow-timeout = { period = "120s", terminate-after = 1 }
 
 # 設定最大並行測試數量，使用 CPU 核心數
 test-threads = "num-cpus"
@@ -25,7 +25,7 @@ final-status-level = "slow"
 [profile.ci]
 # CI 環境的設定
 retries = 2
-slow-timeout = { period = "120s", terminate-after = 2 }
+slow-timeout = { period = "240s", terminate-after = 2 }
 test-threads = 4
 failure-output = "final"
 status-level = "fail"

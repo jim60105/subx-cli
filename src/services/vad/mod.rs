@@ -32,6 +32,11 @@ pub mod audio_processor;
 /// Contains the main VAD detector implementation using local processing
 /// to identify speech segments in audio files.
 pub mod detector;
+/// Resampling utilities for audio processing.
+///
+/// Provides functionality to resample audio data to target sample rates
+/// and formats, ensuring compatibility with the VAD processing pipeline.
+pub mod resample;
 /// VAD-based subtitle synchronization.
 ///
 /// Provides subtitle timing synchronization using voice activity detection

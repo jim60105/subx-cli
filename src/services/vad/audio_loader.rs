@@ -124,18 +124,16 @@ impl DirectAudioLoader {
                 warn!("[DirectAudioLoader] No audio track with sample_rate found");
                 SubXError::audio_processing("No audio track found".to_string())
             })?;
+        // 先複製必要資訊，避免 borrow 衝突
         let track_id = track.id;
         let sample_rate = track.codec_params.sample_rate.ok_or_else(|| {
             warn!("[DirectAudioLoader] Audio track sample_rate is unknown");
             SubXError::audio_processing("Sample rate unknown".to_string())
         })?;
-        let channels = track
-            .codec_params
-            .channels
-            .map(|c| c.count() as u16)
-            .unwrap_or(1);
+        let channels = track.codec_params.channels.map(|c| c.count() as u16);
+        let time_base = track.codec_params.time_base;
         debug!(
-            "[DirectAudioLoader] Selected track: id={}, sample_rate={}, channels={}",
+            "[DirectAudioLoader] Selected track: id={}, sample_rate={}, channels={:?}",
             track_id, sample_rate, channels
         );
 
@@ -153,6 +151,7 @@ impl DirectAudioLoader {
         // Decode packets and collect samples.
         let mut samples = Vec::new();
         let mut packet_count = 0;
+        let mut last_pts: u64 = 0;
         while let Ok(packet) = format.next_packet() {
             if packet.track_id() != track_id {
                 continue;
@@ -176,6 +175,8 @@ impl DirectAudioLoader {
                 sample_len
             );
             samples.extend_from_slice(sample_buf.samples());
+            // 直接記錄最後一個 packet 的 ts
+            last_pts = packet.ts;
         }
         debug!(
             "[DirectAudioLoader] Packet decoding finished, total {} packets, {} samples accumulated",
@@ -185,7 +186,27 @@ impl DirectAudioLoader {
 
         // Calculate total samples and audio duration
         let total_samples = samples.len();
-        let duration_seconds = total_samples as f64 / (sample_rate as f64 * channels as f64);
+        // 使用 Timebase 計算 duration_seconds
+        let duration_seconds = if let Some(tb) = time_base {
+            if last_pts > 0 {
+                let (num, den) = (tb.numer, tb.denom);
+                last_pts as f64 * num as f64 / den as f64
+            } else {
+                total_samples as f64 / (sample_rate as f64 * channels.unwrap_or(1) as f64)
+            }
+        } else {
+            total_samples as f64 / (sample_rate as f64 * channels.unwrap_or(1) as f64)
+        };
+        // 若 channels 為 None，嘗試用 duration_seconds 反推 channel 數
+        let channels = channels.unwrap_or_else(|| {
+            let ch = if duration_seconds > 0.0 {
+                (total_samples as f64 / (sample_rate as f64 * duration_seconds)).round() as u16
+            } else {
+                1
+            };
+            debug!("[DirectAudioLoader] Inferred channel count: {}", ch);
+            ch
+        });
         debug!(
             "[DirectAudioLoader] Audio info: sample_rate={}, channels={}, duration_seconds={:.3}, total_samples={}",
             sample_rate, channels, duration_seconds, total_samples

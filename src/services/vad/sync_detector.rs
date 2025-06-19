@@ -61,7 +61,7 @@ impl VadSyncDetector {
         &self,
         audio_path: &Path,
         subtitle: &Subtitle,
-        _analysis_window_seconds: u32, // Ignore this parameter, process entire file
+        analysis_window_seconds: u32,
     ) -> Result<SyncResult> {
         debug!(
             "[VadSyncDetector] Starting sync offset detection | audio_path: {:?}, subtitle entries: {}",
@@ -76,19 +76,45 @@ impl VadSyncDetector {
             first_entry.end_time.as_secs_f64()
         );
 
-        // 2. Perform VAD analysis on entire audio file
+        // 2. 載入音訊並裁切（如有指定分析秒數）
         debug!(
-            "[VadSyncDetector] Performing VAD analysis on audio file: {:?}",
+            "[VadSyncDetector] Loading and cropping audio for VAD analysis: {:?}",
             audio_path
         );
-        let vad_result = self.vad_detector.detect_speech(audio_path).await?;
+        let mut audio_data = self
+            .vad_detector
+            .audio_processor()
+            .load_and_prepare_audio_direct(audio_path)
+            .await?;
+        if analysis_window_seconds > 0 {
+            let sample_rate = audio_data.info.sample_rate;
+            let max_samples = (sample_rate as usize * analysis_window_seconds as usize)
+                .min(audio_data.samples.len());
+            audio_data.samples.truncate(max_samples);
+            audio_data.info.duration_seconds = audio_data.samples.len() as f64 / sample_rate as f64;
+            audio_data.info.total_samples = audio_data.samples.len();
+            debug!(
+                "[VadSyncDetector] Cropped audio to first {} seconds ({} samples)",
+                analysis_window_seconds, max_samples
+            );
+        }
+
+        // 3. 執行 VAD 分析
+        debug!(
+            "[VadSyncDetector] Performing VAD analysis on (possibly cropped) audio file: {:?}",
+            audio_path
+        );
+        let vad_result = self
+            .vad_detector
+            .detect_speech_from_data(audio_data)
+            .await?;
         debug!(
             "[VadSyncDetector] VAD analysis complete | speech_segments: {}, processing_time_ms: {}",
             vad_result.speech_segments.len(),
             vad_result.processing_duration.as_millis()
         );
 
-        // 3. Analyze results: compare first speech segment with first subtitle timing
+        // 4. Analyze results: compare first speech segment with first subtitle timing
         debug!("[VadSyncDetector] Analyzing VAD result and subtitle alignment...");
         let analysis_result = self.analyze_vad_result(&vad_result, first_entry)?;
 

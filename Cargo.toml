@@ -26,7 +26,7 @@ exclude = [
     "**/*.log",
     "**/*.tmp",
     "**/.DS_Store",
-    "Cargo.lock"
+    "Cargo.lock",
 ]
 
 [package.metadata.docs.rs]
@@ -41,11 +41,11 @@ invalid_rust_codeblocks = "warn"
 bare_urls = "warn"
 
 [lints.clippy]
-missing_docs_in_private_items = "allow"  # Allow missing private docs
-doc_markdown = "allow"  # Allow markdown formatting warnings
+missing_docs_in_private_items = "allow" # Allow missing private docs
+doc_markdown = "allow"                  # Allow markdown formatting warnings
 
 [lints.rust]
-missing_docs = "allow"  # Allow missing docs at rust level
+missing_docs = "allow" # Allow missing docs at rust level
 
 [dependencies]
 # CLI framework
@@ -108,14 +108,17 @@ symphonia = { version = "0.5", features = ["all"] }
 # Whisper API 整合所需
 tokio-util = { version = "0.7", features = ["codec"] }
 hound = "3.5"
-voice_activity_detector = { version = "0.1.1", features = ["async"] }
-ort = "=2.0.0-rc.4"
-ort-sys = "=2.0.0-rc.4"
+voice_activity_detector = { git = "https://github.com/jim60105/voice_activity_detector.git", rev = "495ef255b265c65be891633c886ab642aa91107a", features = [
+    "async",
+] }
 rubato = "0.16.2"
 
 # Configuration management dependencies: path resolution and multi-core detection
 dirs = "6.0"
 num_cpus = "1.0"
+
+# Once Cell for runtime initialization
+once_cell = "1.19"
 
 [dev-dependencies]
 # testing frameworks and utilities
@@ -128,7 +131,7 @@ tempfile = "3.10"
 mockall = "0.13"
 rstest = "0.25"
 test-case = "3.0"
-regex = "1.10"  # For test output validation
+regex = "1.10"    # For test output validation
 
 # coverage and HTTP mocking
 wiremock = "0.6"

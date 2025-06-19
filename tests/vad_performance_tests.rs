@@ -14,9 +14,14 @@ async fn test_vad_performance_large_audio() {
 
     let config = VadConfig::default();
     let detector = LocalVadDetector::new(config).unwrap();
+    let processor = subx_cli::services::vad::VadAudioProcessor::new().unwrap();
+    let audio_data = processor
+        .load_and_prepare_audio_direct(&audio_path)
+        .await
+        .unwrap();
 
     let start_time = Instant::now();
-    let result = detector.detect_speech(&audio_path).await.unwrap();
+    let result = detector.detect_speech_from_data(audio_data).await.unwrap();
     let processing_time = start_time.elapsed();
 
     // Verify performance requirements

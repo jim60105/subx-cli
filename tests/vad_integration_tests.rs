@@ -1,7 +1,7 @@
 use std::time::Duration;
 use subx_cli::config::VadConfig;
 use subx_cli::core::formats::{Subtitle, SubtitleEntry, SubtitleFormatType, SubtitleMetadata};
-use subx_cli::services::vad::{LocalVadDetector, VadSyncDetector};
+use subx_cli::services::vad::{LocalVadDetector, VadAudioProcessor, VadSyncDetector};
 use tempfile::TempDir;
 
 #[tokio::test]
@@ -61,7 +61,12 @@ async fn test_vad_audio_format_compatibility() {
             .join(&format!("test_{}_{}.wav", sample_rate, channels));
         create_test_audio_with_format(&audio_path, sample_rate, channels);
 
-        let result = detector.detect_speech(&audio_path).await;
+        let processor = VadAudioProcessor::new().unwrap();
+        let audio_data = processor
+            .load_and_prepare_audio_direct(&audio_path)
+            .await
+            .unwrap();
+        let result = detector.detect_speech_from_data(audio_data).await;
         assert!(
             result.is_ok(),
             "Failed for format: {}Hz, {} channels",

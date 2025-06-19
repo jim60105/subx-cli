@@ -19,12 +19,9 @@ async fn test_load_and_prepare_real_audio_file() -> Result<()> {
     assert!(!processed_audio.samples.is_empty());
 
     // The real duration of the file is ~183.6 seconds, confirmed with ffprobe.
-    // Due to a suspected issue in the audio loader (symphonia) where the stereo file
-    // is incorrectly treated as mono, the resulting sample count is effectively doubled.
-    // Expected samples = duration * sample_rate * 2 (the multiplier accounts for the issue).
+    // Expected samples = duration * sample_rate
     let real_duration_secs = 183.6;
-    let expected_samples =
-        (real_duration_secs * processed_audio.info.sample_rate as f64 * 2.0) as usize;
+    let expected_samples = (real_duration_secs * processed_audio.info.sample_rate as f64) as usize;
     let actual_samples = processed_audio.samples.len();
     let tolerance = (expected_samples as f64 * 0.01) as usize; // 1% tolerance
 
