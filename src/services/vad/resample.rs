@@ -1,4 +1,6 @@
-//! 音訊重取樣工具，使用 rubato 實作，支援 i16 <-> f32 轉換與多聲道處理。
+//!
+//! Audio resampling utilities using the rubato crate.
+//! Supports i16 <-> f32 conversion and multi-channel processing.
 
 use log::{debug, trace};
 use rubato::{FftFixedIn, Resampler};
@@ -12,7 +14,7 @@ type FftResamplerCache = Option<(u32, u32, FftFixedIn<f32>)>;
 
 static FFT_RESAMPLER_CACHE: Lazy<Mutex<FftResamplerCache>> = Lazy::new(|| Mutex::new(None));
 
-/// 將 i16 單聲道音訊重取樣為目標取樣率 (回傳 Vec<i16>)。
+/// Resample i16 mono audio to the target sample rate (returns Vec<i16>).
 pub fn resample_to_target_rate(
     input_samples: &[i16],
     input_sample_rate: u32,
@@ -30,7 +32,7 @@ pub fn resample_to_target_rate(
         return Ok(input_samples.to_vec());
     }
     let t_convert = Instant::now();
-    // 轉為 f32，並盡量減少分配與複製
+    // Convert to f32 and minimize allocation and copying
     let input: Vec<f32> = input_samples.iter().map(|&s| s as f32 / 32768.0).collect();
     debug!(
         "[resample] i16->f32 conversion done in {:.3?}",
@@ -39,7 +41,7 @@ pub fn resample_to_target_rate(
     let input_len = input.len();
     let input_channels = 1;
     let resample_ratio = output_sample_rate as f64 / input_sample_rate as f64;
-    let chunk_size = 8192; // 提高 chunk size 減少呼叫次數
+    let chunk_size = 8192; // Increase chunk size to reduce the number of function calls
     let t_resampler_init = Instant::now();
     let mut resampler = {
         let mut cache = FFT_RESAMPLER_CACHE.lock().unwrap();
@@ -106,14 +108,14 @@ pub fn resample_to_target_rate(
     let mut pos = 0;
     let t_resample = Instant::now();
     let mut chunk_count = 0;
-    // 修正：每個 chunk 必須是 chunk_size 的 input frame，最後不足時補 0
+    // Correction: each chunk must be input frame of chunk_size, pad with 0 if not enough at the end
     while pos < input_len {
         let frames_needed = resampler.input_frames_next();
         let end = (pos + frames_needed).min(input_len);
         let mut chunk: Vec<f32> = Vec::with_capacity(frames_needed);
         chunk.extend_from_slice(&input[pos..end]);
         if end - pos < frames_needed {
-            // 補 0 直到 frames_needed
+            // Pad with 0 until frames_needed is reached
             chunk.resize(frames_needed, 0.0);
         }
         let chunk_ref = [&chunk[..]];
@@ -149,7 +151,7 @@ pub fn resample_to_target_rate(
     );
     // f32 -> i16
     let t_i16 = Instant::now();
-    // 修正：只保留正確長度的樣本
+    // Correction: only keep samples with correct length
     let expected_len = ((input_samples.len() as f64) * resample_ratio).round() as usize;
     let mut output_i16: Vec<i16> = output
         .iter()

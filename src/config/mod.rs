@@ -326,7 +326,7 @@ impl Default for VadConfig {
     fn default() -> Self {
         Self {
             enabled: true,
-            sensitivity: 0.25, // 預設改為 0.25，數值越小越嚴格
+            sensitivity: 0.25, // Default changed to 0.25, the smaller the value, the stricter the detection
             padding_chunks: 3,
             min_speech_duration_ms: 300,
         }

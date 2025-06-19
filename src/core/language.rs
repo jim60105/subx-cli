@@ -60,17 +60,17 @@ impl LanguageDetector {
         let mut language_codes = HashMap::new();
         // Traditional Chinese
         language_codes.insert("tc".to_string(), "tc".to_string());
-        language_codes.insert("繁中".to_string(), "tc".to_string());
-        language_codes.insert("繁體".to_string(), "tc".to_string());
+        language_codes.insert("繁中".to_string(), "tc".to_string()); // Traditional Chinese (zh-Hant)
+        language_codes.insert("繁體".to_string(), "tc".to_string()); // Traditional Chinese (zh-Hant)
         language_codes.insert("cht".to_string(), "tc".to_string());
         // Simplified Chinese
         language_codes.insert("sc".to_string(), "sc".to_string());
-        language_codes.insert("簡中".to_string(), "sc".to_string());
-        language_codes.insert("簡體".to_string(), "sc".to_string());
+        language_codes.insert("简中".to_string(), "sc".to_string()); // Simplified Chinese (zh-Hans)
+        language_codes.insert("简体".to_string(), "sc".to_string()); // Simplified Chinese (zh-Hans)
         language_codes.insert("chs".to_string(), "sc".to_string());
         // English
         language_codes.insert("en".to_string(), "en".to_string());
-        language_codes.insert("英文".to_string(), "en".to_string());
+        language_codes.insert("英文".to_string(), "en".to_string()); // English
         language_codes.insert("english".to_string(), "en".to_string());
         // Additional languages (e.g., Japanese, Korean) can be added as needed.
 

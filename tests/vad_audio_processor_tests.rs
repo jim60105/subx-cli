@@ -13,7 +13,7 @@ async fn test_load_and_prepare_real_audio_file() -> Result<()> {
 
     let processed_audio = processor.load_and_prepare_audio_direct(&audio_path).await?;
 
-    // 保持原始採樣率
+    // Ensure original sample rate is preserved
     assert_eq!(processed_audio.info.sample_rate, 48000);
     assert_eq!(processed_audio.info.channels, 1);
     assert!(!processed_audio.samples.is_empty());

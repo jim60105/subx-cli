@@ -136,6 +136,7 @@ mod tests {
     use crate::core::formats::{SubtitleFormat, SubtitleFormatType};
     use std::time::Duration;
 
+    // NOTE: The following test data contains Chinese text for multi-line subtitle testing. This is allowed and does not require modification.
     const SAMPLE_SRT: &str = "1\n00:00:01,000 --> 00:00:03,000\nHello, World!\n\n2\n00:00:05,000 --> 00:00:08,000\nThis is a test subtitle.\n多行測試\n\n";
 
     #[test]

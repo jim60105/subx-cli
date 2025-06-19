@@ -124,7 +124,7 @@ impl DirectAudioLoader {
                 warn!("[DirectAudioLoader] No audio track with sample_rate found");
                 SubXError::audio_processing("No audio track found".to_string())
             })?;
-        // 先複製必要資訊，避免 borrow 衝突
+        // Clone necessary info first to avoid borrow conflicts
         let track_id = track.id;
         let sample_rate = track.codec_params.sample_rate.ok_or_else(|| {
             warn!("[DirectAudioLoader] Audio track sample_rate is unknown");
@@ -175,7 +175,7 @@ impl DirectAudioLoader {
                 sample_len
             );
             samples.extend_from_slice(sample_buf.samples());
-            // 直接記錄最後一個 packet 的 ts
+            // Directly record the timestamp of the last packet
             last_pts = packet.ts;
         }
         debug!(
@@ -186,7 +186,7 @@ impl DirectAudioLoader {
 
         // Calculate total samples and audio duration
         let total_samples = samples.len();
-        // 使用 Timebase 計算 duration_seconds
+        // Use Timebase to calculate duration_seconds
         let duration_seconds = if let Some(tb) = time_base {
             if last_pts > 0 {
                 let (num, den) = (tb.numer, tb.denom);
@@ -197,7 +197,7 @@ impl DirectAudioLoader {
         } else {
             total_samples as f64 / (sample_rate as f64 * channels.unwrap_or(1) as f64)
         };
-        // 若 channels 為 None，嘗試用 duration_seconds 反推 channel 數
+        // If channels is None, try to infer channel count from duration_seconds
         let channels = channels.unwrap_or_else(|| {
             let ch = if duration_seconds > 0.0 {
                 (total_samples as f64 / (sample_rate as f64 * duration_seconds)).round() as u16

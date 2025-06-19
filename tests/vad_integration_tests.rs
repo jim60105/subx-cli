@@ -74,7 +74,7 @@ async fn test_vad_audio_format_compatibility() {
             channels
         );
         let vad_result = result.unwrap();
-        // 驗證保持原始採樣率並簡化為單聲道
+        // Verify that the original sample rate is preserved and audio is converted to mono
         assert_eq!(vad_result.audio_info.sample_rate, sample_rate);
         assert_eq!(vad_result.audio_info.channels, 1);
     }

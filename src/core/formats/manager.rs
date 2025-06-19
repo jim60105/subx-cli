@@ -132,8 +132,8 @@ mod tests {
 
     const SAMPLE_SRT: &str = "1\n00:00:00,000 --> 00:00:01,000\nOne\n";
     const SAMPLE_VTT: &str = "WEBVTT\n\n1\n00:00:00.000 --> 00:00:01.000\nOne\n";
+    // NOTE: The following test data contains Chinese text for multi-line subtitle testing. This is allowed and does not require modification.
     const SAMPLE_WEBVTT_THREE_LINES: &str = "WEBVTT\n\n1\n00:00:01.000 --> 00:00:03.000\n第一句字幕內容\n\n2\n00:00:04.000 --> 00:00:06.000\n第二句字幕內容\n\n3\n00:00:07.000 --> 00:00:09.000\n第三句字幕內容\n";
-
     const COMPLEX_WEBVTT: &str = "WEBVTT\n\nNOTE 這是註解，應該被忽略\n\nSTYLE\n::cue {\n  background-color: black;\n  color: white;\n}\n\n1\n00:00:01.000 --> 00:00:03.500\n第一句字幕內容\n包含多行文字\n\n2\n00:00:04.200 --> 00:00:07.800\n第二句字幕內容\n\n3\n00:00:08.000 --> 00:00:10.000\n第三句字幕內容\n";
 
     #[test]

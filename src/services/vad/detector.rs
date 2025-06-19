@@ -267,7 +267,7 @@ impl LocalVadDetector {
         chunk_size
     }
 
-    /// 取得內部 VadAudioProcessor 實例（for advanced use, e.g. partial audio cropping）
+    /// Get the internal VadAudioProcessor instance (for advanced use, e.g. partial audio cropping)
     pub fn audio_processor(&self) -> &VadAudioProcessor {
         &self.audio_processor
     }

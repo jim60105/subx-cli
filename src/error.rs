@@ -497,7 +497,7 @@ pub enum ApiErrorSource {
     Whisper,
 }
 
-// 支援 Box<dyn Error> 轉換為 SubXError::AudioProcessing
+// Support conversion from Box<dyn Error> to SubXError::AudioProcessing
 impl From<Box<dyn std::error::Error>> for SubXError {
     fn from(err: Box<dyn std::error::Error>) -> Self {
         SubXError::audio_processing(err.to_string())

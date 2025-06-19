@@ -76,7 +76,7 @@ impl VadSyncDetector {
             first_entry.end_time.as_secs_f64()
         );
 
-        // 2. 載入音訊並裁切（如有指定分析秒數）
+        // 2. Load audio and crop if analysis window is specified (in seconds)
         debug!(
             "[VadSyncDetector] Loading and cropping audio for VAD analysis: {:?}",
             audio_path
@@ -99,7 +99,7 @@ impl VadSyncDetector {
             );
         }
 
-        // 3. 執行 VAD 分析
+        // 3. Perform VAD analysis
         debug!(
             "[VadSyncDetector] Performing VAD analysis on (possibly cropped) audio file: {:?}",
             audio_path
