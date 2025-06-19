@@ -105,10 +105,10 @@ md5 = "0.7"
 # Audio processing
 symphonia = { version = "0.5", features = ["all"] }
 
-# Whisper API 整合所需
+# VAD
 tokio-util = { version = "0.7", features = ["codec"] }
 hound = "3.5"
-voice_activity_detector = { git = "https://github.com/jim60105/voice_activity_detector.git", rev = "495ef255b265c65be891633c886ab642aa91107a", features = [
+voice_activity_detector = { git = "https://github.com/jim60105/voice_activity_detector.git", rev = "9c1af933b36bc366996712bf7ee3adf860912ae5", features = [
     "async",
 ] }
 rubato = "0.16.2"
