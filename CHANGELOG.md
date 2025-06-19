@@ -7,6 +7,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.3.0] - 2025-06-19
+### Added
+- Added: Positional argument support for sync command enabling direct usage like 'subx sync movie.mkv' and 'subx sync subtitle.srt'.
+- Added: Enhanced auto-pairing logic with single file mode that automatically discovers matching video/subtitle pairs by filename stem.
+- Added: Flexible batch mode support with syntax variations including '-b directory', '-b -i path', and mixed input combinations.
+- Added: Manual mode flexibility where sync operations require only subtitle file and support positional arguments.
+
+### Changed
+- Changed: SyncArgs.batch field modified from bool to Option<Option<PathBuf>> for optional directory specification flexibility.
+- Changed: Enhanced validate() method to support flexible parameter combinations and improve user experience.
+- Changed: Improved get_sync_mode() with robust auto-pairing logic and enhanced batch processing capabilities.
+
+### Fixed
+- Fixed: Manual mode video file requirement issue - sync command no longer incorrectly requires both video and subtitle files in manual offset mode.
+- Fixed: Positional argument handling and auto-pairing functionality in sync command for more intuitive usage patterns.
+
+### Documentation
+- Documentation: Added comprehensive implementation report documenting complete resolution of sync command argument flexibility issues.
+- Documentation: Updated usage examples and documentation to reflect new argument flexibility capabilities.
+
 ## [1.2.0] - 2025-06-19
 ### Added
 - Added: Unified audio processing pipeline with FFT-based Rubato resampler and upgraded Silero VAD to V5 for improved accuracy and performance.
@@ -325,7 +345,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Initial release of SubX CLI tool
 - Rust-based intelligent subtitle processing
 
-[Unreleased]: https://github.com/jim60105/subx-cli/compare/v1.2.0...HEAD  
+[Unreleased]: https://github.com/jim60105/subx-cli/compare/v1.3.0...HEAD  
+[1.3.0]: https://github.com/jim60105/subx-cli/compare/v1.2.0...v1.3.0  
 [1.2.0]: https://github.com/jim60105/subx-cli/compare/v1.1.0...v1.2.0  
 [1.1.0]: https://github.com/jim60105/subx-cli/compare/v1.0.0...v1.1.0  
 [1.0.0]: https://github.com/jim60105/subx-cli/releases/tag/v1.0.0
