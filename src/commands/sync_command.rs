@@ -43,10 +43,12 @@ async fn run_single(
         if args.verbose {
             println!("⚙️  Using manual offset: {:.3}s", offset);
         }
-        sync_engine.apply_manual_offset(&mut subtitle, offset).map_err(|e| {
-            eprintln!("[DEBUG] Failed to apply manual offset: {}", e);
-            e
-        })?;
+        sync_engine
+            .apply_manual_offset(&mut subtitle, offset)
+            .map_err(|e| {
+                eprintln!("[DEBUG] Failed to apply manual offset: {}", e);
+                e
+            })?;
         SyncResult {
             offset_seconds: offset,
             confidence: 1.0,
@@ -63,6 +65,14 @@ async fn run_single(
                 "Video file path is required for automatic sync".to_string(),
             )
         })?;
+
+        // Check if video path is empty (manual mode case)
+        if video_path.as_os_str().is_empty() {
+            return Err(SubXError::CommandExecution(
+                "Video file path is required for automatic sync".to_string(),
+            ));
+        }
+
         let method = determine_sync_method(args, &config.sync.default_method)?;
         if args.verbose {
             println!("🔍 Starting sync analysis...");
@@ -86,10 +96,12 @@ async fn run_single(
             println!("   Processing time: {:?}", result.processing_duration);
         }
         if !args.dry_run {
-            sync_engine.apply_manual_offset(&mut subtitle, result.offset_seconds).map_err(|e| {
-                eprintln!("[DEBUG] Failed to apply detected offset: {}", e);
-                e
-            })?;
+            sync_engine
+                .apply_manual_offset(&mut subtitle, result.offset_seconds)
+                .map_err(|e| {
+                    eprintln!("[DEBUG] Failed to apply detected offset: {}", e);
+                    e
+                })?;
         }
         result
     };
@@ -97,7 +109,10 @@ async fn run_single(
     if !args.dry_run {
         if let Some(out) = args.get_output_path() {
             if out.exists() && !args.force {
-                eprintln!("[DEBUG] Output file exists and --force not set: {}", out.display());
+                eprintln!(
+                    "[DEBUG] Output file exists and --force not set: {}",
+                    out.display()
+                );
                 return Err(SubXError::CommandExecution(format!(
                     "Output file already exists: {}. Use --force to overwrite.",
                     out.display()
@@ -224,8 +239,14 @@ pub async fn execute(args: SyncArgs, config_service: &dyn ConfigService) -> Resu
 
     // Single mode or error
     match args.get_sync_mode() {
-        Ok(SyncMode::Single { .. }) => {
-            run_single(&args, &config, &sync_engine, &format_manager).await?;
+        Ok(SyncMode::Single { video, subtitle }) => {
+            // Update args with the resolved paths from SyncMode
+            let mut resolved_args = args.clone();
+            if !video.as_os_str().is_empty() {
+                resolved_args.video = Some(video);
+            }
+            resolved_args.subtitle = Some(subtitle);
+            run_single(&resolved_args, &config, &sync_engine, &format_manager).await?;
             Ok(())
         }
         Err(err) => Err(err),
