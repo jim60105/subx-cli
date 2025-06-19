@@ -93,6 +93,8 @@
     clippy::items_after_test_module,
     clippy::needless_borrow
 )]
+#![warn(missing_docs)]
+#![warn(rustdoc::missing_crate_level_docs)]
 
 /// Library version string.
 ///

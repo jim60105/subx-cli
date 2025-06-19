@@ -14,7 +14,7 @@ type FftResamplerCache = Option<(u32, u32, FftFixedIn<f32>)>;
 
 static FFT_RESAMPLER_CACHE: Lazy<Mutex<FftResamplerCache>> = Lazy::new(|| Mutex::new(None));
 
-/// Resample i16 mono audio to the target sample rate (returns Vec<i16>).
+/// Resample i16 mono audio to the target sample rate (returns `Vec<i16>`).
 pub fn resample_to_target_rate(
     input_samples: &[i16],
     input_sample_rate: u32,
