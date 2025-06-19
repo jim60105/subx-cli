@@ -20,6 +20,7 @@ async fn test_manual_offset_exceeds_max_limit() -> Result<()> {
 
     // Try using offset that exceeds limit (45.0 > 30.0)
     let args = SyncArgs {
+        positional_paths: Vec::new(),
         video: None,
         subtitle: Some(subtitle_path),
         input_paths: vec![],
@@ -33,10 +34,6 @@ async fn test_manual_offset_exceeds_max_limit() -> Result<()> {
         dry_run: true,
         force: false,
         batch: false,
-        #[allow(deprecated)]
-        range: None,
-        #[allow(deprecated)]
-        threshold: None,
     };
 
     let result = sync_command::execute_with_config(args, config_service).await;
@@ -64,6 +61,7 @@ async fn test_manual_offset_within_limit() -> Result<()> {
 
     // Use offset within limit (25.0 < 60.0)
     let args = SyncArgs {
+        positional_paths: Vec::new(),
         video: None,
         subtitle: Some(subtitle_path.clone()),
         input_paths: vec![],
@@ -77,10 +75,6 @@ async fn test_manual_offset_within_limit() -> Result<()> {
         dry_run: false,
         force: true,
         batch: false,
-        #[allow(deprecated)]
-        range: None,
-        #[allow(deprecated)]
-        threshold: None,
     };
 
     let result = sync_command::execute_with_config(args, config_service).await;

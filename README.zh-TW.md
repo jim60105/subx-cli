@@ -149,6 +149,9 @@ subx-cli sync -i ./movies1 -i ./movies2 -i ./tv_shows --recursive --batch --meth
 
 # 批次模式並顯示詳細輸出和 dry-run
 subx-cli sync -i ./media --batch --recursive --dry-run --verbose
+subx-cli sync movie.mkv
+subx-cli sync subtitles.ass
+subx-cli sync -b media_folder
 ```
 
 **字元編碼檢測**
@@ -375,6 +378,7 @@ subx-cli config set ai.retry_attempts 3
 選項:
   <VIDEO>               影片檔案路徑 (支援 MP4、MKV/WebM、OGG、WAV 音訊輸入)
   <SUBTITLE>            字幕檔案路徑
+  <PATHS>...            檔案或資料夾路徑 (位置參數)
   --offset <SECONDS>    手動指定偏移量 (不可超過 sync.max_offset_seconds 配置)
   --batch               批次處理模式
   --method <METHOD>     同步方法 (auto|vad，預設值: 來自 sync.default_method 配置)

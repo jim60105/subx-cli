@@ -93,6 +93,7 @@ fn test_sync_args_path_merging() {
 
     // Test merging video, subtitle and input_paths
     let args = SyncArgs {
+        positional_paths: Vec::new(),
         video: Some(video.clone()),
         subtitle: Some(subtitle.clone()),
         input_paths: vec![dir1.clone()],
@@ -106,10 +107,6 @@ fn test_sync_args_path_merging() {
         dry_run: false,
         force: false,
         batch: false,
-        #[allow(deprecated)]
-        range: None,
-        #[allow(deprecated)]
-        threshold: None,
     };
 
     let handler = args.get_input_handler().unwrap();

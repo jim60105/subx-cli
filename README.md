@@ -155,6 +155,9 @@ subx-cli sync -i ./movies1 -i ./movies2 -i ./tv_shows --recursive --batch --meth
 
 # Batch mode with detailed output and dry-run
 subx-cli sync -i ./media --batch --recursive --dry-run --verbose
+subx-cli sync movie.mkv
+subx-cli sync subtitles.ass
+subx-cli sync -b media_folder
 ```
 
 **Character Encoding Detection**
@@ -382,6 +385,7 @@ Configuration Support:
 Options:
   <VIDEO>               Video file path (supports MP4, MKV/WebM, OGG, WAV audio input)
   <SUBTITLE>            Subtitle file path
+  <PATHS>...            Files or directories to process (positional)
   --offset <SECONDS>    Manually specify offset (must not exceed sync.max_offset_seconds config)
   --batch               Batch processing mode
   --method <METHOD>     Sync method (auto|vad, default: from sync.default_method config)

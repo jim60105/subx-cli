@@ -28,16 +28,25 @@ async fn run_single(
     if args.verbose {
         println!("🎬 Loading subtitle file: {}", subtitle_path.display());
         println!("📄 Subtitle entries count: {}", {
-            let s = format_manager.load_subtitle(subtitle_path)?;
+            let s = format_manager.load_subtitle(subtitle_path).map_err(|e| {
+                eprintln!("[DEBUG] Failed to load subtitle: {}", e);
+                e
+            })?;
             s.entries.len()
         });
     }
-    let mut subtitle = format_manager.load_subtitle(subtitle_path)?;
+    let mut subtitle = format_manager.load_subtitle(subtitle_path).map_err(|e| {
+        eprintln!("[DEBUG] Failed to load subtitle: {}", e);
+        e
+    })?;
     let sync_result = if let Some(offset) = args.offset {
         if args.verbose {
             println!("⚙️  Using manual offset: {:.3}s", offset);
         }
-        sync_engine.apply_manual_offset(&mut subtitle, offset)?;
+        sync_engine.apply_manual_offset(&mut subtitle, offset).map_err(|e| {
+            eprintln!("[DEBUG] Failed to apply manual offset: {}", e);
+            e
+        })?;
         SyncResult {
             offset_seconds: offset,
             confidence: 1.0,
@@ -65,7 +74,11 @@ async fn run_single(
         apply_cli_overrides(&mut sync_cfg, args)?;
         let result = sync_engine
             .detect_sync_offset(video_path.as_path(), &subtitle, Some(method))
-            .await?;
+            .await
+            .map_err(|e| {
+                eprintln!("[DEBUG] Failed to detect sync offset: {}", e);
+                e
+            })?;
         if args.verbose {
             println!("✅ Analysis completed:");
             println!("   Detected offset: {:.3}s", result.offset_seconds);
@@ -73,7 +86,10 @@ async fn run_single(
             println!("   Processing time: {:?}", result.processing_duration);
         }
         if !args.dry_run {
-            sync_engine.apply_manual_offset(&mut subtitle, result.offset_seconds)?;
+            sync_engine.apply_manual_offset(&mut subtitle, result.offset_seconds).map_err(|e| {
+                eprintln!("[DEBUG] Failed to apply detected offset: {}", e);
+                e
+            })?;
         }
         result
     };
@@ -81,18 +97,23 @@ async fn run_single(
     if !args.dry_run {
         if let Some(out) = args.get_output_path() {
             if out.exists() && !args.force {
+                eprintln!("[DEBUG] Output file exists and --force not set: {}", out.display());
                 return Err(SubXError::CommandExecution(format!(
                     "Output file already exists: {}. Use --force to overwrite.",
                     out.display()
                 )));
             }
-            format_manager.save_subtitle(&subtitle, &out)?;
+            format_manager.save_subtitle(&subtitle, &out).map_err(|e| {
+                eprintln!("[DEBUG] Failed to save subtitle: {}", e);
+                e
+            })?;
             if args.verbose {
                 println!("💾 Synchronized subtitle saved to: {}", out.display());
             } else {
                 println!("Synchronized subtitle saved to: {}", out.display());
             }
         } else {
+            eprintln!("[DEBUG] No output path specified");
             return Err(SubXError::CommandExecution(
                 "No output path specified".to_string(),
             ));
@@ -234,6 +255,7 @@ mod tests {
 
         // Test single file sync instead of batch to avoid audio processing issues
         let args = SyncArgs {
+            positional_paths: Vec::new(),
             video: Some(video1.clone()),
             subtitle: Some(sub1.clone()),
             input_paths: vec![],
@@ -247,10 +269,6 @@ mod tests {
             dry_run: true, // Use dry run to avoid file creation
             force: true,
             batch: false, // Disable batch mode
-            #[allow(deprecated)]
-            range: None,
-            #[allow(deprecated)]
-            threshold: None,
         };
 
         execute(args, config_service.as_ref()).await?;

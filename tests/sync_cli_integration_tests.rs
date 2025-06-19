@@ -21,8 +21,8 @@ fn test_sync_args_basic_parsing() {
     fs::write(&subtitle_path, "1\n00:00:01,000 --> 00:00:03,000\nTest\n").unwrap();
 
     // Test VAD method parameters
-    #[allow(deprecated)]
     let args = SyncArgs {
+        positional_paths: Vec::new(),
         video: Some(video_path.clone()),
         subtitle: Some(subtitle_path.clone()),
         input_paths: vec![],
@@ -36,8 +36,6 @@ fn test_sync_args_basic_parsing() {
         dry_run: false,
         force: false,
         batch: false,
-        range: None,
-        threshold: None,
     };
 
     // Verify parameter parsing is correct
@@ -56,8 +54,8 @@ fn test_sync_args_vad_method() {
     fs::write(&video_path, b"fake video content").unwrap();
     fs::write(&subtitle_path, "1\n00:00:01,000 --> 00:00:03,000\nTest\n").unwrap();
 
-    #[allow(deprecated)]
     let args = SyncArgs {
+        positional_paths: Vec::new(),
         video: Some(video_path.clone()),
         subtitle: Some(subtitle_path.clone()),
         input_paths: vec![],
@@ -71,8 +69,6 @@ fn test_sync_args_vad_method() {
         dry_run: false,
         force: false,
         batch: false,
-        range: None,
-        threshold: None,
     };
 
     // Verify VAD parameters
@@ -90,8 +86,8 @@ fn test_sync_args_manual_method() {
 
     fs::write(&subtitle_path, "1\n00:00:01,000 --> 00:00:03,000\nTest\n").unwrap();
 
-    #[allow(deprecated)]
     let args = SyncArgs {
+        positional_paths: Vec::new(),
         input_paths: vec![],
         recursive: false,
         video: None, // Manual offset doesn't require video file
@@ -105,8 +101,6 @@ fn test_sync_args_manual_method() {
         dry_run: false,
         force: false,
         batch: false,
-        range: None,
-        threshold: None,
     };
 
     // Verify manual offset parameters
@@ -126,8 +120,8 @@ fn test_sync_args_batch_mode() {
     fs::write(&video_path, b"fake video content").unwrap();
     fs::write(&subtitle_path, "1\n00:00:01,000 --> 00:00:03,000\nTest\n").unwrap();
 
-    #[allow(deprecated)]
     let args = SyncArgs {
+        positional_paths: Vec::new(),
         input_paths: vec![],
         recursive: false,
         video: Some(video_path.clone()),
@@ -141,8 +135,6 @@ fn test_sync_args_batch_mode() {
         dry_run: false,
         force: false,
         batch: true,
-        range: None,
-        threshold: None,
     };
 
     // Verify batch mode settings

@@ -450,6 +450,7 @@ impl App {
         };
 
         let args = cli::SyncArgs {
+            positional_paths: Vec::new(),
             video: Some(video_path.into()),
             subtitle: Some(subtitle_path.into()),
             input_paths: vec![],
@@ -463,10 +464,6 @@ impl App {
             dry_run: false,
             force: false,
             batch: false,
-            #[allow(deprecated)]
-            range: None,
-            #[allow(deprecated)]
-            threshold: None,
         };
         self.handle_command(cli::Commands::Sync(args)).await
     }
@@ -499,6 +496,7 @@ impl App {
     /// Returns an error if synchronization fails.
     pub async fn sync_files_with_offset(&self, subtitle_path: &str, offset: f32) -> Result<()> {
         let args = cli::SyncArgs {
+            positional_paths: Vec::new(),
             video: None,
             subtitle: Some(subtitle_path.into()),
             input_paths: vec![],
@@ -512,10 +510,6 @@ impl App {
             dry_run: false,
             force: false,
             batch: false,
-            #[allow(deprecated)]
-            range: None,
-            #[allow(deprecated)]
-            threshold: None,
         };
         self.handle_command(cli::Commands::Sync(args)).await
     }

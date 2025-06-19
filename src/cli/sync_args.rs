@@ -41,26 +41,28 @@ use std::path::{Path, PathBuf};
 /// Refactored sync command arguments supporting multiple sync methods.
 #[derive(Args, Debug, Clone)]
 pub struct SyncArgs {
-    /// Video file path for audio analysis.
+    /// Positional file or directory paths to process. Can include video, subtitle, or directories.
+    #[arg(value_name = "PATH", num_args = 0..)]
+    pub positional_paths: Vec<PathBuf>,
+
+    /// Video file path (optional if using positional paths or manual offset).
     #[arg(
         short = 'v',
         long = "video",
         value_name = "VIDEO",
-        help = "Video file path (required for auto sync, optional for manual offset)",
-        required_unless_present = "offset"
+        help = "Video file path (optional if using positional or manual offset)"
     )]
     pub video: Option<PathBuf>,
 
-    /// Subtitle file path to synchronize.
+    /// Subtitle file path (optional if using positional paths or manual offset).
     #[arg(
         short = 's',
         long = "subtitle",
         value_name = "SUBTITLE",
-        help = "Subtitle file path (required for single file, optional for batch mode)",
-        required_unless_present_any = ["input_paths", "batch"]
+        help = "Subtitle file path (optional if using positional or manual offset)"
     )]
     pub subtitle: Option<PathBuf>,
-    /// Specify file or directory paths to process (new parameter), can be used multiple times
+    /// Specify file or directory paths to process (via -i), can be used multiple times
     #[arg(short = 'i', long = "input", value_name = "PATH")]
     pub input_paths: Vec<PathBuf>,
 
@@ -128,17 +130,7 @@ pub struct SyncArgs {
     /// Enable batch processing mode.
     #[arg(short, long, help = "Enable batch processing mode")]
     pub batch: bool,
-
     // === Legacy/Hidden Options (Deprecated) ===
-    /// Maximum offset search range (deprecated, use configuration file).
-    #[arg(long, hide = true)]
-    #[deprecated(note = "Use configuration file instead")]
-    pub range: Option<f32>,
-
-    /// Minimum correlation threshold (deprecated, use configuration file).
-    #[arg(long, hide = true)]
-    #[deprecated(note = "Use configuration file instead")]
-    pub threshold: Option<f32>,
 }
 
 /// Sync method enumeration (backward compatible).
@@ -160,11 +152,11 @@ impl SyncArgs {
             }
         }
 
-        // Check auto mode requires video file
-        if self.offset.is_none() && self.video.is_none() {
-            return Err("Auto sync mode requires video file.\n\n\
+        // Check auto mode requires video or positional path
+        if self.offset.is_none() && self.video.is_none() && self.positional_paths.is_empty() {
+            return Err("Auto sync mode requires video file or positional path.\n\n\
 Usage:\n\
-• Auto sync: subx sync <video> <subtitle>\n\
+• Auto sync: subx sync <video> <subtitle> or subx sync <video_path>\n\
 • Manual sync: subx sync --offset <seconds> <subtitle>\n\n\
 Need help? Run: subx sync --help"
                 .to_string());
@@ -208,6 +200,10 @@ Need help? Run: subx sync --help"
 
     /// Validate parameters (backward compatible method).
     pub fn validate_compat(&self) -> SubXResult<()> {
+        // Allow positional path for auto sync without explicit video
+        if self.offset.is_none() && self.video.is_none() && !self.positional_paths.is_empty() {
+            return Ok(());
+        }
         match (self.offset.is_some(), self.video.is_some()) {
             // Manual mode: offset provided, video optional
             (true, _) => Ok(()),
@@ -235,10 +231,15 @@ Need help? Run: subx sync --help"
     /// Note: For sync command, both video and subtitle are valid input paths
     pub fn get_input_handler(&self) -> Result<InputPathHandler, SubXError> {
         let optional_paths = vec![self.video.clone(), self.subtitle.clone()];
+        let string_paths: Vec<String> = self
+            .positional_paths
+            .iter()
+            .map(|p| p.to_string_lossy().to_string())
+            .collect();
         let merged_paths = InputPathHandler::merge_paths_from_multiple_sources(
             &optional_paths,
             &self.input_paths,
-            &[],
+            &string_paths,
         )?;
 
         Ok(InputPathHandler::from_args(&merged_paths, self.recursive)?
@@ -247,9 +248,12 @@ Need help? Run: subx sync --help"
 
     /// Get sync mode: single file or batch
     pub fn get_sync_mode(&self) -> Result<SyncMode, SubXError> {
-        if !self.input_paths.is_empty() || self.batch {
+        // Batch mode: process directories or multiple inputs when -b specified
+        if self.batch {
             let paths = if !self.input_paths.is_empty() {
                 self.input_paths.clone()
+            } else if !self.positional_paths.is_empty() {
+                self.positional_paths.clone()
             } else if let Some(video) = &self.video {
                 vec![video.clone()]
             } else {
@@ -259,24 +263,89 @@ Need help? Run: subx sync --help"
             let handler = InputPathHandler::from_args(&paths, self.recursive)?
                 .with_extensions(&["mp4", "mkv", "avi", "mov", "srt", "ass", "vtt", "sub"]);
 
-            Ok(SyncMode::Batch(handler))
-        } else if let (Some(video), Some(subtitle)) = (self.video.as_ref(), self.subtitle.as_ref())
-        {
+            return Ok(SyncMode::Batch(handler));
+        }
+
+        // Single file positional mode: auto-infer video/subtitle pairing
+        if !self.positional_paths.is_empty() {
+            if self.positional_paths.len() == 1 {
+                let path = &self.positional_paths[0];
+                let ext = path
+                    .extension()
+                    .and_then(|s| s.to_str())
+                    .unwrap_or("")
+                    .to_lowercase();
+                let mut video = None;
+                let mut subtitle = None;
+                match ext.as_str() {
+                    "mp4" | "mkv" | "avi" | "mov" => {
+                        video = Some(path.clone());
+                        if let Some(stem) = path.file_stem().and_then(|s| s.to_str()) {
+                            let dir = path.parent().unwrap_or_else(|| Path::new("."));
+                            for sub_ext in &["srt", "ass", "vtt", "sub"] {
+                                let cand = dir.join(format!("{}.{}", stem, sub_ext));
+                                if cand.exists() {
+                                    subtitle = Some(cand);
+                                    break;
+                                }
+                            }
+                        }
+                    }
+                    "srt" | "ass" | "vtt" | "sub" => {
+                        subtitle = Some(path.clone());
+                        if let Some(stem) = path.file_stem().and_then(|s| s.to_str()) {
+                            let dir = path.parent().unwrap_or_else(|| Path::new("."));
+                            for vid_ext in &["mp4", "mkv", "avi", "mov"] {
+                                let cand = dir.join(format!("{}.{}", stem, vid_ext));
+                                if cand.exists() {
+                                    video = Some(cand);
+                                    break;
+                                }
+                            }
+                        }
+                    }
+                    _ => {}
+                }
+                if let (Some(v), Some(s)) = (video, subtitle) {
+                    return Ok(SyncMode::Single {
+                        video: v,
+                        subtitle: s,
+                    });
+                }
+                return Err(SubXError::InvalidSyncConfiguration);
+            } else if self.positional_paths.len() == 2 {
+                let mut video = None;
+                let mut subtitle = None;
+                for p in &self.positional_paths {
+                    if let Some(ext) = p
+                        .extension()
+                        .and_then(|s| s.to_str())
+                        .map(|s| s.to_lowercase())
+                    {
+                        if ["mp4", "mkv", "avi", "mov"].contains(&ext.as_str()) {
+                            video = Some(p.clone());
+                        }
+                        if ["srt", "ass", "vtt", "sub"].contains(&ext.as_str()) {
+                            subtitle = Some(p.clone());
+                        }
+                    }
+                }
+                if let (Some(v), Some(s)) = (video, subtitle) {
+                    return Ok(SyncMode::Single {
+                        video: v,
+                        subtitle: s,
+                    });
+                }
+                return Err(SubXError::InvalidSyncConfiguration);
+            }
+        }
+
+        // Explicit mode: video and subtitle options
+        if let (Some(video), Some(subtitle)) = (self.video.as_ref(), self.subtitle.as_ref()) {
             Ok(SyncMode::Single {
                 video: video.clone(),
                 subtitle: subtitle.clone(),
             })
-        } else if let Some(subtitle) = self.subtitle.as_ref() {
-            // Manual mode only requires subtitle file
-            if self.offset.is_some() || matches!(self.method, Some(SyncMethodArg::Manual)) {
-                // Create virtual video path for manual mode
-                Ok(SyncMode::Single {
-                    video: PathBuf::from(""), // Virtual video path, won't be used
-                    subtitle: subtitle.clone(),
-                })
-            } else {
-                Err(SubXError::InvalidSyncConfiguration)
-            }
         } else {
             Err(SubXError::InvalidSyncConfiguration)
         }
@@ -322,6 +391,7 @@ mod tests {
     #[test]
     fn test_sync_method_selection_manual() {
         let args = SyncArgs {
+            positional_paths: Vec::new(),
             video: Some(PathBuf::from("video.mp4")),
             subtitle: Some(PathBuf::from("subtitle.srt")),
             input_paths: Vec::new(),
@@ -335,10 +405,6 @@ mod tests {
             dry_run: false,
             force: false,
             batch: false,
-            #[allow(deprecated)]
-            range: None,
-            #[allow(deprecated)]
-            threshold: None,
         };
         assert_eq!(args.sync_method(), SyncMethod::Manual);
     }
@@ -368,14 +434,19 @@ mod tests {
 
     #[test]
     fn test_sync_args_invalid_combinations() {
-        // batch mode requires video parameter
-        let res = Cli::try_parse_from(["subx-cli", "sync", "--batch", "-i", "dir"]);
-        assert!(res.is_err());
+        // batch mode without video/positional should be caught in validation
+        let cli = Cli::try_parse_from(["subx-cli", "sync", "--batch", "-i", "dir"]).unwrap();
+        let args = match cli.command {
+            Commands::Sync(a) => a,
+            _ => panic!("Expected Sync command"),
+        };
+        assert!(args.validate().is_err());
     }
 
     #[test]
     fn test_sync_method_selection_auto() {
         let args = SyncArgs {
+            positional_paths: Vec::new(),
             video: Some(PathBuf::from("video.mp4")),
             subtitle: Some(PathBuf::from("subtitle.srt")),
             input_paths: Vec::new(),
@@ -389,10 +460,6 @@ mod tests {
             dry_run: false,
             force: false,
             batch: false,
-            #[allow(deprecated)]
-            range: None,
-            #[allow(deprecated)]
-            threshold: None,
         };
         assert_eq!(args.sync_method(), SyncMethod::Auto);
     }

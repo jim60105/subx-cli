@@ -24,8 +24,8 @@ fn test_sync_args_with_vad_method() {
     fs::write(&video_path, b"fake video content").unwrap();
     create_test_subtitle(&subtitle_path);
 
-    #[allow(deprecated)]
     let args = SyncArgs {
+        positional_paths: Vec::new(),
         video: Some(video_path.clone()),
         subtitle: Some(subtitle_path.clone()),
         input_paths: vec![],
@@ -39,8 +39,6 @@ fn test_sync_args_with_vad_method() {
         dry_run: false,
         force: false,
         batch: false,
-        range: None,     // Deprecated field
-        threshold: None, // Deprecated field
     };
 
     // Verify parameter parsing is correct
@@ -58,8 +56,8 @@ fn test_sync_args_with_vad_default_settings() {
     fs::write(&video_path, b"fake video content").unwrap();
     create_test_subtitle(&subtitle_path);
 
-    #[allow(deprecated)]
     let args = SyncArgs {
+        positional_paths: Vec::new(),
         video: Some(video_path.clone()),
         subtitle: Some(subtitle_path.clone()),
         input_paths: vec![],
@@ -73,8 +71,6 @@ fn test_sync_args_with_vad_default_settings() {
         dry_run: false,
         force: false,
         batch: false,
-        range: None,
-        threshold: None,
     };
 
     // Verify VAD parameters are set correctly
@@ -88,8 +84,8 @@ fn test_sync_args_with_manual_offset() {
     let subtitle_path = temp_dir.path().join("test.srt");
     create_test_subtitle(&subtitle_path);
 
-    #[allow(deprecated)]
     let args = SyncArgs {
+        positional_paths: Vec::new(),
         video: None, // Manual offset doesn't require video file
         subtitle: Some(subtitle_path.clone()),
         input_paths: vec![],
@@ -103,8 +99,6 @@ fn test_sync_args_with_manual_offset() {
         dry_run: false,
         force: false,
         batch: false,
-        range: None,
-        threshold: None,
     };
 
     // Verify manual offset settings
@@ -122,8 +116,8 @@ fn test_sync_args_batch_mode() {
     fs::create_dir_all(&input_dir).unwrap();
     fs::create_dir_all(&output_dir).unwrap();
 
-    #[allow(deprecated)]
     let args = SyncArgs {
+        positional_paths: Vec::new(),
         video: Some(input_dir.clone()),
         subtitle: Some(input_dir.clone()),
         input_paths: vec![],
@@ -137,8 +131,6 @@ fn test_sync_args_batch_mode() {
         dry_run: false,
         force: false,
         batch: true,
-        range: None,
-        threshold: None,
     };
 
     // Verify batch mode settings
@@ -153,8 +145,8 @@ fn test_sync_args_validation() {
     create_test_subtitle(&subtitle_path);
 
     // Test manual method requires offset parameter
-    #[allow(deprecated)]
     let args = SyncArgs {
+        positional_paths: Vec::new(),
         video: None,
         subtitle: Some(subtitle_path.clone()),
         input_paths: vec![],
@@ -168,8 +160,6 @@ fn test_sync_args_validation() {
         dry_run: false,
         force: false,
         batch: false,
-        range: None,
-        threshold: None,
     };
 
     let validation_result = args.validate();
@@ -179,8 +169,8 @@ fn test_sync_args_validation() {
     );
 
     // Test valid manual offset
-    #[allow(deprecated)]
     let valid_args = SyncArgs {
+        positional_paths: Vec::new(),
         offset: Some(2.5), // Provide offset
         ..args
     };

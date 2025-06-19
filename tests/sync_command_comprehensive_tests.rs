@@ -17,6 +17,7 @@ mod sync_command_tests {
 
     fn create_default_sync_args() -> SyncArgs {
         SyncArgs {
+            positional_paths: Vec::new(),
             video: None,
             subtitle: None,
             input_paths: vec![],
@@ -30,10 +31,6 @@ mod sync_command_tests {
             dry_run: false,
             force: false,
             batch: false,
-            #[allow(deprecated)]
-            range: None,
-            #[allow(deprecated)]
-            threshold: None,
         }
     }
 
