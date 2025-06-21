@@ -1,20 +1,19 @@
 //! 邊界與錯誤處理整合測試：空目錄、無效路徑、權限、錯誤恢復
 mod common;
 use common::cli_helpers::CLITestHelper;
-use std::path::PathBuf;
 use tokio::fs;
 
 /// 測試空目錄處理
 #[tokio::test]
 async fn test_empty_directory_handling() {
-    let mut helper = CLITestHelper::new();
+    let helper = CLITestHelper::new();
     let ws = helper.temp_dir_path().to_path_buf();
     fs::create_dir_all(ws.join("empty")).await.unwrap();
-    let result = helper
+    helper
         .run_command_expect_success(&["sync", "--batch", "empty"])
         .await;
     // empty 目錄無檔案，不應 panic
-    assert!(ws.join("empty/subtitle_synced.srt").exists() == false);
+    assert!(!ws.join("empty/subtitle_synced.srt").exists());
 }
 
 /// 測試不存在的路徑
@@ -30,7 +29,7 @@ async fn test_nonexistent_path_handling() {
 /// 測試檔案權限問題
 #[tokio::test]
 async fn test_file_permission_handling() {
-    let mut helper = CLITestHelper::new();
+    let helper = CLITestHelper::new();
     let ws = helper.temp_dir_path().to_path_buf();
     let file = ws.join("subtitle.srt");
     fs::write(&file, "content").await.unwrap();

@@ -7,7 +7,7 @@ use tokio::fs;
 /// 基本批次處理
 #[tokio::test]
 async fn test_basic_batch_processing() {
-    let mut helper = CLITestHelper::new();
+    let helper = CLITestHelper::new();
     let ws = helper.temp_dir_path().to_path_buf();
     fs::create_dir_all(ws.join("media")).await.unwrap();
     let src = PathBuf::from("assets/SubX - The Subtitle Revolution.srt");
@@ -21,7 +21,7 @@ async fn test_basic_batch_processing() {
 /// 遞歸批次處理
 #[tokio::test]
 async fn test_recursive_batch_processing() {
-    let mut helper = CLITestHelper::new();
+    let helper = CLITestHelper::new();
     let ws = helper.temp_dir_path().to_path_buf();
     let nested = ws.join("media/x");
     fs::create_dir_all(&nested).await.unwrap();
@@ -36,7 +36,7 @@ async fn test_recursive_batch_processing() {
 /// 大型目錄批次處理（模擬大量文件）
 #[tokio::test]
 async fn test_large_directory_batch_processing() {
-    let mut helper = CLITestHelper::new();
+    let helper = CLITestHelper::new();
     let ws = helper.temp_dir_path().to_path_buf();
     let dir = ws.join("bulk");
     fs::create_dir_all(&dir).await.unwrap();
@@ -58,7 +58,7 @@ async fn test_large_directory_batch_processing() {
 /// 批次 + 試運行
 #[tokio::test]
 async fn test_batch_dry_run_combination() {
-    let mut helper = CLITestHelper::new();
+    let helper = CLITestHelper::new();
     let ws = helper.temp_dir_path().to_path_buf();
     fs::create_dir_all(ws.join("media")).await.unwrap();
     let src = PathBuf::from("assets/SubX - The Subtitle Revolution.srt");
@@ -73,7 +73,7 @@ async fn test_batch_dry_run_combination() {
 /// 批次 + 詳細輸出
 #[tokio::test]
 async fn test_batch_verbose_combination() {
-    let mut helper = CLITestHelper::new();
+    let helper = CLITestHelper::new();
     let ws = helper.temp_dir_path().to_path_buf();
     fs::create_dir_all(ws.join("media")).await.unwrap();
     let src = PathBuf::from("assets/SubX - The Subtitle Revolution.srt");
@@ -87,7 +87,7 @@ async fn test_batch_verbose_combination() {
 /// 批次 + 方法選擇
 #[tokio::test]
 async fn test_batch_method_selection_combination() {
-    let mut helper = CLITestHelper::new();
+    let helper = CLITestHelper::new();
     let ws = helper.temp_dir_path().to_path_buf();
     fs::create_dir_all(ws.join("media")).await.unwrap();
     let src = PathBuf::from("assets/SubX - The Subtitle Revolution.srt");

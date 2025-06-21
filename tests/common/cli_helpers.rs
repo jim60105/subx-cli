@@ -239,7 +239,10 @@ impl CLITestHelper {
         cmd.arg("run")
             .arg("--")
             .args(args)
-            .current_dir(&self.temp_dir)
+            // Run commands from the project root so Cargo.toml is found
+            .current_dir(env!("CARGO_MANIFEST_DIR"))
+            // Ensure program operates within test workspace
+            .env("SUBX_WORKSPACE", self.temp_dir.path())
             .env(
                 "SUBX_CONFIG_PATH",
                 self.temp_dir.path().join("test_config.toml"),

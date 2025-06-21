@@ -199,6 +199,7 @@ pub async fn execute(args: SyncArgs, config_service: &dyn ConfigService) -> Resu
         let paths = handler
             .collect_files()
             .map_err(|e| SubXError::CommandExecution(e.to_string()))?;
+        // First, process video-subtitle pairs
         for path in &paths {
             if let Some(ext) = path.extension().and_then(|s| s.to_str()) {
                 let ext = ext.to_lowercase();
@@ -214,10 +215,8 @@ pub async fn execute(args: SyncArgs, config_service: &dyn ConfigService) -> Resu
                             && p.extension()
                                 .and_then(|s| s.to_str())
                                 .map(|e| {
-                                    matches!(
-                                        e.to_lowercase().as_str(),
-                                        "srt" | "ass" | "vtt" | "sub"
-                                    )
+                                    ["srt", "ass", "vtt", "sub"]
+                                        .contains(&e.to_lowercase().as_str())
                                 })
                                 .unwrap_or(false)
                     }) {
@@ -234,6 +233,36 @@ pub async fn execute(args: SyncArgs, config_service: &dyn ConfigService) -> Resu
                 }
             }
         }
+        // Next, handle subtitle-only files by applying a zero offset
+        for path in &paths {
+            if let Some(ext) = path.extension().and_then(|s| s.to_str()) {
+                let ext_lc = ext.to_lowercase();
+                if ["srt", "ass", "vtt", "sub"].contains(&ext_lc.as_str()) {
+                    let stem = path.file_stem().and_then(|s| s.to_str()).unwrap_or("");
+                    let has_video = paths.iter().any(|p| {
+                        p.file_stem().and_then(|s| s.to_str()) == Some(stem)
+                            && p.extension()
+                                .and_then(|s| s.to_str())
+                                .map(|e| {
+                                    ["mp4", "mkv", "avi", "mov"]
+                                        .contains(&e.to_lowercase().as_str())
+                                })
+                                .unwrap_or(false)
+                    });
+                    if !has_video {
+                        let mut single_args = args.clone();
+                        single_args.input_paths.clear();
+                        single_args.batch = None;
+                        single_args.recursive = false;
+                        single_args.video = None;
+                        single_args.subtitle = Some(path.clone());
+                        single_args.offset = Some(0.0);
+                        single_args.method = Some(crate::cli::SyncMethodArg::Manual);
+                        run_single(&single_args, &config, &sync_engine, &format_manager).await?;
+                    }
+                }
+            }
+        }
         return Ok(());
     }
 
@@ -243,9 +272,14 @@ pub async fn execute(args: SyncArgs, config_service: &dyn ConfigService) -> Resu
             // Update args with the resolved paths from SyncMode
             let mut resolved_args = args.clone();
             if !video.as_os_str().is_empty() {
-                resolved_args.video = Some(video);
+                resolved_args.video = Some(video.clone());
             }
-            resolved_args.subtitle = Some(subtitle);
+            resolved_args.subtitle = Some(subtitle.clone());
+            // For subtitle-only sync without offset, default to zero manual offset
+            if resolved_args.video.is_none() && resolved_args.offset.is_none() {
+                resolved_args.offset = Some(0.0);
+                resolved_args.method = Some(crate::cli::SyncMethodArg::Manual);
+            }
             run_single(&resolved_args, &config, &sync_engine, &format_manager).await?;
             Ok(())
         }
@@ -322,7 +356,10 @@ fn determine_sync_method(args: &SyncArgs, default_method: &str) -> Result<SyncMe
     if let Some(ref method_arg) = args.method {
         return Ok(method_arg.clone().into());
     }
-
+    // If VAD sensitivity specified, default to VAD method
+    if args.vad_sensitivity.is_some() {
+        return Ok(SyncMethod::LocalVad);
+    }
     // Otherwise use the default method from configuration
     match default_method {
         "vad" => Ok(SyncMethod::LocalVad),

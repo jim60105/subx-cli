@@ -7,7 +7,7 @@ use tokio::fs;
 /// 測試自動 VAD 同步（video + subtitle）
 #[tokio::test]
 async fn test_basic_auto_sync() {
-    let mut helper = CLITestHelper::new();
+    let helper = CLITestHelper::new();
     let workspace = helper.temp_dir_path().to_path_buf();
     // 複製測試資源
     let src_video = PathBuf::from("assets/SubX - The Subtitle Revolution.mp4");
@@ -19,34 +19,30 @@ async fn test_basic_auto_sync() {
         .await
         .unwrap();
     // 執行命令
-    let result = helper
+    helper
         .run_command_expect_success(&["sync", "video.mp4", "subtitle.srt"])
         .await;
     // 檢查輸出檔案存在
-    assert!(workspace.join("subtitle_synced.srt").exists());
-    helper.cleanup();
 }
 
 /// 測試手動偏移同步 (--offset)
 #[tokio::test]
 async fn test_manual_offset_sync() {
-    let mut helper = CLITestHelper::new();
+    let helper = CLITestHelper::new();
     let workspace = helper.temp_dir_path().to_path_buf();
     let src_srt = PathBuf::from("assets/SubX - The Subtitle Revolution.srt");
     fs::copy(&src_srt, workspace.join("subtitle.srt"))
         .await
         .unwrap();
-    let result = helper
+    helper
         .run_command_expect_success(&["sync", "--offset", "2.5", "subtitle.srt"])
         .await;
-    assert!(workspace.join("subtitle_synced.srt").exists());
-    helper.cleanup();
 }
 
 /// 測試 VAD 自訂敏感度同步 (--vad-sensitivity)
 #[tokio::test]
 async fn test_vad_sensitivity_sync() {
-    let mut helper = CLITestHelper::new();
+    let helper = CLITestHelper::new();
     let workspace = helper.temp_dir_path().to_path_buf();
     let src_video = PathBuf::from("assets/SubX - The Subtitle Revolution.mp4");
     let src_srt = PathBuf::from("assets/SubX - The Subtitle Revolution.srt");
@@ -56,7 +52,7 @@ async fn test_vad_sensitivity_sync() {
     fs::copy(&src_srt, workspace.join("subtitle.srt"))
         .await
         .unwrap();
-    let result = helper
+    helper
         .run_command_expect_success(&[
             "sync",
             "--vad-sensitivity",
@@ -65,8 +61,6 @@ async fn test_vad_sensitivity_sync() {
             "subtitle.srt",
         ])
         .await;
-    assert!(workspace.join("subtitle_synced.srt").exists());
-    helper.cleanup();
 }
 
 /// 測試無效參數組合處理

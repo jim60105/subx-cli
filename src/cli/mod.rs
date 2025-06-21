@@ -150,6 +150,28 @@ pub async fn run_with_config(
 ) -> crate::Result<()> {
     let cli = Cli::parse();
 
+    // Switch to workspace directory for file operations if specified via env or config
+    if let Some(ws_env) = std::env::var_os("SUBX_WORKSPACE") {
+        std::env::set_current_dir(&ws_env).map_err(|e| {
+            crate::error::SubXError::CommandExecution(format!(
+                "Failed to set workspace directory to {}: {}",
+                std::path::PathBuf::from(&ws_env).display(),
+                e
+            ))
+        })?;
+    } else if let Ok(config) = config_service.get_config() {
+        let ws_dir = &config.general.workspace;
+        if !ws_dir.as_os_str().is_empty() {
+            std::env::set_current_dir(ws_dir).map_err(|e| {
+                crate::error::SubXError::CommandExecution(format!(
+                    "Failed to set workspace directory to {}: {}",
+                    ws_dir.display(),
+                    e
+                ))
+            })?;
+        }
+    }
+
     // Use the centralized dispatcher to avoid code duplication
     crate::commands::dispatcher::dispatch_command_with_ref(cli.command, config_service).await
 }

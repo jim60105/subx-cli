@@ -74,8 +74,7 @@ pub struct SyncArgs {
     #[arg(
         long,
         value_name = "SECONDS",
-        help = "Manual offset in seconds (positive delays subtitles, negative advances them)",
-        conflicts_with_all = ["method", "window", "vad_sensitivity"]
+        help = "Manual offset in seconds (positive delays subtitles, negative advances them)"
     )]
     pub offset: Option<f32>,
 
@@ -203,9 +202,8 @@ Need help? Run: subx sync --help"
         if has_video || has_positional {
             // Check VAD sensitivity option only used with VAD method
             if self.vad_sensitivity.is_some() {
-                match &self.method {
-                    Some(SyncMethodArg::Vad) => {}
-                    _ => return Err("VAD options can only be used with --method vad.".to_string()),
+                if let Some(SyncMethodArg::Manual) = &self.method {
+                    return Err("VAD options can only be used with --method vad.".to_string());
                 }
             }
             return Ok(());
@@ -296,24 +294,24 @@ Need help? Run: subx sync --help"
 
     /// Get sync mode: single file or batch
     pub fn get_sync_mode(&self) -> Result<SyncMode, SubXError> {
-        // Batch mode: process directories or multiple inputs when -b specified
-        if self.batch.is_some() {
+        // Batch mode: process directories or multiple inputs when -b, -i, or directory positional used
+        if self.batch.is_some()
+            || !self.input_paths.is_empty()
+            || self
+                .positional_paths
+                .iter()
+                .any(|p| p.extension().is_none())
+        {
             let mut paths = Vec::new();
 
-            // Check if batch has a directory argument
+            // Include batch directory argument if provided
             if let Some(Some(batch_dir)) = &self.batch {
                 paths.push(batch_dir.clone());
             }
 
-            // Add other input paths
-            if !self.input_paths.is_empty() {
-                paths.extend(self.input_paths.clone());
-            }
-
-            // Add positional paths if no other paths specified
-            if paths.is_empty() && !self.positional_paths.is_empty() {
-                paths.extend(self.positional_paths.clone());
-            }
+            // Include input paths (-i) and any positional paths
+            paths.extend(self.input_paths.clone());
+            paths.extend(self.positional_paths.clone());
 
             // If still no paths, use current directory
             if paths.is_empty() {

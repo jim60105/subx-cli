@@ -356,6 +356,8 @@ pub struct GeneralConfig {
     pub max_concurrent_jobs: usize,
     /// Task timeout in seconds.
     pub task_timeout_seconds: u64,
+    /// Workspace directory for CLI commands (override current working directory).
+    pub workspace: std::path::PathBuf,
     /// Enable progress bar display.
     pub enable_progress_bar: bool,
     /// Worker idle timeout in seconds.
@@ -368,6 +370,8 @@ impl Default for GeneralConfig {
             backup_enabled: false,
             max_concurrent_jobs: 4,
             task_timeout_seconds: 300,
+            // Default workspace is current directory
+            workspace: std::path::PathBuf::from("."),
             enable_progress_bar: true,
             worker_idle_timeout_seconds: 60,
         }
