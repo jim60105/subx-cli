@@ -4,7 +4,7 @@ use common::cli_helpers::CLITestHelper;
 use std::path::PathBuf;
 use tokio::fs;
 
-/// 基本批次處理
+/// 基本批次處理 - 只有字幕文件應該被跳過
 #[tokio::test]
 async fn test_basic_batch_processing() {
     let helper = CLITestHelper::new();
@@ -12,13 +12,27 @@ async fn test_basic_batch_processing() {
     fs::create_dir_all(ws.join("media")).await.unwrap();
     let src = PathBuf::from("assets/SubX - The Subtitle Revolution.srt");
     fs::copy(&src, ws.join("media/subtitle.srt")).await.unwrap();
-    helper
-        .run_command_expect_success(&["sync", "--batch", "media"])
+    let result = helper
+        .run_command_with_config(&["sync", "--batch", "media"])
         .await;
-    assert!(ws.join("media/subtitle_synced.srt").exists());
+
+    // 驗證命令成功執行，但跳過了沒有對應視頻的字幕文件
+    assert!(result.success);
+    let output = format!("{}\n{}", result.stdout, result.stderr);
+    assert!(
+        output.contains("✗ Skip sync for")
+            && output.contains("subtitle.srt")
+            && output.contains("no video files found in directory"),
+        "Should skip subtitle file when no video files exist in directory. Output: {}",
+        output
+    );
+    assert!(
+        !ws.join("media/subtitle_synced.srt").exists(),
+        "Should not create synced file for subtitle without video"
+    );
 }
 
-/// 遞歸批次處理
+/// 遞歸批次處理 - 只有字幕文件應該被跳過
 #[tokio::test]
 async fn test_recursive_batch_processing() {
     let helper = CLITestHelper::new();
@@ -27,13 +41,27 @@ async fn test_recursive_batch_processing() {
     fs::create_dir_all(&nested).await.unwrap();
     let src = PathBuf::from("assets/SubX - The Subtitle Revolution.srt");
     fs::copy(&src, nested.join("subtitle.srt")).await.unwrap();
-    helper
-        .run_command_expect_success(&["sync", "--batch", "media", "--recursive"])
+    let result = helper
+        .run_command_with_config(&["sync", "--batch", "media", "--recursive"])
         .await;
-    assert!(nested.join("subtitle_synced.srt").exists());
+
+    // 驗證命令成功執行，但跳過了沒有對應視頻的字幕文件
+    assert!(result.success);
+    let output = format!("{}\n{}", result.stdout, result.stderr);
+    assert!(
+        output.contains("✗ Skip sync for")
+            && output.contains("subtitle.srt")
+            && output.contains("no video files found in directory"),
+        "Should skip subtitle file when no video files exist in directory. Output: {}",
+        output
+    );
+    assert!(
+        !nested.join("subtitle_synced.srt").exists(),
+        "Should not create synced file for subtitle without video"
+    );
 }
 
-/// 大型目錄批次處理（模擬大量文件）
+/// 大型目錄批次處理（模擬大量文件）- 只有字幕文件應該被跳過
 #[tokio::test]
 async fn test_large_directory_batch_processing() {
     let helper = CLITestHelper::new();
@@ -47,11 +75,32 @@ async fn test_large_directory_batch_processing() {
             .await
             .unwrap();
     }
-    helper
-        .run_command_expect_success(&["sync", "--batch", "bulk", "--recursive"])
+    let result = helper
+        .run_command_with_config(&["sync", "--batch", "bulk", "--recursive"])
         .await;
+
+    // 驗證命令成功執行，但跳過了沒有對應視頻的字幕文件
+    assert!(result.success);
+    let output = format!("{}\n{}", result.stdout, result.stderr);
+
+    // 檢查所有字幕文件都被跳過，並且訊息說明沒有視頻文件
     for i in 0..5 {
-        assert!(dir.join(format!("subtitle{}_synced.srt", i)).exists());
+        assert!(
+            output.contains(&format!("subtitle{}.srt", i))
+                && output.contains("no video files found in directory"),
+            "Should mention subtitle{}.srt in skip message with 'no video files found'. Output: {}",
+            i,
+            output
+        );
+    }
+
+    // 確保沒有生成任何同步後的文件
+    for i in 0..5 {
+        assert!(
+            !dir.join(format!("subtitle{}_synced.srt", i)).exists(),
+            "Should not create synced file for subtitle{}.srt",
+            i
+        );
     }
 }
 
@@ -70,7 +119,7 @@ async fn test_batch_dry_run_combination() {
     assert!(!ws.join("media/subtitle_synced.srt").exists());
 }
 
-/// 批次 + 詳細輸出
+/// 批次 + 詳細輸出 - 只有字幕文件應該被跳過
 #[tokio::test]
 async fn test_batch_verbose_combination() {
     let helper = CLITestHelper::new();
@@ -78,13 +127,27 @@ async fn test_batch_verbose_combination() {
     fs::create_dir_all(ws.join("media")).await.unwrap();
     let src = PathBuf::from("assets/SubX - The Subtitle Revolution.srt");
     fs::copy(&src, ws.join("media/subtitle.srt")).await.unwrap();
-    helper
-        .run_command_expect_success(&["sync", "--batch", "media", "--verbose"])
+    let result = helper
+        .run_command_with_config(&["sync", "--batch", "media", "--verbose"])
         .await;
-    assert!(ws.join("media/subtitle_synced.srt").exists());
+
+    // 驗證命令成功執行，但跳過了沒有對應視頻的字幕文件
+    assert!(result.success);
+    let output = format!("{}\n{}", result.stdout, result.stderr);
+    assert!(
+        output.contains("✗ Skip sync for")
+            && output.contains("subtitle.srt")
+            && output.contains("no video files found in directory"),
+        "Should skip subtitle file when no video files exist in directory. Output: {}",
+        output
+    );
+    assert!(
+        !ws.join("media/subtitle_synced.srt").exists(),
+        "Should not create synced file for subtitle without video"
+    );
 }
 
-/// 批次 + 方法選擇
+/// 批次 + 方法選擇 - 只有字幕文件應該被跳過
 #[tokio::test]
 async fn test_batch_method_selection_combination() {
     let helper = CLITestHelper::new();
@@ -92,8 +155,22 @@ async fn test_batch_method_selection_combination() {
     fs::create_dir_all(ws.join("media")).await.unwrap();
     let src = PathBuf::from("assets/SubX - The Subtitle Revolution.srt");
     fs::copy(&src, ws.join("media/subtitle.srt")).await.unwrap();
-    helper
-        .run_command_expect_success(&["sync", "--batch", "media", "--method", "vad"])
+    let result = helper
+        .run_command_with_config(&["sync", "--batch", "media", "--method", "vad"])
         .await;
-    assert!(ws.join("media/subtitle_synced.srt").exists());
+
+    // 驗證命令成功執行，但跳過了沒有對應視頻的字幕文件
+    assert!(result.success);
+    let output = format!("{}\n{}", result.stdout, result.stderr);
+    assert!(
+        output.contains("✗ Skip sync for")
+            && output.contains("subtitle.srt")
+            && output.contains("no video files found in directory"),
+        "Should skip subtitle file when no video files exist in directory. Output: {}",
+        output
+    );
+    assert!(
+        !ws.join("media/subtitle_synced.srt").exists(),
+        "Should not create synced file for subtitle without video"
+    );
 }

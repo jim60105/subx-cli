@@ -199,70 +199,122 @@ pub async fn execute(args: SyncArgs, config_service: &dyn ConfigService) -> Resu
         let paths = handler
             .collect_files()
             .map_err(|e| SubXError::CommandExecution(e.to_string()))?;
-        // First, process video-subtitle pairs
-        for path in &paths {
-            if let Some(ext) = path.extension().and_then(|s| s.to_str()) {
-                let ext = ext.to_lowercase();
-                if ["mp4", "mkv", "avi", "mov"].contains(&ext.as_str()) {
-                    let stem = path
-                        .file_stem()
-                        .map(|s| s.to_string_lossy().to_string())
-                        .unwrap_or_default();
-                    if let Some(sub_path) = paths.iter().find(|p| {
-                        p.file_stem()
-                            .map(|s| s.to_string_lossy() == stem)
-                            .unwrap_or(false)
-                            && p.extension()
-                                .and_then(|s| s.to_str())
-                                .map(|e| {
-                                    ["srt", "ass", "vtt", "sub"]
-                                        .contains(&e.to_lowercase().as_str())
-                                })
-                                .unwrap_or(false)
-                    }) {
-                        let mut single_args = args.clone();
-                        single_args.input_paths.clear();
-                        single_args.batch = None;
-                        single_args.recursive = false;
-                        single_args.video = Some(path.clone());
-                        single_args.subtitle = Some(sub_path.clone());
-                        run_single(&single_args, &config, &sync_engine, &format_manager).await?;
-                    } else {
-                        eprintln!("✗ Skip sync for {}: no matching subtitle", path.display());
-                    }
+
+        // Separate video and subtitle files
+        let video_files: Vec<_> = paths
+            .iter()
+            .filter(|p| {
+                p.extension()
+                    .and_then(|s| s.to_str())
+                    .map(|e| ["mp4", "mkv", "avi", "mov"].contains(&e.to_lowercase().as_str()))
+                    .unwrap_or(false)
+            })
+            .collect();
+
+        let subtitle_files: Vec<_> = paths
+            .iter()
+            .filter(|p| {
+                p.extension()
+                    .and_then(|s| s.to_str())
+                    .map(|e| ["srt", "ass", "vtt", "sub"].contains(&e.to_lowercase().as_str()))
+                    .unwrap_or(false)
+            })
+            .collect();
+
+        // Case 1: No video files - skip all subtitles
+        if video_files.is_empty() {
+            for sub_path in &subtitle_files {
+                println!(
+                    "✗ Skip sync for {}: no video files found in directory",
+                    sub_path.display()
+                );
+            }
+            return Ok(());
+        }
+
+        // Case 2: Exactly one video and one subtitle - sync regardless of name match
+        if video_files.len() == 1 && subtitle_files.len() == 1 {
+            let mut single_args = args.clone();
+            single_args.input_paths.clear();
+            single_args.batch = None;
+            single_args.recursive = false;
+            single_args.video = Some(video_files[0].clone());
+            single_args.subtitle = Some(subtitle_files[0].clone());
+            run_single(&single_args, &config, &sync_engine, &format_manager).await?;
+            return Ok(());
+        }
+
+        // Case 3: Multiple videos/subtitles - match by prefix and handle unmatched
+        let mut processed_videos = std::collections::HashSet::new();
+        let mut processed_subtitles = std::collections::HashSet::new();
+
+        // Process subtitle files with matching videos
+        for sub_path in &subtitle_files {
+            let sub_name = sub_path.file_stem().and_then(|s| s.to_str()).unwrap_or("");
+            let sub_dir = sub_path.parent();
+
+            let matching_video = video_files.iter().find(|&video_path| {
+                let video_name = video_path
+                    .file_stem()
+                    .and_then(|s| s.to_str())
+                    .unwrap_or("");
+                let video_dir = video_path.parent();
+
+                // Check if they are in the same directory
+                if sub_dir != video_dir {
+                    return false;
                 }
+
+                // If in the same directory, check if it's a 1-to-1 pair
+                let dir_videos: Vec<_> = video_files
+                    .iter()
+                    .filter(|v| v.parent() == video_dir)
+                    .collect();
+                let dir_subtitles: Vec<_> = subtitle_files
+                    .iter()
+                    .filter(|s| s.parent() == sub_dir)
+                    .collect();
+
+                if dir_videos.len() == 1 && dir_subtitles.len() == 1 {
+                    // 1-to-1 in same directory - always match
+                    return true;
+                }
+
+                // Otherwise use starts_with logic
+                !video_name.is_empty() && sub_name.starts_with(video_name)
+            });
+
+            if let Some(video_path) = matching_video {
+                let mut single_args = args.clone();
+                single_args.input_paths.clear();
+                single_args.batch = None;
+                single_args.recursive = false;
+                single_args.video = Some((*video_path).clone());
+                single_args.subtitle = Some((*sub_path).clone());
+                run_single(&single_args, &config, &sync_engine, &format_manager).await?;
+
+                processed_videos.insert(video_path.as_path());
+                processed_subtitles.insert(sub_path.as_path());
             }
         }
-        // Next, handle subtitle-only files by applying a zero offset
-        for path in &paths {
-            if let Some(ext) = path.extension().and_then(|s| s.to_str()) {
-                let ext_lc = ext.to_lowercase();
-                if ["srt", "ass", "vtt", "sub"].contains(&ext_lc.as_str()) {
-                    let stem = path.file_stem().and_then(|s| s.to_str()).unwrap_or("");
-                    let has_video = paths.iter().any(|p| {
-                        p.file_stem().and_then(|s| s.to_str()) == Some(stem)
-                            && p.extension()
-                                .and_then(|s| s.to_str())
-                                .map(|e| {
-                                    ["mp4", "mkv", "avi", "mov"]
-                                        .contains(&e.to_lowercase().as_str())
-                                })
-                                .unwrap_or(false)
-                    });
-                    if !has_video {
-                        let mut single_args = args.clone();
-                        single_args.input_paths.clear();
-                        single_args.batch = None;
-                        single_args.recursive = false;
-                        single_args.video = None;
-                        single_args.subtitle = Some(path.clone());
-                        single_args.offset = Some(0.0);
-                        single_args.method = Some(crate::cli::SyncMethodArg::Manual);
-                        run_single(&single_args, &config, &sync_engine, &format_manager).await?;
-                    }
-                }
+
+        // Display skip messages for unmatched videos
+        for video_path in &video_files {
+            if !processed_videos.contains(video_path.as_path()) {
+                println!(
+                    "✗ Skip sync for {}: no matching subtitle",
+                    video_path.display()
+                );
             }
         }
+
+        // Display skip messages for unmatched subtitles
+        for sub_path in &subtitle_files {
+            if !processed_subtitles.contains(sub_path.as_path()) {
+                println!("✗ Skip sync for {}: no matching video", sub_path.display());
+            }
+        }
+
         return Ok(());
     }
 
