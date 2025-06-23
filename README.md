@@ -156,7 +156,6 @@ subx-cli sync -i ./movies1 -i ./movies2 -i ./tv_shows --recursive --batch --meth
 # Batch mode with detailed output and dry-run
 subx-cli sync -i ./media --batch --recursive --dry-run --verbose
 subx-cli sync movie.mkv
-subx-cli sync subtitles.ass
 subx-cli sync -b media_folder
 ```
 
