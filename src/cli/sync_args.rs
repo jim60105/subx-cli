@@ -341,7 +341,7 @@ Need help? Run: subx sync --help"
                         if let Some(stem) = path.file_stem().and_then(|s| s.to_str()) {
                             let dir = path.parent().unwrap_or_else(|| Path::new("."));
                             for sub_ext in &["srt", "ass", "vtt", "sub"] {
-                                let cand = dir.join(format!("{}.{}", stem, sub_ext));
+                                let cand = dir.join(format!("{stem}.{sub_ext}"));
                                 if cand.exists() {
                                     subtitle = Some(cand);
                                     break;
@@ -354,7 +354,7 @@ Need help? Run: subx sync --help"
                         if let Some(stem) = path.file_stem().and_then(|s| s.to_str()) {
                             let dir = path.parent().unwrap_or_else(|| Path::new("."));
                             for vid_ext in &["mp4", "mkv", "avi", "mov"] {
-                                let cand = dir.join(format!("{}.{}", stem, vid_ext));
+                                let cand = dir.join(format!("{stem}.{vid_ext}"));
                                 if cand.exists() {
                                     video = Some(cand);
                                     break;
@@ -446,7 +446,7 @@ fn create_default_output_path(input: &Path) -> PathBuf {
 
     if let Some(stem) = input.file_stem().and_then(|s| s.to_str()) {
         if let Some(extension) = input.extension().and_then(|s| s.to_str()) {
-            let new_filename = format!("{}_synced.{}", stem, extension);
+            let new_filename = format!("{stem}_synced.{extension}");
             output.set_file_name(new_filename);
         }
     }

@@ -211,8 +211,7 @@ impl ConfigService for TestConfigService {
                 Ok(format!("{:?}", config.parallel.overflow_strategy))
             }
             _ => Err(SubXError::config(format!(
-                "Unknown configuration key: {}",
-                key
+                "Unknown configuration key: {key}"
             ))),
         }
     }
@@ -403,8 +402,7 @@ impl TestConfigService {
             }
             _ => {
                 return Err(SubXError::config(format!(
-                    "Unknown configuration key: {}",
-                    key
+                    "Unknown configuration key: {key}"
                 )));
             }
         }

@@ -216,7 +216,7 @@ pub fn detect_encoding_command(args: &DetectEncodingArgs) -> Result<()> {
                     .file_name()
                     .and_then(|n| n.to_str())
                     .unwrap_or(&file_str);
-                println!("File: {}", name);
+                println!("File: {name}");
                 println!(
                     "  Encoding: {:?} (Confidence: {:.1}%) BOM: {}",
                     info.charset,
@@ -230,7 +230,7 @@ pub fn detect_encoding_command(args: &DetectEncodingArgs) -> Result<()> {
                 } else {
                     info.sample_text.clone()
                 };
-                println!("  Sample text: {}\n", sample);
+                println!("  Sample text: {sample}\n");
             }
             Err(e) => error!("Unable to detect encoding for {}: {}", path.display(), e),
         }

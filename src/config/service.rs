@@ -203,8 +203,8 @@ impl ProductionConfigService {
 
         // Build configuration from all sources
         let config_crate = self.config_builder.build_cloned().map_err(|e| {
-            debug!("ProductionConfigService: Config build failed: {}", e);
-            SubXError::config(format!("Failed to build configuration: {}", e))
+            debug!("ProductionConfigService: Config build failed: {e}");
+            SubXError::config(format!("Failed to build configuration: {e}"))
         })?;
 
         // Start with default configuration
@@ -269,8 +269,8 @@ impl ProductionConfigService {
 
         // Validate the configuration
         crate::config::validator::validate_config(&app_config).map_err(|e| {
-            debug!("ProductionConfigService: Config validation failed: {}", e);
-            SubXError::config(format!("Configuration validation failed: {}", e))
+            debug!("ProductionConfigService: Config validation failed: {e}");
+            SubXError::config(format!("Configuration validation failed: {e}"))
         })?;
 
         debug!("ProductionConfigService: Configuration loaded and validated successfully");
@@ -426,8 +426,7 @@ impl ProductionConfigService {
             }
             _ => {
                 return Err(SubXError::config(format!(
-                    "Unknown configuration key: {}",
-                    key
+                    "Unknown configuration key: {key}"
                 )));
             }
         }
@@ -447,14 +446,14 @@ impl ProductionConfigService {
         config: &Config,
     ) -> Result<()> {
         let toml_content = toml::to_string_pretty(config)
-            .map_err(|e| SubXError::config(format!("TOML serialization error: {}", e)))?;
+            .map_err(|e| SubXError::config(format!("TOML serialization error: {e}")))?;
         if let Some(parent) = path.parent() {
             std::fs::create_dir_all(parent).map_err(|e| {
-                SubXError::config(format!("Failed to create config directory: {}", e))
+                SubXError::config(format!("Failed to create config directory: {e}"))
             })?;
         }
         std::fs::write(path, toml_content)
-            .map_err(|e| SubXError::config(format!("Failed to write config file: {}", e)))?;
+            .map_err(|e| SubXError::config(format!("Failed to write config file: {e}")))?;
         Ok(())
     }
 }
@@ -507,16 +506,16 @@ impl ConfigService for ProductionConfigService {
     fn save_config_to_file(&self, path: &Path) -> Result<()> {
         let config = self.get_config()?;
         let toml_content = toml::to_string_pretty(&config)
-            .map_err(|e| SubXError::config(format!("TOML serialization error: {}", e)))?;
+            .map_err(|e| SubXError::config(format!("TOML serialization error: {e}")))?;
 
         if let Some(parent) = path.parent() {
             std::fs::create_dir_all(parent).map_err(|e| {
-                SubXError::config(format!("Failed to create config directory: {}", e))
+                SubXError::config(format!("Failed to create config directory: {e}"))
             })?;
         }
 
         std::fs::write(path, toml_content)
-            .map_err(|e| SubXError::config(format!("Failed to write config file: {}", e)))?;
+            .map_err(|e| SubXError::config(format!("Failed to write config file: {e}")))?;
 
         Ok(())
     }

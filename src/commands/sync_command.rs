@@ -29,24 +29,24 @@ async fn run_single(
         println!("🎬 Loading subtitle file: {}", subtitle_path.display());
         println!("📄 Subtitle entries count: {}", {
             let s = format_manager.load_subtitle(subtitle_path).map_err(|e| {
-                eprintln!("[DEBUG] Failed to load subtitle: {}", e);
+                eprintln!("[DEBUG] Failed to load subtitle: {e}");
                 e
             })?;
             s.entries.len()
         });
     }
     let mut subtitle = format_manager.load_subtitle(subtitle_path).map_err(|e| {
-        eprintln!("[DEBUG] Failed to load subtitle: {}", e);
+        eprintln!("[DEBUG] Failed to load subtitle: {e}");
         e
     })?;
     let sync_result = if let Some(offset) = args.offset {
         if args.verbose {
-            println!("⚙️  Using manual offset: {:.3}s", offset);
+            println!("⚙️  Using manual offset: {offset:.3}s");
         }
         sync_engine
             .apply_manual_offset(&mut subtitle, offset)
             .map_err(|e| {
-                eprintln!("[DEBUG] Failed to apply manual offset: {}", e);
+                eprintln!("[DEBUG] Failed to apply manual offset: {e}");
                 e
             })?;
         SyncResult {
@@ -76,7 +76,7 @@ async fn run_single(
         let method = determine_sync_method(args, &config.sync.default_method)?;
         if args.verbose {
             println!("🔍 Starting sync analysis...");
-            println!("   Method: {:?}", method);
+            println!("   Method: {method:?}");
             println!("   Analysis window: {}s", args.window);
             println!("   Video file: {}", video_path.display());
         }
@@ -86,7 +86,7 @@ async fn run_single(
             .detect_sync_offset(video_path.as_path(), &subtitle, Some(method))
             .await
             .map_err(|e| {
-                eprintln!("[DEBUG] Failed to detect sync offset: {}", e);
+                eprintln!("[DEBUG] Failed to detect sync offset: {e}");
                 e
             })?;
         if args.verbose {
@@ -99,7 +99,7 @@ async fn run_single(
             sync_engine
                 .apply_manual_offset(&mut subtitle, result.offset_seconds)
                 .map_err(|e| {
-                    eprintln!("[DEBUG] Failed to apply detected offset: {}", e);
+                    eprintln!("[DEBUG] Failed to apply detected offset: {e}");
                     e
                 })?;
         }
@@ -119,7 +119,7 @@ async fn run_single(
                 )));
             }
             format_manager.save_subtitle(&subtitle, &out).map_err(|e| {
-                eprintln!("[DEBUG] Failed to save subtitle: {}", e);
+                eprintln!("[DEBUG] Failed to save subtitle: {e}");
                 e
             })?;
             if args.verbose {
@@ -452,14 +452,14 @@ fn display_sync_result(result: &SyncResult, verbose: bool) {
         if !result.warnings.is_empty() {
             println!("\nWarnings:");
             for warning in &result.warnings {
-                println!("  ⚠️  {}", warning);
+                println!("  ⚠️  {warning}");
             }
         }
 
         if let Some(info) = &result.additional_info {
             if let Ok(pretty_info) = serde_json::to_string_pretty(info) {
                 println!("\nAdditional information:");
-                println!("{}", pretty_info);
+                println!("{pretty_info}");
             }
         }
     } else {

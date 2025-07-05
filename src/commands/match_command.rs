@@ -331,7 +331,7 @@ pub async fn execute_with_client(
     let input_handler = args.get_input_handler()?;
     let files = input_handler
         .collect_files()
-        .map_err(|e| SubXError::CommandExecution(format!("Failed to collect files: {}", e)))?;
+        .map_err(|e| SubXError::CommandExecution(format!("Failed to collect files: {e}")))?;
 
     if files.is_empty() {
         return Err(SubXError::CommandExecution(
@@ -506,12 +506,12 @@ pub async fn execute_parallel_match(
         }
     }
     println!("\nProcessing results:");
-    println!("  ✓ Success: {} files", ok);
+    println!("  ✓ Success: {ok} files");
     if partial > 0 {
-        println!("  ⚠ Partial success: {} files", partial);
+        println!("  ⚠ Partial success: {partial} files");
     }
     if failed > 0 {
-        println!("  ✗ Failed: {} files", failed);
+        println!("  ✗ Failed: {failed} files");
         for (i, r) in results.iter().enumerate() {
             if matches!(r, TaskResult::Failed(_)) {
                 println!("  Failure details {}: {}", i + 1, r);
@@ -554,7 +554,7 @@ async fn monitor_batch_execution(
                 _ = ticker.tick() => {
                     let active = scheduler.list_active_tasks().len();
                     let queued = scheduler.get_queue_size();
-                    progress_bar.set_message(format!("Active: {} | Queued: {} | Completed: {}/{}", active, queued, completed, total));
+                    progress_bar.set_message(format!("Active: {active} | Queued: {queued} | Completed: {completed}/{total}"));
                 }
             }
         }

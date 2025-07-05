@@ -33,11 +33,10 @@ pub fn validate_enum(value: &str, allowed: &[&str]) -> SubXResult<()> {
 pub fn validate_float_range(value: &str, min: f32, max: f32) -> SubXResult<f32> {
     let parsed = value
         .parse::<f32>()
-        .map_err(|_| SubXError::config(format!("Invalid float value: {}", value)))?;
+        .map_err(|_| SubXError::config(format!("Invalid float value: {value}")))?;
     if parsed < min || parsed > max {
         return Err(SubXError::config(format!(
-            "Value {} is out of range [{}, {}]",
-            parsed, min, max
+            "Value {parsed} is out of range [{min}, {max}]"
         )));
     }
     Ok(parsed)
@@ -47,11 +46,10 @@ pub fn validate_float_range(value: &str, min: f32, max: f32) -> SubXResult<f32> 
 pub fn validate_uint_range(value: &str, min: u32, max: u32) -> SubXResult<u32> {
     let parsed = value
         .parse::<u32>()
-        .map_err(|_| SubXError::config(format!("Invalid integer value: {}", value)))?;
+        .map_err(|_| SubXError::config(format!("Invalid integer value: {value}")))?;
     if parsed < min || parsed > max {
         return Err(SubXError::config(format!(
-            "Value {} is out of range [{}, {}]",
-            parsed, min, max
+            "Value {parsed} is out of range [{min}, {max}]"
         )));
     }
     Ok(parsed)
@@ -61,11 +59,10 @@ pub fn validate_uint_range(value: &str, min: u32, max: u32) -> SubXResult<u32> {
 pub fn validate_u64_range(value: &str, min: u64, max: u64) -> SubXResult<u64> {
     let parsed = value
         .parse::<u64>()
-        .map_err(|_| SubXError::config(format!("Invalid u64 value: {}", value)))?;
+        .map_err(|_| SubXError::config(format!("Invalid u64 value: {value}")))?;
     if parsed < min || parsed > max {
         return Err(SubXError::config(format!(
-            "Value {} is out of range [{}, {}]",
-            parsed, min, max
+            "Value {parsed} is out of range [{min}, {max}]"
         )));
     }
     Ok(parsed)
@@ -75,11 +72,10 @@ pub fn validate_u64_range(value: &str, min: u64, max: u64) -> SubXResult<u64> {
 pub fn validate_usize_range(value: &str, min: usize, max: usize) -> SubXResult<usize> {
     let parsed = value
         .parse::<usize>()
-        .map_err(|_| SubXError::config(format!("Invalid usize value: {}", value)))?;
+        .map_err(|_| SubXError::config(format!("Invalid usize value: {value}")))?;
     if parsed < min || parsed > max {
         return Err(SubXError::config(format!(
-            "Value {} is out of range [{}, {}]",
-            parsed, min, max
+            "Value {parsed} is out of range [{min}, {max}]"
         )));
     }
     Ok(parsed)
@@ -100,8 +96,7 @@ pub fn validate_api_key(value: &str) -> SubXResult<()> {
 pub fn validate_url(value: &str) -> SubXResult<()> {
     if !value.starts_with("http://") && !value.starts_with("https://") {
         return Err(SubXError::config(format!(
-            "Invalid URL format: {}. Must start with http:// or https://",
-            value
+            "Invalid URL format: {value}. Must start with http:// or https://"
         )));
     }
     Ok(())
@@ -112,10 +107,7 @@ pub fn parse_bool(value: &str) -> SubXResult<bool> {
     match value.to_lowercase().as_str() {
         "true" | "1" | "yes" | "on" | "enabled" => Ok(true),
         "false" | "0" | "no" | "off" | "disabled" => Ok(false),
-        _ => Err(SubXError::config(format!(
-            "Invalid boolean value: {}",
-            value
-        ))),
+        _ => Err(SubXError::config(format!("Invalid boolean value: {value}"))),
     }
 }
 
@@ -131,7 +123,7 @@ pub fn validate_url_format(value: &str) -> SubXResult<()> {
         return Ok(()); // Empty URLs are often optional
     }
 
-    Url::parse(value).map_err(|_| SubXError::config(format!("Invalid URL format: {}", value)))?;
+    Url::parse(value).map_err(|_| SubXError::config(format!("Invalid URL format: {value}")))?;
     Ok(())
 }
 
@@ -148,8 +140,7 @@ where
 {
     if value <= T::default() {
         return Err(SubXError::config(format!(
-            "Value must be positive, got: {}",
-            value
+            "Value must be positive, got: {value}"
         )));
     }
     Ok(())
@@ -170,8 +161,7 @@ where
 {
     if value < min || value > max {
         return Err(SubXError::config(format!(
-            "Value {} is outside allowed range [{}, {}]",
-            value, min, max
+            "Value {value} is outside allowed range [{min}, {max}]"
         )));
     }
     Ok(())
@@ -187,7 +177,7 @@ where
 /// Returns error if the string is empty or contains only whitespace.
 pub fn validate_non_empty_string(value: &str, field_name: &str) -> SubXResult<()> {
     if value.trim().is_empty() {
-        return Err(SubXError::config(format!("{} cannot be empty", field_name)));
+        return Err(SubXError::config(format!("{field_name} cannot be empty")));
     }
     Ok(())
 }
@@ -207,7 +197,7 @@ pub fn validate_file_path(value: &str, must_exist: bool) -> SubXResult<()> {
 
     let path = Path::new(value);
     if must_exist && !path.exists() {
-        return Err(SubXError::config(format!("Path does not exist: {}", value)));
+        return Err(SubXError::config(format!("Path does not exist: {value}")));
     }
 
     Ok(())
@@ -255,8 +245,7 @@ pub fn validate_ai_model(model: &str) -> SubXResult<()> {
 pub fn validate_power_of_two(value: usize) -> SubXResult<()> {
     if value == 0 || !value.is_power_of_two() {
         return Err(SubXError::config(format!(
-            "Value {} must be a power of two",
-            value
+            "Value {value} must be a power of two"
         )));
     }
     Ok(())

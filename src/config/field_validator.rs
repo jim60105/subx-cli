@@ -175,8 +175,7 @@ pub fn validate_field(key: &str, value: &str) -> Result<()> {
 
         _ => {
             return Err(SubXError::config(format!(
-                "Unknown configuration key: {}",
-                key
+                "Unknown configuration key: {key}"
             )));
         }
     }

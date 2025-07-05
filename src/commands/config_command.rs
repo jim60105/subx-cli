@@ -249,10 +249,10 @@ pub async fn execute(args: ConfigArgs, config_service: &dyn ConfigService) -> Su
     match args.action {
         ConfigAction::Set { key, value } => {
             config_service.set_config_value(&key, &value)?;
-            println!("✓ Configuration '{}' set to '{}'", key, value);
+            println!("✓ Configuration '{key}' set to '{value}'");
             // Display the updated value to confirm
             if let Ok(current) = config_service.get_config_value(&key) {
-                println!("  Current value: {}", current);
+                println!("  Current value: {current}");
             }
             if let Ok(path) = config_service.get_config_file_path() {
                 println!("  Saved to: {}", path.display());
@@ -260,7 +260,7 @@ pub async fn execute(args: ConfigArgs, config_service: &dyn ConfigService) -> Su
         }
         ConfigAction::Get { key } => {
             let value = config_service.get_config_value(&key)?;
-            println!("{}", value);
+            println!("{value}");
         }
         ConfigAction::List => {
             let config = config_service.get_config()?;
@@ -270,7 +270,7 @@ pub async fn execute(args: ConfigArgs, config_service: &dyn ConfigService) -> Su
             println!(
                 "{}",
                 toml::to_string_pretty(&config)
-                    .map_err(|e| SubXError::config(format!("TOML serialization error: {}", e)))?
+                    .map_err(|e| SubXError::config(format!("TOML serialization error: {e}")))?
             );
         }
         ConfigAction::Reset => {
@@ -304,10 +304,10 @@ pub async fn execute_with_config(
     match args.action {
         ConfigAction::Set { key, value } => {
             config_service.set_config_value(&key, &value)?;
-            println!("✓ Configuration '{}' set to '{}'", key, value);
+            println!("✓ Configuration '{key}' set to '{value}'");
             // Display the updated value to confirm
             if let Ok(current) = config_service.get_config_value(&key) {
-                println!("  Current value: {}", current);
+                println!("  Current value: {current}");
             }
             if let Ok(path) = config_service.get_config_file_path() {
                 println!("  Saved to: {}", path.display());
@@ -315,7 +315,7 @@ pub async fn execute_with_config(
         }
         ConfigAction::Get { key } => {
             let value = config_service.get_config_value(&key)?;
-            println!("{}", value);
+            println!("{value}");
         }
         ConfigAction::List => {
             let config = config_service.get_config()?;
@@ -325,7 +325,7 @@ pub async fn execute_with_config(
             println!(
                 "{}",
                 toml::to_string_pretty(&config)
-                    .map_err(|e| SubXError::config(format!("TOML serialization error: {}", e)))?
+                    .map_err(|e| SubXError::config(format!("TOML serialization error: {e}")))?
             );
         }
         ConfigAction::Reset => {

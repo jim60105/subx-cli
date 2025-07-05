@@ -18,6 +18,8 @@
 //! The library is organized into several key modules:
 //!
 //! - [`cli`] - Command-line interface and argument parsing
+
+#![allow(clippy::uninlined_format_args)]
 //! - [`commands`] - Implementation of all SubX commands
 //! - [`config`] - Configuration management and validation
 //! - [`core`] - Core processing engines (formats, matching, sync)
@@ -387,8 +389,7 @@ impl App {
             "sub" => cli::OutputSubtitleFormat::Sub,
             _ => {
                 return Err(error::SubXError::CommandExecution(format!(
-                    "Unsupported output format: {}. Supported formats: srt, ass, vtt, sub",
-                    output_format
+                    "Unsupported output format: {output_format}. Supported formats: srt, ass, vtt, sub"
                 )));
             }
         };
@@ -443,8 +444,7 @@ impl App {
             "manual" => Some(cli::SyncMethodArg::Manual),
             _ => {
                 return Err(error::SubXError::CommandExecution(format!(
-                    "Unsupported sync method: {}. Supported methods: vad, manual",
-                    method
+                    "Unsupported sync method: {method}. Supported methods: vad, manual"
                 )));
             }
         };

@@ -221,8 +221,7 @@ pub async fn execute(args: ConvertArgs, config_service: &dyn ConfigService) -> c
         "sub" => OutputSubtitleFormat::Sub,
         other => {
             return Err(SubXError::config(format!(
-                "Unknown default output format: {}",
-                other
+                "Unknown default output format: {other}"
             )));
         }
     };
@@ -246,7 +245,7 @@ pub async fn execute(args: ConvertArgs, config_service: &dyn ConfigService) -> c
             #[allow(clippy::collapsible_if)]
             if (handler.paths.len() != 1 || handler.paths[0].is_dir()) && p.is_dir() {
                 if let Some(stem) = input_path.file_stem().and_then(|s| s.to_str()) {
-                    p.push(format!("{}.{}", stem, fmt));
+                    p.push(format!("{stem}.{fmt}"));
                 }
             }
             p
@@ -270,7 +269,7 @@ pub async fn execute(args: ConvertArgs, config_service: &dyn ConfigService) -> c
                 } else {
                     eprintln!("✗ Conversion failed for {}", input_path.display());
                     for err in result.errors {
-                        eprintln!("  Error: {}", err);
+                        eprintln!("  Error: {err}");
                     }
                 }
             }

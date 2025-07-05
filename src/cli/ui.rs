@@ -306,15 +306,15 @@ pub fn display_match_results(results: &[MatchOperation], is_dry_run: bool) {
 
             let mut rows = vec![
                 MatchDisplayRow {
-                    file_type: format!("{} Video {}", status_symbol, idx),
+                    file_type: format!("{status_symbol} Video {idx}"),
                     file_path: video.to_string(),
                 },
                 MatchDisplayRow {
-                    file_type: format!("├ Subtitle {}", idx),
+                    file_type: format!("├ Subtitle {idx}"),
                     file_path: subtitle.to_string(),
                 },
                 MatchDisplayRow {
-                    file_type: format!("├ New name {}", idx),
+                    file_type: format!("├ New name {idx}"),
                     file_path: new_name.clone(),
                 },
             ];
@@ -335,7 +335,7 @@ pub fn display_match_results(results: &[MatchOperation], is_dry_run: bool) {
 
                 if let Some(target_path) = &op.relocation_target_path {
                     rows.push(MatchDisplayRow {
-                        file_type: format!("└ {} {}", operation_icon, operation_verb),
+                        file_type: format!("└ {operation_icon} {operation_verb}"),
                         file_path: target_path.to_string_lossy().to_string(),
                     });
                 } else {
