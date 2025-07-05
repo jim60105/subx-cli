@@ -2,6 +2,9 @@
 {
 	"name": "Rust",
 	"image": "mcr.microsoft.com/devcontainers/rust:1-1-bookworm",
+	"features": {
+		"ghcr.io/devcontainers/features/github-cli:1": {}
+	},
 
 	// Use 'mounts' to make the cargo cache persistent in a Docker Volume.
 	"mounts": [
@@ -9,16 +12,26 @@
 			"source": "devcontainer-cargo-cache-${devcontainerId}",
 			"target": "/usr/local/cargo",
 			"type": "volume"
+		},
+		{
+			"source": "${localEnv:HOME}/.env",
+			"target": "/home/vscode/.env",
+			"type": "bind"
 		}
 	],
 
 	// Use 'postCreateCommand' to run commands after the container is created.
-	"postCreateCommand": "sudo apt update && sudo apt install -y bc && cd ~ && git clone --depth 1 --filter=blob:none --sparse https://github.com/openai/codex.git && git -C codex sparse-checkout set codex-rs && cargo install --path codex/codex-rs/cli && rustup default stable && rustup component add clippy && rustup component add rustfmt && rustup component add llvm-tools-preview && cargo install cargo-llvm-cov && cargo install cargo-nextest --locked",
+		"postCreateCommand": {
+		// "locale-gen": "echo \"zh_TW.UTF-8 UTF-8\" >> /etc/locale.gen && locale-gen",
+		"codex-cli": "cd ~ && git clone --depth 1 --filter=blob:none --sparse https://github.com/openai/codex.git && git -C codex sparse-checkout set codex-rs && cargo install --path codex/codex-rs/cli",
+		"rustup": "rustup default stable && rustup component add clippy && rustup component add rustfmt && rustup component add llvm-tools-preview && cargo install cargo-llvm-cov && cargo install cargo-nextest --locked"
+	},
 
 	"containerEnv": {
-		"LC_ALL": "C",
-		"GIT_AUTHOR_NAME": "Codex-CLI",
-		"GIT_AUTHOR_EMAIL": "bot@ChenJ.im"
+		"GH_REPO": "jim60105/standalone-civitai-shortcut",
+		"GH_NO_UPDATE_NOTIFIER": "true",
+		"GH_NO_EXTENSION_UPDATE_NOTIFIER": "true",
+		"GH_PROMPT_DISABLED": "true"
 	},
 
 	// VS Code extensions to install
