@@ -18,8 +18,6 @@
 //! The library is organized into several key modules:
 //!
 //! - [`cli`] - Command-line interface and argument parsing
-
-#![allow(clippy::uninlined_format_args)]
 //! - [`commands`] - Implementation of all SubX commands
 //! - [`config`] - Configuration management and validation
 //! - [`core`] - Core processing engines (formats, matching, sync)
@@ -88,12 +86,15 @@
 //! - audio - Audio processing capabilities (default)  
 //! - parallel - Parallel processing support (default)
 //! ```
+
 #![allow(
     clippy::new_without_default,
     clippy::manual_clamp,
     clippy::useless_vec,
     clippy::items_after_test_module,
-    clippy::needless_borrow
+    clippy::needless_borrow,
+    clippy::uninlined_format_args,
+    clippy::collapsible_if
 )]
 #![warn(missing_docs)]
 #![warn(rustdoc::missing_crate_level_docs)]
