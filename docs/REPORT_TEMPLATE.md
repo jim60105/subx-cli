@@ -1,18 +1,8 @@
----
-title: "Job Report: [任務類型] #[編號] - [任務標題]"
-date: "[YYYY-MM-DDTHH:MM:SSZ]"
----
-
 # [任務類型] #[編號] - [任務標題] 工作報告
 
-**日期**：[YYYY-MM-DDTHH:MM:SSZ]  
 **任務**：[簡要描述此次任務的目標與範圍]  
 **類型**：[Backlog | Bug Fix | Enhancement | Refactor | Test]  
 **狀態**：[進行中 | 已完成 | 部分完成]
-
-> [!TIP]  
-> Always get the date with `date -u +"%Y-%m-%dT%H:%M:%SZ"` command.  
-> (Do not include this tip in the final report)
 
 ## 一、任務概述
 
@@ -105,3 +95,11 @@ cargo llvm-cov --all-features --workspace --html
 | `src/example.rs` | 新增 | [描述] |
 | `src/other.rs` | 修改 | [描述] |
 | `Cargo.toml` | 修改 | [描述] |
+
+### 九、關聯項目
+
+Resolves #[issue_number]
+
+> [!TIP]  
+> The word `Resolves` must remain in English and be used as is.
+> (Do not include this tip in the final report)

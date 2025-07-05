@@ -17,8 +17,8 @@
 
 	"containerEnv": {
 		"LC_ALL": "C",
-		"GIT_AUTHOR_NAME": "🤖 Codex-CLI",
-		"GIT_AUTHOR_EMAIL": "codex-cli[bot]@users.noreply.github.com"
+		"GIT_AUTHOR_NAME": "Codex-CLI",
+		"GIT_AUTHOR_EMAIL": "bot@ChenJ.im"
 	},
 
 	// VS Code extensions to install
