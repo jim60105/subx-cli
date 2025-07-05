@@ -7,6 +7,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.4.0] - 2025-07-06
+### Added
+- Added: Workspace override support via SUBX_WORKSPACE environment variable or config, enabling flexible project root selection.
+- Added: Comprehensive integration tests for sync command, covering all documented parameter combinations and edge cases.
+
+### Changed
+- Changed: Migrated VAD backend from git-based dependency to official voice_activity_detector_silero_v5 crate for improved maintainability.
+- Changed: Unified configuration flow and updated documentation to reflect new config loading and validation logic.
+- Changed: Enhanced batch sync logic with smart video-subtitle pairing, improved skip messaging, and robust edge case handling.
+- Changed: Refined sync argument validation and batch mode detection for more intuitive CLI usage.
+- Changed: Updated VAD comment and dependency revision for clarity and accuracy.
+
+### Removed
+- Removed: Example audio processing code and obsolete tests for relative/absolute path handling.
+
+### Fixed
+- Fixed: Batch processing now correctly handles video-subtitle pairing and displays accurate skip messages for unmatched files.
+
+### Documentation
+- Documentation: Clarified sync integration test data policy to use only assets/ files and updated all related documentation.
+
 ## [1.3.0] - 2025-06-19
 ### Added
 - Added: Positional argument support for sync command enabling direct usage like 'subx sync movie.mkv' and 'subx sync subtitle.srt'.
@@ -346,6 +367,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Rust-based intelligent subtitle processing
 
 [Unreleased]: https://github.com/jim60105/subx-cli/compare/v1.3.0...HEAD  
+[1.4.0]: https://github.com/jim60105/subx-cli/compare/v1.3.0...v1.4.0  
 [1.3.0]: https://github.com/jim60105/subx-cli/compare/v1.2.0...v1.3.0  
 [1.2.0]: https://github.com/jim60105/subx-cli/compare/v1.1.0...v1.2.0  
 [1.1.0]: https://github.com/jim60105/subx-cli/compare/v1.0.0...v1.1.0  
