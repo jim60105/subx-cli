@@ -119,14 +119,14 @@ impl TestConfigService {
     /// Get the underlying configuration.
     ///
     /// This is useful for tests that need direct access to the configuration object.
-    pub fn config(&self) -> std::sync::MutexGuard<Config> {
+    pub fn config(&self) -> std::sync::MutexGuard<'_, Config> {
         self.config.lock().unwrap()
     }
 
     /// Get a mutable reference to the underlying configuration.
     ///
     /// This allows tests to modify the configuration after creation.
-    pub fn config_mut(&self) -> std::sync::MutexGuard<Config> {
+    pub fn config_mut(&self) -> std::sync::MutexGuard<'_, Config> {
         self.config.lock().unwrap()
     }
 }
