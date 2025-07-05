@@ -1,7 +1,7 @@
 //! Local Voice Activity Detection (VAD) module.
 //!
 //! This module provides local voice detection functionality based on the
-//! `voice_activity_detector` crate, enabling fast and private voice activity
+//! `voice_activity_detector_silero_v5` crate, enabling fast and private voice activity
 //! detection and subtitle synchronization in local environments.
 //!
 //! # Key Components

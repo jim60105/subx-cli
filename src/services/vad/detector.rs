@@ -3,12 +3,12 @@ use crate::config::VadConfig;
 use crate::{Result, error::SubXError};
 use log::{debug, trace, warn};
 use std::time::{Duration, Instant};
-use voice_activity_detector::{IteratorExt, LabeledAudio, VoiceActivityDetector};
+use voice_activity_detector_silero_v5::{IteratorExt, LabeledAudio, VoiceActivityDetector};
 
 /// Local voice activity detector.
 ///
 /// Provides voice activity detection using local processing without
-/// external API calls. Uses the `voice_activity_detector` crate for
+/// external API calls. Uses the `voice_activity_detector_silero_v5` crate for
 /// speech detection and analysis.
 pub struct LocalVadDetector {
     config: VadConfig,
