@@ -288,6 +288,8 @@ pub mod cache;
 
 /// OpenAI integration and client implementation
 pub mod openai;
+/// OpenRouter AI service provider client implementation
+pub mod openrouter;
 
 /// AI prompt templates and management
 pub mod prompts;

@@ -5,6 +5,7 @@
 //! global configuration access within individual components.
 
 use crate::services::ai::openai::OpenAIClient;
+use crate::services::ai::openrouter::OpenRouterClient;
 use crate::services::vad::{LocalVadDetector, VadAudioProcessor, VadSyncDetector};
 use crate::{
     Result,
@@ -192,8 +193,13 @@ pub fn create_ai_provider(ai_config: &crate::config::AIConfig) -> Result<Box<dyn
             let client = OpenAIClient::from_config(ai_config)?;
             Ok(Box::new(client))
         }
+        "openrouter" => {
+            validate_ai_config(ai_config)?;
+            let client = OpenRouterClient::from_config(ai_config)?;
+            Ok(Box::new(client))
+        }
         other => Err(SubXError::config(format!(
-            "Unsupported AI provider: {}. Supported providers: openai",
+            "Unsupported AI provider: {}. Supported providers: openai, openrouter",
             other
         ))),
     }

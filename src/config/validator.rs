@@ -64,6 +64,21 @@ pub fn validate_ai_config(ai_config: &AIConfig) -> Result<()> {
                 validate_url_format(&ai_config.base_url)?;
             }
         }
+        "openrouter" => {
+            if let Some(api_key) = &ai_config.api_key {
+                if !api_key.is_empty() {
+                    validate_api_key(api_key)?;
+                    // OpenRouter API keys have no specific prefix requirement
+                }
+            }
+            validate_ai_model(&ai_config.model)?;
+            validate_temperature(ai_config.temperature)?;
+            validate_positive_number(ai_config.max_tokens as f64)?;
+
+            if !ai_config.base_url.is_empty() {
+                validate_url_format(&ai_config.base_url)?;
+            }
+        }
         "anthropic" => {
             if let Some(api_key) = &ai_config.api_key {
                 if !api_key.is_empty() {
@@ -75,7 +90,7 @@ pub fn validate_ai_config(ai_config: &AIConfig) -> Result<()> {
         }
         _ => {
             return Err(SubXError::config(format!(
-                "Unsupported AI provider: {}. Supported providers: openai, anthropic",
+                "Unsupported AI provider: {}. Supported providers: openai, openrouter, anthropic",
                 ai_config.provider
             )));
         }
