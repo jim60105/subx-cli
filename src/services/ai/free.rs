@@ -36,6 +36,7 @@ impl FreeProvider {
             "   • This service is based on the OpenRouter free model ({})",
             Self::HARDCODED_MODEL
         );
+        eprintln!("   • The API key for this free provider is bound to a dedicated web3 wallet account with zero credits, and is strictly limited to calling free models only. There is no benefit in attempting to extract or misuse this key, as it cannot be used for paid services or to gain any additional privileges.");
         eprintln!("   • By using this service, you agree to the OpenRouter Terms of Service: https://openrouter.ai/terms");
         eprintln!("   • Although the developer does not intend to log your messages, your content may be visible to OpenRouter and its partners");
         eprintln!("   • It is recommended to use your own API Key (BYOK) for better privacy protection:");
