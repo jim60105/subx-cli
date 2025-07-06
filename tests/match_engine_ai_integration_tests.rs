@@ -87,6 +87,7 @@ async fn test_parallel_match_operations_with_mock() {
         .await;
 
     let config_service = TestConfigBuilder::new()
+        .with_ai_provider("openai")
         .with_mock_ai_server(&mock_helper.base_url())
         .with_parallel_settings(4, 100)
         .build_service();
@@ -134,6 +135,7 @@ async fn test_confidence_threshold_filtering() {
         .await;
 
     let config_service = TestConfigBuilder::new()
+        .with_ai_provider("openai")
         .with_mock_ai_server(&mock_helper.base_url())
         .build_service();
 

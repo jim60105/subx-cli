@@ -16,8 +16,8 @@ fn test_production_config_service_creation() {
     let config = service.get_config().expect("Failed to get config");
 
     // Verify default values are loaded
-    assert_eq!(config.ai.provider, "openai");
-    assert_eq!(config.ai.model, "gpt-4.1-mini");
+    assert_eq!(config.ai.provider, "free");
+    assert_eq!(config.ai.model, "deepseek/deepseek-r1-0528:free");
     assert_eq!(config.formats.default_output, "srt");
 }
 
@@ -27,8 +27,8 @@ fn test_test_config_service_creation() {
     let config = service.get_config().expect("Failed to get config");
 
     // Verify default values
-    assert_eq!(config.ai.provider, "openai");
-    assert_eq!(config.ai.model, "gpt-4.1-mini");
+    assert_eq!(config.ai.provider, "free");
+    assert_eq!(config.ai.model, "deepseek/deepseek-r1-0528:free");
 }
 
 #[test]
@@ -114,8 +114,8 @@ fn test_app_creation_with_production_config() {
     let config = app.get_config().expect("Failed to get config");
 
     // Should have default production values
-    assert_eq!(config.ai.provider, "openai");
-    assert_eq!(config.ai.model, "gpt-4.1-mini");
+    assert_eq!(config.ai.provider, "free");
+    assert_eq!(config.ai.model, "deepseek/deepseek-r1-0528:free");
 }
 
 #[test]
@@ -161,7 +161,7 @@ fn test_manual_config_service_usage() {
 fn test_manual_default_config() {
     let service = TestConfigService::with_defaults();
     let config = service.get_config().expect("Failed to get config");
-    assert_eq!(config.ai.provider, "openai");
+    assert_eq!(config.ai.provider, "free");
 }
 
 #[test]

@@ -15,6 +15,7 @@ async fn wiremock_basic_integration_example() {
 
     // Create TestConfigService, point AI base_url to mock server
     let config_service = TestConfigBuilder::new()
+        .with_ai_provider("openai")
         .with_mock_ai_server(&mock.base_url())
         .build_service();
 

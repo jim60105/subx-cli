@@ -53,6 +53,7 @@ async fn test_match_copy_operation() {
     };
 
     let config_service = TestConfigBuilder::new()
+        .with_ai_provider("openai")
         .with_mock_ai_server(&mock_helper.base_url())
         .build_service();
     let result = match_command::execute(args, &config_service).await;
@@ -135,6 +136,7 @@ async fn test_match_move_operation() {
     };
 
     let config_service = TestConfigBuilder::new()
+        .with_ai_provider("openai")
         .with_mock_ai_server(&mock_helper.base_url())
         .build_service();
     let result = match_command::execute(args, &config_service).await;
@@ -217,6 +219,7 @@ async fn test_match_copy_dry_run() {
     };
 
     let config_service = TestConfigBuilder::new()
+        .with_ai_provider("openai")
         .with_mock_ai_server(&mock_helper.base_url())
         .build_service();
     let result = match_command::execute(args, &config_service).await;

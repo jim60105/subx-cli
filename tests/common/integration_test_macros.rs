@@ -11,6 +11,7 @@ macro_rules! test_with_mock_ai {
             mock_helper.mock_chat_completion_success($response).await;
 
             let config_service = subx_cli::config::TestConfigBuilder::new()
+                .with_ai_provider("openai")
                 .with_mock_ai_server(mock_helper.base_url())
                 .build_service();
 
@@ -32,6 +33,7 @@ macro_rules! test_with_mock_ai_error {
             mock_helper.setup_error_response($status, $error_msg).await;
 
             let config_service = subx_cli::config::TestConfigBuilder::new()
+                .with_ai_provider("openai")
                 .with_mock_ai_server(mock_helper.base_url())
                 .build_service();
 

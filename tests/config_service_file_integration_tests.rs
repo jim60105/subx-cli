@@ -54,7 +54,7 @@ async fn test_reset_to_defaults_writes_default() {
     let content = tokio::fs::read_to_string(&path).await.unwrap();
     // Default config should include ai.provider item
     assert!(
-        content.contains("provider = \"openai\""),
+        content.contains("provider = \"free\""),
         "reset file content incorrect: {}",
         content
     );

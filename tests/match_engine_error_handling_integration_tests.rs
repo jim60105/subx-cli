@@ -31,6 +31,7 @@ async fn test_unauthorized_error_handling() {
     mock_helper.setup_error_response(401, "Unauthorized").await;
 
     let config_service = TestConfigBuilder::new()
+        .with_ai_provider("openai")
         .with_mock_ai_server(&mock_helper.base_url())
         .build_service();
 
@@ -65,6 +66,7 @@ async fn test_rate_limit_error_handling() {
         .await;
 
     let config_service = TestConfigBuilder::new()
+        .with_ai_provider("openai")
         .with_mock_ai_server(&mock_helper.base_url())
         .build_service();
 
@@ -99,6 +101,7 @@ async fn test_internal_server_error_handling() {
         .await;
 
     let config_service = TestConfigBuilder::new()
+        .with_ai_provider("openai")
         .with_mock_ai_server(&mock_helper.base_url())
         .build_service();
 

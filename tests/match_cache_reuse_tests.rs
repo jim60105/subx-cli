@@ -86,6 +86,7 @@ async fn test_cache_reuse_preserves_copy_mode() {
     debug!("Set up mock expectation for 1 API call");
 
     let config_service = TestConfigBuilder::new()
+        .with_ai_provider("openai")
         .with_mock_ai_server(&mock_helper.base_url())
         .build_service();
     debug!("Built config service with mock AI server");
@@ -203,6 +204,7 @@ async fn test_cache_reuse_preserves_move_mode() {
     debug!("Set up mock expectation for 1 API call");
 
     let config_service = TestConfigBuilder::new()
+        .with_ai_provider("openai")
         .with_mock_ai_server(&mock_helper.base_url())
         .build_service();
     debug!("Built config service with mock AI server");

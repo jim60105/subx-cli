@@ -141,6 +141,7 @@ async fn test_match_command_simple_execution_with_combined_paths() {
         .await;
 
     let config_service = TestConfigBuilder::new()
+        .with_ai_provider("openai")
         .with_mock_ai_server(&mock_helper.base_url())
         .build_service();
 

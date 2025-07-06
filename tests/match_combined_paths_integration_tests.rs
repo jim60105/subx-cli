@@ -75,6 +75,7 @@ async fn test_match_with_combined_path_and_input_paths_simple() {
         .await;
 
     let config_service = TestConfigBuilder::new()
+        .with_ai_provider("openai")
         .with_mock_ai_server(&mock_helper.base_url())
         .build_service();
 
@@ -179,6 +180,7 @@ async fn test_match_with_only_input_paths() {
         .await;
 
     let config_service = TestConfigBuilder::new()
+        .with_ai_provider("openai")
         .with_mock_ai_server(&mock_helper.base_url())
         .build_service();
 
@@ -284,6 +286,7 @@ async fn test_match_with_file_and_directory_inputs() {
         .await;
 
     let config_service = TestConfigBuilder::new()
+        .with_ai_provider("openai")
         .with_mock_ai_server(&mock_helper.base_url())
         .build_service();
 

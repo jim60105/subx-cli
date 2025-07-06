@@ -103,6 +103,7 @@ async fn test_multiple_files_rename_to_same_target_with_auto_rename() {
     };
 
     let config_service = TestConfigBuilder::new()
+        .with_ai_provider("openai")
         .with_mock_ai_server(&mock_helper.base_url())
         .build_service();
 
@@ -258,6 +259,7 @@ async fn test_conflict_resolution_with_existing_target_files() {
     };
 
     let config_service = TestConfigBuilder::new()
+        .with_ai_provider("openai")
         .with_mock_ai_server(&mock_helper.base_url())
         .build_service();
 
@@ -392,6 +394,7 @@ async fn test_move_mode_with_duplicate_rename_conflicts() {
     };
 
     let config_service = TestConfigBuilder::new()
+        .with_ai_provider("openai")
         .with_mock_ai_server(&mock_helper.base_url())
         .build_service();
 

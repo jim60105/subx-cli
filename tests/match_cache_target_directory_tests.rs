@@ -93,6 +93,7 @@ async fn test_match_cache_copy_mode_target_directory_correctness() {
     debug!("Set mock expectation to 1 API call");
 
     let config_service = TestConfigBuilder::new()
+        .with_ai_provider("openai")
         .with_mock_ai_server(&mock_helper.base_url())
         .build_service();
     debug!("Create config service with mock AI server");
@@ -231,6 +232,7 @@ async fn test_match_cache_dry_run_vs_actual_execution_consistency() {
         .await;
 
     let config_service = TestConfigBuilder::new()
+        .with_ai_provider("openai")
         .with_mock_ai_server(&mock_helper.base_url())
         .build_service();
 
@@ -349,6 +351,7 @@ async fn test_match_cache_move_mode_target_directory_correctness() {
         .await;
 
     let config_service = TestConfigBuilder::new()
+        .with_ai_provider("openai")
         .with_mock_ai_server(&mock_helper.base_url())
         .build_service();
 

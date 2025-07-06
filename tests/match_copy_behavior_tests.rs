@@ -82,6 +82,7 @@ async fn test_copy_mode_preserves_original_file() {
     }
 
     let config_service = TestConfigBuilder::new()
+        .with_ai_provider("openai")
         .with_mock_ai_server(&mock_helper.base_url())
         .build_service();
     match_command::execute(args, &config_service).await.unwrap();
@@ -146,6 +147,7 @@ async fn test_copy_mode_with_rename() {
         move_files: false,
     };
     let config_service = TestConfigBuilder::new()
+        .with_ai_provider("openai")
         .with_mock_ai_server(&mock_helper.base_url())
         .build_service();
     match_command::execute(args, &config_service).await.unwrap();
