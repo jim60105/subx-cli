@@ -336,3 +336,259 @@ impl OpenRouterClient {
             .map_err(|e| SubXError::AiService(format!("AI confidence parsing failed: {}", e)))
     }
 }
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use mockall::mock;
+    use serde_json::json;
+    use wiremock::matchers::{header, method, path};
+    use wiremock::{Mock, MockServer, ResponseTemplate};
+
+    mock! {
+        AIClient {}
+
+        #[async_trait]
+        impl AIProvider for AIClient {
+            async fn analyze_content(&self, request: AnalysisRequest) -> crate::Result<MatchResult>;
+            async fn verify_match(&self, verification: VerificationRequest) -> crate::Result<ConfidenceScore>;
+        }
+    }
+
+    #[tokio::test]
+    async fn test_openrouter_client_creation() {
+        let client = OpenRouterClient::new(
+            "test-key".into(),
+            "deepseek/deepseek-r1-0528:free".into(),
+            0.5,
+            1000,
+            2,
+            100,
+        );
+        assert_eq!(client.api_key, "test-key");
+        assert_eq!(client.model, "deepseek/deepseek-r1-0528:free");
+        assert_eq!(client.temperature, 0.5);
+        assert_eq!(client.max_tokens, 1000);
+        assert_eq!(client.retry_attempts, 2);
+        assert_eq!(client.retry_delay_ms, 100);
+        assert_eq!(client.base_url, "https://openrouter.ai/api/v1");
+    }
+
+    #[tokio::test]
+    async fn test_openrouter_client_creation_with_custom_base_url() {
+        let client = OpenRouterClient::new_with_base_url_and_timeout(
+            "test-key".into(),
+            "deepseek/deepseek-r1-0528:free".into(),
+            0.3,
+            2000,
+            3,
+            200,
+            "https://custom-openrouter.ai/api/v1".into(),
+            60,
+        );
+        assert_eq!(client.base_url, "https://custom-openrouter.ai/api/v1");
+    }
+
+    #[tokio::test]
+    async fn test_chat_completion_success() {
+        let server = MockServer::start().await;
+        Mock::given(method("POST"))
+            .and(path("/chat/completions"))
+            .and(header("authorization", "Bearer test-key"))
+            .and(header(
+                "HTTP-Referer",
+                "https://github.com/jim60105/subx-cli",
+            ))
+            .and(header("X-Title", "Subx"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+                "choices": [{"message": {"content": "test response content"}}],
+                "usage": { "prompt_tokens": 10, "completion_tokens": 5, "total_tokens": 15 }
+            })))
+            .mount(&server)
+            .await;
+
+        let mut client = OpenRouterClient::new(
+            "test-key".into(),
+            "deepseek/deepseek-r1-0528:free".into(),
+            0.3,
+            1000,
+            1,
+            0,
+        );
+        client.base_url = server.uri();
+
+        let messages = vec![json!({"role":"user","content":"test"})];
+        let resp = client.chat_completion(messages).await.unwrap();
+        assert_eq!(resp, "test response content");
+    }
+
+    #[tokio::test]
+    async fn test_chat_completion_error_handling() {
+        let server = MockServer::start().await;
+        Mock::given(method("POST"))
+            .and(path("/chat/completions"))
+            .respond_with(ResponseTemplate::new(401).set_body_json(json!({
+                "error": {"message":"Invalid API key"}
+            })))
+            .mount(&server)
+            .await;
+
+        let mut client = OpenRouterClient::new(
+            "bad-key".into(),
+            "deepseek/deepseek-r1-0528:free".into(),
+            0.3,
+            1000,
+            1,
+            0,
+        );
+        client.base_url = server.uri();
+
+        let messages = vec![json!({"role":"user","content":"test"})];
+        let result = client.chat_completion(messages).await;
+        assert!(result.is_err());
+        assert!(
+            result
+                .err()
+                .unwrap()
+                .to_string()
+                .contains("OpenRouter API error 401")
+        );
+    }
+
+    #[tokio::test]
+    async fn test_retry_mechanism() {
+        let server = MockServer::start().await;
+
+        // First request fails, second succeeds
+        Mock::given(method("POST"))
+            .and(path("/chat/completions"))
+            .respond_with(ResponseTemplate::new(500))
+            .up_to_n_times(1)
+            .mount(&server)
+            .await;
+
+        Mock::given(method("POST"))
+            .and(path("/chat/completions"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+                "choices": [{"message": {"content": "success after retry"}}]
+            })))
+            .mount(&server)
+            .await;
+
+        let mut client = OpenRouterClient::new(
+            "test-key".into(),
+            "deepseek/deepseek-r1-0528:free".into(),
+            0.3,
+            1000,
+            2,  // Allow 2 retries
+            50, // Short delay for testing
+        );
+        client.base_url = server.uri();
+
+        let messages = vec![json!({"role":"user","content":"test"})];
+        let result = client.chat_completion(messages).await.unwrap();
+        assert_eq!(result, "success after retry");
+    }
+
+    #[test]
+    fn test_openrouter_client_from_config() {
+        let config = crate::config::AIConfig {
+            provider: "openrouter".to_string(),
+            api_key: Some("test-key".to_string()),
+            model: "deepseek/deepseek-r1-0528:free".to_string(),
+            base_url: "https://openrouter.ai/api/v1".to_string(),
+            temperature: 0.7,
+            max_tokens: 2000,
+            retry_attempts: 3,
+            retry_delay_ms: 150,
+            max_sample_length: 500,
+            request_timeout_seconds: 120,
+        };
+
+        let client = OpenRouterClient::from_config(&config).unwrap();
+        assert_eq!(client.api_key, "test-key");
+        assert_eq!(client.model, "deepseek/deepseek-r1-0528:free");
+        assert_eq!(client.temperature, 0.7);
+        assert_eq!(client.max_tokens, 2000);
+        assert_eq!(client.retry_attempts, 3);
+        assert_eq!(client.retry_delay_ms, 150);
+    }
+
+    #[test]
+    fn test_openrouter_client_from_config_missing_api_key() {
+        let config = crate::config::AIConfig {
+            provider: "openrouter".to_string(),
+            api_key: None,
+            model: "deepseek/deepseek-r1-0528:free".to_string(),
+            base_url: "https://openrouter.ai/api/v1".to_string(),
+            temperature: 0.3,
+            max_tokens: 1000,
+            retry_attempts: 2,
+            retry_delay_ms: 100,
+            max_sample_length: 500,
+            request_timeout_seconds: 30,
+        };
+
+        let result = OpenRouterClient::from_config(&config);
+        assert!(result.is_err());
+        assert!(
+            result
+                .err()
+                .unwrap()
+                .to_string()
+                .contains("Missing OpenRouter API Key")
+        );
+    }
+
+    #[test]
+    fn test_openrouter_client_from_config_invalid_base_url() {
+        let config = crate::config::AIConfig {
+            provider: "openrouter".to_string(),
+            api_key: Some("test-key".to_string()),
+            model: "deepseek/deepseek-r1-0528:free".to_string(),
+            base_url: "ftp://invalid.url".to_string(),
+            temperature: 0.3,
+            max_tokens: 1000,
+            retry_attempts: 2,
+            retry_delay_ms: 100,
+            max_sample_length: 500,
+            request_timeout_seconds: 30,
+        };
+
+        let result = OpenRouterClient::from_config(&config);
+        assert!(result.is_err());
+        assert!(
+            result
+                .err()
+                .unwrap()
+                .to_string()
+                .contains("must use http or https protocol")
+        );
+    }
+
+    #[test]
+    fn test_prompt_building_and_parsing() {
+        let client = OpenRouterClient::new(
+            "test-key".into(),
+            "deepseek/deepseek-r1-0528:free".into(),
+            0.1,
+            1000,
+            0,
+            0,
+        );
+        let request = AnalysisRequest {
+            video_files: vec!["video1.mp4".into()],
+            subtitle_files: vec!["subtitle1.srt".into()],
+            content_samples: vec![],
+        };
+
+        let prompt = client.build_analysis_prompt(&request);
+        assert!(prompt.contains("video1.mp4"));
+        assert!(prompt.contains("subtitle1.srt"));
+        assert!(prompt.contains("JSON"));
+
+        let json_response = r#"{ "matches": [], "confidence":0.9, "reasoning":"test reason" }"#;
+        let match_result = client.parse_match_result(json_response).unwrap();
+        assert_eq!(match_result.confidence, 0.9);
+        assert_eq!(match_result.reasoning, "test reason");
+    }
+}
