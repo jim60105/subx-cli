@@ -245,7 +245,7 @@ impl TestConfigService {
         let parts: Vec<&str> = key.split('.').collect();
         match parts.as_slice() {
             ["ai", "provider"] => {
-                validate_enum(value, &["openai", "anthropic", "local"])?;
+                validate_enum(value, &["openai", "anthropic", "local", "openrouter", "free"])?;
                 config.ai.provider = value.to_string();
             }
             ["ai", "api_key"] => {
