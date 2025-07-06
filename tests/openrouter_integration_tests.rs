@@ -1,14 +1,10 @@
-use subx_cli::config::TestConfigService;
+use subx_cli::config::{DEFAULT_FREE_MODEL, TestConfigService};
 use subx_cli::core::ComponentFactory;
 
 #[tokio::test]
 async fn test_openrouter_client_creation() {
     let config_service = TestConfigService::default();
-    config_service.set_ai_settings_and_key(
-        "openrouter",
-        "deepseek/deepseek-r1-0528:free",
-        "test-key",
-    );
+    config_service.set_ai_settings_and_key("openrouter", DEFAULT_FREE_MODEL, "test-key");
 
     let factory = ComponentFactory::new(&config_service).unwrap();
     let result = factory.create_ai_provider();
@@ -19,7 +15,7 @@ async fn test_openrouter_client_creation() {
 #[tokio::test]
 async fn test_openrouter_config_validation() {
     let config_service = TestConfigService::default();
-    config_service.set_ai_settings_and_key("openrouter", "deepseek/deepseek-r1-0528:free", "");
+    config_service.set_ai_settings_and_key("openrouter", DEFAULT_FREE_MODEL, "");
 
     let factory = ComponentFactory::new(&config_service).unwrap();
     let result = factory.create_ai_provider();

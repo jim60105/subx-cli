@@ -1,5 +1,7 @@
 use crate::Result;
 use crate::cli::display_ai_usage;
+#[allow(unused_imports)] // Used in tests
+use crate::config::DEFAULT_FREE_MODEL;
 use crate::error::SubXError;
 use crate::services::ai::AiUsageStats;
 use crate::services::ai::{
@@ -370,14 +372,14 @@ mod tests {
     async fn test_openrouter_client_creation() {
         let client = OpenRouterClient::new(
             "test-key".into(),
-            "deepseek/deepseek-r1-0528:free".into(),
+            DEFAULT_FREE_MODEL.into(),
             0.5,
             1000,
             2,
             100,
         );
         assert_eq!(client.api_key, "test-key");
-        assert_eq!(client.model, "deepseek/deepseek-r1-0528:free");
+        assert_eq!(client.model, DEFAULT_FREE_MODEL);
         assert_eq!(client.temperature, 0.5);
         assert_eq!(client.max_tokens, 1000);
         assert_eq!(client.retry_attempts, 2);
@@ -389,7 +391,7 @@ mod tests {
     async fn test_openrouter_client_creation_with_custom_base_url() {
         let client = OpenRouterClient::new_with_base_url_and_timeout(
             "test-key".into(),
-            "deepseek/deepseek-r1-0528:free".into(),
+            DEFAULT_FREE_MODEL.into(),
             0.3,
             2000,
             3,
@@ -420,7 +422,7 @@ mod tests {
 
         let mut client = OpenRouterClient::new(
             "test-key".into(),
-            "deepseek/deepseek-r1-0528:free".into(),
+            DEFAULT_FREE_MODEL.into(),
             0.3,
             1000,
             1,
@@ -444,14 +446,8 @@ mod tests {
             .mount(&server)
             .await;
 
-        let mut client = OpenRouterClient::new(
-            "bad-key".into(),
-            "deepseek/deepseek-r1-0528:free".into(),
-            0.3,
-            1000,
-            1,
-            0,
-        );
+        let mut client =
+            OpenRouterClient::new("bad-key".into(), DEFAULT_FREE_MODEL.into(), 0.3, 1000, 1, 0);
         client.base_url = server.uri();
 
         let messages = vec![json!({"role":"user","content":"test"})];

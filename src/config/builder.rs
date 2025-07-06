@@ -4,7 +4,8 @@
 //! making it easy to create specific configuration scenarios for testing.
 
 use crate::config::test_service::TestConfigService;
-use crate::config::{Config, OverflowStrategy};
+#[allow(unused_imports)] // Used in tests
+use crate::config::{Config, DEFAULT_FREE_MODEL, OverflowStrategy};
 
 /// Fluent builder for creating test configurations.
 ///
@@ -432,11 +433,11 @@ mod tests {
     fn test_builder_ai_configuration_openrouter() {
         let config = TestConfigBuilder::new()
             .with_ai_provider("openrouter")
-            .with_ai_model("deepseek/deepseek-r1-0528:free")
+            .with_ai_model(DEFAULT_FREE_MODEL)
             .with_ai_api_key("test-openrouter-key")
             .build_config();
         assert_eq!(config.ai.provider, "openrouter");
-        assert_eq!(config.ai.model, "deepseek/deepseek-r1-0528:free");
+        assert_eq!(config.ai.model, DEFAULT_FREE_MODEL);
         assert_eq!(config.ai.api_key, Some("test-openrouter-key".to_string()));
     }
 }

@@ -6,7 +6,8 @@
 use std::sync::Arc;
 use subx_cli::App;
 use subx_cli::config::{
-    ConfigService, ProductionConfigService, TestConfigBuilder, TestConfigService,
+    ConfigService, DEFAULT_FREE_MODEL, ProductionConfigService, TestConfigBuilder,
+    TestConfigService,
 };
 
 #[test]
@@ -17,7 +18,7 @@ fn test_production_config_service_creation() {
 
     // Verify default values are loaded
     assert_eq!(config.ai.provider, "free");
-    assert_eq!(config.ai.model, "deepseek/deepseek-r1-0528:free");
+    assert_eq!(config.ai.model, DEFAULT_FREE_MODEL);
     assert_eq!(config.formats.default_output, "srt");
 }
 
@@ -28,7 +29,7 @@ fn test_test_config_service_creation() {
 
     // Verify default values
     assert_eq!(config.ai.provider, "free");
-    assert_eq!(config.ai.model, "deepseek/deepseek-r1-0528:free");
+    assert_eq!(config.ai.model, DEFAULT_FREE_MODEL);
 }
 
 #[test]
@@ -115,7 +116,7 @@ fn test_app_creation_with_production_config() {
 
     // Should have default production values
     assert_eq!(config.ai.provider, "free");
-    assert_eq!(config.ai.model, "deepseek/deepseek-r1-0528:free");
+    assert_eq!(config.ai.model, DEFAULT_FREE_MODEL);
 }
 
 #[test]

@@ -49,7 +49,7 @@
 //! subx-cli config set ai.api_key "sk-1234567890abcdef"
 //! subx-cli config set ai.api_key "test-openrouter-key"
 //! subx-cli config set ai.base_url "https://api.openai.com/v1"
-//! subx-cli config set ai.model "deepseek/deepseek-r1-0528:free"
+//! subx-cli config set ai.model "#{DEFAULT_FREE_MODEL}"
 //!
 //! # Configure audio processing and VAD settings
 //! subx-cli config set sync.max_offset_seconds 15.0

@@ -13,8 +13,10 @@
 use super::validation::*;
 use crate::Result;
 use crate::config::Config;
+#[allow(unused_imports)] // Used in tests
 use crate::config::{
-    AIConfig, FormatsConfig, GeneralConfig, ParallelConfig, SyncConfig, VadConfig,
+    AIConfig, DEFAULT_FREE_MODEL, FormatsConfig, GeneralConfig, ParallelConfig, SyncConfig,
+    VadConfig,
 };
 use crate::error::SubXError;
 
@@ -320,7 +322,7 @@ mod tests {
         let mut ai_config = AIConfig::default();
         ai_config.provider = "openrouter".to_string();
         ai_config.api_key = Some("test-openrouter-key".to_string());
-        ai_config.model = "deepseek/deepseek-r1-0528:free".to_string();
+        ai_config.model = DEFAULT_FREE_MODEL.to_string();
         assert!(validate_ai_config(&ai_config).is_ok());
     }
 

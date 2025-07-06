@@ -60,6 +60,17 @@
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 
+// ============================================================================
+// Configuration Constants
+// ============================================================================
+
+/// Default model for the free AI provider.
+///
+/// This is the hardcoded model used by the "free" AI provider which utilizes
+/// OpenRouter free model. Changing this constant will affect all
+/// references to the free model throughout the application.
+pub const DEFAULT_FREE_MODEL: &str = "deepseek/deepseek-r1-0528:free";
+
 // Configuration service system
 pub mod builder;
 pub mod environment;
@@ -135,7 +146,7 @@ pub struct Config {
 ///
 /// let ai_config = AIConfig::default();
 /// assert_eq!(ai_config.provider, "free");
-/// assert_eq!(ai_config.model, "deepseek/deepseek-r1-0528:free");
+/// assert_eq!(ai_config.model, subx_cli::config::DEFAULT_FREE_MODEL);
 /// assert_eq!(ai_config.temperature, 0.3);
 /// ```
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -169,7 +180,7 @@ impl Default for AIConfig {
         Self {
             provider: "free".to_string(),
             api_key: None,
-            model: "deepseek/deepseek-r1-0528:free".to_string(),
+            model: DEFAULT_FREE_MODEL.to_string(),
             base_url: "https://openrouter.ai/api/v1".to_string(),
             max_sample_length: 3000,
             temperature: 0.3,
@@ -481,7 +492,7 @@ mod config_tests {
     fn test_default_config_creation() {
         let config = Config::default();
         assert_eq!(config.ai.provider, "free");
-        assert_eq!(config.ai.model, "deepseek/deepseek-r1-0528:free");
+        assert_eq!(config.ai.model, DEFAULT_FREE_MODEL);
         assert_eq!(config.formats.default_output, "srt");
         assert!(!config.general.backup_enabled);
         assert_eq!(config.general.max_concurrent_jobs, 4);
@@ -491,7 +502,7 @@ mod config_tests {
     fn test_ai_config_defaults() {
         let ai_config = AIConfig::default();
         assert_eq!(ai_config.provider, "free");
-        assert_eq!(ai_config.model, "deepseek/deepseek-r1-0528:free");
+        assert_eq!(ai_config.model, DEFAULT_FREE_MODEL);
         assert_eq!(ai_config.temperature, 0.3);
         assert_eq!(ai_config.max_sample_length, 3000);
         assert_eq!(ai_config.max_tokens, 10000);

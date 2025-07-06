@@ -6,7 +6,11 @@
 
 use crate::config::service::ConfigService;
 use crate::error::SubXError;
-use crate::{Result, config::Config};
+#[allow(unused_imports)] // Used in tests
+use crate::{
+    Result,
+    config::{Config, DEFAULT_FREE_MODEL},
+};
 use std::path::{Path, PathBuf};
 use std::sync::Mutex;
 
@@ -429,7 +433,7 @@ mod tests {
         let config = service.get_config().unwrap();
 
         assert_eq!(config.ai.provider, "free");
-        assert_eq!(config.ai.model, "deepseek/deepseek-r1-0528:free");
+        assert_eq!(config.ai.model, DEFAULT_FREE_MODEL);
     }
 
     #[test]
@@ -456,12 +460,12 @@ mod tests {
     fn test_config_service_with_ai_settings_and_key_openrouter() {
         let service = TestConfigService::with_ai_settings_and_key(
             "openrouter",
-            "deepseek/deepseek-r1-0528:free",
+            DEFAULT_FREE_MODEL,
             "test-openrouter-key",
         );
         let config = service.get_config().unwrap();
         assert_eq!(config.ai.provider, "openrouter");
-        assert_eq!(config.ai.model, "deepseek/deepseek-r1-0528:free");
+        assert_eq!(config.ai.model, DEFAULT_FREE_MODEL);
         assert_eq!(config.ai.api_key, Some("test-openrouter-key".to_string()));
     }
 

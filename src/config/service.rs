@@ -654,8 +654,8 @@ impl Default for ProductionConfigService {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::config::TestConfigService;
-    use crate::config::TestEnvironmentProvider;
+    #[allow(unused_imports)] // Used in tests
+    use crate::config::{DEFAULT_FREE_MODEL, TestConfigService, TestEnvironmentProvider};
     use std::sync::Arc;
 
     #[test]
@@ -771,7 +771,7 @@ mod tests {
 
         // Should use default values
         assert_eq!(config.ai.provider, "free");
-        assert_eq!(config.ai.model, "deepseek/deepseek-r1-0528:free");
+        assert_eq!(config.ai.model, DEFAULT_FREE_MODEL);
         assert_eq!(config.ai.base_url, "https://openrouter.ai/api/v1");
         assert_eq!(config.ai.api_key, None); // No API key by default
     }

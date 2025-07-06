@@ -8,9 +8,10 @@ use crate::services::ai::FreeProvider;
 use crate::services::ai::openai::OpenAIClient;
 use crate::services::ai::openrouter::OpenRouterClient;
 use crate::services::vad::{LocalVadDetector, VadAudioProcessor, VadSyncDetector};
+#[allow(unused_imports)] // Used in tests
 use crate::{
     Result,
-    config::{Config, ConfigService},
+    config::{Config, ConfigService, DEFAULT_FREE_MODEL},
     core::{file_manager::FileManager, matcher::engine::MatchEngine},
     error::SubXError,
     services::ai::AIProvider,
@@ -326,7 +327,7 @@ mod tests {
         let config_service = TestConfigService::default();
         config_service.set_ai_settings_and_key(
             "openrouter",
-            "deepseek/deepseek-r1-0528:free",
+            DEFAULT_FREE_MODEL,
             "test-openrouter-key",
         );
         let factory = ComponentFactory::new(&config_service).unwrap();
