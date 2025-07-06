@@ -81,8 +81,8 @@ impl FreeProvider {
 
 #[async_trait::async_trait]
 impl AIProvider for FreeProvider {
+
     async fn analyze_content(&self, request: AnalysisRequest) -> crate::Result<MatchResult> {
-        Self::display_usage_notice();
         self.openrouter_client.analyze_content(request).await
     }
 
@@ -90,7 +90,6 @@ impl AIProvider for FreeProvider {
         &self,
         verification: VerificationRequest,
     ) -> crate::Result<ConfidenceScore> {
-        Self::display_usage_notice();
         self.openrouter_client.verify_match(verification).await
     }
 }
