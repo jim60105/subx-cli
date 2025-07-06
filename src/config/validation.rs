@@ -319,9 +319,10 @@ mod tests {
 
     #[test]
     fn test_validate_enum() {
-        let allowed = &["openai", "anthropic"];
+        let allowed = &["openai", "anthropic", "openrouter"];
         assert!(validate_enum("openai", allowed).is_ok());
         assert!(validate_enum("anthropic", allowed).is_ok());
+        assert!(validate_enum("openrouter", allowed).is_ok());
         assert!(validate_enum("invalid", allowed).is_err());
     }
 

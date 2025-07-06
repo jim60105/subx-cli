@@ -315,4 +315,13 @@ mod tests {
         let result = factory.create_ai_provider();
         assert!(result.is_ok());
     }
+
+    #[test]
+    fn test_create_ai_provider_openrouter_success() {
+        let config_service = TestConfigService::default();
+        config_service.set_ai_settings_and_key("openrouter", "deepseek/deepseek-r1-0528:free", "test-openrouter-key");
+        let factory = ComponentFactory::new(&config_service).unwrap();
+        let result = factory.create_ai_provider();
+        assert!(result.is_ok());
+    }
 }

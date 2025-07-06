@@ -309,13 +309,21 @@ mod tests {
         ai_config.api_key = Some("sk-test123456789".to_string());
         ai_config.temperature = 0.8;
         assert!(validate_ai_config(&ai_config).is_ok());
+
+        // openrouter 測試
+        let mut ai_config = AIConfig::default();
+        ai_config.provider = "openrouter".to_string();
+        ai_config.api_key = Some("test-openrouter-key".to_string());
+        ai_config.model = "deepseek/deepseek-r1-0528:free".to_string();
+        assert!(validate_ai_config(&ai_config).is_ok());
     }
 
     #[test]
     fn test_validate_ai_config_invalid_provider() {
         let mut ai_config = AIConfig::default();
         ai_config.provider = "invalid".to_string();
-        assert!(validate_ai_config(&ai_config).is_err());
+        let err = validate_ai_config(&ai_config).unwrap_err();
+        assert!(err.to_string().contains("Unsupported AI provider: invalid. Supported providers: openai, openrouter, anthropic"));
     }
 
     #[test]
