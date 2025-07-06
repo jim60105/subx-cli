@@ -76,6 +76,8 @@ jobs:
 
     - name: Build
       run: cargo build --release --target ${{ matrix.target }}
+      env:
+        OPENROUTER_KEY: ${{ secrets.OPENROUTER_KEY }}
 
     - name: Package
       shell: bash

@@ -88,9 +88,15 @@ pub fn validate_ai_config(ai_config: &AIConfig) -> Result<()> {
             validate_ai_model(&ai_config.model)?;
             validate_temperature(ai_config.temperature)?;
         }
+        "free" => {
+            // Free provider: enforce model, temperature, and token limits; api_key is built-in
+            validate_ai_model(&ai_config.model)?;
+            validate_temperature(ai_config.temperature)?;
+            validate_positive_number(ai_config.max_tokens as f64)?;
+        }
         _ => {
             return Err(SubXError::config(format!(
-                "Unsupported AI provider: {}. Supported providers: openai, openrouter, anthropic",
+                "Unsupported AI provider: {}. Supported providers: openai, openrouter, anthropic, free",
                 ai_config.provider
             )));
         }
@@ -324,7 +330,7 @@ mod tests {
         ai_config.provider = "invalid".to_string();
         let err = validate_ai_config(&ai_config).unwrap_err();
         assert!(err.to_string().contains(
-            "Unsupported AI provider: invalid. Supported providers: openai, openrouter, anthropic"
+            "Unsupported AI provider: invalid. Supported providers: openai, openrouter, anthropic, free"
         ));
     }
 

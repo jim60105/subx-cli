@@ -425,8 +425,8 @@ mod tests {
         let service = TestConfigService::with_defaults();
         let config = service.get_config().unwrap();
 
-        assert_eq!(config.ai.provider, "openai");
-        assert_eq!(config.ai.model, "gpt-4.1-mini");
+        assert_eq!(config.ai.provider, "free");
+        assert_eq!(config.ai.model, "deepseek/deepseek-r1-0528:free");
     }
 
     #[test]
@@ -493,7 +493,7 @@ mod tests {
         let service = TestConfigService::with_defaults();
 
         // Test direct read access
-        assert_eq!(service.config().ai.provider, "openai");
+        assert_eq!(service.config().ai.provider, "free");
 
         // Test mutable access
         service.config_mut().ai.provider = "modified".to_string();

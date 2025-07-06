@@ -286,6 +286,8 @@ pub struct AiResponse {
 /// Caching functionality for AI analysis results
 pub mod cache;
 
+/// Free AI service provider client implementation
+pub mod free;
 /// OpenAI integration and client implementation
 pub mod openai;
 /// OpenRouter AI service provider client implementation
@@ -298,5 +300,6 @@ pub mod prompts;
 pub mod retry;
 
 pub use cache::AICache;
+pub use free::FreeProvider;
 pub use openai::OpenAIClient;
 pub use retry::{RetryConfig, retry_with_backoff};

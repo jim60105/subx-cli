@@ -24,6 +24,8 @@ set -e
 
 PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$PROJECT_ROOT"
+# Ensure OPENROUTER_KEY is defined at compile time for obfuscation (fallback empty)
+export OPENROUTER_KEY="${OPENROUTER_KEY:-}"
 
 # Initialize verbose mode
 VERBOSE=false
@@ -322,5 +324,5 @@ main() {
     fi
 }
 
-# Execute main program
+#+ Execute main program
 main "$@"

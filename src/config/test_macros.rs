@@ -257,7 +257,7 @@ mod env_macro_tests {
                 let config = service.get_config().unwrap();
                 assert_eq!(config.ai.api_key, Some("sk-only-key".to_string()));
                 // base_url should use default value
-                assert_eq!(config.ai.base_url, "https://api.openai.com/v1");
+                assert_eq!(config.ai.base_url, "https://openrouter.ai/api/v1");
             }
         );
     }
@@ -283,7 +283,7 @@ mod env_macro_tests {
             |service: &crate::config::ProductionConfigService| {
                 let config = service.get_config().unwrap();
                 assert_eq!(config.ai.api_key, None);
-                assert_eq!(config.ai.base_url, "https://api.openai.com/v1");
+                assert_eq!(config.ai.base_url, "https://openrouter.ai/api/v1");
             }
         );
     }
@@ -307,7 +307,7 @@ mod env_macro_tests {
 
         let config = service.get_config().unwrap();
         assert_eq!(config.ai.api_key, None);
-        assert_eq!(config.ai.base_url, "https://api.openai.com/v1");
+        assert_eq!(config.ai.base_url, "https://openrouter.ai/api/v1");
     }
 }
 
@@ -323,7 +323,7 @@ mod env_macro_tests {
 ///
 /// test_with_default_config!(|config_service: &dyn ConfigService| {
 ///     let config = config_service.get_config().unwrap();
-///     assert_eq!(config.ai.provider, "openai");
+///     assert_eq!(config.ai.provider, "free");
 /// });
 /// ```
 #[macro_export]
@@ -373,7 +373,7 @@ macro_rules! test_with_ai_config {
 ///
 /// test_with_ai_config_and_key!("openai", "gpt-4.1", "test-key", |config_service: &dyn ConfigService| {
 ///     let config = config_service.get_config().unwrap();
-///     assert_eq!(config.ai.provider, "openai");
+///     assert_eq!(config.ai.provider, "free");
 ///     assert_eq!(config.ai.model, "gpt-4.1");
 ///     assert_eq!(config.ai.api_key, Some("test-key".to_string()));
 /// });
@@ -514,7 +514,7 @@ mod tests {
     fn test_macro_with_default_config() {
         test_with_default_config!(|config_service: &crate::config::TestConfigService| {
             let config = config_service.get_config().unwrap();
-            assert_eq!(config.ai.provider, "openai");
+            assert_eq!(config.ai.provider, "free");
         });
     }
 
@@ -589,6 +589,6 @@ mod tests {
         create_default_test_config_service!(service);
 
         let config = service.get_config().unwrap();
-        assert_eq!(config.ai.provider, "openai");
+        assert_eq!(config.ai.provider, "free");
     }
 }

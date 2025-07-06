@@ -29,7 +29,10 @@ pub fn validate_field(key: &str, value: &str) -> Result<()> {
         // AI configuration fields
         "ai.provider" => {
             validate_non_empty_string(value, "AI provider")?;
-            validate_enum(value, &["openai", "anthropic", "local", "openrouter"])?;
+            validate_enum(
+                value,
+                &["openai", "anthropic", "local", "openrouter", "free"],
+            )?;
         }
         "ai.model" => validate_ai_model(value)?,
         "ai.api_key" => {
@@ -186,7 +189,7 @@ pub fn validate_field(key: &str, value: &str) -> Result<()> {
 /// Get a user-friendly description for a configuration field.
 pub fn get_field_description(key: &str) -> &'static str {
     match key {
-        "ai.provider" => "AI service provider (e.g., 'openai')",
+        "ai.provider" => "AI service provider (e.g., 'openai', 'free')",
         "ai.model" => "AI model name (e.g., 'gpt-4.1-mini')",
         "ai.api_key" => "API key for the AI service",
         "ai.base_url" => "Custom API endpoint URL (optional)",
@@ -236,6 +239,7 @@ mod tests {
         // Valid cases
         assert!(validate_field("ai.provider", "openai").is_ok());
         assert!(validate_field("ai.provider", "openrouter").is_ok());
+        assert!(validate_field("ai.provider", "free").is_ok());
         assert!(validate_field("ai.temperature", "0.8").is_ok());
         assert!(validate_field("ai.max_tokens", "4000").is_ok());
 

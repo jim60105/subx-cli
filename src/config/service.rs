@@ -770,9 +770,9 @@ mod tests {
         let config = test_service.get_config().unwrap();
 
         // Should use default values
-        assert_eq!(config.ai.provider, "openai");
-        assert_eq!(config.ai.model, "gpt-4.1-mini");
-        assert_eq!(config.ai.base_url, "https://api.openai.com/v1");
+        assert_eq!(config.ai.provider, "free");
+        assert_eq!(config.ai.model, "deepseek/deepseek-r1-0528:free");
+        assert_eq!(config.ai.base_url, "https://openrouter.ai/api/v1");
         assert_eq!(config.ai.api_key, None); // No API key by default
     }
 
@@ -783,7 +783,7 @@ mod tests {
 
         // First load
         let config1 = test_service.get_config().unwrap();
-        assert_eq!(config1.ai.provider, "openai");
+        assert_eq!(config1.ai.provider, "free");
 
         // Reload should always succeed for test service
         let reload_result = test_service.reload();
@@ -791,7 +791,7 @@ mod tests {
 
         // Second load should still work
         let config2 = test_service.get_config().unwrap();
-        assert_eq!(config2.ai.provider, "openai");
+        assert_eq!(config2.ai.provider, "free");
     }
 
     #[test]
@@ -832,7 +832,7 @@ mod tests {
         let test_service = TestConfigService::with_defaults();
 
         // Test direct read access
-        assert_eq!(test_service.config().ai.provider, "openai");
+        assert_eq!(test_service.config().ai.provider, "free");
 
         // Test mutable access
         test_service.config_mut().ai.provider = "modified".to_string();
@@ -920,7 +920,7 @@ mod tests {
 
         // Should use default values
         assert_eq!(config.ai.api_key, None);
-        assert_eq!(config.ai.base_url, "https://api.openai.com/v1"); // Default value
+        assert_eq!(config.ai.base_url, "https://openrouter.ai/api/v1"); // Default value
     }
 
     #[test]

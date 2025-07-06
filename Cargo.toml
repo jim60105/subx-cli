@@ -167,3 +167,4 @@ winapi = { version = "0.3", features = ["winuser"] }
 
 [target.'cfg(unix)'.dependencies]
 libc = "0.2"
+obfstr = "0.4"

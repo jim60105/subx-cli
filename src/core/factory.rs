@@ -4,6 +4,7 @@
 //! components with proper configuration injection, eliminating the need for
 //! global configuration access within individual components.
 
+use crate::services::ai::FreeProvider;
 use crate::services::ai::openai::OpenAIClient;
 use crate::services::ai::openrouter::OpenRouterClient;
 use crate::services::vad::{LocalVadDetector, VadAudioProcessor, VadSyncDetector};
@@ -198,8 +199,12 @@ pub fn create_ai_provider(ai_config: &crate::config::AIConfig) -> Result<Box<dyn
             let client = OpenRouterClient::from_config(ai_config)?;
             Ok(Box::new(client))
         }
+        "free" => {
+            let client = FreeProvider::from_config(ai_config)?;
+            Ok(Box::new(client))
+        }
         other => Err(SubXError::config(format!(
-            "Unsupported AI provider: {}. Supported providers: openai, openrouter",
+            "Unsupported AI provider: {}. Supported providers: openai, openrouter, free",
             other
         ))),
     }

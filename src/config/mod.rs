@@ -86,7 +86,7 @@ pub mod validator;
 ///
 /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
 /// let config = Config::default();
-/// assert_eq!(config.ai.provider, "openai");
+/// assert_eq!(config.ai.provider, "free");
 /// assert_eq!(config.formats.default_output, "srt");
 /// # Ok(())
 /// # }
@@ -167,10 +167,10 @@ pub struct AIConfig {
 impl Default for AIConfig {
     fn default() -> Self {
         Self {
-            provider: "openai".to_string(),
+            provider: "free".to_string(),
             api_key: None,
-            model: "gpt-4.1-mini".to_string(),
-            base_url: "https://api.openai.com/v1".to_string(),
+            model: "deepseek/deepseek-r1-0528:free".to_string(),
+            base_url: "https://openrouter.ai/api/v1".to_string(),
             max_sample_length: 3000,
             temperature: 0.3,
             max_tokens: 10000,
@@ -480,8 +480,8 @@ mod config_tests {
     #[test]
     fn test_default_config_creation() {
         let config = Config::default();
-        assert_eq!(config.ai.provider, "openai");
-        assert_eq!(config.ai.model, "gpt-4.1-mini");
+        assert_eq!(config.ai.provider, "free");
+        assert_eq!(config.ai.model, "deepseek/deepseek-r1-0528:free");
         assert_eq!(config.formats.default_output, "srt");
         assert!(!config.general.backup_enabled);
         assert_eq!(config.general.max_concurrent_jobs, 4);
@@ -490,8 +490,8 @@ mod config_tests {
     #[test]
     fn test_ai_config_defaults() {
         let ai_config = AIConfig::default();
-        assert_eq!(ai_config.provider, "openai");
-        assert_eq!(ai_config.model, "gpt-4.1-mini");
+        assert_eq!(ai_config.provider, "free");
+        assert_eq!(ai_config.model, "deepseek/deepseek-r1-0528:free");
         assert_eq!(ai_config.temperature, 0.3);
         assert_eq!(ai_config.max_sample_length, 3000);
         assert_eq!(ai_config.max_tokens, 10000);

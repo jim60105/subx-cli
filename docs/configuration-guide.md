@@ -44,7 +44,7 @@ Controls AI-related functionality settings.
 
 ```toml
 [ai]
-provider = "openai"                            # AI provider: openai, anthropic, local
+provider = "free"                              # AI provider: openai, anthropic, local, openrouter, free
 api_key = "sk-your-api-key-here"              # API key (Option<String>)
 model = "gpt-4o-mini"                         # AI model to use (String)
 base_url = "https://api.openai.com/v1"        # API endpoint URL (String)
@@ -61,6 +61,16 @@ retry_delay_ms = 1000                         # Retry delay in milliseconds (u64
 [ai]
 provider = "openrouter"
 api_key = "your-openrouter-api-key"
+model = "deepseek/deepseek-r1-0528:free"
+base_url = "https://openrouter.ai/api/v1"
+```
+
+### Free Provider
+
+```toml
+[ai]
+provider = "free"                            # Free AI provider with built-in obfuscated key
+# No api_key required; uses internal DeepSeek free model
 model = "deepseek/deepseek-r1-0528:free"
 base_url = "https://openrouter.ai/api/v1"
 ```
