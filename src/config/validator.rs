@@ -310,7 +310,7 @@ mod tests {
         ai_config.temperature = 0.8;
         assert!(validate_ai_config(&ai_config).is_ok());
 
-        // openrouter 測試
+        // openrouter test
         let mut ai_config = AIConfig::default();
         ai_config.provider = "openrouter".to_string();
         ai_config.api_key = Some("test-openrouter-key".to_string());
@@ -323,7 +323,9 @@ mod tests {
         let mut ai_config = AIConfig::default();
         ai_config.provider = "invalid".to_string();
         let err = validate_ai_config(&ai_config).unwrap_err();
-        assert!(err.to_string().contains("Unsupported AI provider: invalid. Supported providers: openai, openrouter, anthropic"));
+        assert!(err.to_string().contains(
+            "Unsupported AI provider: invalid. Supported providers: openai, openrouter, anthropic"
+        ));
     }
 
     #[test]
