@@ -31,14 +31,14 @@ impl FreeProvider {
 
     /// Display usage notice and BYOK suggestions.
     fn display_usage_notice() {
-        eprintln!("📢 注意：您正在使用 free AI 提供商");
+        eprintln!("📢 Notice: You are using the free AI provider");
         eprintln!(
-            "   • 此服務基於 OpenRouter 免費模型 ({})",
+            "   • This service is based on the OpenRouter free model ({})",
             Self::HARDCODED_MODEL
         );
-        eprintln!("   • 使用此服務表示您同意 OpenRouter 使用條款：https://openrouter.ai/terms");
-        eprintln!("   • 雖然開發者無意記錄您的訊息，但您的內容可能被 OpenRouter 及其協力者看見");
-        eprintln!("   • 建議使用自己的 API Key (BYOK) 以獲得更好的隱私保護：");
+        eprintln!("   • By using this service, you agree to the OpenRouter Terms of Service: https://openrouter.ai/terms");
+        eprintln!("   • Although the developer does not intend to log your messages, your content may be visible to OpenRouter and its partners");
+        eprintln!("   • It is recommended to use your own API Key (BYOK) for better privacy protection:");
         eprintln!("     export OPENAI_API_KEY=\"your-api-key\"");
         eprintln!("     subx-cli config set ai.provider openai");
         eprintln!("     subx-cli config set ai.model \"gpt-4o-mini\"");
@@ -49,10 +49,10 @@ impl FreeProvider {
     fn validate_config_immutability(config: &AIConfig) -> Result<(), SubXError> {
         if config.provider == "free" {
             if !config.base_url.is_empty() && config.base_url != Self::HARDCODED_BASE_URL {
-                eprintln!("⚠️  警告：free 提供商不支援自訂 base_url，將使用預設值");
+                eprintln!("⚠️  Warning: The free provider does not support custom base_url. The default value will be used.");
             }
             if config.model != Self::HARDCODED_MODEL {
-                eprintln!("⚠️  警告：free 提供商不支援自訂 model，將使用預設免費模型");
+                eprintln!("⚠️  Warning: The free provider does not support custom model. The default free model will be used.");
             }
         }
         Ok(())
