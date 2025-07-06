@@ -55,10 +55,13 @@ sudo cp target/release/subx-cli/usr/local/bin/
 
 ### 1. 配置設定
 ```bash
-# 設定 OpenRouter (免費 DeepSeek 模型)
+# 免費提供者（內建 OpenRouter 免費金鑰）
+subx-cli config set ai.provider free
+
+# 設定 OpenRouter
 export OPENROUTER_API_KEY="your-openrouter-api-key"
 subx-cli config set ai.provider openrouter
-subx-cli config set ai.model "deepseek/deepseek-r1-0528:free"
+subx-cli config set ai.model "qwen/qwen3-235b-a22b:free"
 
 # 或設定 OpenAI
 export OPENAI_API_KEY="your-api-key-here"

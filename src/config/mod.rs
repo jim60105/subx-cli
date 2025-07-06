@@ -69,7 +69,7 @@ use std::path::PathBuf;
 /// This is the hardcoded model used by the "free" AI provider which utilizes
 /// OpenRouter free model. Changing this constant will affect all
 /// references to the free model throughout the application.
-pub const DEFAULT_FREE_MODEL: &str = "deepseek/deepseek-r1-0528:free";
+pub const DEFAULT_FREE_MODEL: &str = "qwen/qwen3-235b-a22b:free";
 
 // Configuration service system
 pub mod builder;

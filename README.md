@@ -61,13 +61,13 @@ sudo cp target/release/subx-cli /usr/local/bin/
 
 ### 1. Configure Settings
 ```bash
-# Free provider (built-in obfuscated OpenRouter key, compile-time injection via OPENROUTER_KEY)
+# Free provider (built-in OpenRouter free key)
 subx-cli config set ai.provider free
 
-# OpenRouter setup (Free DeepSeek model)
+# OpenRouter setup
 export OPENROUTER_API_KEY="your-openrouter-api-key"
 subx-cli config set ai.provider openrouter
-subx-cli config set ai.model "deepseek/deepseek-r1-0528:free"
+subx-cli config set ai.model "qwen/qwen3-235b-a22b:free"
 
 # Or OpenAI setup
 export OPENAI_API_KEY="your-api-key-here"
