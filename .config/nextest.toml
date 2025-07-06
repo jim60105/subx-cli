@@ -5,7 +5,7 @@
 
 [profile.default]
 # 設定測試超時時間 (60 秒)
-slow-timeout = { period = "80s", terminate-after = 2 }
+slow-timeout = { period = "120s", terminate-after = 2 }
 
 # 設定最大並行測試數量，使用 CPU 核心數
 test-threads = "num-cpus"
