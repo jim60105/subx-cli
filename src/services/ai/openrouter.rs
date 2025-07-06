@@ -179,6 +179,18 @@ impl OpenRouterClient {
         loop {
             match request.try_clone().unwrap().send().await {
                 Ok(resp) => {
+                    // Retry on server error statuses (5xx) if attempts remain
+                    if resp.status().is_server_error() && (attempts as u32) < self.retry_attempts {
+                        attempts += 1;
+                        log::warn!(
+                            "Request attempt {} failed with status {}. Retrying in {}ms...",
+                            attempts,
+                            resp.status(),
+                            self.retry_delay_ms
+                        );
+                        time::sleep(Duration::from_millis(self.retry_delay_ms)).await;
+                        continue;
+                    }
                     if attempts > 0 {
                         log::info!("Request succeeded after {} retry attempts", attempts);
                     }
@@ -212,14 +224,14 @@ impl OpenRouterClient {
                     if e.is_timeout() {
                         log::error!(
                             "AI service error: Request timed out after multiple attempts. \
-                            This usually indicates network connectivity issues or server overload. \
-                            Try increasing 'ai.request_timeout_seconds' configuration. \
-                            Hint: check network connection and API service status"
+                        This usually indicates network connectivity issues or server overload. \
+                        Try increasing 'ai.request_timeout_seconds' configuration. \
+                        Hint: check network connection and API service status"
                         );
                     } else if e.is_connect() {
                         log::error!(
                             "AI service error: Connection failed. \
-                            Hint: check network connection and API base URL settings"
+                        Hint: check network connection and API base URL settings"
                         );
                     }
 
