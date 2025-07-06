@@ -33,6 +33,7 @@
 //!
 //! # Set AI provider
 //! subx config set ai.provider openai
+//! subx config set ai.provider openrouter
 //!
 //! # Reset to defaults
 //! subx config reset
@@ -44,8 +45,11 @@
 //! ```bash
 //! # Set AI provider with API key
 //! subx-cli config set ai.provider openai
+//! subx-cli config set ai.provider openrouter
 //! subx-cli config set ai.api_key "sk-1234567890abcdef"
+//! subx-cli config set ai.api_key "test-openrouter-key"
 //! subx-cli config set ai.base_url "https://api.openai.com/v1"
+//! subx-cli config set ai.model "deepseek/deepseek-r1-0528:free"
 //!
 //! # Configure audio processing and VAD settings
 //! subx-cli config set sync.max_offset_seconds 15.0

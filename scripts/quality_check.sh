@@ -299,7 +299,7 @@ main() {
     run_test_with_conditional_output "Unit Tests" "cargo nextest run --profile ${NEXTEST_PROFILE} -E 'kind(lib)' --ignore-default-filter"
 
     # 8. Integration tests  
-    run_test_with_conditional_output "Integration Tests" "cargo nextest run --profile ${NEXTEST_PROFILE} --test '*'"
+    run_test_with_conditional_output "Integration Tests" "cargo nextest run --profile ${NEXTEST_PROFILE} --ignore-default-filter"
 
     # Cleanup
     # (Temporary files are cleaned up in their respective sections)

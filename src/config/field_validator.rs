@@ -29,7 +29,7 @@ pub fn validate_field(key: &str, value: &str) -> Result<()> {
         // AI configuration fields
         "ai.provider" => {
             validate_non_empty_string(value, "AI provider")?;
-            validate_enum(value, &["openai", "anthropic", "local"])?;
+            validate_enum(value, &["openai", "anthropic", "local", "openrouter"])?;
         }
         "ai.model" => validate_ai_model(value)?,
         "ai.api_key" => {
@@ -235,6 +235,7 @@ mod tests {
     fn test_validate_ai_fields() {
         // Valid cases
         assert!(validate_field("ai.provider", "openai").is_ok());
+        assert!(validate_field("ai.provider", "openrouter").is_ok());
         assert!(validate_field("ai.temperature", "0.8").is_ok());
         assert!(validate_field("ai.max_tokens", "4000").is_ok());
 

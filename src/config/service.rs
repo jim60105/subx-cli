@@ -252,6 +252,13 @@ impl ProductionConfigService {
             }
         }
 
+        // Special handling for OPENROUTER_API_KEY environment variable
+        if let Some(api_key) = self.env_provider.get_var("OPENROUTER_API_KEY") {
+            debug!("ProductionConfigService: Found OPENROUTER_API_KEY environment variable");
+            app_config.ai.provider = "openrouter".to_string();
+            app_config.ai.api_key = Some(api_key);
+        }
+
         // Special handling for OPENAI_API_KEY environment variable
         // This provides backward compatibility with direct OPENAI_API_KEY usage
         if app_config.ai.api_key.is_none() {
@@ -678,6 +685,23 @@ mod tests {
 
         let config2 = service.get_config();
         assert!(config2.is_ok());
+    }
+
+    #[test]
+    fn test_production_config_service_openrouter_api_key_loading() {
+        use crate::config::TestEnvironmentProvider;
+        use std::sync::Arc;
+
+        let mut env_provider = TestEnvironmentProvider::new();
+        env_provider.set_var("OPENROUTER_API_KEY", "test-openrouter-key");
+        env_provider.set_var("SUBX_CONFIG_PATH", "/tmp/test_config_openrouter.toml");
+
+        let service = ProductionConfigService::with_env_provider(Arc::new(env_provider))
+            .expect("Failed to create config service");
+
+        let config = service.get_config().expect("Failed to get config");
+
+        assert_eq!(config.ai.api_key, Some("test-openrouter-key".to_string()));
     }
 
     #[test]

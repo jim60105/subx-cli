@@ -64,6 +64,21 @@ pub fn validate_ai_config(ai_config: &AIConfig) -> Result<()> {
                 validate_url_format(&ai_config.base_url)?;
             }
         }
+        "openrouter" => {
+            if let Some(api_key) = &ai_config.api_key {
+                if !api_key.is_empty() {
+                    validate_api_key(api_key)?;
+                    // OpenRouter API keys have no specific prefix requirement
+                }
+            }
+            validate_ai_model(&ai_config.model)?;
+            validate_temperature(ai_config.temperature)?;
+            validate_positive_number(ai_config.max_tokens as f64)?;
+
+            if !ai_config.base_url.is_empty() {
+                validate_url_format(&ai_config.base_url)?;
+            }
+        }
         "anthropic" => {
             if let Some(api_key) = &ai_config.api_key {
                 if !api_key.is_empty() {
@@ -75,7 +90,7 @@ pub fn validate_ai_config(ai_config: &AIConfig) -> Result<()> {
         }
         _ => {
             return Err(SubXError::config(format!(
-                "Unsupported AI provider: {}. Supported providers: openai, anthropic",
+                "Unsupported AI provider: {}. Supported providers: openai, openrouter, anthropic",
                 ai_config.provider
             )));
         }
@@ -294,13 +309,23 @@ mod tests {
         ai_config.api_key = Some("sk-test123456789".to_string());
         ai_config.temperature = 0.8;
         assert!(validate_ai_config(&ai_config).is_ok());
+
+        // openrouter test
+        let mut ai_config = AIConfig::default();
+        ai_config.provider = "openrouter".to_string();
+        ai_config.api_key = Some("test-openrouter-key".to_string());
+        ai_config.model = "deepseek/deepseek-r1-0528:free".to_string();
+        assert!(validate_ai_config(&ai_config).is_ok());
     }
 
     #[test]
     fn test_validate_ai_config_invalid_provider() {
         let mut ai_config = AIConfig::default();
         ai_config.provider = "invalid".to_string();
-        assert!(validate_ai_config(&ai_config).is_err());
+        let err = validate_ai_config(&ai_config).unwrap_err();
+        assert!(err.to_string().contains(
+            "Unsupported AI provider: invalid. Supported providers: openai, openrouter, anthropic"
+        ));
     }
 
     #[test]

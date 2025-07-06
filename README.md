@@ -61,8 +61,14 @@ sudo cp target/release/subx-cli /usr/local/bin/
 
 ### 1. Configure Settings
 ```bash
-# Set OpenAI API Key (for AI matching functionality only)
+# OpenRouter setup (Free DeepSeek model)
+export OPENROUTER_API_KEY="your-openrouter-api-key"
+subx-cli config set ai.provider openrouter
+subx-cli config set ai.model "deepseek/deepseek-r1-0528:free"
+
+# Or OpenAI setup
 export OPENAI_API_KEY="your-api-key-here"
+subx-cli config set ai.provider openai
 
 # Configure VAD settings
 subx-cli config set sync.vad.sensitivity 0.8

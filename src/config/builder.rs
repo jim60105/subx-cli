@@ -427,4 +427,16 @@ mod tests {
         assert_eq!(config.general.max_concurrent_jobs, 8);
         assert_eq!(config.parallel.task_queue_size, 200);
     }
+
+    #[test]
+    fn test_builder_ai_configuration_openrouter() {
+        let config = TestConfigBuilder::new()
+            .with_ai_provider("openrouter")
+            .with_ai_model("deepseek/deepseek-r1-0528:free")
+            .with_ai_api_key("test-openrouter-key")
+            .build_config();
+        assert_eq!(config.ai.provider, "openrouter");
+        assert_eq!(config.ai.model, "deepseek/deepseek-r1-0528:free");
+        assert_eq!(config.ai.api_key, Some("test-openrouter-key".to_string()));
+    }
 }

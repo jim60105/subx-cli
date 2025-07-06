@@ -450,6 +450,19 @@ mod tests {
     }
 
     #[test]
+    fn test_config_service_with_ai_settings_and_key_openrouter() {
+        let service = TestConfigService::with_ai_settings_and_key(
+            "openrouter",
+            "deepseek/deepseek-r1-0528:free",
+            "test-openrouter-key",
+        );
+        let config = service.get_config().unwrap();
+        assert_eq!(config.ai.provider, "openrouter");
+        assert_eq!(config.ai.model, "deepseek/deepseek-r1-0528:free");
+        assert_eq!(config.ai.api_key, Some("test-openrouter-key".to_string()));
+    }
+
+    #[test]
     fn test_config_service_with_sync_settings() {
         let service = TestConfigService::with_sync_settings(0.8, 45.0);
         let config = service.get_config().unwrap();

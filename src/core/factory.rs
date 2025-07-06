@@ -5,6 +5,7 @@
 //! global configuration access within individual components.
 
 use crate::services::ai::openai::OpenAIClient;
+use crate::services::ai::openrouter::OpenRouterClient;
 use crate::services::vad::{LocalVadDetector, VadAudioProcessor, VadSyncDetector};
 use crate::{
     Result,
@@ -192,8 +193,13 @@ pub fn create_ai_provider(ai_config: &crate::config::AIConfig) -> Result<Box<dyn
             let client = OpenAIClient::from_config(ai_config)?;
             Ok(Box::new(client))
         }
+        "openrouter" => {
+            validate_ai_config(ai_config)?;
+            let client = OpenRouterClient::from_config(ai_config)?;
+            Ok(Box::new(client))
+        }
         other => Err(SubXError::config(format!(
-            "Unsupported AI provider: {}. Supported providers: openai",
+            "Unsupported AI provider: {}. Supported providers: openai, openrouter",
             other
         ))),
     }
@@ -305,6 +311,19 @@ mod tests {
         let config_service = TestConfigService::default();
         config_service.set_ai_settings_and_key("openai", "gpt-4.1-mini", "test-api-key");
         config_service.config_mut().ai.base_url = "https://custom-api.com/v1".to_string();
+        let factory = ComponentFactory::new(&config_service).unwrap();
+        let result = factory.create_ai_provider();
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_create_ai_provider_openrouter_success() {
+        let config_service = TestConfigService::default();
+        config_service.set_ai_settings_and_key(
+            "openrouter",
+            "deepseek/deepseek-r1-0528:free",
+            "test-openrouter-key",
+        );
         let factory = ComponentFactory::new(&config_service).unwrap();
         let result = factory.create_ai_provider();
         assert!(result.is_ok());

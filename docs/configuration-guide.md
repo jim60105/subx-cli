@@ -55,6 +55,16 @@ retry_attempts = 3                            # API request retry count (u32, 1-
 retry_delay_ms = 1000                         # Retry delay in milliseconds (u64, 100-10000)
 ```
 
+### OpenRouter Provider
+
+```toml
+[ai]
+provider = "openrouter"
+api_key = "your-openrouter-api-key"
+model = "deepseek/deepseek-r1-0528:free"
+base_url = "https://openrouter.ai/api/v1"
+```
+
 ## Format Configuration (`[formats]`)
 
 Controls file format processing options.
