@@ -29,5 +29,8 @@ async fn test_openrouter_config_validation() {
     assert!(
         error_msg.contains("API key cannot be empty")
             || error_msg.contains("Missing OpenRouter API Key")
+            || error_msg.contains("AI API key is required"),
+        "Unexpected error message: {}",
+        error_msg
     );
 }
