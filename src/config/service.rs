@@ -288,6 +288,13 @@ impl ProductionConfigService {
             debug!("ProductionConfigService: Found AZURE_OPENAI_API_VERSION environment variable");
             app_config.ai.api_version = Some(version);
         }
+        // Special handling for Azure OpenAI deployment ID environment variable
+        if let Some(deployment) = self.env_provider.get_var("AZURE_OPENAI_DEPLOYMENT_ID") {
+            debug!(
+                "ProductionConfigService: Found AZURE_OPENAI_DEPLOYMENT_ID environment variable"
+            );
+            app_config.ai.model = deployment;
+        }
 
         // Validate the configuration
         crate::config::validator::validate_config(&app_config).map_err(|e| {
