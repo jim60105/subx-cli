@@ -5,6 +5,7 @@ use std::path::PathBuf;
 use tokio::fs;
 
 /// 測試自動 VAD 同步（video + subtitle）
+#[cfg(feature = "slow-tests")]
 #[tokio::test]
 async fn test_basic_auto_sync() {
     let helper = CLITestHelper::new();
@@ -40,6 +41,7 @@ async fn test_manual_offset_sync() {
 }
 
 /// 測試 VAD 自訂敏感度同步 (--vad-sensitivity)
+#[cfg(feature = "slow-tests")]
 #[tokio::test]
 async fn test_vad_sensitivity_sync() {
     let helper = CLITestHelper::new();

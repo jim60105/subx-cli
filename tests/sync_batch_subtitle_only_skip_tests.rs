@@ -48,6 +48,7 @@ async fn test_batch_mode_subtitle_only_skip_message() {
 }
 
 /// 測試批次模式下混合文件的正確行為
+#[cfg(feature = "slow-tests")]
 #[tokio::test]
 async fn test_batch_mode_mixed_files_correct_behavior() {
     let helper = CLITestHelper::new();
