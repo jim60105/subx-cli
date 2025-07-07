@@ -143,7 +143,6 @@ mod tests {
             retry_attempts: 2,
             retry_delay_ms: 150,
             request_timeout_seconds: 60,
-            deployment_id: None,
             api_version: None,
         };
         let client = OpenAIClient::from_config(&config).unwrap();
@@ -166,7 +165,6 @@ mod tests {
             retry_attempts: 2,
             retry_delay_ms: 150,
             request_timeout_seconds: 30,
-            deployment_id: None,
             api_version: None,
         };
         let err = OpenAIClient::from_config(&config).unwrap_err();

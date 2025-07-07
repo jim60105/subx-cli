@@ -514,7 +514,6 @@ mod tests {
             retry_attempts: 3,
             retry_delay_ms: 150,
             request_timeout_seconds: 120,
-            deployment_id: None,
             api_version: None,
         };
 
@@ -540,7 +539,6 @@ mod tests {
             retry_attempts: 2,
             retry_delay_ms: 100,
             request_timeout_seconds: 30,
-            deployment_id: None,
             api_version: None,
         };
 
@@ -568,7 +566,6 @@ mod tests {
             retry_attempts: 2,
             retry_delay_ms: 100,
             request_timeout_seconds: 30,
-            deployment_id: None,
             api_version: None,
         };
 

@@ -12,7 +12,7 @@ use reqwest::Client;
 use serde_json::{Value, json};
 use std::time::Duration;
 use tokio::time;
-use url::Url;
+use url::{ParseError, Url};
 
 /// Azure OpenAI client implementation
 #[derive(Debug)]
@@ -21,7 +21,6 @@ pub struct AzureOpenAIClient {
     api_key: String,
     model: String,
     base_url: String,
-    deployment_id: String,
     api_version: String,
     temperature: f32,
     max_tokens: u32,
@@ -39,7 +38,6 @@ impl AzureOpenAIClient {
         api_key: String,
         model: String,
         base_url: String,
-        deployment_id: String,
         api_version: String,
         temperature: f32,
         max_tokens: u32,
@@ -56,7 +54,6 @@ impl AzureOpenAIClient {
             api_key,
             model,
             base_url: base_url.trim_end_matches('/').to_string(),
-            deployment_id,
             api_version,
             temperature,
             max_tokens,
@@ -74,26 +71,36 @@ impl AzureOpenAIClient {
             .filter(|key| !key.trim().is_empty())
             .ok_or_else(|| SubXError::config("Missing Azure OpenAI API Key".to_string()))?
             .clone();
-        let deployment_id = config
-            .deployment_id
-            .clone()
-            .ok_or_else(|| SubXError::config("Missing Azure OpenAI deployment ID".to_string()))?;
+        // Use the model value as the deployment identifier; ensure it's provided
+        let deployment_name = config.model.clone();
+        if deployment_name.trim().is_empty() {
+            return Err(SubXError::config(
+                "Missing Azure OpenAI deployment name in model field".to_string(),
+            ));
+        }
         let api_version = config
             .api_version
             .clone()
             .unwrap_or_else(|| DEFAULT_AZURE_API_VERSION.to_string());
 
-        // Validate base URL format
-        let parsed = Url::parse(&config.base_url)
-            .map_err(|e| SubXError::config(format!("Invalid Azure OpenAI endpoint: {}", e)))?;
+        // Validate base URL format, handle missing host specially
+        let parsed = match Url::parse(&config.base_url) {
+            Ok(u) => u,
+            Err(ParseError::EmptyHost) => {
+                return Err(SubXError::config(
+                    "Azure OpenAI endpoint missing host".to_string(),
+                ));
+            }
+            Err(e) => {
+                return Err(SubXError::config(format!(
+                    "Invalid Azure OpenAI endpoint: {}",
+                    e
+                )));
+            }
+        };
         if !matches!(parsed.scheme(), "http" | "https") {
             return Err(SubXError::config(
                 "Azure OpenAI endpoint must use http or https".to_string(),
-            ));
-        }
-        if parsed.host().is_none() {
-            return Err(SubXError::config(
-                "Azure OpenAI endpoint missing host".to_string(),
             ));
         }
 
@@ -101,7 +108,6 @@ impl AzureOpenAIClient {
             api_key,
             config.model.clone(),
             config.base_url.clone(),
-            deployment_id,
             api_version,
             config.temperature,
             config.max_tokens,
@@ -163,7 +169,7 @@ impl AzureOpenAIClient {
     async fn chat_completion(&self, messages: Vec<Value>) -> crate::Result<String> {
         let url = format!(
             "{}/openai/deployments/{}/chat/completions?api-version={}",
-            self.base_url, self.deployment_id, self.api_version
+            self.base_url, self.model, self.api_version
         );
         let mut req = self
             .client
@@ -241,21 +247,34 @@ mod tests {
     use crate::config::Config;
 
     #[test]
-    fn test_azure_openai_client_creation_success() {
+    fn test_azure_openai_from_config_and_url_construction() {
         let mut config = Config::default();
         config.ai.provider = "azure-openai".to_string();
         config.ai.api_key = Some("test-api-key".to_string());
-        config.ai.model = "gpt-test".to_string();
+        config.ai.model = "deployment-name".to_string();
         config.ai.base_url = "https://example.openai.azure.com".to_string();
-        config.ai.deployment_id = Some("test-deployment".to_string());
         config.ai.api_version = Some("2025-04-01-preview".to_string());
 
-        let result = AzureOpenAIClient::from_config(&config.ai);
-        assert!(
-            result.is_ok(),
-            "Failed to create Azure OpenAI client: {:?}",
-            result.err()
+        let client = AzureOpenAIClient::from_config(&config.ai).unwrap();
+        let url = format!(
+            "{}/openai/deployments/{}/chat/completions?api-version={}",
+            client.base_url, client.model, client.api_version
         );
+        assert!(url.contains("deployment-name"));
+    }
+
+    #[test]
+    fn test_missing_model_error() {
+        let mut config = Config::default();
+        config.ai.provider = "azure-openai".to_string();
+        config.ai.api_key = Some("test-api-key".to_string());
+        config.ai.model = "".to_string();
+        config.ai.base_url = "https://example.openai.azure.com".to_string();
+
+        let err = AzureOpenAIClient::from_config(&config.ai)
+            .unwrap_err()
+            .to_string();
+        assert!(err.contains("Missing Azure OpenAI deployment name in model field"));
     }
 
     #[test]
@@ -263,16 +282,14 @@ mod tests {
         let mut config = Config::default();
         config.ai.provider = "azure-openai".to_string();
         config.ai.api_key = Some("test-api-key".to_string());
-        config.ai.model = "gpt-test".to_string();
+        config.ai.model = "deployment-name".to_string();
         config.ai.base_url = "https://example.openai.azure.com".to_string();
-        config.ai.deployment_id = Some("test-deployment".to_string());
-        // api_version will default to DEFAULT_AZURE_API_VERSION
+        // api_version defaults to DEFAULT_AZURE_API_VERSION
 
-        let result = AzureOpenAIClient::from_config(&config.ai);
-        assert!(
-            result.is_ok(),
-            "Failed to create Azure OpenAI client with defaults: {:?}",
-            result.err()
+        let client = AzureOpenAIClient::from_config(&config.ai).unwrap();
+        assert_eq!(
+            client.api_version,
+            super::DEFAULT_AZURE_API_VERSION.to_string()
         );
     }
 
@@ -281,29 +298,12 @@ mod tests {
         let mut config = Config::default();
         config.ai.provider = "azure-openai".to_string();
         config.ai.api_key = None;
-        config.ai.model = "gpt-test".to_string();
+        config.ai.model = "deployment-name".to_string();
         config.ai.base_url = "https://example.openai.azure.com".to_string();
-        config.ai.deployment_id = Some("test-deployment".to_string());
 
         let result = AzureOpenAIClient::from_config(&config.ai);
-        assert!(result.is_err());
-        let error_msg = result.err().unwrap().to_string();
-        assert!(error_msg.contains("Missing Azure OpenAI API Key"));
-    }
-
-    #[test]
-    fn test_azure_openai_client_missing_deployment_id() {
-        let mut config = Config::default();
-        config.ai.provider = "azure-openai".to_string();
-        config.ai.api_key = Some("test-api-key".to_string());
-        config.ai.model = "gpt-test".to_string();
-        config.ai.base_url = "https://example.openai.azure.com".to_string();
-        config.ai.deployment_id = None;
-
-        let result = AzureOpenAIClient::from_config(&config.ai);
-        assert!(result.is_err());
-        let error_msg = result.err().unwrap().to_string();
-        assert!(error_msg.contains("Missing Azure OpenAI deployment ID"));
+        let err = result.unwrap_err().to_string();
+        assert!(err.contains("Missing Azure OpenAI API Key"));
     }
 
     #[test]
@@ -311,14 +311,12 @@ mod tests {
         let mut config = Config::default();
         config.ai.provider = "azure-openai".to_string();
         config.ai.api_key = Some("test-api-key".to_string());
-        config.ai.model = "gpt-test".to_string();
+        config.ai.model = "deployment-name".to_string();
         config.ai.base_url = "invalid-url".to_string();
-        config.ai.deployment_id = Some("test-deployment".to_string());
 
         let result = AzureOpenAIClient::from_config(&config.ai);
-        assert!(result.is_err());
-        let error_msg = result.err().unwrap().to_string();
-        assert!(error_msg.contains("Invalid Azure OpenAI endpoint"));
+        let err = result.unwrap_err().to_string();
+        assert!(err.contains("Invalid Azure OpenAI endpoint"));
     }
 
     #[test]
@@ -326,14 +324,12 @@ mod tests {
         let mut config = Config::default();
         config.ai.provider = "azure-openai".to_string();
         config.ai.api_key = Some("test-api-key".to_string());
-        config.ai.model = "gpt-test".to_string();
+        config.ai.model = "deployment-name".to_string();
         config.ai.base_url = "ftp://example.openai.azure.com".to_string();
-        config.ai.deployment_id = Some("test-deployment".to_string());
 
         let result = AzureOpenAIClient::from_config(&config.ai);
-        assert!(result.is_err());
-        let error_msg = result.err().unwrap().to_string();
-        assert!(error_msg.contains("must use http or https"));
+        let err = result.unwrap_err().to_string();
+        assert!(err.contains("must use http or https"));
     }
 
     #[test]
@@ -341,33 +337,29 @@ mod tests {
         let mut config = Config::default();
         config.ai.provider = "azure-openai".to_string();
         config.ai.api_key = Some("test-api-key".to_string());
-        config.ai.model = "gpt-test".to_string();
+        config.ai.model = "deployment-name".to_string();
         config.ai.base_url = "https://".to_string();
-        config.ai.deployment_id = Some("test-deployment".to_string());
 
         let result = AzureOpenAIClient::from_config(&config.ai);
-        assert!(result.is_err());
-        let error_msg = result.err().unwrap().to_string();
-        // Print the actual error message for debugging
-        println!("Actual error message: {}", error_msg);
-        assert!(error_msg.contains("empty host") || error_msg.contains("missing host"));
+        let err = result.unwrap_err().to_string();
+        assert!(err.contains("missing host"));
     }
 
     #[test]
-    fn test_azure_openai_with_custom_deployment_and_version() {
-        let mock_deployment = "custom-deployment-123";
+    fn test_azure_openai_with_custom_model_and_version() {
+        let mock_model = "custom-model-123";
         let mock_version = "2023-12-01-preview";
 
         let mut config = Config::default();
         config.ai.provider = "azure-openai".to_string();
         config.ai.api_key = Some("test-api-key".to_string());
-        config.ai.model = "gpt-test".to_string();
+        config.ai.model = mock_model.to_string();
         config.ai.base_url = "https://custom.openai.azure.com".to_string();
-        config.ai.deployment_id = Some(mock_deployment.to_string());
         config.ai.api_version = Some(mock_version.to_string());
 
-        let result = AzureOpenAIClient::from_config(&config.ai);
-        assert!(result.is_ok());
+        let client = AzureOpenAIClient::from_config(&config.ai).unwrap();
+        assert_eq!(client.model, mock_model);
+        assert_eq!(client.api_version, mock_version);
     }
 
     #[test]
@@ -375,12 +367,14 @@ mod tests {
         let mut config = Config::default();
         config.ai.provider = "azure-openai".to_string();
         config.ai.api_key = Some("test-api-key".to_string());
-        config.ai.model = "gpt-test".to_string();
+        config.ai.model = "deployment-name".to_string();
         config.ai.base_url = "https://example.openai.azure.com/".to_string(); // Trailing slash
-        config.ai.deployment_id = Some("test-deployment".to_string());
 
-        let result = AzureOpenAIClient::from_config(&config.ai);
-        assert!(result.is_ok(), "Should handle trailing slash in base URL");
+        let client = AzureOpenAIClient::from_config(&config.ai).unwrap();
+        assert_eq!(
+            client.base_url,
+            "https://example.openai.azure.com".to_string()
+        );
     }
 
     #[test]
@@ -388,30 +382,31 @@ mod tests {
         let mut config = Config::default();
         config.ai.provider = "azure-openai".to_string();
         config.ai.api_key = Some("test-api-key".to_string());
-        config.ai.model = "gpt-test".to_string();
+        config.ai.model = "deployment-name".to_string();
         config.ai.base_url = "https://example.openai.azure.com".to_string();
-        config.ai.deployment_id = Some("test-deployment".to_string());
         config.ai.temperature = 0.8;
         config.ai.max_tokens = 2000;
 
-        let result = AzureOpenAIClient::from_config(&config.ai);
-        assert!(result.is_ok());
+        let client = AzureOpenAIClient::from_config(&config.ai).unwrap();
+        assert!((client.temperature - 0.8).abs() < f32::EPSILON);
+        assert_eq!(client.max_tokens, 2000);
     }
 
     #[test]
-    fn test_azure_openai_with_custom_retry_settings() {
+    fn test_azure_openai_with_custom_retry_and_timeout() {
         let mut config = Config::default();
         config.ai.provider = "azure-openai".to_string();
         config.ai.api_key = Some("test-api-key".to_string());
-        config.ai.model = "gpt-test".to_string();
+        config.ai.model = "deployment-name".to_string();
         config.ai.base_url = "https://example.openai.azure.com".to_string();
-        config.ai.deployment_id = Some("test-deployment".to_string());
         config.ai.retry_attempts = 5;
         config.ai.retry_delay_ms = 2000;
         config.ai.request_timeout_seconds = 180;
 
-        let result = AzureOpenAIClient::from_config(&config.ai);
-        assert!(result.is_ok());
+        let client = AzureOpenAIClient::from_config(&config.ai).unwrap();
+        assert_eq!(client.retry_attempts, 5);
+        assert_eq!(client.retry_delay_ms, 2000);
+        assert_eq!(client.request_timeout_seconds, 180);
     }
 
     #[test]
@@ -420,7 +415,6 @@ mod tests {
             "test-api-key".to_string(),
             "gpt-test".to_string(),
             "https://example.openai.azure.com".to_string(),
-            "test-deployment".to_string(),
             "2025-04-01-preview".to_string(),
             0.7,
             4000,
@@ -428,8 +422,6 @@ mod tests {
             1000,
             120,
         );
-
-        // Just verify the client was created successfully
         assert!(format!("{:?}", client).contains("AzureOpenAIClient"));
     }
 
@@ -438,27 +430,13 @@ mod tests {
         let mut config = Config::default();
         config.ai.provider = "azure-openai".to_string();
         config.ai.api_key = Some("".to_string()); // Empty string
-        config.ai.model = "gpt-test".to_string();
+        config.ai.model = "deployment-name".to_string();
         config.ai.base_url = "https://example.openai.azure.com".to_string();
-        config.ai.deployment_id = Some("test-deployment".to_string());
 
-        let result = AzureOpenAIClient::from_config(&config.ai);
-        assert!(result.is_err());
-        let error_msg = result.err().unwrap().to_string();
-        assert!(error_msg.contains("Missing Azure OpenAI API Key"));
-    }
-
-    #[test]
-    fn test_azure_openai_valid_http_url() {
-        let mut config = Config::default();
-        config.ai.provider = "azure-openai".to_string();
-        config.ai.api_key = Some("test-api-key".to_string());
-        config.ai.model = "gpt-test".to_string();
-        config.ai.base_url = "http://localhost:8080".to_string(); // HTTP for local testing
-        config.ai.deployment_id = Some("test-deployment".to_string());
-
-        let result = AzureOpenAIClient::from_config(&config.ai);
-        assert!(result.is_ok(), "Should accept HTTP URLs for local testing");
+        let err = AzureOpenAIClient::from_config(&config.ai)
+            .unwrap_err()
+            .to_string();
+        assert!(err.contains("Missing Azure OpenAI API Key"));
     }
 }
 

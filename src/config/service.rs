@@ -284,12 +284,6 @@ impl ProductionConfigService {
             debug!("ProductionConfigService: Found AZURE_OPENAI_ENDPOINT environment variable");
             app_config.ai.base_url = endpoint;
         }
-        if let Some(deployment) = self.env_provider.get_var("AZURE_OPENAI_DEPLOYMENT_ID") {
-            debug!(
-                "ProductionConfigService: Found AZURE_OPENAI_DEPLOYMENT_ID environment variable"
-            );
-            app_config.ai.deployment_id = Some(deployment);
-        }
         if let Some(version) = self.env_provider.get_var("AZURE_OPENAI_API_VERSION") {
             debug!("ProductionConfigService: Found AZURE_OPENAI_API_VERSION environment variable");
             app_config.ai.api_version = Some(version);
@@ -370,13 +364,6 @@ impl ProductionConfigService {
             ["ai", "request_timeout_seconds"] => {
                 let v = value.parse().unwrap(); // Validation already done
                 config.ai.request_timeout_seconds = v;
-            }
-            ["ai", "deployment_id"] => {
-                if !value.is_empty() {
-                    config.ai.deployment_id = Some(value.to_string());
-                } else {
-                    config.ai.deployment_id = None;
-                }
             }
             ["ai", "api_version"] => {
                 if !value.is_empty() {
