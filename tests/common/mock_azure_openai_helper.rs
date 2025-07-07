@@ -249,11 +249,7 @@ impl MockAzureOpenAITestHelper {
     }
 
     /// Setup multiple retryable error responses followed by success.
-    pub async fn setup_retry_scenario(
-        &self,
-        error_count: usize,
-        final_response_content: &str,
-    ) {
+    pub async fn setup_retry_scenario(&self, error_count: usize, final_response_content: &str) {
         let path_pattern = format!(
             "/openai/deployments/{}/chat/completions",
             self.deployment_id
@@ -305,7 +301,7 @@ impl MockAzureOpenAITestHelper {
             .expect(1)
             .mount(&self.mock_server)
             .await;
-        
+
         // Second call succeeds
         let response_body = json!({
             "choices": [{
@@ -342,11 +338,14 @@ impl MockAzureOpenAITestHelper {
         Mock::given(method("POST"))
             .and(path(&path_pattern))
             .and(query_param("api-version", &self.api_version))
-            .respond_with(ResponseTemplate::new(502).set_body_json(json!({"error": {"message": "Bad Gateway"}})))
+            .respond_with(
+                ResponseTemplate::new(502)
+                    .set_body_json(json!({"error": {"message": "Bad Gateway"}})),
+            )
             .expect(1)
             .mount(&self.mock_server)
             .await;
-        
+
         // Second call succeeds
         let response_body = json!({
             "choices": [{
