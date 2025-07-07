@@ -404,14 +404,13 @@ Options:
   --batch               Batch processing mode
   --method <METHOD>     Sync method (auto|vad, default: from sync.default_method config)
   --vad-sensitivity <SENSITIVITY>    VAD detection sensitivity (0.0-1.0, overrides config)
-  --vad-chunk-size <SIZE>           VAD chunk size (overrides config)
 
 Audio Format Support:
   - MP4, MKV/WebM, OGG, WAV containers (automatically transcoded to WAV for analysis)
 
 Configuration Support:
   - Sync Settings: Default sync method, maximum offset range, etc.
-  - VAD Processing: Sensitivity, chunk size, sample rate, padding chunks, min speech duration, speech merge gap, etc.
+  - VAD Processing: Sensitivity, padding chunks, min speech duration, etc.
 ```
 
 ### `subx-cli config` - Configuration Management
@@ -457,10 +456,7 @@ A: Ensure the audio/video file is accessible and check if the file format is sup
 - Use manual offset for difficult cases: `subx-cli sync --offset <seconds> subtitle.srt`
 - Check VAD configuration: `subx-cli config set sync.vad.enabled true`
 - For very noisy audio: `subx-cli config set sync.vad.min_speech_duration_ms 200`
-- For rapid speech: `subx-cli config set sync.vad.speech_merge_gap_ms 100`
-- Adjust audio processing parameters:
-  - `subx-cli config set sync.vad.chunk_size 512`
-  - `subx-cli config set sync.vad.sample_rate 16000`
+- Adjust VAD parameters:
   - `subx-cli config set sync.vad.padding_chunks 3`
 
 ### Q: Poor performance when processing large numbers of files?
