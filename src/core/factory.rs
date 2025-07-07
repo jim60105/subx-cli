@@ -198,8 +198,14 @@ pub fn create_ai_provider(ai_config: &crate::config::AIConfig) -> Result<Box<dyn
             let client = OpenRouterClient::from_config(ai_config)?;
             Ok(Box::new(client))
         }
+        "azure-openai" => {
+            validate_ai_config(ai_config)?;
+            let client =
+                crate::services::ai::azure_openai::AzureOpenAIClient::from_config(ai_config)?;
+            Ok(Box::new(client))
+        }
         other => Err(SubXError::config(format!(
-            "Unsupported AI provider: {}. Supported providers: openai, openrouter",
+            "Unsupported AI provider: {}. Supported providers: openai, openrouter, anthropic, azure-openai",
             other
         ))),
     }
@@ -326,6 +332,19 @@ mod tests {
         );
         let factory = ComponentFactory::new(&config_service).unwrap();
         let result = factory.create_ai_provider();
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_create_ai_provider_azure_openai_success() {
+        let mut config = crate::config::Config::default();
+        config.ai.provider = "azure-openai".to_string();
+        config.ai.api_key = Some("azure-key-123".to_string());
+        config.ai.deployment_id = Some("dep123".to_string());
+        config.ai.api_version = Some("2025-04-01-preview".to_string());
+        config.ai.model = "gpt-test".to_string();
+        config.ai.base_url = "https://example.openai.azure.com".to_string();
+        let result = create_ai_provider(&config.ai);
         assert!(result.is_ok());
     }
 }

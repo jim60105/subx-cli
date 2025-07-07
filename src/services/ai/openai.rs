@@ -137,12 +137,14 @@ mod tests {
             api_key: Some("test-key".to_string()),
             model: "gpt-test".to_string(),
             base_url: "https://custom.openai.com/v1".to_string(),
+            max_sample_length: 500,
             temperature: 0.7,
             max_tokens: 2000,
             retry_attempts: 2,
             retry_delay_ms: 150,
-            max_sample_length: 500,
             request_timeout_seconds: 60,
+            deployment_id: None,
+            api_version: None,
         };
         let client = OpenAIClient::from_config(&config).unwrap();
         assert_eq!(client.api_key, "test-key");
@@ -158,12 +160,14 @@ mod tests {
             api_key: Some("test-key".to_string()),
             model: "gpt-test".to_string(),
             base_url: "ftp://invalid.url".to_string(),
+            max_sample_length: 500,
             temperature: 0.7,
             max_tokens: 1000,
             retry_attempts: 2,
             retry_delay_ms: 150,
-            max_sample_length: 500,
             request_timeout_seconds: 30,
+            deployment_id: None,
+            api_version: None,
         };
         let err = OpenAIClient::from_config(&config).unwrap_err();
         // Non-http/https protocols should return protocol error message

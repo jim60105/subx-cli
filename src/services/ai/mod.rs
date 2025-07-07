@@ -291,6 +291,9 @@ pub mod openai;
 /// OpenRouter AI service provider client implementation
 pub mod openrouter;
 
+/// Azure OpenAI service provider client implementation
+pub mod azure_openai;
+
 /// AI prompt templates and management
 pub mod prompts;
 

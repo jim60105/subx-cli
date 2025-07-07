@@ -88,9 +88,40 @@ pub fn validate_ai_config(ai_config: &AIConfig) -> Result<()> {
             validate_ai_model(&ai_config.model)?;
             validate_temperature(ai_config.temperature)?;
         }
+        "azure-openai" => {
+            if let Some(api_key) = &ai_config.api_key {
+                if !api_key.is_empty() {
+                    validate_api_key(api_key)?;
+                }
+            }
+            validate_ai_model(&ai_config.model)?;
+            validate_temperature(ai_config.temperature)?;
+            validate_positive_number(ai_config.max_tokens as f64)?;
+            if let Some(dep) = &ai_config.deployment_id {
+                if dep.trim().is_empty() {
+                    return Err(SubXError::config(
+                        "Azure OpenAI deployment_id must not be empty",
+                    ));
+                }
+            } else {
+                return Err(SubXError::config(
+                    "Azure OpenAI deployment_id is required".to_string(),
+                ));
+            }
+            if let Some(ver) = &ai_config.api_version {
+                if ver.trim().is_empty() {
+                    return Err(SubXError::config(
+                        "Azure OpenAI api_version must not be empty",
+                    ));
+                }
+            }
+            if !ai_config.base_url.is_empty() {
+                validate_url_format(&ai_config.base_url)?;
+            }
+        }
         _ => {
             return Err(SubXError::config(format!(
-                "Unsupported AI provider: {}. Supported providers: openai, openrouter, anthropic",
+                "Unsupported AI provider: {}. Supported providers: openai, openrouter, anthropic, azure-openai",
                 ai_config.provider
             )));
         }
@@ -316,6 +347,14 @@ mod tests {
         ai_config.api_key = Some("test-openrouter-key".to_string());
         ai_config.model = "deepseek/deepseek-r1-0528:free".to_string();
         assert!(validate_ai_config(&ai_config).is_ok());
+
+        // azure-openai test
+        let mut ai_config = AIConfig::default();
+        ai_config.provider = "azure-openai".to_string();
+        ai_config.api_key = Some("azure-key-123".to_string());
+        ai_config.deployment_id = Some("dep123".to_string());
+        ai_config.api_version = Some("2025-04-01-preview".to_string());
+        assert!(validate_ai_config(&ai_config).is_ok());
     }
 
     #[test]
@@ -324,7 +363,7 @@ mod tests {
         ai_config.provider = "invalid".to_string();
         let err = validate_ai_config(&ai_config).unwrap_err();
         assert!(err.to_string().contains(
-            "Unsupported AI provider: invalid. Supported providers: openai, openrouter, anthropic"
+            "Unsupported AI provider: invalid. Supported providers: openai, openrouter, anthropic, azure-openai"
         ));
     }
 

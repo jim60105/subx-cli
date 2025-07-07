@@ -508,12 +508,14 @@ mod tests {
             api_key: Some("test-key".to_string()),
             model: "deepseek/deepseek-r1-0528:free".to_string(),
             base_url: "https://openrouter.ai/api/v1".to_string(),
+            max_sample_length: 500,
             temperature: 0.7,
             max_tokens: 2000,
             retry_attempts: 3,
             retry_delay_ms: 150,
-            max_sample_length: 500,
             request_timeout_seconds: 120,
+            deployment_id: None,
+            api_version: None,
         };
 
         let client = OpenRouterClient::from_config(&config).unwrap();
@@ -532,12 +534,14 @@ mod tests {
             api_key: None,
             model: "deepseek/deepseek-r1-0528:free".to_string(),
             base_url: "https://openrouter.ai/api/v1".to_string(),
+            max_sample_length: 500,
             temperature: 0.3,
             max_tokens: 1000,
             retry_attempts: 2,
             retry_delay_ms: 100,
-            max_sample_length: 500,
             request_timeout_seconds: 30,
+            deployment_id: None,
+            api_version: None,
         };
 
         let result = OpenRouterClient::from_config(&config);
@@ -558,12 +562,14 @@ mod tests {
             api_key: Some("test-key".to_string()),
             model: "deepseek/deepseek-r1-0528:free".to_string(),
             base_url: "ftp://invalid.url".to_string(),
+            max_sample_length: 500,
             temperature: 0.3,
             max_tokens: 1000,
             retry_attempts: 2,
             retry_delay_ms: 100,
-            max_sample_length: 500,
             request_timeout_seconds: 30,
+            deployment_id: None,
+            api_version: None,
         };
 
         let result = OpenRouterClient::from_config(&config);
