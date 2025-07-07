@@ -650,6 +650,26 @@ fn test_with_performance_monitoring() {
 }
 ```
 
+## JUnit XML Test Results
+
+### Configuration
+The project uses nextest to generate JUnit XML format test results, primarily for CI environments:
+
+```bash
+# CI profile automatically generates JUnit XML
+cargo nextest run --profile ci
+```
+
+### Output Location
+- JUnit XML file: `target/nextest/ci/junit.xml`
+- Contains detailed output and stack traces for all tests (successful and failed)
+
+### Codecov Test Analysis
+Test results are automatically uploaded to Codecov, providing:
+- Test execution time analysis
+- Failure rate statistics
+- Flaky test identification
+
 ## Conclusion
 
 Following these guidelines ensures that SubX maintains high code quality, safety, and testability. The dependency injection architecture enables comprehensive testing without sacrificing safety or performance.

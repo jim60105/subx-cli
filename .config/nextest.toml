@@ -30,6 +30,12 @@ test-threads = 4
 failure-output = "final"
 status-level = "fail"
 
+[profile.ci.junit]
+# JUnit XML 輸出設定 - CI 環境專用
+path = "junit.xml"
+store-success-output = true
+store-failure-output = true
+
 [profile.quick]
 # 快速測試設定
 retries = 0
