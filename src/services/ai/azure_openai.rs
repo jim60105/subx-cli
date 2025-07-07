@@ -197,8 +197,14 @@ impl AzureOpenAIClient {
                 usage.get("completion_tokens").and_then(Value::as_u64),
                 usage.get("total_tokens").and_then(Value::as_u64),
             ) {
+                // Get model from response JSON, fallback to self.model if missing
+                let model = resp_json
+                    .get("model")
+                    .and_then(Value::as_str)
+                    .unwrap_or(self.model.as_str())
+                    .to_string();
                 let stats = crate::services::ai::AiUsageStats {
-                    model: self.model.clone(),
+                    model,
                     prompt_tokens: p as u32,
                     completion_tokens: c as u32,
                     total_tokens: t as u32,
@@ -245,7 +251,11 @@ mod tests {
         config.ai.api_version = Some("2025-04-01-preview".to_string());
 
         let result = AzureOpenAIClient::from_config(&config.ai);
-        assert!(result.is_ok(), "Failed to create Azure OpenAI client: {:?}", result.err());
+        assert!(
+            result.is_ok(),
+            "Failed to create Azure OpenAI client: {:?}",
+            result.err()
+        );
     }
 
     #[test]
@@ -259,7 +269,11 @@ mod tests {
         // api_version will default to DEFAULT_AZURE_API_VERSION
 
         let result = AzureOpenAIClient::from_config(&config.ai);
-        assert!(result.is_ok(), "Failed to create Azure OpenAI client with defaults: {:?}", result.err());
+        assert!(
+            result.is_ok(),
+            "Failed to create Azure OpenAI client with defaults: {:?}",
+            result.err()
+        );
     }
 
     #[test]
