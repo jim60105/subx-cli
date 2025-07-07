@@ -30,6 +30,9 @@ NEXTEST_PROFILE=${NEXTEST_PROFILE:-$DEFAULT_NEXTEST_PROFILE}
 # Full tests mode
 FULL_TESTS=false
 
+# Output LCOV file
+LCOV_OUTPUT_PATH=""
+
 # Color output
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -47,6 +50,7 @@ usage() {
     echo "  -T, --table              Show coverage table for all files"
     echo "  -f, --file FILENAME      Show coverage for specific file (supports partial matching)"
     echo "  -v, --verbose            Show verbose output"
+    echo "  --lcov PATH              Also generate LCOV output file at specified path"
     echo "  -h, --help               Show this help"
     echo ""
     echo "Environment variables:"
@@ -62,6 +66,7 @@ usage() {
     echo "  $0 --full                Run full tests including slow tests (~90 vs ~143 seconds)"
     echo "  $0 --table               Show coverage table for all files"
     echo "  $0 -f manager.rs         Show coverage for files matching 'manager.rs'"
+    echo "  $0 --lcov lcov.info      Generate both JSON and LCOV coverage reports"
     echo "  COVERAGE_THRESHOLD=70 $0  Set threshold to 70% via environment variable"
     echo "  NEXTEST_PROFILE=ci $0     Set profile to ci via environment variable"
 }
@@ -157,6 +162,10 @@ parse_args() {
         -v | --verbose)
             VERBOSE=true
             shift
+            ;;
+        --lcov)
+            LCOV_OUTPUT_PATH="$2"
+            shift 2
             ;;
         -h | --help)
             usage
@@ -342,12 +351,34 @@ check_coverage() {
         coverage_features="--features slow-tests"
     fi
     
-    if ! coverage_cmd_output=$(cargo llvm-cov nextest --profile "${NEXTEST_PROFILE}" --all-features --workspace ${coverage_features} --json --summary-only 2>&1); then
-        echo -e "${RED}❌ Unable to generate coverage report${NC}" >&2
-        echo -e "${YELLOW}Error message: ${coverage_cmd_output}${NC}" >&2
-        echo -e "${YELLOW}Please ensure the project contains tests and can be compiled${NC}" >&2
+    echo -e "${BLUE}📄 Running tests to generate coverage data...${NC}"
+    
+    # First, run tests once to generate coverage data
+    if ! cargo llvm-cov nextest --profile "${NEXTEST_PROFILE}" --workspace ${coverage_features} --no-report >/dev/null 2>&1; then
+        echo -e "${RED}❌ Unable to run tests for coverage${NC}" >&2
         exit 1
     fi
+    
+    echo -e "${GREEN}✅ Tests completed successfully${NC}"
+    
+    # Generate LCOV output if requested, using report to avoid re-running tests
+    if [[ -n "${LCOV_OUTPUT_PATH}" ]]; then
+        echo -e "${BLUE}📄 Generating LCOV output at: ${LCOV_OUTPUT_PATH}${NC}"
+        if ! cargo llvm-cov report --lcov --output-path "${LCOV_OUTPUT_PATH}" >/dev/null 2>&1; then
+            echo -e "${RED}❌ Unable to generate LCOV coverage report${NC}" >&2
+            exit 1
+        fi
+        echo -e "${GREEN}✅ LCOV coverage report generated successfully${NC}"
+    fi
+    
+    # Generate JSON output for analysis, using report to avoid re-running tests
+    if ! coverage_cmd_output=$(cargo llvm-cov report --json --summary-only 2>&1); then
+        echo -e "${RED}❌ Unable to extract JSON coverage data${NC}" >&2
+        echo -e "${YELLOW}Error message: ${coverage_cmd_output}${NC}" >&2
+        exit 1
+    fi
+    
+    echo -e "${GREEN}✅ JSON coverage data extracted successfully${NC}"
 
     # Extract JSON part (filter out test output)
     coverage_json=$(echo "$coverage_cmd_output" | grep -E '^\{.*\}$' | tail -1)
