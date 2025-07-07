@@ -5,7 +5,27 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+
 ## [Unreleased]
+
+## [1.5.0] - 2025-07-07
+### Added
+- Azure OpenAI and OpenRouter AI provider support, including CLI, config, test suite, and environment variable override (AZURE_OPENAI_DEPLOYMENT_ID).
+- JUnit XML test results and Codecov integration in CI; support for #[cfg(feature = 'slow-tests')] to enable slow test selection.
+- AI provider integration guide documentation.
+
+### Changed
+- Azure OpenAI provider now uses model name as deployment identifier (deployment_id removed).
+- Unified coverage generation and checks in CI; streamlined workflow.
+- Updated config usage analysis and README for accuracy; removed invalid options and fixed defaults.
+- Refactored Azure OpenAI test structure for maintainability and coverage.
+- Adjusted slow timeout and devcontainer settings for improved development and testing experience.
+- Updated clippy lints configuration for better linting control.
+
+### Fixed
+- OpenRouterClient now retries on server error status codes.
+- Fixed model name extraction logic in AI client and improved test readability.
+- Fixed clippy lifetime and format-args warnings.
 
 ## [1.4.0] - 2025-07-06
 ### Added
@@ -366,7 +386,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Initial release of SubX CLI tool
 - Rust-based intelligent subtitle processing
 
-[Unreleased]: https://github.com/jim60105/subx-cli/compare/v1.3.0...HEAD  
+[Unreleased]: https://github.com/jim60105/subx-cli/compare/v1.5.0...HEAD  
+[1.5.0]: https://github.com/jim60105/subx-cli/compare/v1.4.0...v1.5.0  
 [1.4.0]: https://github.com/jim60105/subx-cli/compare/v1.3.0...v1.4.0  
 [1.3.0]: https://github.com/jim60105/subx-cli/compare/v1.2.0...v1.3.0  
 [1.2.0]: https://github.com/jim60105/subx-cli/compare/v1.1.0...v1.2.0  
