@@ -1,3 +1,7 @@
+# 測試用 feature flag
+[features]
+default = []
+slow-tests = []
 [package]
 name = "subx-cli"
 version = "1.4.0"

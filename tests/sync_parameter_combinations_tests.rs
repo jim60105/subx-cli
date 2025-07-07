@@ -5,6 +5,7 @@ use std::path::PathBuf;
 use tokio::fs;
 
 /// subx-cli sync video.mp4 subtitle.srt
+#[cfg(feature = "slow-tests")]
 #[tokio::test]
 async fn test_basic_video_subtitle_sync() {
     let helper = CLITestHelper::new();
@@ -33,6 +34,7 @@ async fn test_manual_offset_sync() {
 }
 
 /// subx-cli sync --vad-sensitivity 0.8 video.mp4 subtitle.srt
+#[cfg(feature = "slow-tests")]
 #[tokio::test]
 async fn test_vad_sensitivity_sync() {
     let helper = CLITestHelper::new();
@@ -54,6 +56,7 @@ async fn test_vad_sensitivity_sync() {
 }
 
 /// subx-cli sync --batch <directory>
+#[cfg(feature = "slow-tests")]
 #[tokio::test]
 async fn test_batch_directory_sync() {
     let helper = CLITestHelper::new();
@@ -80,6 +83,7 @@ async fn test_batch_directory_sync() {
 }
 
 /// subx-cli sync -i ./movies_directory --batch
+#[cfg(feature = "slow-tests")]
 #[tokio::test]
 async fn test_batch_input_path_sync() {
     let helper = CLITestHelper::new();
@@ -105,6 +109,7 @@ async fn test_batch_input_path_sync() {
 }
 
 /// subx-cli sync -i ./movies_directory --batch --recursive
+#[cfg(feature = "slow-tests")]
 #[tokio::test]
 async fn test_batch_recursive_sync() {
     let helper = CLITestHelper::new();
@@ -131,6 +136,7 @@ async fn test_batch_recursive_sync() {
 }
 
 /// subx-cli sync -i ./movies1 -i ./movies2 -i ./tv_shows --recursive --batch --method vad
+#[cfg(feature = "slow-tests")]
 #[tokio::test]
 async fn test_multiple_input_batch_recursive_vad_sync() {
     let helper = CLITestHelper::new();
@@ -164,6 +170,7 @@ async fn test_multiple_input_batch_recursive_vad_sync() {
 }
 
 /// subx-cli sync -i ./media --batch --recursive --dry-run --verbose
+#[cfg(feature = "slow-tests")]
 #[tokio::test]
 async fn test_batch_recursive_dry_run_verbose_sync() {
     let helper = CLITestHelper::new();

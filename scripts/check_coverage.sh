@@ -27,6 +27,12 @@ COVERAGE_THRESHOLD=${COVERAGE_THRESHOLD:-$DEFAULT_THRESHOLD}
 DEFAULT_NEXTEST_PROFILE="default"
 NEXTEST_PROFILE=${NEXTEST_PROFILE:-$DEFAULT_NEXTEST_PROFILE}
 
+# Full tests mode
+FULL_TESTS=false
+
+# Output LCOV file
+LCOV_OUTPUT_PATH=""
+
 # Color output
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -40,24 +46,27 @@ usage() {
     echo "Options:"
     echo "  -t, --threshold PERCENT   Set coverage threshold (default: ${DEFAULT_THRESHOLD}%)"
     echo "  -p, --profile PROFILE     Set nextest profile (default: ${DEFAULT_NEXTEST_PROFILE})"
+    echo "  --full                   Run full tests including slow tests (sets profile to full and enables slow-tests feature)"
     echo "  -T, --table              Show coverage table for all files"
     echo "  -f, --file FILENAME      Show coverage for specific file (supports partial matching)"
     echo "  -v, --verbose            Show verbose output"
+    echo "  --lcov PATH              Also generate LCOV output file at specified path"
     echo "  -h, --help               Show this help"
     echo ""
     echo "Environment variables:"
     echo "  COVERAGE_THRESHOLD       Coverage threshold (default: ${DEFAULT_THRESHOLD}%)"
     echo "  NEXTEST_PROFILE          Nextest profile (default: ${DEFAULT_NEXTEST_PROFILE})"
     echo ""
-    echo "Available nextest profiles: default, ci, quick"
+    echo "Available nextest profiles: default, ci, quick, full"
     echo ""
     echo "Examples:"
-    echo "  $0                       Check coverage with default threshold and profile"
+    echo "  $0                       Check coverage with default threshold and profile (excludes slow tests)"
     echo "  $0 -t 80                 Set threshold to 80%"
     echo "  $0 -p ci                 Use CI profile"
-    echo "  $0 -p ci -t 80           Use CI profile with 80% threshold"
+    echo "  $0 --full                Run full tests including slow tests (~90 vs ~143 seconds)"
     echo "  $0 --table               Show coverage table for all files"
     echo "  $0 -f manager.rs         Show coverage for files matching 'manager.rs'"
+    echo "  $0 --lcov lcov.info      Generate both JSON and LCOV coverage reports"
     echo "  COVERAGE_THRESHOLD=70 $0  Set threshold to 70% via environment variable"
     echo "  NEXTEST_PROFILE=ci $0     Set profile to ci via environment variable"
 }
@@ -127,15 +136,20 @@ parse_args() {
             fi
             # Validate profile value
             case "$2" in
-                default|ci|quick)
+                default|ci|quick|full)
                     NEXTEST_PROFILE="$2"
                     ;;
                 *)
-                    echo -e "${RED}Error: Invalid profile '$2'. Available profiles: default, ci, quick${NC}" >&2
+                    echo -e "${RED}Error: Invalid profile '$2'. Available profiles: default, ci, quick, full${NC}" >&2
                     exit 1
                     ;;
             esac
             shift 2
+            ;;
+        --full)
+            FULL_TESTS=true
+            NEXTEST_PROFILE="full"
+            shift
             ;;
         -T | --table)
             SHOW_TABLE=true
@@ -148,6 +162,10 @@ parse_args() {
         -v | --verbose)
             VERBOSE=true
             shift
+            ;;
+        --lcov)
+            LCOV_OUTPUT_PATH="$2"
+            shift 2
             ;;
         -h | --help)
             usage
@@ -318,16 +336,49 @@ search_file_coverage() {
 check_coverage() {
     echo -e "${BLUE}🔍 Checking test coverage...${NC}"
     echo -e "${BLUE}🔧 Using nextest profile: ${NEXTEST_PROFILE}${NC}"
+    if [[ "${FULL_TESTS}" == "true" ]]; then
+        echo -e "${BLUE}⚡ Full tests mode: Including slow tests (~143s vs ~90s)${NC}"
+    else
+        echo -e "${BLUE}🚀 Fast tests mode: Excluding slow tests (~90s vs ~143s)${NC}"
+        echo -e "${BLUE}   Use --full to include slow tests${NC}"
+    fi
 
     # Generate coverage report
     local coverage_json
     local coverage_cmd_output
-    if ! coverage_cmd_output=$(cargo llvm-cov nextest --profile "${NEXTEST_PROFILE}" --all-features --workspace --json --summary-only 2>&1); then
-        echo -e "${RED}❌ Unable to generate coverage report${NC}" >&2
-        echo -e "${YELLOW}Error message: ${coverage_cmd_output}${NC}" >&2
-        echo -e "${YELLOW}Please ensure the project contains tests and can be compiled${NC}" >&2
+    local coverage_features=""
+    if [[ "${FULL_TESTS}" == "true" ]]; then
+        coverage_features="--features slow-tests"
+    fi
+    
+    echo -e "${BLUE}📄 Running tests to generate coverage data...${NC}"
+    
+    # First, run tests once to generate coverage data
+    if ! cargo llvm-cov nextest --profile "${NEXTEST_PROFILE}" --workspace ${coverage_features} --no-report >/dev/null 2>&1; then
+        echo -e "${RED}❌ Unable to run tests for coverage${NC}" >&2
         exit 1
     fi
+    
+    echo -e "${GREEN}✅ Tests completed successfully${NC}"
+    
+    # Generate LCOV output if requested, using report to avoid re-running tests
+    if [[ -n "${LCOV_OUTPUT_PATH}" ]]; then
+        echo -e "${BLUE}📄 Generating LCOV output at: ${LCOV_OUTPUT_PATH}${NC}"
+        if ! cargo llvm-cov report --lcov --output-path "${LCOV_OUTPUT_PATH}" >/dev/null 2>&1; then
+            echo -e "${RED}❌ Unable to generate LCOV coverage report${NC}" >&2
+            exit 1
+        fi
+        echo -e "${GREEN}✅ LCOV coverage report generated successfully${NC}"
+    fi
+    
+    # Generate JSON output for analysis, using report to avoid re-running tests
+    if ! coverage_cmd_output=$(cargo llvm-cov report --json --summary-only 2>&1); then
+        echo -e "${RED}❌ Unable to extract JSON coverage data${NC}" >&2
+        echo -e "${YELLOW}Error message: ${coverage_cmd_output}${NC}" >&2
+        exit 1
+    fi
+    
+    echo -e "${GREEN}✅ JSON coverage data extracted successfully${NC}"
 
     # Extract JSON part (filter out test output)
     coverage_json=$(echo "$coverage_cmd_output" | grep -E '^\{.*\}$' | tail -1)

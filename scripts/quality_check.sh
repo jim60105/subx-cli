@@ -31,6 +31,9 @@ VERBOSE=false
 # Initialize nextest profile
 NEXTEST_PROFILE="default"
 
+# Initialize full tests mode
+FULL_TESTS=false
+
 # Colors for output
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -44,6 +47,7 @@ usage() {
     echo "Options:"
     echo "  -v, --verbose            Show verbose output"
     echo "  -p, --profile PROFILE    Set nextest profile (default: default)"
+    echo "  --full                   Run full tests including slow tests (sets profile to full and enables slow-tests feature)"
     echo "  -h, --help               Show this help"
     echo ""
     echo "This script performs comprehensive quality assurance checks including:"
@@ -53,13 +57,14 @@ usage() {
     echo "  - Documentation examples testing"
     echo "  - Unit and integration tests"
     echo ""
-    echo "Available nextest profiles: default, ci, quick"
+    echo "Available nextest profiles: default, ci, quick, full"
     echo ""
     echo "Examples:"
-    echo "  $0                       Run all quality checks with standard output"
-    echo "  $0 -v                    Run all quality checks with verbose output"
+    echo "  $0                       Run all quality checks with standard output (excludes slow tests)"
+    echo "  $0 -v                    Run all quality checks with verbose output (excludes slow tests)"
     echo "  $0 -p ci                 Run with CI profile"
-    echo "  $0 -v -p ci              Run with CI profile and verbose output"
+    echo "  $0 --full                Run full tests including slow tests (~90 vs ~143 seconds)"
+    echo "  $0 -v --full             Run full tests with verbose output"
 }
 
 # Parse command line arguments
@@ -78,15 +83,20 @@ parse_args() {
             fi
             # Validate profile value
             case "$2" in
-                default|ci|quick)
+                default|ci|quick|full)
                     NEXTEST_PROFILE="$2"
                     ;;
                 *)
-                    echo -e "${RED}Error: Invalid profile '$2'. Available profiles: default, ci, quick${NC}" >&2
+                    echo -e "${RED}Error: Invalid profile '$2'. Available profiles: default, ci, quick, full${NC}" >&2
                     exit 1
                     ;;
             esac
             shift 2
+            ;;
+        --full)
+            FULL_TESTS=true
+            NEXTEST_PROFILE="full"
+            shift
             ;;
         -h | --help)
             usage
@@ -199,13 +209,24 @@ main() {
     echo "🔍 SubX Quality Assurance Check Starting..."
     echo "========================================"
     echo "🔧 Using nextest profile: ${NEXTEST_PROFILE}"
+    if [[ "${FULL_TESTS}" == "true" ]]; then
+        echo "⚡ Full tests mode: Including slow tests (~143s vs ~90s)"
+    else
+        echo "🚀 Fast tests mode: Excluding slow tests (~90s vs ~143s)"
+        echo "   Use --full to include slow tests"
+    fi
     echo "========================================"
     
     # 1. Code compilation check
+    local cargo_features=""
+    if [[ "${FULL_TESTS}" == "true" ]]; then
+        cargo_features="--features slow-tests"
+    fi
+    
     if [[ "${VERBOSE}" == "true" ]]; then
-        run_check "Code Compilation Check" "cargo check --all-features"
+        run_check "Code Compilation Check" "cargo check --all-features ${cargo_features}"
     else
-        run_check "Code Compilation Check" "cargo check --all-features --quiet"
+        run_check "Code Compilation Check" "cargo check --all-features ${cargo_features} --quiet"
     fi
 
     # 2. Code formatting check
@@ -213,9 +234,9 @@ main() {
 
     # 3. Clippy linting check
     if [[ "${VERBOSE}" == "true" ]]; then
-        run_check "Clippy Code Quality Check" "cargo clippy --all-features -- -D warnings"
+        run_check "Clippy Code Quality Check" "cargo clippy --all-features ${cargo_features} -- -D warnings"
     else
-        run_check "Clippy Code Quality Check" "cargo clippy --all-features --quiet -- -D warnings"
+        run_check "Clippy Code Quality Check" "cargo clippy --all-features ${cargo_features} --quiet -- -D warnings"
     fi
 
     # 4. Documentation generation check
@@ -229,9 +250,9 @@ main() {
     doc_output=$(mktemp)
 
     if [[ "${VERBOSE}" == "true" ]]; then
-        cargo doc --all-features --no-deps --document-private-items 2>&1 | tee "$doc_output"
+        cargo doc --all-features ${cargo_features} --no-deps --document-private-items 2>&1 | tee "$doc_output"
     else
-        cargo doc --all-features --no-deps --document-private-items > "$doc_output" 2>&1
+        cargo doc --all-features ${cargo_features} --no-deps --document-private-items > "$doc_output" 2>&1
     fi
 
     # Check for critical errors (excluding known lint warnings)
@@ -258,7 +279,7 @@ main() {
     rm -f "$doc_output"
 
     # 5. Documentation examples test
-    run_test_with_conditional_output "Documentation Examples Test" "cargo test --doc --all-features"
+    run_test_with_conditional_output "Documentation Examples Test" "cargo test --doc --all-features ${cargo_features}"
 
     # 6. Documentation coverage check  
     if [[ "${VERBOSE}" == "true" ]]; then
@@ -268,9 +289,9 @@ main() {
 
     # Check for missing documentation (allow warnings, don't fail build)
     if [[ "${VERBOSE}" == "true" ]]; then
-        missing_docs_output=$(cargo clippy --all-features -- -W missing_docs 2>&1 | grep -v "warning\[E0602\]" | grep "missing documentation" || true)
+        missing_docs_output=$(cargo clippy --all-features ${cargo_features} -- -W missing_docs 2>&1 | grep -v "warning\[E0602\]" | grep "missing documentation" || true)
     else
-        missing_docs_output=$(cargo clippy --all-features --quiet -- -W missing_docs 2>&1 | grep -v "warning\[E0602\]" | grep "missing documentation" || true)
+        missing_docs_output=$(cargo clippy --all-features ${cargo_features} --quiet -- -W missing_docs 2>&1 | grep -v "warning\[E0602\]" | grep "missing documentation" || true)
     fi
 
     if [ -n "$missing_docs_output" ]; then
@@ -296,10 +317,14 @@ main() {
     passed_checks=$((passed_checks + 1))
 
     # 7. Unit tests
-    run_test_with_conditional_output "Unit Tests" "cargo nextest run --profile ${NEXTEST_PROFILE} -E 'kind(lib)' --ignore-default-filter"
+    local nextest_features=""
+    if [[ "${FULL_TESTS}" == "true" ]]; then
+        nextest_features="--features slow-tests"
+    fi
+    run_test_with_conditional_output "Unit Tests" "cargo nextest run --profile ${NEXTEST_PROFILE} ${nextest_features} -E 'kind(lib)' --ignore-default-filter"
 
     # 8. Integration tests  
-    run_test_with_conditional_output "Integration Tests" "cargo nextest run --profile ${NEXTEST_PROFILE} --ignore-default-filter"
+    run_test_with_conditional_output "Integration Tests" "cargo nextest run --profile ${NEXTEST_PROFILE} ${nextest_features} --ignore-default-filter"
 
     # Cleanup
     # (Temporary files are cleaned up in their respective sections)

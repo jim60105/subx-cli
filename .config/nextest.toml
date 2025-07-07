@@ -4,8 +4,8 @@
 # https://nexte.st/book/configuration.html
 
 [profile.default]
-# 設定測試超時時間 (60 秒)
-slow-timeout = { period = "120s", terminate-after = 2 }
+# 設定測試超時時間 - 本地開發環境配置，跳過慢速測試
+slow-timeout = { period = "30s", terminate-after = 2 }
 
 # 設定最大並行測試數量，使用 CPU 核心數
 test-threads = "num-cpus"
@@ -36,6 +36,15 @@ retries = 0
 slow-timeout = { period = "30s", terminate-after = 1 }
 test-threads = "num-cpus"
 failure-output = "immediate"
+
+[profile.full]
+# 完整測試設定 - 包含慢速測試
+retries = 1
+slow-timeout = { period = "600s", terminate-after = 2 }
+test-threads = "num-cpus"
+failure-output = "immediate"
+status-level = "pass"
+final-status-level = "slow"
 
 [profile.default.junit]
 # JUnit XML 輸出設定

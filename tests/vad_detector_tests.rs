@@ -18,6 +18,7 @@ fn get_test_audio_path() -> std::path::PathBuf {
         .join("SubX - The Subtitle Revolution.mp4")
 }
 
+#[cfg(feature = "slow-tests")]
 #[tokio::test]
 async fn test_vad_detector_with_real_audio() {
     let audio_path = get_test_audio_path();
@@ -49,6 +50,7 @@ async fn test_vad_detector_with_real_audio() {
     }
 }
 
+#[cfg(feature = "slow-tests")]
 #[tokio::test]
 async fn test_sync_vad_detector_with_real_audio() {
     let audio_path = get_test_audio_path();
@@ -83,6 +85,7 @@ async fn test_sync_vad_detector_with_real_audio() {
     );
 }
 
+#[cfg(feature = "slow-tests")]
 #[tokio::test(flavor = "multi_thread")]
 async fn test_vad_detector_config_sensitivity() {
     let audio_path = get_test_audio_path();
