@@ -162,6 +162,14 @@ pub struct AIConfig {
     /// This controls how long to wait for a response from the AI service.
     /// For slow networks or complex requests, you may need to increase this value.
     pub request_timeout_seconds: u64,
+
+    /// Azure OpenAI deployment ID (required for azure-openai provider)
+    #[serde(default)]
+    pub deployment_id: Option<String>,
+
+    /// Azure OpenAI API version (optional, defaults to latest)
+    #[serde(default)]
+    pub api_version: Option<String>,
 }
 
 impl Default for AIConfig {
@@ -179,6 +187,8 @@ impl Default for AIConfig {
             // Set to 120 seconds to handle slow networks and complex AI requests
             // This is especially important for users with high-latency connections
             request_timeout_seconds: 120,
+            deployment_id: None,
+            api_version: None,
         }
     }
 }

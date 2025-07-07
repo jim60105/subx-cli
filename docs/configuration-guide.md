@@ -65,6 +65,18 @@ model = "deepseek/deepseek-r1-0528:free"
 base_url = "https://openrouter.ai/api/v1"
 ```
 
+### Azure OpenAI Provider
+
+```toml
+[ai]
+provider = "azure-openai"
+api_key = "your-azure-api-key"
+base_url = "https://your-resource.openai.azure.com"
+deployment_id = "your-deployment-id"
+api_version = "2025-04-01-preview"
+model = "gpt-4o"
+```
+
 ## Format Configuration (`[formats]`)
 
 Controls file format processing options.
@@ -161,6 +173,11 @@ SubX supports the following OpenAI environment variables for compatibility:
 ```bash
 export OPENAI_API_KEY="sk-your-api-key-here"
 export OPENAI_BASE_URL="https://api.openai.com/v1"
+
+export AZURE_OPENAI_API_KEY="your-azure-api-key"
+export AZURE_OPENAI_ENDPOINT="https://your-resource.openai.azure.com"
+export AZURE_OPENAI_DEPLOYMENT_ID="your-deployment-id"
+export AZURE_OPENAI_API_VERSION="2025-04-01-preview"
 ```
 
 ### Universal SUBX_ Prefix Override

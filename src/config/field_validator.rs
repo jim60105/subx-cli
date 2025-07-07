@@ -29,7 +29,10 @@ pub fn validate_field(key: &str, value: &str) -> Result<()> {
         // AI configuration fields
         "ai.provider" => {
             validate_non_empty_string(value, "AI provider")?;
-            validate_enum(value, &["openai", "anthropic", "local", "openrouter"])?;
+            validate_enum(
+                value,
+                &["openai", "anthropic", "local", "openrouter", "azure-openai"],
+            )?;
         }
         "ai.model" => validate_ai_model(value)?,
         "ai.api_key" => {
@@ -73,6 +76,14 @@ pub fn validate_field(key: &str, value: &str) -> Result<()> {
                 .parse()
                 .map_err(|_| SubXError::config("Request timeout must be a positive integer"))?;
             validate_range(timeout, 10, 600)?;
+        }
+
+        // Azure OpenAI specific fields
+        "ai.deployment_id" => {
+            validate_non_empty_string(value, "Azure OpenAI deployment ID")?;
+        }
+        "ai.api_version" => {
+            validate_non_empty_string(value, "Azure OpenAI API version")?;
         }
 
         // Sync configuration fields
@@ -186,7 +197,7 @@ pub fn validate_field(key: &str, value: &str) -> Result<()> {
 /// Get a user-friendly description for a configuration field.
 pub fn get_field_description(key: &str) -> &'static str {
     match key {
-        "ai.provider" => "AI service provider (e.g., 'openai')",
+        "ai.provider" => "AI service provider (e.g., 'openai', 'azure-openai')",
         "ai.model" => "AI model name (e.g., 'gpt-4.1-mini')",
         "ai.api_key" => "API key for the AI service",
         "ai.base_url" => "Custom API endpoint URL (optional)",
@@ -196,6 +207,8 @@ pub fn get_field_description(key: &str) -> &'static str {
         "ai.retry_attempts" => "Number of retry attempts for AI requests",
         "ai.retry_delay_ms" => "Delay between retry attempts in milliseconds",
         "ai.request_timeout_seconds" => "Request timeout in seconds",
+        "ai.deployment_id" => "Azure OpenAI deployment ID (required for azure-openai)",
+        "ai.api_version" => "Azure OpenAI API version (optional, defaults to latest)",
 
         "sync.default_method" => "Synchronization method ('auto', 'vad', or 'manual')",
         "sync.max_offset_seconds" => "Maximum allowed time offset in seconds",
@@ -236,6 +249,7 @@ mod tests {
         // Valid cases
         assert!(validate_field("ai.provider", "openai").is_ok());
         assert!(validate_field("ai.provider", "openrouter").is_ok());
+        assert!(validate_field("ai.provider", "azure-openai").is_ok());
         assert!(validate_field("ai.temperature", "0.8").is_ok());
         assert!(validate_field("ai.max_tokens", "4000").is_ok());
 

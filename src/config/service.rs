@@ -274,6 +274,27 @@ impl ProductionConfigService {
             app_config.ai.base_url = base_url;
         }
 
+        // Special handling for Azure OpenAI environment variables
+        if let Some(api_key) = self.env_provider.get_var("AZURE_OPENAI_API_KEY") {
+            debug!("ProductionConfigService: Found AZURE_OPENAI_API_KEY environment variable");
+            app_config.ai.provider = "azure-openai".to_string();
+            app_config.ai.api_key = Some(api_key);
+        }
+        if let Some(endpoint) = self.env_provider.get_var("AZURE_OPENAI_ENDPOINT") {
+            debug!("ProductionConfigService: Found AZURE_OPENAI_ENDPOINT environment variable");
+            app_config.ai.base_url = endpoint;
+        }
+        if let Some(deployment) = self.env_provider.get_var("AZURE_OPENAI_DEPLOYMENT_ID") {
+            debug!(
+                "ProductionConfigService: Found AZURE_OPENAI_DEPLOYMENT_ID environment variable"
+            );
+            app_config.ai.deployment_id = Some(deployment);
+        }
+        if let Some(version) = self.env_provider.get_var("AZURE_OPENAI_API_VERSION") {
+            debug!("ProductionConfigService: Found AZURE_OPENAI_API_VERSION environment variable");
+            app_config.ai.api_version = Some(version);
+        }
+
         // Validate the configuration
         crate::config::validator::validate_config(&app_config).map_err(|e| {
             debug!("ProductionConfigService: Config validation failed: {e}");
@@ -349,6 +370,20 @@ impl ProductionConfigService {
             ["ai", "request_timeout_seconds"] => {
                 let v = value.parse().unwrap(); // Validation already done
                 config.ai.request_timeout_seconds = v;
+            }
+            ["ai", "deployment_id"] => {
+                if !value.is_empty() {
+                    config.ai.deployment_id = Some(value.to_string());
+                } else {
+                    config.ai.deployment_id = None;
+                }
+            }
+            ["ai", "api_version"] => {
+                if !value.is_empty() {
+                    config.ai.api_version = Some(value.to_string());
+                } else {
+                    config.ai.api_version = None;
+                }
             }
             ["formats", "default_output"] => {
                 config.formats.default_output = value.to_string();
