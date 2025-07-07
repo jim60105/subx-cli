@@ -33,9 +33,8 @@ mod azure_openai_error_handling_tests {
         let mut config = Config::default();
         config.ai.provider = "azure-openai".to_string();
         config.ai.api_key = Some("test-api-key".to_string());
-        config.ai.model = "gpt-test".to_string();
+        config.ai.model = mock.deployment_id().to_string();
         config.ai.base_url = mock.base_url();
-        config.ai.deployment_id = Some(mock.deployment_id().to_string());
         config.ai.api_version = Some(mock.api_version().to_string());
 
         let client = AzureOpenAIClient::from_config(&config.ai).unwrap();
@@ -61,9 +60,8 @@ mod azure_openai_error_handling_tests {
         let mut config = Config::default();
         config.ai.provider = "azure-openai".to_string();
         config.ai.api_key = Some("test-api-key".to_string());
-        config.ai.model = "gpt-test".to_string();
+        config.ai.model = mock.deployment_id().to_string();
         config.ai.base_url = mock.base_url();
-        config.ai.deployment_id = Some(mock.deployment_id().to_string());
         config.ai.api_version = Some(mock.api_version().to_string());
         config.ai.retry_attempts = 3;
         config.ai.retry_delay_ms = 10; // Fast retry for testing
@@ -94,9 +92,8 @@ mod azure_openai_error_handling_tests {
         let mut config = Config::default();
         config.ai.provider = "azure-openai".to_string();
         config.ai.api_key = Some("test-api-key".to_string());
-        config.ai.model = "gpt-test".to_string();
+        config.ai.model = mock.deployment_id().to_string();
         config.ai.base_url = mock.base_url();
-        config.ai.deployment_id = Some(mock.deployment_id().to_string());
         config.ai.api_version = Some(mock.api_version().to_string());
         config.ai.retry_attempts = 3;
         config.ai.retry_delay_ms = 10; // Fast retry for testing
@@ -124,9 +121,8 @@ mod azure_openai_error_handling_tests {
         let mut config = Config::default();
         config.ai.provider = "azure-openai".to_string();
         config.ai.api_key = Some("test-api-key".to_string());
-        config.ai.model = "gpt-test".to_string();
+        config.ai.model = mock.deployment_id().to_string();
         config.ai.base_url = mock.base_url();
-        config.ai.deployment_id = Some(mock.deployment_id().to_string());
         config.ai.api_version = Some(mock.api_version().to_string());
         config.ai.request_timeout_seconds = 1; // 1 second timeout
         config.ai.retry_attempts = 0; // No retries to test timeout directly
@@ -148,9 +144,8 @@ mod azure_openai_error_handling_tests {
         let mut config = Config::default();
         config.ai.provider = "azure-openai".to_string();
         config.ai.api_key = Some("test-api-key".to_string());
-        config.ai.model = "gpt-test".to_string();
+        config.ai.model = mock.deployment_id().to_string();
         config.ai.base_url = mock.base_url();
-        config.ai.deployment_id = Some(mock.deployment_id().to_string());
         config.ai.api_version = Some(mock.api_version().to_string());
 
         let client = AzureOpenAIClient::from_config(&config.ai).unwrap();
@@ -172,9 +167,8 @@ mod azure_openai_error_handling_tests {
         let mut config = Config::default();
         config.ai.provider = "azure-openai".to_string();
         config.ai.api_key = Some("test-api-key".to_string());
-        config.ai.model = "gpt-test".to_string();
+        config.ai.model = mock.deployment_id().to_string();
         config.ai.base_url = mock.base_url();
-        config.ai.deployment_id = Some(mock.deployment_id().to_string());
         config.ai.api_version = Some(mock.api_version().to_string());
 
         let client = AzureOpenAIClient::from_config(&config.ai).unwrap();
@@ -196,9 +190,8 @@ mod azure_openai_error_handling_tests {
         let mut config = Config::default();
         config.ai.provider = "azure-openai".to_string();
         config.ai.api_key = Some("test-api-key".to_string());
-        config.ai.model = "gpt-test".to_string();
+        config.ai.model = "test-deployment".to_string();
         config.ai.base_url = "https://invalid-nonexistent-host-12345.openai.azure.com".to_string();
-        config.ai.deployment_id = Some("test-deployment".to_string());
         config.ai.retry_attempts = 1; // Quick fail for testing
         config.ai.retry_delay_ms = 10; // Fast retry
         config.ai.request_timeout_seconds = 1; // Short timeout

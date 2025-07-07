@@ -97,17 +97,6 @@ pub fn validate_ai_config(ai_config: &AIConfig) -> Result<()> {
             validate_ai_model(&ai_config.model)?;
             validate_temperature(ai_config.temperature)?;
             validate_positive_number(ai_config.max_tokens as f64)?;
-            if let Some(dep) = &ai_config.deployment_id {
-                if dep.trim().is_empty() {
-                    return Err(SubXError::config(
-                        "Azure OpenAI deployment_id must not be empty",
-                    ));
-                }
-            } else {
-                return Err(SubXError::config(
-                    "Azure OpenAI deployment_id is required".to_string(),
-                ));
-            }
             if let Some(ver) = &ai_config.api_version {
                 if ver.trim().is_empty() {
                     return Err(SubXError::config(
@@ -352,7 +341,7 @@ mod tests {
         let mut ai_config = AIConfig::default();
         ai_config.provider = "azure-openai".to_string();
         ai_config.api_key = Some("azure-key-123".to_string());
-        ai_config.deployment_id = Some("dep123".to_string());
+        ai_config.model = "dep123".to_string();
         ai_config.api_version = Some("2025-04-01-preview".to_string());
         assert!(validate_ai_config(&ai_config).is_ok());
     }

@@ -340,9 +340,8 @@ mod tests {
         let mut config = crate::config::Config::default();
         config.ai.provider = "azure-openai".to_string();
         config.ai.api_key = Some("azure-key-123".to_string());
-        config.ai.deployment_id = Some("dep123".to_string());
+        config.ai.model = "dep123".to_string();
         config.ai.api_version = Some("2025-04-01-preview".to_string());
-        config.ai.model = "gpt-test".to_string();
         config.ai.base_url = "https://example.openai.azure.com".to_string();
         let result = create_ai_provider(&config.ai);
         assert!(result.is_ok());

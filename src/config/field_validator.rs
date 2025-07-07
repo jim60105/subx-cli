@@ -79,9 +79,6 @@ pub fn validate_field(key: &str, value: &str) -> Result<()> {
         }
 
         // Azure OpenAI specific fields
-        "ai.deployment_id" => {
-            validate_non_empty_string(value, "Azure OpenAI deployment ID")?;
-        }
         "ai.api_version" => {
             validate_non_empty_string(value, "Azure OpenAI API version")?;
         }
@@ -207,7 +204,6 @@ pub fn get_field_description(key: &str) -> &'static str {
         "ai.retry_attempts" => "Number of retry attempts for AI requests",
         "ai.retry_delay_ms" => "Delay between retry attempts in milliseconds",
         "ai.request_timeout_seconds" => "Request timeout in seconds",
-        "ai.deployment_id" => "Azure OpenAI deployment ID (required for azure-openai)",
         "ai.api_version" => "Azure OpenAI API version (optional, defaults to latest)",
 
         "sync.default_method" => "Synchronization method ('auto', 'vad', or 'manual')",

@@ -71,10 +71,9 @@ base_url = "https://openrouter.ai/api/v1"
 [ai]
 provider = "azure-openai"
 api_key = "your-azure-api-key"
+model = "your-deployment-id"   # Use the Azure OpenAI deployment name here
 base_url = "https://your-resource.openai.azure.com"
-deployment_id = "your-deployment-id"
 api_version = "2025-04-01-preview"
-model = "gpt-4o"
 ```
 
 ## Format Configuration (`[formats]`)

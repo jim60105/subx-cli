@@ -67,10 +67,10 @@ subx-cli config set ai.provider openai
 # Azure OpenAI 設定
 export AZURE_OPENAI_API_KEY="your-azure-api-key"
 export AZURE_OPENAI_ENDPOINT="https://your-resource.openai.azure.com"
-export AZURE_OPENAI_DEPLOYMENT_ID="your-deployment-id"
 export AZURE_OPENAI_API_VERSION="2025-04-01-preview"
+# 注意：Azure OpenAI 部署識別符現已通過 `ai.model` 設定，而非獨立欄位
 subx-cli config set ai.provider azure-openai
-subx-cli config set ai.deployment_id "your-deployment-id"
+subx-cli config set ai.model "your-deployment-id"
 subx-cli config set ai.api_version "2025-04-01-preview"
 
 # 配置 VAD 設定

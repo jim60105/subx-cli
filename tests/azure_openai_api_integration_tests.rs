@@ -46,9 +46,8 @@ mod azure_openai_api_tests {
         let mut config = Config::default();
         config.ai.provider = "azure-openai".to_string();
         config.ai.api_key = Some("test-api-key".to_string());
-        config.ai.model = "gpt-test".to_string();
+        config.ai.model = mock.deployment_id().to_string();
         config.ai.base_url = mock.base_url();
-        config.ai.deployment_id = Some(mock.deployment_id().to_string());
         config.ai.api_version = Some(mock.api_version().to_string());
 
         let client = AzureOpenAIClient::from_config(&config.ai).unwrap();
@@ -75,9 +74,8 @@ mod azure_openai_api_tests {
         let mut config = Config::default();
         config.ai.provider = "azure-openai".to_string();
         config.ai.api_key = Some("test-api-key".to_string());
-        config.ai.model = "gpt-test".to_string();
+        config.ai.model = mock.deployment_id().to_string();
         config.ai.base_url = mock.base_url();
-        config.ai.deployment_id = Some(mock.deployment_id().to_string());
         config.ai.api_version = Some(mock.api_version().to_string());
 
         let client = AzureOpenAIClient::from_config(&config.ai).unwrap();
@@ -104,9 +102,8 @@ mod azure_openai_api_tests {
         let mut config = Config::default();
         config.ai.provider = "azure-openai".to_string();
         config.ai.api_key = Some("test-api-key".to_string());
-        config.ai.model = "gpt-test".to_string();
+        config.ai.model = mock.deployment_id().to_string();
         config.ai.base_url = mock.base_url();
-        config.ai.deployment_id = Some(mock.deployment_id().to_string());
         config.ai.api_version = Some(mock.api_version().to_string());
 
         let client = AzureOpenAIClient::from_config(&config.ai).unwrap();
@@ -129,9 +126,8 @@ mod azure_openai_api_tests {
         let mut config = Config::default();
         config.ai.provider = "azure-openai".to_string();
         config.ai.api_key = Some("Bearer test-token".to_string());
-        config.ai.model = "gpt-test".to_string();
+        config.ai.model = mock.deployment_id().to_string();
         config.ai.base_url = mock.base_url();
-        config.ai.deployment_id = Some(mock.deployment_id().to_string());
         config.ai.api_version = Some(mock.api_version().to_string());
 
         let client = AzureOpenAIClient::from_config(&config.ai).unwrap();
@@ -155,9 +151,8 @@ mod azure_openai_api_tests {
         let mut config = Config::default();
         config.ai.provider = "azure-openai".to_string();
         config.ai.api_key = Some("test-api-key".to_string());
-        config.ai.model = "gpt-test".to_string();
+        config.ai.model = mock.deployment_id().to_string();
         config.ai.base_url = mock.base_url();
-        config.ai.deployment_id = Some(mock.deployment_id().to_string());
         config.ai.api_version = Some(mock.api_version().to_string());
 
         let client = AzureOpenAIClient::from_config(&config.ai).unwrap();
@@ -183,9 +178,8 @@ mod azure_openai_factory_tests {
             let mut config = config_service.config_mut();
             config.ai.provider = "azure-openai".to_string();
             config.ai.api_key = Some("test-api-key".to_string());
-            config.ai.model = "gpt-test".to_string();
+            config.ai.model = "test-deployment".to_string();
             config.ai.base_url = "https://example.openai.azure.com".to_string();
-            config.ai.deployment_id = Some("test-deployment".to_string());
             config.ai.api_version = Some("2025-04-01-preview".to_string());
         }
 

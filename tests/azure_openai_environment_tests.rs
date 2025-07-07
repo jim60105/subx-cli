@@ -25,7 +25,7 @@ mod azure_openai_environment_tests {
         assert_eq!(config.ai.provider, "azure-openai");
         assert_eq!(config.ai.api_key, Some("test-azure-api-key".to_string()));
         assert_eq!(config.ai.base_url, "https://test.openai.azure.com");
-        assert_eq!(config.ai.deployment_id, Some("test-deployment".to_string()));
+        assert_eq!(config.ai.model, "test-deployment".to_string());
         assert_eq!(
             config.ai.api_version,
             Some("2025-01-01-preview".to_string())
