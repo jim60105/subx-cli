@@ -70,8 +70,10 @@ impl AzureOpenAIClient {
     pub fn from_config(config: &crate::config::AIConfig) -> crate::Result<Self> {
         let api_key = config
             .api_key
-            .clone()
-            .ok_or_else(|| SubXError::config("Missing Azure OpenAI API Key".to_string()))?;
+            .as_ref()
+            .filter(|key| !key.trim().is_empty())
+            .ok_or_else(|| SubXError::config("Missing Azure OpenAI API Key".to_string()))?
+            .clone();
         let deployment_id = config
             .deployment_id
             .clone()

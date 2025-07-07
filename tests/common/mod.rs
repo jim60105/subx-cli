@@ -2,6 +2,7 @@ pub mod cli_helpers;
 pub mod command_helpers;
 pub mod file_managers;
 pub mod integration_test_macros;
+pub mod mock_azure_openai_helper;
 pub mod mock_generators;
 pub mod mock_openai_helper;
 pub mod parallel_helpers;
