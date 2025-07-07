@@ -650,25 +650,25 @@ fn test_with_performance_monitoring() {
 }
 ```
 
-## JUnit XML 測試結果
+## JUnit XML Test Results
 
-### 配置說明
-專案使用 nextest 生成 JUnit XML 格式的測試結果，主要用於 CI 環境：
+### Configuration
+The project uses nextest to generate JUnit XML format test results, primarily for CI environments:
 
 ```bash
-# CI profile 會自動生成 JUnit XML
+# CI profile automatically generates JUnit XML
 cargo nextest run --profile ci
 ```
 
-### 輸出位置
-- JUnit XML 檔案: `target/nextest/ci/junit.xml`
-- 包含所有測試（成功與失敗）的詳細輸出和堆疊追蹤
+### Output Location
+- JUnit XML file: `target/nextest/ci/junit.xml`
+- Contains detailed output and stack traces for all tests (successful and failed)
 
-### Codecov 測試分析
-測試結果會自動上傳到 Codecov，提供：
-- 測試運行時間分析
-- 失敗率統計
-- 不穩定測試識別
+### Codecov Test Analysis
+Test results are automatically uploaded to Codecov, providing:
+- Test execution time analysis
+- Failure rate statistics
+- Flaky test identification
 
 ## Conclusion
 
