@@ -28,7 +28,7 @@
 	},
 
 	"containerEnv": {
-		"GH_REPO": "jim60105/standalone-civitai-shortcut",
+		"GH_REPO": "jim60105/subx-cli",
 		"GH_NO_UPDATE_NOTIFIER": "true",
 		"GH_NO_EXTENSION_UPDATE_NOTIFIER": "true",
 		"GH_PROMPT_DISABLED": "true"
