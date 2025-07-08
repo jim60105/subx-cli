@@ -11,6 +11,9 @@ use serde_json::{Value, json};
 use std::time::Duration;
 use tokio::time;
 
+use crate::services::ai::prompts::{PromptBuilder, ResponseParser};
+use crate::services::ai::retry::HttpRetryClient;
+
 /// OpenRouter client implementation
 #[derive(Debug)]
 pub struct OpenRouterClient {
@@ -22,6 +25,17 @@ pub struct OpenRouterClient {
     retry_attempts: u32,
     retry_delay_ms: u64,
     base_url: String,
+}
+
+impl PromptBuilder for OpenRouterClient {}
+impl ResponseParser for OpenRouterClient {}
+impl HttpRetryClient for OpenRouterClient {
+    fn retry_attempts(&self) -> u32 {
+        self.retry_attempts
+    }
+    fn retry_delay_ms(&self) -> u64 {
+        self.retry_delay_ms
+    }
 }
 
 impl OpenRouterClient {
@@ -265,89 +279,6 @@ impl AIProvider for OpenRouterClient {
     }
 }
 
-// Prompt building and response parsing methods (copied from OpenAIClient)
-impl OpenRouterClient {
-    /// Build content analysis prompt
-    pub fn build_analysis_prompt(&self, request: &AnalysisRequest) -> String {
-        let mut prompt = String::new();
-        prompt.push_str("Please analyze the matching relationship between the following video and subtitle files. Each file has a unique ID that you must use in your response.\n\n");
-
-        prompt.push_str("Video files:\n");
-        for video in &request.video_files {
-            prompt.push_str(&format!("- {}\n", video));
-        }
-
-        prompt.push_str("\nSubtitle files:\n");
-        for subtitle in &request.subtitle_files {
-            prompt.push_str(&format!("- {}\n", subtitle));
-        }
-
-        if !request.content_samples.is_empty() {
-            prompt.push_str("\nSubtitle content preview:\n");
-            for sample in &request.content_samples {
-                prompt.push_str(&format!("File: {}\n", sample.filename));
-                prompt.push_str(&format!("Content: {}\n\n", sample.content_preview));
-            }
-        }
-
-        prompt.push_str(
-            "Please provide matching suggestions based on filename patterns, content similarity, and other factors.\n\
-            Response format must be JSON using the file IDs:\n\
-            {\n\
-              \"matches\": [\n\
-                {\n\
-                  \"video_file_id\": \"file_abc123456789abcd\",\n\
-                  \"subtitle_file_id\": \"file_def456789abcdef0\",\n\
-                  \"confidence\": 0.95,\n\
-                  \"match_factors\": [\"filename_similarity\", \"content_correlation\"]\n\
-                }\n\
-              ],\n\
-              \"confidence\": 0.9,\n\
-              \"reasoning\": \"Explanation for the matching decisions\"\n\
-            }",
-        );
-
-        prompt
-    }
-
-    /// Parse matching results from AI response
-    pub fn parse_match_result(&self, response: &str) -> Result<MatchResult> {
-        let json_start = response.find('{').unwrap_or(0);
-        let json_end = response.rfind('}').map(|i| i + 1).unwrap_or(response.len());
-        let json_str = &response[json_start..json_end];
-
-        serde_json::from_str(json_str)
-            .map_err(|e| SubXError::AiService(format!("AI response parsing failed: {}", e)))
-    }
-
-    /// Build verification prompt
-    pub fn build_verification_prompt(&self, request: &VerificationRequest) -> String {
-        let mut prompt = String::new();
-        prompt.push_str(
-            "Please evaluate the confidence level based on the following matching information:\n",
-        );
-        prompt.push_str(&format!("Video file: {}\n", request.video_file));
-        prompt.push_str(&format!("Subtitle file: {}\n", request.subtitle_file));
-        prompt.push_str("Matching factors:\n");
-        for factor in &request.match_factors {
-            prompt.push_str(&format!("- {}\n", factor));
-        }
-        prompt.push_str(
-            "\nPlease respond in JSON format as follows:\n{\n  \"score\": 0.9,\n  \"factors\": [\"...\"]\n}",
-        );
-        prompt
-    }
-
-    /// Parse confidence score from AI response
-    pub fn parse_confidence_score(&self, response: &str) -> Result<ConfidenceScore> {
-        let json_start = response.find('{').unwrap_or(0);
-        let json_end = response.rfind('}').map(|i| i + 1).unwrap_or(response.len());
-        let json_str = &response[json_start..json_end];
-
-        serde_json::from_str(json_str)
-            .map_err(|e| SubXError::AiService(format!("AI confidence parsing failed: {}", e)))
-    }
-}
 #[cfg(test)]
 mod tests {
     use super::*;

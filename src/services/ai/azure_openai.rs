@@ -1,9 +1,7 @@
 use crate::cli::display_ai_usage;
 use crate::error::SubXError;
-use crate::services::ai::prompts::{
-    build_analysis_prompt_base, build_verification_prompt_base, parse_confidence_score_base,
-    parse_match_result_base,
-};
+use crate::services::ai::prompts::{PromptBuilder, ResponseParser};
+use crate::services::ai::retry::HttpRetryClient;
 use crate::services::ai::{
     AIProvider, AnalysisRequest, ConfidenceScore, MatchResult, VerificationRequest,
 };
@@ -223,21 +221,17 @@ impl AzureOpenAIClient {
             .ok_or_else(|| SubXError::AiService("Invalid API response format".to_string()))?;
         Ok(content.to_string())
     }
+}
 
-    fn build_analysis_prompt(&self, request: &AnalysisRequest) -> String {
-        build_analysis_prompt_base(request)
+impl PromptBuilder for AzureOpenAIClient {}
+impl ResponseParser for AzureOpenAIClient {}
+impl HttpRetryClient for AzureOpenAIClient {
+    fn retry_attempts(&self) -> u32 {
+        self.retry_attempts
     }
 
-    fn build_verification_prompt(&self, request: &VerificationRequest) -> String {
-        build_verification_prompt_base(request)
-    }
-
-    fn parse_match_result(&self, response: &str) -> crate::Result<MatchResult> {
-        parse_match_result_base(response)
-    }
-
-    fn parse_confidence_score(&self, response: &str) -> crate::Result<ConfidenceScore> {
-        parse_confidence_score_base(response)
+    fn retry_delay_ms(&self) -> u64 {
+        self.retry_delay_ms
     }
 }
 

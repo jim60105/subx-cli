@@ -59,6 +59,47 @@ where
     Err(last_error.unwrap())
 }
 
+/// HTTP request retry trait for AI clients.
+#[allow(async_fn_in_trait)]
+pub trait HttpRetryClient {
+    /// Number of retry attempts.
+    fn retry_attempts(&self) -> u32;
+    /// Delay between retries in milliseconds.
+    fn retry_delay_ms(&self) -> u64;
+
+    /// Make an HTTP request with retry logic.
+    async fn make_request_with_retry(
+        &self,
+        request: reqwest::RequestBuilder,
+    ) -> reqwest::Result<reqwest::Response> {
+        make_http_request_with_retry_impl(request, self.retry_attempts(), self.retry_delay_ms())
+            .await
+    }
+}
+
+/// Internal implementation of HTTP request retry with backoff.
+async fn make_http_request_with_retry_impl(
+    request: reqwest::RequestBuilder,
+    retry_attempts: u32,
+    retry_delay_ms: u64,
+) -> reqwest::Result<reqwest::Response> {
+    let mut attempts = 0;
+    loop {
+        let cloned = request.try_clone().unwrap();
+        match cloned.send().await {
+            Ok(resp) => match resp.error_for_status() {
+                Ok(success) => return Ok(success),
+                Err(err) if attempts + 1 >= retry_attempts => return Err(err),
+                Err(_) => {}
+            },
+            Err(err) if attempts + 1 >= retry_attempts => return Err(err),
+            Err(_) => {}
+        }
+        attempts += 1;
+        sleep(Duration::from_millis(retry_delay_ms)).await;
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

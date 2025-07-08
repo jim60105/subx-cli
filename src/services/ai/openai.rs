@@ -10,7 +10,9 @@ use reqwest::Client;
 use serde_json::Value;
 use serde_json::json;
 use std::time::Duration;
-use tokio::time;
+
+use crate::services::ai::prompts::{PromptBuilder, ResponseParser};
+use crate::services::ai::retry::HttpRetryClient;
 
 /// OpenAI client implementation
 #[derive(Debug)]
@@ -23,6 +25,17 @@ pub struct OpenAIClient {
     retry_attempts: u32,
     retry_delay_ms: u64,
     base_url: String,
+}
+
+impl PromptBuilder for OpenAIClient {}
+impl ResponseParser for OpenAIClient {}
+impl HttpRetryClient for OpenAIClient {
+    fn retry_attempts(&self) -> u32 {
+        self.retry_attempts
+    }
+    fn retry_delay_ms(&self) -> u64 {
+        self.retry_delay_ms
+    }
 }
 
 // Mock testing: OpenAIClient with AIProvider interface
@@ -347,7 +360,7 @@ impl AIProvider for OpenAIClient {
     async fn analyze_content(&self, request: AnalysisRequest) -> Result<MatchResult> {
         let prompt = self.build_analysis_prompt(&request);
         let messages = vec![
-            json!({"role": "system", "content": "You are a professional subtitle matching assistant that can analyze the correspondence between video and subtitle files."}),
+            json!({"role": "system", "content": Self::get_analysis_system_message()}),
             json!({"role": "user", "content": prompt}),
         ];
         let response = self.chat_completion(messages).await?;
@@ -357,72 +370,10 @@ impl AIProvider for OpenAIClient {
     async fn verify_match(&self, verification: VerificationRequest) -> Result<ConfidenceScore> {
         let prompt = self.build_verification_prompt(&verification);
         let messages = vec![
-            json!({"role": "system", "content": "Please evaluate the confidence level of subtitle matching and provide a score between 0-1."}),
+            json!({"role": "system", "content": Self::get_verification_system_message()}),
             json!({"role": "user", "content": prompt}),
         ];
         let response = self.chat_completion(messages).await?;
         self.parse_confidence_score(&response)
-    }
-}
-
-impl OpenAIClient {
-    async fn make_request_with_retry(
-        &self,
-        request: reqwest::RequestBuilder,
-    ) -> reqwest::Result<reqwest::Response> {
-        let mut attempts = 0;
-        loop {
-            match request.try_clone().unwrap().send().await {
-                Ok(resp) => {
-                    if attempts > 0 {
-                        log::info!("Request succeeded after {} retry attempts", attempts);
-                    }
-                    return Ok(resp);
-                }
-                Err(e) if (attempts as u32) < self.retry_attempts => {
-                    attempts += 1;
-                    log::warn!(
-                        "Request attempt {} failed: {}. Retrying in {}ms...",
-                        attempts,
-                        e,
-                        self.retry_delay_ms
-                    );
-
-                    // Provide specific guidance for timeout errors
-                    if e.is_timeout() {
-                        log::warn!(
-                            "This appears to be a timeout error. If this persists, consider increasing 'ai.request_timeout_seconds' in your configuration."
-                        );
-                    }
-
-                    time::sleep(Duration::from_millis(self.retry_delay_ms)).await;
-                    continue;
-                }
-                Err(e) => {
-                    log::error!(
-                        "Request failed after {} attempts. Final error: {}",
-                        attempts + 1,
-                        e
-                    );
-
-                    // Provide actionable error messages
-                    if e.is_timeout() {
-                        log::error!(
-                            "AI service error: Request timed out after multiple attempts. \
-                            This usually indicates network connectivity issues or server overload. \
-                            Try increasing 'ai.request_timeout_seconds' configuration. \
-                            Hint: check network connection and API service status"
-                        );
-                    } else if e.is_connect() {
-                        log::error!(
-                            "AI service error: Connection failed. \
-                            Hint: check network connection and API base URL settings"
-                        );
-                    }
-
-                    return Err(e);
-                }
-            }
-        }
     }
 }
