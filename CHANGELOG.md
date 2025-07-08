@@ -8,6 +8,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.5.1] - 2025-07-08
+### Changed
+- Centralized AI prompt parsing and retry logic by introducing generic PromptBuilder and ResponseParser traits for all AI providers (AzureOpenAI, OpenAI, OpenRouter).
+- Unified HTTP retry handling with new HttpRetryClient trait, replacing per-client custom retry implementations.
+- Improved AI service architecture by removing duplicate prompt building and response parsing methods across all client modules.
+- Enhanced test coverage for AI service traits with comprehensive edge case testing and retry scenario validation.
+
+### Fixed
+- Updated development container configuration to use correct repository name (jim60105/subx-cli).
+
 ## [1.5.0] - 2025-07-07
 ### Added
 - Azure OpenAI and OpenRouter AI provider support, including CLI, config, test suite, and environment variable override (AZURE_OPENAI_DEPLOYMENT_ID).
@@ -386,7 +396,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Initial release of SubX CLI tool
 - Rust-based intelligent subtitle processing
 
-[Unreleased]: https://github.com/jim60105/subx-cli/compare/v1.5.0...HEAD  
+[Unreleased]: https://github.com/jim60105/subx-cli/compare/v1.5.1...HEAD  
+[1.5.1]: https://github.com/jim60105/subx-cli/compare/v1.5.0...v1.5.1  
 [1.5.0]: https://github.com/jim60105/subx-cli/compare/v1.4.0...v1.5.0  
 [1.4.0]: https://github.com/jim60105/subx-cli/compare/v1.3.0...v1.4.0  
 [1.3.0]: https://github.com/jim60105/subx-cli/compare/v1.2.0...v1.3.0  
