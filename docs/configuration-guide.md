@@ -8,26 +8,23 @@ This guide explains the configuration options for the SubX subtitle utility, hel
 
 ```bash
 # View all configuration settings
-subx config list
+subx-cli config list
 
 # View specific configuration item
-subx config get ai.provider
-
-# View configuration file path
-subx config list --show-path
+subx-cli config get ai.provider
 ```
 
 ### Set Configuration Items
 
 ```bash
 # Set AI provider
-subx config set ai.provider openai
+subx-cli config set ai.provider openai
 
 # Set API key
-subx config set ai.api_key "sk-your-api-key-here"
+subx-cli config set ai.api_key "sk-your-api-key-here"
 
 # Reset to default values
-subx config reset
+subx-cli config reset
 ```
 
 ## Configuration Overview
@@ -44,15 +41,17 @@ Controls AI-related functionality settings.
 
 ```toml
 [ai]
-provider = "openai"                            # AI provider: openai, anthropic, local
+provider = "openai"                            # AI provider: openai, openrouter, azure-openai
 api_key = "sk-your-api-key-here"              # API key (Option<String>)
-model = "gpt-4o-mini"                         # AI model to use (String)
+model = "gpt-4.1-mini"                        # AI model to use (String)
 base_url = "https://api.openai.com/v1"        # API endpoint URL (String)
 max_sample_length = 3000                      # Maximum content length sent to AI (usize, 100-10000)
 temperature = 0.3                             # Response randomness control (f32, 0.0-2.0)
 max_tokens = 10000                            # Maximum tokens in response (u32, 1-100000)
 retry_attempts = 3                            # API request retry count (u32, 1-10)
 retry_delay_ms = 1000                         # Retry delay in milliseconds (u64, 100-10000)
+request_timeout_seconds = 120                 # API request timeout in seconds (u64)
+api_version = "2025-04-01-preview"            # API version for Azure OpenAI (Option<String>)
 ```
 
 ### OpenRouter Provider
@@ -103,15 +102,15 @@ SubX supports two main synchronization methods:
 
 ```toml
 [sync]
-max_offset_seconds = 60.0            # Maximum allowed time offset in seconds (f32)
+default_method = "auto"                      # Default sync method: auto, vad (String)
+max_offset_seconds = 60.0                    # Maximum allowed time offset in seconds (f32)
 
 # Local VAD configuration
 [sync.vad]
-enabled = true                       # Enable local VAD method (bool)
-sensitivity = 0.75                   # Speech detection sensitivity (0.0-1.0) (f32)
-padding_chunks = 3                   # Padding chunks before and after speech detection (u32)
-min_speech_duration_ms = 100         # Minimum speech duration in milliseconds (u32)
-speech_merge_gap_ms = 200            # Speech segment merge gap in milliseconds (u32)
+enabled = true                               # Enable local VAD method (bool)
+sensitivity = 0.25                           # Speech detection sensitivity (0.0-1.0) (f32)
+padding_chunks = 3                           # Padding chunks before and after speech detection (u32)
+min_speech_duration_ms = 300                 # Minimum speech duration in milliseconds (u32)
 ```
 
 ### VAD Processing Architecture
@@ -134,7 +133,6 @@ padding_chunks = 5            # More padding for complex transitions
 # For clear speech with minimal noise
 sensitivity = 0.6             # Lower sensitivity to avoid false positives
 min_speech_duration_ms = 50   # Shorter minimum for rapid speech
-speech_merge_gap_ms = 300     # Larger gaps for natural pauses
 ```
 
 ## General Configuration (`[general]`)
@@ -146,6 +144,7 @@ Controls general application behavior.
 backup_enabled = false                        # Whether to enable file backup (bool)
 max_concurrent_jobs = 4                       # Maximum concurrent tasks (usize)
 task_timeout_seconds = 300                    # Task execution timeout in seconds (u64)
+workspace = "."                               # Working directory (PathBuf)
 enable_progress_bar = true                    # Whether to show progress bar (bool)
 worker_idle_timeout_seconds = 60              # Worker thread idle timeout in seconds (u64)
 ```
@@ -160,7 +159,7 @@ max_workers = 8                               # Maximum worker threads (usize, d
 task_queue_size = 1000                        # Task queue size (usize)
 enable_task_priorities = false                # Whether to enable task priorities (bool)
 auto_balance_workers = true                   # Whether to auto-balance load (bool)
-overflow_strategy = "block"                   # Queue overflow strategy: block, drop, expand (String)
+overflow_strategy = "Block"                   # Queue overflow strategy: Block, DropOldest, Reject, Drop, Expand (String)
 ```
 
 ## Environment Variable Support
@@ -226,11 +225,8 @@ export SUBX_SYNC_MAX_OFFSET_SECONDS=120.0
 # Sync configuration - Local VAD
 export SUBX_SYNC_VAD_ENABLED=true
 export SUBX_SYNC_VAD_SENSITIVITY=0.8
-export SUBX_SYNC_VAD_CHUNK_SIZE=1024
-export SUBX_SYNC_VAD_SAMPLE_RATE=22050
 export SUBX_SYNC_VAD_PADDING_CHUNKS=5
 export SUBX_SYNC_VAD_MIN_SPEECH_DURATION_MS=100
-export SUBX_SYNC_VAD_SPEECH_MERGE_GAP_MS=300
 ```
 
 ## Configuration File Locations
@@ -238,53 +234,6 @@ export SUBX_SYNC_VAD_SPEECH_MERGE_GAP_MS=300
 - **Linux/macOS**: `~/.config/subx/config.toml`
 - **Windows**: `%APPDATA%\subx\config.toml`
 - **Custom Path**: Specify via `SUBX_CONFIG_PATH` environment variable
-
-## Complete Configuration File Example
-
-```toml
-[ai]
-provider = "openai"
-api_key = "sk-your-api-key-here"
-model = "gpt-4.1-mini"
-base_url = "https://api.openai.com/v1"
-max_sample_length = 3000
-temperature = 0.3
-max_tokens = 10000
-retry_attempts = 3
-retry_delay_ms = 1000
-
-[formats]
-default_output = "srt"
-preserve_styling = false
-default_encoding = "utf-8"
-encoding_detection_confidence = 0.8
-
-[sync]
-max_offset_seconds = 60.0
-
-[sync.vad]
-enabled = true
-sensitivity = 0.75
-chunk_size = 512
-sample_rate = 16000
-padding_chunks = 3
-min_speech_duration_ms = 100
-speech_merge_gap_ms = 200
-
-[general]
-backup_enabled = false
-max_concurrent_jobs = 4
-task_timeout_seconds = 300
-enable_progress_bar = true
-worker_idle_timeout_seconds = 60
-
-[parallel]
-max_workers = 8
-task_queue_size = 1000
-enable_task_priorities = false
-auto_balance_workers = true
-overflow_strategy = "block"
-```
 
 ## Error Messages
 
@@ -302,7 +251,7 @@ When configuration issues occur, you may encounter these errors:
 1. **Check configuration file syntax**:
    ```bash
    # Check if TOML syntax is correct
-   subx config list
+   subx-cli config list
    ```
 
 2. **Check environment variables**:
@@ -315,7 +264,7 @@ When configuration issues occur, you may encounter these errors:
 3. **Reset configuration**:
    ```bash
    # Reset to default values
-   subx config reset
+   subx-cli config reset
    ```
 
 ### Permission Issues
@@ -324,3 +273,49 @@ If the configuration file cannot be written, check:
 - Write permissions for the configuration directory
 - Available disk space
 - Whether antivirus software is blocking file writes
+
+## Complete Configuration File Example
+
+```toml
+[ai]
+provider = "openai"
+model = "gpt-4.1-mini"
+base_url = "https://api.openai.com/v1"
+max_sample_length = 3000
+temperature = 0.30000001192092896
+max_tokens = 10000
+retry_attempts = 3
+retry_delay_ms = 1000
+request_timeout_seconds = 120
+
+[formats]
+default_output = "srt"
+preserve_styling = false
+default_encoding = "utf-8"
+encoding_detection_confidence = 0.800000011920929
+
+[sync]
+default_method = "auto"
+max_offset_seconds = 60.0
+
+[sync.vad]
+enabled = true
+sensitivity = 0.25
+padding_chunks = 3
+min_speech_duration_ms = 300
+
+[general]
+backup_enabled = false
+max_concurrent_jobs = 4
+task_timeout_seconds = 300
+workspace = "."
+enable_progress_bar = true
+worker_idle_timeout_seconds = 60
+
+[parallel]
+max_workers = 24
+overflow_strategy = "Block"
+task_queue_size = 1000
+enable_task_priorities = false
+auto_balance_workers = true
+```
