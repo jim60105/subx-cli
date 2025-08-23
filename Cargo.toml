@@ -112,7 +112,7 @@ symphonia = { version = "0.5", features = ["all"] }
 # VAD
 tokio-util = { version = "0.7", features = ["codec"] }
 hound = "3.5"
-voice_activity_detector_silero_v5 = { version = "0.2.0-silero-v5", features = [
+voice_activity_detector = { version = "0.2.1", features = [
     "async",
 ] }
 rubato = "0.16.2"
