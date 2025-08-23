@@ -8,6 +8,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.5.2] - 2025-08-23
+### Changed
+- Updated voice_activity_detector dependency to official crate v0.2.1, replacing the silero-specific fork for improved maintainability and upstream support.
+- Enhanced configuration guide documentation for accuracy and consistency, synchronizing with current config.toml and removing deprecated configuration items.
+
 ## [1.5.1] - 2025-07-08
 ### Changed
 - Centralized AI prompt parsing and retry logic by introducing generic PromptBuilder and ResponseParser traits for all AI providers (AzureOpenAI, OpenAI, OpenRouter).
@@ -396,7 +401,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Initial release of SubX CLI tool
 - Rust-based intelligent subtitle processing
 
-[Unreleased]: https://github.com/jim60105/subx-cli/compare/v1.5.1...HEAD  
+[Unreleased]: https://github.com/jim60105/subx-cli/compare/v1.5.2...HEAD  
+[1.5.2]: https://github.com/jim60105/subx-cli/compare/v1.5.1...v1.5.2  
 [1.5.1]: https://github.com/jim60105/subx-cli/compare/v1.5.0...v1.5.1  
 [1.5.0]: https://github.com/jim60105/subx-cli/compare/v1.4.0...v1.5.0  
 [1.4.0]: https://github.com/jim60105/subx-cli/compare/v1.3.0...v1.4.0  
