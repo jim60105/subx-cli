@@ -531,13 +531,10 @@ A: 系統會自動處理衝突：
 
 [GNU GENERAL PUBLIC LICENSE Version 3](LICENSE)
 
-This program is free software: you can redistribute it and/or modify it under the terms of the GNU General Public License as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later version.
+Copyright (C) 2025 Jim Chen <Jim@ChenJ.im>.
 
-This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
+本程式為自由軟體：您可以依據由自由軟體基金會發布的 GNU 通用公共授權條款（第 3 版，或您選擇的任何後續版本）重新發佈及／或修改本程式。
 
-You should have received a copy of the GNU General Public License along with this program. If not, see [https://www.gnu.org/licenses/](https://www.gnu.org/licenses/).
+本程式以期望其有用而發佈，但不提供任何保證；甚至不包含對適銷性或特定用途適用性的默示保證。詳情請參閱 GNU 通用公共授權條款。
 
----
-
-> [!NOTE]  
-> 這個專案完全使用 GitHub Copilot 和 Codex CLI 開發，並嘗試維持軟體架構的可維護性。我的目標是完全透過提示詞工程與 AI 協作，進行專業水準的軟體規劃和實作。我認為這才是專業人士的 Vibe Coding 該有的樣子。
+您應已隨本程式收到一份 GNU 通用公共授權條款副本。如果沒有，請參見 <https://www.gnu.org/licenses/>。
