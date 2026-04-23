@@ -65,3 +65,44 @@ The system SHALL accept common boolean aliases (`true`/`false`, `1`/`0`, `yes`/`
 - **GIVEN** the user runs `subx config set general.backup_enabled yes`
 - **WHEN** the command completes
 - **THEN** `general.backup_enabled` SHALL be persisted as `true`
+
+### Requirement: AI Environment Variable Overrides
+
+The system SHALL recognize a fixed set of `SUBX_`-prefixed environment variables that map to AI configuration fields, and SHALL apply them over file-backed configuration when present. Implemented in `src/config/service.rs:222-251` (the partial-load path over the `config` crate's `Environment` source). The supported variables are exactly:
+
+- `SUBX_AI_APIKEY` → `ai.api_key`
+- `SUBX_AI_PROVIDER` → `ai.provider`
+- `SUBX_AI_MODEL` → `ai.model`
+- `SUBX_AI_BASE_URL` → `ai.base_url`
+
+#### Scenario: AI provider overridden by environment
+- **GIVEN** the configuration file sets `ai.provider = "openai"` and the process environment has `SUBX_AI_PROVIDER=openrouter`
+- **WHEN** `ProductionConfigService` loads configuration
+- **THEN** `config.ai.provider` SHALL equal `"openrouter"`
+
+### Requirement: Custom Configuration File Path
+
+The system SHALL honor the `SUBX_CONFIG_PATH` environment variable as an override for the configuration file location used by `ProductionConfigService`, instead of the default platform config directory.
+
+#### Scenario: Custom path loaded
+- **GIVEN** `SUBX_CONFIG_PATH` points to an existing TOML file with valid settings
+- **WHEN** `ProductionConfigService` is constructed
+- **THEN** it SHALL read configuration from the custom path rather than from the default `dirs::config_dir()` location
+
+### Requirement: Legacy Sync Configuration Rejected
+
+The system SHALL reject legacy `[sync]` TOML that lacks the new required fields (such as `default_method`), failing to deserialize into `Config` rather than silently applying partial defaults. Implemented by the `SyncConfig` schema and exercised by `tests/config_migration_tests.rs`.
+
+#### Scenario: Old sync schema fails parsing
+- **GIVEN** a TOML document with `[sync] max_offset_seconds = 10.0` and `correlation_threshold = 0.8` but no `default_method`
+- **WHEN** the document is deserialized into `Config`
+- **THEN** deserialization SHALL fail with a parse error
+
+### Requirement: Config Service Reload
+
+`ProductionConfigService` SHALL expose a `reload()` operation that re-reads configuration (file and environment) and SHALL produce a subsequent `get_config()` result consistent with the latest on-disk and environment state.
+
+#### Scenario: Reload returns fresh configuration
+- **GIVEN** a `ProductionConfigService` has been constructed and has returned a configuration once
+- **WHEN** `service.reload()` is called and then `service.get_config()` is called again
+- **THEN** the second call SHALL succeed and SHALL reflect any applicable on-disk or environment changes without restarting the process

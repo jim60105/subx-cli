@@ -61,3 +61,12 @@ The system SHALL create a backup of the source subtitle file before moving it on
 - **GIVEN** the relocation mode is `None` (rename in place) and backups are enabled
 - **WHEN** the engine executes the operation
 - **THEN** no backup task SHALL be scheduled
+
+### Requirement: AutoRename Sequential Suffixes
+
+When multiple match operations would produce the same destination filename, the `AutoRename` conflict-resolution strategy SHALL assign distinct non-colliding names to each operation by appending sequential numeric suffixes, so that no operation overwrites a file written by a prior operation in the same batch. Exercised by `tests/match_duplicate_rename_conflict_tests.rs`.
+
+#### Scenario: Multiple subtitles matched to one video
+- **GIVEN** three subtitle files are all matched to the same video such that their ideal destination names collide
+- **WHEN** the engine executes the operations under `ConflictResolution::AutoRename`
+- **THEN** each of the three subtitles SHALL be written to a distinct path with a numeric suffix disambiguator and no existing file SHALL be overwritten

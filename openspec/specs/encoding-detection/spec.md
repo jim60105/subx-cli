@@ -42,3 +42,17 @@ The system SHALL, when `--verbose` is passed, print the full sample text; otherw
 - **GIVEN** a file with a sample of 300 characters and `--verbose`
 - **WHEN** the command runs
 - **THEN** the printed `Sample text:` line SHALL contain the full sample content without truncation
+
+### Requirement: Robust Handling of Empty and Binary Files
+
+The system SHALL complete encoding detection for each supplied file without terminating the whole batch when the file is empty or contains binary (non-text) bytes; it SHALL either emit a normal detection report for the file or surface a per-file error while still processing subsequent inputs.
+
+#### Scenario: Empty file
+- **GIVEN** a zero-byte subtitle file supplied to `subx detect-encoding`
+- **WHEN** the command runs
+- **THEN** the command SHALL not panic and SHALL exit successfully after recording a per-file outcome
+
+#### Scenario: Binary file
+- **GIVEN** a file containing binary (non-text) bytes supplied to `subx detect-encoding`
+- **WHEN** the command runs
+- **THEN** the command SHALL not panic and SHALL exit successfully, emitting either a best-effort detection result or a per-file error message without aborting subsequent inputs

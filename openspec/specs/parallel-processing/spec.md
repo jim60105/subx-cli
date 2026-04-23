@@ -46,3 +46,12 @@ The system SHALL respect the `general.enable_progress_bar` configuration; when t
 - **GIVEN** `general.enable_progress_bar = false`
 - **WHEN** a parallel batch executes
 - **THEN** the progress bar SHALL have its draw target set to hidden and no progress animation SHALL appear on the terminal
+
+### Requirement: Batch Task Submission
+
+The system SHALL expose `TaskScheduler::submit_batch_tasks` (or equivalent) that accepts a collection of boxed `Task + Send + Sync` values and returns one `TaskResult` per submitted task preserving order, enabling batch file-processing workflows such as `FileProcessingTask` validation and conversion. Exercised by `tests/parallel_processing_integration_tests.rs`.
+
+#### Scenario: Batch returns one result per task
+- **GIVEN** a scheduler built via `TaskScheduler::new_with_defaults()` and `N` boxed `FileProcessingTask` values
+- **WHEN** `scheduler.submit_batch_tasks(tasks)` is awaited
+- **THEN** the returned `Vec<TaskResult>` SHALL have length `N` and successful tasks SHALL be reported as `TaskResult::Success(_)`

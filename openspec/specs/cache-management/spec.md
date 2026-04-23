@@ -37,3 +37,17 @@ The cache SHALL record the configuration hash and relocation settings under whic
 - **GIVEN** a cache is written by `save_file_list_cache`
 - **WHEN** the JSON file is inspected
 - **THEN** it SHALL contain a `config_hash` field, an `original_relocation_mode` field, and an `original_backup_enabled` field reflecting the settings in effect during the producing run
+
+### Requirement: Cache Reuse Preserves Relocation Mode
+
+When a cached match result is reused on a subsequent `subx match` run with the same relocation mode, the system SHALL apply operations using the relocation mode and target directories that were in effect when the cache was produced, without issuing a new AI request. Implemented in `src/core/matcher/engine.rs` and exercised by `tests/match_cache_reuse_tests.rs` and `tests/match_cache_target_directory_tests.rs`.
+
+#### Scenario: Copy mode cache reused without a second AI call
+- **GIVEN** `subx match --copy <dir>` has populated the cache for a given set of files
+- **WHEN** the user runs `subx match --copy <dir>` again on the same files and configuration
+- **THEN** the cached match operations SHALL be reused, no additional AI provider call SHALL be made, and the subtitle SHALL be copied to the video's directory preserving the original subtitle at its source
+
+#### Scenario: Target directory consistency between dry-run and actual execution
+- **GIVEN** `subx match --copy --dry-run <dir>` has populated the cache for a given file set
+- **WHEN** the user runs `subx match --copy <dir>` (actual execution) on the same files and configuration
+- **THEN** the files written to disk SHALL land in the same target directories that the dry-run preview reported

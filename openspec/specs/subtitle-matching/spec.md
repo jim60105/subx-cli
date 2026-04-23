@@ -75,3 +75,17 @@ The system SHALL create a backup of the source subtitle file before moving it on
 - **GIVEN** the user runs `subx match --backup <path>` without `--copy` or `--move`
 - **WHEN** the engine executes the rename-in-place operation
 - **THEN** no backup task SHALL be scheduled
+
+### Requirement: Stable File Identifiers for Matching
+
+The system SHALL assign each discovered media file a stable identifier of the form `file_<16-hex-chars>` (total length 21), and the match pipeline SHALL reference video and subtitle files by these identifiers (rather than by filename) when sending requests to the AI provider and when correlating the AI response back to disk paths. Implemented in `src/core/matcher/discovery.rs` and exercised by `tests/match_engine_id_integration_tests.rs`.
+
+#### Scenario: All discovered files receive unique IDs
+- **GIVEN** a directory containing several video and subtitle files, including entries with complex non-ASCII filenames
+- **WHEN** `FileDiscovery::scan_directory` runs
+- **THEN** every returned file SHALL have a non-empty `id` beginning with `file_` and of length 21, and the full set of IDs SHALL be unique
+
+#### Scenario: AI response is correlated via IDs
+- **GIVEN** an AI provider returns `MatchResult.matches` entries referencing `video_file_id` and `subtitle_file_id`
+- **WHEN** `MatchEngine::match_file_list` processes the response
+- **THEN** the generated `MatchOperation` set SHALL resolve each ID back to the corresponding `MediaFile` and SHALL produce operations whose `video_file.id` and `subtitle_file.id` match the AI-supplied identifiers
