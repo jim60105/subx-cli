@@ -413,12 +413,16 @@ Need help? Run: subx sync --help"
                 video: video.clone(),
                 subtitle: subtitle.clone(),
             })
-        } else if self.is_manual_mode() && self.subtitle.is_some() {
-            // Manual mode only requires subtitle file
-            Ok(SyncMode::Single {
-                video: PathBuf::new(), // Empty video path for manual mode
-                subtitle: self.subtitle.as_ref().unwrap().clone(),
-            })
+        } else if self.is_manual_mode() {
+            if let Some(subtitle) = self.subtitle.as_ref() {
+                // Manual mode only requires subtitle file
+                Ok(SyncMode::Single {
+                    video: PathBuf::new(), // Empty video path for manual mode
+                    subtitle: subtitle.clone(),
+                })
+            } else {
+                Err(SubXError::InvalidSyncConfiguration)
+            }
         } else {
             Err(SubXError::InvalidSyncConfiguration)
         }
