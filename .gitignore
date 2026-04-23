@@ -18,3 +18,5 @@ Thumbs.db
 # JUnit XML test results
 junit.xml
 target/nextest/*/junit.xml
+
+tmp/
