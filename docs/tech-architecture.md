@@ -1,10 +1,11 @@
-# SubX 技術架構文件
+# SubX Technical Architecture
 
-## 專案概覽
+SubX is a Rust CLI tool for automated subtitle processing. It uses a
+modular architecture with dependency injection, supports multiple subtitle
+formats, and integrates AI-powered file matching with local Voice Activity
+Detection for audio synchronization.
 
-SubX 是一個基於 Rust 開發的 CLI 工具，專注於智慧字幕處理。採用模組化設計，支援多種字幕格式和 AI 驅動的匹配算法。該專案使用依賴注入模式進行配置管理，並實現了先進的音訊處理和並行處理能力。
-
-## 整體架構
+## System Architecture
 
 ```
 ┌─────────────────┐    ┌──────────────────┐    ┌─────────────────┐
@@ -22,23 +23,24 @@ SubX 是一個基於 Rust 開發的 CLI 工具，專注於智慧字幕處理。�
         ┌───────────────────────────────────────────────────┐
         │                External Services                  │
         │                                                   │
-        │  ┌─────────────┐  ┌─────────────┐  ┌──────────── │
-        │  │ OpenAI API  │  │ Audio Proc. │  │ File System │
-        │  │             │  │             │  │             │
-        │  │ • GPT-4o    │  │ • Symphonia │  │ • File I/O  │
-        │  │ • Text      │  │ • VAD       │  │ • Path      │
-        │  │   Analysis  │  │ • Dialogue  │  │   Handling  │
-        │  │ • Retry     │  │   Detection │  │ • Rollback  │
-        │  │   Logic     │  │             │  │   Support   │
-        │  └─────────────┘  └─────────────┘  └─────────────┘
+        │  ┌─────────────┐  ┌─────────────┐  ┌───────────┐ │
+        │  │ AI Provider │  │ Audio Proc. │  │ File      │ │
+        │  │             │  │             │  │ System    │ │
+        │  │ • OpenAI    │  │ • Symphonia │  │ • File IO │ │
+        │  │ • OpenRoute │  │ • VAD       │  │ • Path    │ │
+        │  │ • Azure     │  │ • Speech    │  │   Resolve │ │
+        │  │ • Retry     │  │   Detection │  │ • Backup  │ │
+        │  └─────────────┘  └─────────────┘  └───────────┘ │
         └───────────────────────────────────────────────────┘
 ```
 
-## 核心模組設計
+## Core Modules
 
-### 1. CLI Layer (`src/cli/` and `src/commands/`)
+### CLI Layer (`src/cli/` and `src/commands/`)
 
-**責任**: 用戶界面、命令解析以及命令執行邏輯。
+The CLI layer handles argument parsing, command routing, and user-facing
+output. It uses `clap` with the derive API for argument definitions and
+delegates execution to command modules.
 
 ```rust
 // src/cli/mod.rs
@@ -51,59 +53,48 @@ pub enum Commands {
     Match(MatchArgs),
     Convert(ConvertArgs),
     Sync(SyncArgs),
-    DetectEncoding(DetectEncodingArgs), // New command
+    DetectEncoding(DetectEncodingArgs),
     Config(ConfigArgs),
     Cache(CacheArgs),
     GenerateCompletion(GenerateCompletionArgs),
 }
 ```
 
-**關鍵組件**:
-- `clap` - 命令行參數解析，支援自動完成
-- `clap_complete` - Shell 完成腳本生成
-- `indicatif` - 進度條顯示
-- `colored` - 彩色輸出
-- `dialoguer` - 互動式提示
-- `tabled` - 表格輸出格式化
+Each command has a corresponding module in `src/commands/` with an
+`execute()` function that receives parsed arguments and a `&dyn
+ConfigService` reference. The `dispatcher` module routes `Commands` variants
+to their handlers. Shell completion generation for bash, zsh, fish, and
+PowerShell is handled inline via `clap_complete`.
 
-**Command Handlers (`src/commands/`)**:
-- 此目錄包含每個 CLI 命令的邏輯，包括新增的 `detect_encoding_command.rs`
-- 每個命令模組從 `src/cli/` 層取得已解析的參數，並透過與 `Core Engine` 和 `Services Layer` 互動來協調操作
-- 支援乾燥執行模式和快取管理
+The UI layer depends on `indicatif` for progress bars, `colored` for
+terminal colors, `dialoguer` for interactive prompts, and `tabled` for
+tabular output formatting.
 
-### 2. Configuration Module (`src/config/`)
+### Configuration Module (`src/config/`)
 
-**責任**: 使用依賴注入模式管理應用程式的組態設定。
-
-**架構設計**:
-- **Legacy Configuration** (`config_legacy.rs`) - 配置資料結構定義
-- **Service Layer** (`service.rs`) - 配置服務介面和實作
-- **Builder Pattern** (`builder.rs`) - 測試配置建構器
-- **Environment Provider** (`environment.rs`) - 環境變數提供者
-- **Test Service** (`test_service.rs`) - 測試專用配置服務
-- **Validator** (`validator.rs`) - 配置驗證邏輯
+The configuration system is built around the `ConfigService` trait, which
+abstracts all config access behind dependency injection. Production code
+uses `ProductionConfigService` (file + env var backed), while tests use
+`TestConfigService` (in-memory, no filesystem).
 
 ```rust
-// src/config/mod.rs
-pub trait ConfigService {
-    fn config(&self) -> &Config;
-    fn ai_config(&self) -> &AIConfig;
-    fn formats_config(&self) -> &FormatsConfig;
-    // ... other config getters
-}
-
-pub struct ProductionConfigService {
-    config: Config,
-}
-
-pub struct TestConfigService {
-    config: Config,
+// src/config/service.rs
+pub trait ConfigService: Send + Sync {
+    fn get_config(&self) -> Result<Config>;
+    fn reload(&self) -> Result<()>;
+    fn save_config(&self) -> Result<()>;
+    fn save_config_to_file(&self, path: &Path) -> Result<()>;
+    fn get_config_file_path(&self) -> Result<PathBuf>;
+    fn get_config_value(&self, key: &str) -> Result<String>;
+    fn set_config_value(&self, key: &str, value: &str) -> Result<()>;
+    fn reset_to_defaults(&self) -> Result<()>;
 }
 ```
 
-**配置結構**:
+The `Config` struct holds all configuration sections:
+
 ```rust
-// src/config/config_legacy.rs
+// src/config/mod.rs
 pub struct Config {
     pub ai: AIConfig,
     pub formats: FormatsConfig,
@@ -114,11 +105,23 @@ pub struct Config {
 }
 ```
 
-### 3. Core Engine (`src/core/`)
+`ProductionConfigService` merges three sources in priority order:
+environment variables, user config file (`~/.config/subx/config.toml`), and
+built-in defaults. It stores the result behind `Arc<RwLock<Config>>` for
+thread-safe shared access.
 
-#### 3.1 Factory and Dependency Injection (`src/core/factory.rs` & `src/core/services.rs`)
+The module also provides `TestConfigBuilder` (fluent builder for test
+configs), `EnvironmentProvider` trait with `SystemEnvironmentProvider` and
+`TestEnvironmentProvider` implementations, and validation logic split across
+`validator.rs` (section-level) and `field_validator.rs` (key-value level).
 
-**責任**: 元件建立和依賴注入管理
+### Core Engine (`src/core/`)
+
+#### Factory and Dependency Injection (`src/core/factory.rs`)
+
+`ComponentFactory` is the central wiring point. Constructed from a
+`ConfigService`, it creates all major components with proper configuration
+injection.
 
 ```rust
 // src/core/factory.rs
@@ -127,47 +130,66 @@ pub struct ComponentFactory {
 }
 
 impl ComponentFactory {
-    /// Create an AI provider based on AI configuration.
-    ///
-    /// Currently supports OpenAI provider with API key, model, temperature,
-    /// max_tokens, retry logic, and optional custom base URL configuration.
+    pub fn new(config_service: &dyn ConfigService) -> Result<Self>;
+    pub fn config(&self) -> &Config;
     pub fn create_ai_provider(&self) -> Result<Box<dyn AIProvider>>;
+    pub fn create_file_manager(&self) -> FileManager;
+    pub fn create_match_engine(&self) -> Result<MatchEngine>;
+    pub fn create_vad_sync_detector(&self) -> Result<VadSyncDetector>;
+    pub fn create_vad_detector(&self) -> Result<LocalVadDetector>;
+    pub fn create_audio_processor(&self) -> Result<VadAudioProcessor>;
 }
 ```
 
-#### 3.2 Match Engine (`src/core/matcher/`)
+The `create_ai_provider` method dispatches on `ai.provider` to construct
+the appropriate client: `OpenAIClient` for `"openai"`, `OpenRouterClient`
+for `"openrouter"`, or `AzureOpenAIClient` for `"azure-openai"`. All three
+implement the `AIProvider` trait.
 
-**責任**: AI 驅動的檔案匹配邏輯
+#### Match Engine (`src/core/matcher/`)
+
+The match engine pairs subtitle files with video files using AI analysis.
+The matching pipeline follows four stages: filename analysis, content
+sampling, AI similarity scoring, and result caching.
 
 ```rust
-// src/core/matcher/mod.rs
+// src/core/matcher/engine.rs
 pub struct MatchEngine {
     ai_client: Box<dyn AIProvider>,
     config: MatchConfig,
 }
 
-pub trait AIProvider {
-    async fn analyze_content(&self, request: AnalysisRequest) -> Result<MatchResult>;
-    async fn verify_match(&self, verification: VerificationRequest) -> Result<ConfidenceScore>;
+pub struct MatchConfig {
+    pub confidence_threshold: f64,
+    pub max_sample_length: usize,
+    pub enable_content_analysis: bool,
+    pub backup_enabled: bool,
+    pub relocation_mode: FileRelocationMode,
+    pub conflict_resolution: ConflictResolution,
+    pub ai_model: String,
 }
 ```
 
-**匹配算法**:
-1. **Filename Analysis** - 檔名模式解析
-2. **Content Sampling** - 字幕內容採樣
-3. **AI Similarity** - 語義相似度分析
-4. **Cache Integration** - 結果快取和重用
+`FileDiscovery` walks directories and classifies files as media or
+subtitle. `FileInfo` provides normalized name helpers that strip quality
+tags (`1080p`, `x264`), brackets, and parentheses for cleaner matching.
 
-#### 3.3 Format Engine (`src/core/formats/`)
+#### Format Engine (`src/core/formats/`)
 
-**責任**: 字幕格式解析和轉換
+Subtitle format handling uses the `SubtitleFormat` trait as a plugin
+interface. Each format (SRT, ASS, VTT, SUB) implements parsing, detection,
+and serialization.
 
 ```rust
 // src/core/formats/mod.rs
 pub trait SubtitleFormat {
+    fn format_name(&self) -> &'static str;
+    fn file_extensions(&self) -> &'static [&'static str];
+    fn detect(&self, content: &str) -> bool;
     fn parse(&self, content: &str) -> Result<Subtitle>;
     fn serialize(&self, subtitle: &Subtitle) -> Result<String>;
-    fn detect(content: &str) -> bool;
+    fn supports_styling(&self) -> bool { false }
+    fn uses_frame_timing(&self) -> bool { false }
 }
 
 pub struct Subtitle {
@@ -176,21 +198,18 @@ pub struct Subtitle {
 }
 ```
 
-**支援格式**:
-- **SRT Parser** (`srt.rs`) - SubRip 格式
-- **ASS Parser** (`ass.rs`) - Advanced SSA
-- **VTT Parser** (`vtt.rs`) - WebVTT
-- **SUB Parser** (`sub.rs`) - 多種 SUB 變體
-- **Encoding Detection** (`encoding/`) - 自動編碼檢測
-- **Style Management** (`styling.rs`) - 樣式處理
-- **Format Conversion** (`converter.rs`) - 格式轉換邏輯
-- **Content Transformers** (`transformers.rs`) - 內容轉換器
+`FormatManager` holds a registry of `Box<dyn SubtitleFormat>` and provides
+auto-detection via `parse_auto()`, format lookup by name or extension, and
+encoding-aware file reading. `FormatConverter` handles cross-format
+conversion, and `encoding/` provides `EncodingDetector` for automatic
+character encoding detection using `encoding_rs`.
 
-#### 3.4 Sync Engine (`src/core/sync/`)
+#### Sync Engine (`src/core/sync/`)
 
-**責任**: 多方法音訊字幕同步與智慧方法選擇
-
-SubX v0.6.0 引入了簡潔高效的同步引擎，專注於本地 VAD 語音檢測：
+The sync engine computes timing offsets between audio and subtitles using
+local Voice Activity Detection. Since v0.6.0, the architecture focuses
+exclusively on local VAD processing — no network-based analysis is
+performed.
 
 ```rust
 // src/core/sync/engine.rs
@@ -199,403 +218,261 @@ pub struct SyncEngine {
     vad_detector: Option<VadSyncDetector>,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum SyncMethod {
-    LocalVad,       // 本地 Voice Activity Detection
-    Manual,         // 手動指定偏移量
+    Auto,
+    LocalVad,
+    Manual,
 }
 
 pub struct SyncResult {
     pub offset_seconds: f32,
-    pub confidence: f32,      
+    pub confidence: f32,
     pub method_used: SyncMethod,
+    pub correlation_peak: f32,
+    pub additional_info: Option<serde_json::Value>,
     pub processing_duration: Duration,
     pub warnings: Vec<String>,
-    pub additional_info: Option<serde_json::Value>,
 }
 ```
 
-**同步處理架構**:
+The `LocalVad` method loads the audio file directly via `DirectAudioLoader`,
+extracts the first channel, resamples to 16 kHz when the source sample rate
+is not 8 kHz or 16 kHz, runs VAD analysis with dynamically calculated chunk
+sizes, and compares detected speech segments against subtitle timestamps to
+compute the optimal offset. The `Auto` method currently resolves to
+`LocalVad`. The `Manual` method applies a user-specified offset directly.
 
-SubX 採用直接且高效的 VAD 處理架構：
+#### Parallel Processing (`src/core/parallel/`)
 
-```
-SyncEngine
-└── VAD Detector (VadSyncDetector)
-    └── 直接處理完整音訊檔案
+The parallel processing module implements a producer-consumer task
+scheduler. `TaskScheduler` manages a worker pool, task queue, and load
+balancer. The `ParallelConfig` section controls pool size (defaults to CPU
+core count), queue capacity, overflow strategy, and priority-based ordering.
 
-SyncMethod: LocalVad | Manual
-```
+Workers specialize by operation type: format conversion, AI analysis, audio
+processing, and file operations. The overflow strategy determines behavior
+when the queue is full (`Block`, `DropOldest`, `Reject`, `Drop`, or
+`Expand`).
 
-**同步方法詳細說明**:
+#### File Manager (`src/core/file_manager.rs`)
 
-##### 本地 VAD (`src/services/vad/`)
-- **語音活動檢測**: 使用信號處理技術檢測語音段
-- **本地處理**: 無需網路連接，保護隱私
-- **可調參數**: 靈敏度、塊大小、採樣率等
-- **高效能**: 適用於大批量處理
+`FileManager` provides batch file operations with backup support. It
+records creations and moves so that `rollback()` can undo them if a later
+operation fails. Removed files are backed up before deletion when
+`backup_enabled` is true. Rollback restores recorded creations and moves but
+cannot recover removed files.
+
+### External Services
+
+#### AI Service (`src/services/ai/`)
+
+The AI service layer provides three provider implementations behind the
+`AIProvider` trait:
 
 ```rust
-// src/services/vad/sync_detector.rs
-pub struct VadSyncDetector {
-    detector: VadDetector,
-    config: VadConfig,
-}
-
-// src/services/vad/detector.rs
-pub struct VadDetector {
-    config: VadConfig,
-}
-
-// src/services/vad/audio_processor.rs
-pub struct AudioProcessor {
-    target_sample_rate: u32,
+// src/services/ai/mod.rs
+#[async_trait]
+pub trait AIProvider: Send + Sync {
+    async fn analyze_content(&self, request: AnalysisRequest) -> Result<MatchResult>;
+    async fn verify_match(&self, request: VerificationRequest) -> Result<ConfidenceScore>;
 }
 ```
 
-#### VAD 處理流程 (最佳化版本)
+Provider clients: `OpenAIClient` (`openai.rs`), `OpenRouterClient`
+(`openrouter.rs`), and `AzureOpenAIClient` (`azure_openai.rs`). All three
+use shared infrastructure from the module:
 
-```text
-音頻檔案 → DirectAudioLoader → 第一聲道提取 → VAD 分析
-                                   ↓
-                           保持原始採樣率，動態計算 chunk_size
-```
+- `prompts.rs` — `PromptBuilder` and `ResponseParser` traits with base
+  implementations for constructing analysis prompts and parsing AI responses
+- `retry.rs` — `RetryConfig` struct and `retry_with_backoff()` async
+  function for exponential backoff retry logic
+- `cache.rs` — `AICache` for in-memory TTL caching of analysis results
 
-**最佳化特點**:
-- 無重採樣處理，保持原始音質
-- 只使用第一聲道，減少計算開銷
-- 動態 chunk_size 計算，適應不同採樣率
-- 簡化配置，減少用戶設定複雜度
+Each provider calls `display_ai_usage` (from `src/cli/`) after receiving a
+response, reporting token counts via `AiUsageStats`.
 
-#### 3.5 Parallel Processing (`src/core/parallel/`)
+#### VAD Service (`src/services/vad/`)
 
-**責任**: 並行任務調度和執行
-
-- 支援多核心並行處理
-- 任務佇列管理
-- 資源限制控制
-
-#### 3.6 File Manager (`src/core/file_manager.rs`)
-
-**責任**: 安全的檔案操作和回滾支援
-
-- 檔案操作的事務性支援
-- 自動備份和復原機制
-- 路徑解析和驗證
-
-### 4. External Services Integration
-
-#### 4.1 AI Service (`src/services/ai/`)
-
-**完整的 AI 服務架構**:
+The VAD module handles local voice activity detection using the
+`voice_activity_detector` crate and `symphonia` for audio decoding.
 
 ```rust
-// src/services/ai/openai.rs
-pub struct OpenAIClient {
-    client: reqwest::Client,
-    api_key: String,
-    config: OpenAIConfig,
-}
-
-// src/services/ai/cache.rs - AI 結果快取
-pub struct AICache {
-    // Cache implementation for AI responses
-}
-
-// src/services/ai/retry.rs - 重試邏輯
-pub struct RetryHandler {
-    // Retry logic for failed AI requests
-}
-
-// src/services/ai/prompts.rs - 提示管理
-pub struct PromptManager {
-    // AI prompt templates and management
-}
-
-// src/services/ai/factory.rs - AI 服務工廠
-pub struct AIServiceFactory {
-    // Factory for creating AI service instances
-}
+pub struct DirectAudioLoader { /* loads audio files via symphonia */ }
+pub struct VadAudioProcessor { /* preprocesses audio for VAD */ }
+pub struct LocalVadDetector { /* runs VAD analysis */ }
+pub struct VadSyncDetector { /* computes sync offset from VAD results */ }
 ```
 
-#### 4.2 Audio Processing (`src/services/audio/`)
+The processing pipeline:
 
-**音訊處理系統**:
-
-```rust
-// src/services/audio/analyzer.rs
-pub struct AudioAnalyzer {
-    sample_rate: u32,
-    window_size: usize,
-}
-
-// src/services/audio/dialogue_detector.rs - 對話檢測
-pub struct DialogueDetector {
-    // Voice activity detection and dialogue segmentation
-}
+```
+Audio file → DirectAudioLoader → first channel extraction
+                                       ↓
+                               Resample to 16 kHz if source ≠ 8/16 kHz
+                                       ↓
+                               Dynamic chunk_size calculation → VAD analysis
 ```
 
-**音訊處理流程**:
-1. **Audio Loading** - 使用 Symphonia 載入音訊
-2. **VAD Integration** - 使用 Voice Activity Detection 進行語音檢測
-3. **Dialogue Detection** - 自動檢測對話段落
-4. **Feature Extraction** - 提取音訊特徵
+This design processes only the first channel (reducing computation),
+resamples only when necessary (preserving native quality for 8/16 kHz
+sources), and dynamically computes the chunk size based on the actual sample
+rate.
 
-## 依賴庫選擇
+## Data Flow
 
-### 核心依賴
-```toml
-[dependencies]
-# CLI 框架
-clap = { version = "4.5.40", features = ["derive", "cargo"] }
-clap_complete = "4.5.54"  # Shell completion support
-tokio = { version = "1.0", features = ["full"] }
+### Match Workflow
 
-# HTTP 客戶端
-reqwest = { version = "0.12.20", features = ["json", "rustls-tls"] }
-serde = { version = "1.0", features = ["derive"] }
-serde_json = "1.0"
-toml = "0.8"
-
-# 音訊處理
-symphonia = { version = "0.5", features = ["all"] }
-
-# 文件處理
-walkdir = "2.3"
-regex = "1.0"
-encoding_rs = "0.8"
-
-# 配置管理
-config = "0.15"
-dirs = "6.0"
-
-# 並行處理
-futures = "0.3"
-async-trait = "0.1"
-uuid = { version = "1.3", features = ["v4"] }
-num_cpus = "1.0"
-
-# 文件監控
-notify = "8.0"
-
-# URL 處理
-url = "2"
-
-# 用戶界面
-indicatif = "0.17"
-colored = "3.0"
-tabled = "0.20"
-dialoguer = "0.11"
-
-# 實用工具
-md5 = "0.7"
-log = "0.4"
-env_logger = "0.11"
-
-# 錯誤處理
-anyhow = "1.0"
-thiserror = "2.0"
-
-# 跨平台支援
-[target.'cfg(windows)'.dependencies]
-winapi = { version = "0.3", features = ["winuser"] }
-
-[target.'cfg(unix)'.dependencies]
-libc = "0.2"
 ```
-
-### 開發依賴
-```toml
-[dev-dependencies]
-# 測試框架
-tokio-test = "0.4"
-assert_cmd = "2.0"
-predicates = "3.0"
-tempfile = "3.10"
-
-# Mock 和測試工具
-mockall = "0.13"
-rstest = "0.25"
-test-case = "3.0"
-wiremock = "0.6"
-
-# 效能測試
-criterion = { version = "0.6.0", features = ["html_reports"] }
-```
-
-## 資料流設計
-
-### 1. Match 工作流程
-```
-Input: Media Folder
+Input: Media folder
     │
     ▼
 ┌─────────────────┐
-│ File Discovery  │ ──▶ 掃描影片和字幕文件
+│ File Discovery  │ ──▶ Scan for video and subtitle files
 └─────────────────┘
     │
     ▼
 ┌─────────────────┐
-│ Cache Check     │ ──▶ 檢查快取結果
+│ Cache Check     │ ──▶ Look up cached results
 └─────────────────┘
     │
     ▼
 ┌─────────────────┐
-│ AI Analysis     │ ──▶ 調用 AI 進行匹配分析
+│ AI Analysis     │ ──▶ Call AI provider for matching
 └─────────────────┘
     │
     ▼
 ┌─────────────────┐
-│ Confidence      │ ──▶ 評估匹配信心度
+│ Confidence      │ ──▶ Evaluate match confidence scores
 │ Evaluation      │
 └─────────────────┘
     │
     ▼
 ┌─────────────────┐
-│ Dry-run         │ ──▶ 預覽匹配結果
+│ Dry-run         │ ──▶ Preview results (if --dry-run)
 │ Preview         │
 └─────────────────┘
     │
     ▼
 ┌─────────────────┐
-│ File Rename     │ ──▶ 執行檔案重命名（含備份）
+│ File Rename     │ ──▶ Rename/copy/move files (with backup)
 └─────────────────┘
 ```
 
-> **注意**：字幕檔案重命名時會移除原影片檔案的副檔名，僅保留檔案基礎名稱與字幕副檔名。例如，若影片為 `movie.mkv`，匹配後的字幕檔將命名為 `movie.tc.srt` 而非 `movie.mkv.tc.srt`。
+Subtitle files are renamed to match the video's base name, dropping the
+video file extension. For example, `movie.mkv` produces `movie.tc.srt`,
+not `movie.mkv.tc.srt`.
 
-### 2. Sync 工作流程
+### Sync Workflow
+
 ```
 Input: Video + Subtitle
     │
     ▼
 ┌─────────────────┐
-│ Audio Extract   │ ──▶ 提取音訊能量包絡（VAD）
+│ Audio Loading   │ ──▶ Load audio via DirectAudioLoader
 └─────────────────┘
     │
     ▼
 ┌─────────────────┐
-│ Dialogue        │ ──▶ 檢測對話段落
-│ Detection       │
+│ VAD Analysis    │ ──▶ Detect speech segments
 └─────────────────┘
     │
     ▼
 ┌─────────────────┐
-│ Signal          │ ──▶ 生成對話時間信號
-│ Generation      │
+│ Offset          │ ──▶ Compare speech timing with subtitles
+│ Calculation     │
 └─────────────────┘
     │
     ▼
 ┌─────────────────┐
-│ Correlation     │ ──▶ 交叉相關分析
-│ Analysis        │
-└─────────────────┘
-    │
-    ▼
-┌─────────────────┐
-│ Offset          │ ──▶ 確定最佳偏移量
-│ Detection       │
-└─────────────────┘
-    │
-    ▼
-┌─────────────────┐
-│ Subtitle        │ ──▶ 應用時間校正
+│ Subtitle        │ ──▶ Apply timing correction
 │ Adjustment      │
 └─────────────────┘
 ```
 
-### 3. Convert 工作流程
+### Convert Workflow
+
 ```
-Input: Source Subtitle File
+Input: Source subtitle file
     │
     ▼
 ┌─────────────────┐
-│ Encoding        │ ──▶ 自動檢測字元編碼
+│ Encoding        │ ──▶ Auto-detect character encoding
 │ Detection       │
 └─────────────────┘
     │
     ▼
 ┌─────────────────┐
-│ Format          │ ──▶ 解析來源格式
+│ Format          │ ──▶ Parse source format
 │ Parsing         │
 └─────────────────┘
     │
     ▼
 ┌─────────────────┐
-│ Content         │ ──▶ 應用格式轉換
-│ Transformation │
+│ Content         │ ──▶ Transform and convert content
+│ Transformation  │
 └─────────────────┘
     │
     ▼
 ┌─────────────────┐
-│ Output          │ ──▶ 生成目標格式檔案
+│ Output          │ ──▶ Write target format file
 │ Generation      │
 └─────────────────┘
 ```
 
-## 錯誤處理策略
+## Error Handling
 
-### 錯誤類型定義
+All errors flow through `SubXError`, defined in `src/error.rs` using
+`thiserror`. Each variant maps to a specific exit code and provides a
+user-friendly message.
+
 ```rust
-// src/error.rs
 #[derive(thiserror::Error, Debug)]
 pub enum SubXError {
     #[error("I/O error: {0}")]
-    Io(#[from] std::io::Error),
-    
-    #[error("Configuration error: {message}")]
-    Config { message: String },
-    
-    #[error("Subtitle format error [{format}]: {message}")]
-    SubtitleFormat { format: String, message: String },
-    
-    #[error("AI service error: {0}")]
-    AiService(String),
-    
-    #[error("Audio processing error: {message}")]
-    AudioProcessing { message: String },
-    
-    #[error("File matching error: {message}")]
-    FileMatching { message: String },
-    
-    #[error("File already exists: {0}")]
-    FileAlreadyExists(String),
-    
-    #[error("File not found: {0}")]
-    FileNotFound(String),
-    
-    #[error("Invalid file name: {0}")]
-    InvalidFileName(String),
-    
-    #[error("File operation failed: {0}")]
-    FileOperationFailed(String),
-}
+    Io(#[from] std::io::Error),                        // exit code 1
 
-impl SubXError {
-    /// Get the exit code for this error type
-    pub fn exit_code(&self) -> i32 {
-        match self {
-            SubXError::Io(_) => 1,
-            SubXError::Config { .. } => 2,
-            SubXError::SubtitleFormat { .. } => 3,
-            SubXError::AiService(_) => 4,
-            SubXError::AudioProcessing { .. } => 5,
-            SubXError::FileMatching { .. } => 6,
-            // ... other mappings
-        }
-    }
+    #[error("Configuration error: {message}")]
+    Config { message: String },                        // exit code 2
+
+    #[error("AI service error: {0}")]
+    AiService(String),                                 // exit code 3
+    #[error("API error: {message}")]
+    Api { message: String, source: ApiErrorSource },   // exit code 3
+
+    #[error("Subtitle format error [{format}]: {message}")]
+    SubtitleFormat { format: String, message: String }, // exit code 4
+
+    #[error("Audio processing error: {message}")]
+    AudioProcessing { message: String },               // exit code 5
+
+    #[error("File matching error: {message}")]
+    FileMatching { message: String },                  // exit code 6
+
+    // Additional variants: FileAlreadyExists, FileNotFound,
+    // InvalidFileName, FileOperationFailed, CommandExecution,
+    // NoInputSpecified, InvalidPath, PathNotFound, etc.
 }
 ```
 
-## 效能考量
+Constructor helpers like `SubXError::config()`, `SubXError::ai_service()`,
+and `SubXError::audio_processing()` simplify error creation. `From` impls
+automatically convert `std::io::Error`, `reqwest::Error`,
+`walkdir::Error`, `symphonia` errors, `config::ConfigError`, and
+`serde_json::Error` into the appropriate `SubXError` variant.
 
-### 1. 併發處理
+## Performance Design
+
+### Concurrency
+
+Batch processing uses `tokio::spawn` with `Arc<Semaphore>` to limit
+concurrent operations. The semaphore permit count defaults to
+`num_cpus::get().min(8)`, and `futures::future::try_join_all` collects
+results.
+
 ```rust
-// 批量處理使用 tokio 並發
 pub async fn process_batch(files: Vec<MediaPair>) -> Result<Vec<ProcessResult>> {
-    let max_concurrent = num_cpus::get().min(8); // 限制並發數
-    let semaphore = Arc::new(Semaphore::new(max_concurrent));
-    
+    let semaphore = Arc::new(Semaphore::new(num_cpus::get().min(8)));
     let tasks: Vec<_> = files.into_iter().map(|file| {
         let sem = semaphore.clone();
         tokio::spawn(async move {
@@ -603,85 +480,132 @@ pub async fn process_batch(files: Vec<MediaPair>) -> Result<Vec<ProcessResult>> 
             process_single_file(file).await
         })
     }).collect();
-    
     futures::future::try_join_all(tasks).await
 }
 ```
 
-### 2. 記憶體優化
-- **流式處理** - 大文件採用流式讀取
-- **音訊採樣** - 使用 VAD 進行高效音訊處理
-- **快取機制** - AI 分析結果快取，減少重複請求
-- **並行控制** - 根據系統資源動態調整並行度
+### Memory Efficiency
 
-### 3. API 成本控制
-- **內容採樣** - 限制發送給 AI 的內容長度
-- **批量分析** - 合併多個請求
-- **智慧重試** - 指數退避重試策略
-- **快取優化** - 長期快取 AI 分析結果
+Large files are read with streaming where possible. Audio processing uses
+only the first channel to reduce memory usage. The AI cache stores analysis
+results to avoid redundant API calls, and the parallel scheduler dynamically
+adjusts concurrency based on system resources.
 
-## 測試策略
+### API Cost Control
 
-### 1. 單元測試
-```rust
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::config::{TestConfigService, ConfigService};
-    use mockall::predicate::*;
-    
-    #[tokio::test]
-    async fn test_match_engine_basic_match() {
-        let config_service = TestConfigService::with_defaults();
-        let mut mock_ai = MockAIProvider::new();
-        mock_ai.expect_analyze_content()
-            .returning(|_| Ok(MatchResult::new(0.95)));
-        
-        let engine = MatchEngine::new(Box::new(mock_ai), &config_service);
-        let result = engine.match_file_list(&test_files).await.unwrap();
-        
-        assert_eq!(result.confidence, 0.95);
-    }
-}
-```
+Content sampling limits the amount of text sent to AI providers
+(`max_sample_length`). Batch analysis combines multiple files into single
+requests where the provider supports it. Exponential backoff retry avoids
+flooding the API on transient failures, and persistent caching prevents
+re-analysis of previously matched files within the same session.
 
-### 2. 整合測試
-- **End-to-End 測試** - 完整工作流程測試
-- **AI 服務模擬** - 使用 wiremock 進行 HTTP 模擬
-- **音訊處理測試** - 使用預製的測試音訊文件
-- **配置測試** - 使用 TestConfigService 進行隔離測試
+## Dependencies
 
-### 3. 效能測試
-```rust
-use criterion::{black_box, criterion_group, criterion_main, Criterion};
+### Runtime Dependencies
 
-fn bench_audio_correlation(c: &mut Criterion) {
-    c.bench_function("audio_correlation", |b| {
-        b.iter(|| {
-            let result = calculate_correlation(
-                black_box(&audio_data), 
-                black_box(&dialogue_data)
-            );
-            black_box(result)
-        })
-    });
-}
-
-criterion_group!(benches, bench_audio_correlation);
-criterion_main!(benches);
-```
-
-**測試工具**:
-- **rstest** - 參數化測試
-- **test-case** - 測試案例生成
-- **assert_cmd** - CLI 測試
-- **tempfile** - 臨時檔案管理
-
-## 部署和發佈
-
-### 1. 編譯目標
 ```toml
-# 支援多平台編譯
+# CLI framework
+clap = { version = "4.5.40", features = ["derive", "cargo"] }
+clap_complete = "4.5.54"
+
+# Async runtime
+tokio = { version = "1.0", features = ["full"] }
+
+# HTTP client
+reqwest = { version = "0.13", features = ["json", "stream", "rustls"] }
+
+# Serialization
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+toml = "1"
+
+# Audio processing
+symphonia = { version = "0.5", features = ["all"] }
+
+# VAD
+voice_activity_detector = { version = "0.2.1", features = ["async"] }
+hound = "3.5"
+rubato = "0.16.2"
+
+# Subtitle processing
+regex = "1.0"
+encoding_rs = "0.8"
+walkdir = "2.3"
+
+# Configuration
+config = "0.15"
+dirs = "6.0"
+
+# Error handling
+anyhow = "1.0"
+thiserror = "2.0"
+
+# Concurrency
+futures = "0.3"
+async-trait = "0.1"
+num_cpus = "1.0"
+
+# UI
+indicatif = "0.18"
+colored = "3.0"
+tabled = "0.20"
+dialoguer = "0.11"
+
+# Utilities
+uuid = { version = "1.3", features = ["v4"] }
+url = "2"
+notify = "8.0"
+md5 = "0.7"
+log = "0.4"
+env_logger = "0.11"
+once_cell = "1.19"
+
+# Platform-specific
+[target.'cfg(windows)'.dependencies]
+winapi = { version = "0.3", features = ["winuser"] }
+
+[target.'cfg(unix)'.dependencies]
+libc = "0.2"
+```
+
+### Dev Dependencies
+
+```toml
+tokio-test = "0.4"
+assert_cmd = "2.0"
+predicates = "3.0"
+tempfile = "3.10"
+mockall = "0.13"
+rstest = "0.25"
+test-case = "3.0"
+wiremock = "0.6"
+criterion = { version = "0.6.0", features = ["html_reports"] }
+```
+
+## Testing Strategy
+
+Unit tests live inline in source files as `#[cfg(test)] mod tests`. They
+use `TestConfigService` for configuration and `mockall` for trait mocking.
+Every test is parallel-safe — no global state mutation.
+
+Integration tests in `tests/` cover full command workflows. AI interactions
+use `wiremock` via `MockOpenAITestHelper` (in `tests/common/`), which stubs
+HTTP endpoints and verifies request expectations. File-system tests use
+`tempfile::TempDir` with RAII cleanup.
+
+Performance benchmarks in `benches/` use Criterion. Each benchmark function
+creates a `tokio::runtime::Runtime` for async operations and wraps inputs
+with `std::hint::black_box`.
+
+The testing toolchain: `rstest` for parameterized tests, `test-case` for
+data-driven scenarios, `assert_cmd` for CLI integration tests, and
+`wiremock` for HTTP mocking.
+
+## Build and Release
+
+### Release Profile
+
+```toml
 [profile.release]
 opt-level = 3
 lto = true
@@ -690,43 +614,29 @@ panic = "abort"
 strip = true
 ```
 
-### 2. CI/CD Pipeline
-- **GitHub Actions** - 自動化建構、測試、覆蓋率檢查
-- **Cross-compilation** - 支援 Linux、Windows、macOS
-- **自動發佈** - 自動生成 GitHub Releases 和 crates.io 發佈
+### CI/CD Pipeline
 
-### 3. 發佈策略
-- **GitHub Releases** - 預編譯二進位文件
-- **crates.io** - Rust 套件發佈
-- **安裝腳本** - 自動化安裝腳本 (`scripts/install.sh`)
-- **Shell 完成** - 自動生成 bash/zsh/fish 完成腳本
+GitHub Actions runs on every push and pull request to `master`. The
+`build-test-audit-coverage` workflow tests across Ubuntu, Windows, and macOS
+with Rust stable. It runs `scripts/quality_check.sh`, `cargo audit` for
+dependency security, and `scripts/check_coverage.sh` with a 75% line
+coverage threshold. Results are uploaded to Codecov.
 
-## 品質保證
+The `release` workflow triggers on `v*` tags. It cross-compiles for four
+targets (Linux x86_64, Windows x86_64, macOS x86_64, macOS ARM64), creates
+a GitHub Release with notes extracted from `CHANGELOG.md`, and publishes to
+crates.io.
 
-### 1. 程式碼品質
-- **rustfmt** - 程式碼格式化
-- **clippy** - 靜態分析和 linting
-- **rustdoc** - 文件品質檢查
-- **audit** - 安全漏洞掃描
+### Distribution
 
-### 2. 測試覆蓋率
-- **llvm-cov** - 程式碼覆蓋率分析
-- **codecov** - 覆蓋率報告和追蹤
-- **並行測試** - 測試穩定性驗證
+Pre-compiled binaries are available from GitHub Releases. The
+`scripts/install.sh` script automates download and installation on Linux and
+macOS. The crate is also published to crates.io for `cargo install
+subx-cli`.
 
-### 3. 程式碼品質和文件品質檢查
-- **檢查腳本** - `scripts/quality_check.sh`
-- **內連結驗證** - 確保文件連結有效
-- **API 文件** - 完整的 rustdoc 文件
+## System Requirements
 
-## 系統需求
-
-### 最低需求
-- **作業系統**: Linux (x86_64), Windows (x86_64), macOS (x86_64, ARM64)
-- **記憶體**: 建議 4GB 以上
-- **硬碟空間**: 100MB （不含快取和臨時檔案）
-
-### 外部依賴
-- **FFmpeg** - 音訊處理 (可選，由 symphonia 處理大部分格式)
-- **OpenAI API** - AI 分析功能
-- **網路連線** - 用於 AI 服務和更新檢查
+SubX runs on Linux (x86_64), Windows (x86_64), and macOS (x86_64, ARM64).
+Recommended: 4 GB RAM, 100 MB disk space (excluding cache). An AI provider
+API key is required for the `match` command. FFmpeg is optional — Symphonia
+handles most audio formats natively.

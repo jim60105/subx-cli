@@ -1,60 +1,56 @@
 # SubX Configuration Guide
 
-This guide explains the configuration options for the SubX subtitle utility, helping you customize the application behavior according to your needs.
+SubX uses a layered configuration system with three sources, applied in
+priority order:
 
-## View Configuration
+1. **Environment variables** (highest priority)
+2. **User configuration file** (`~/.config/subx/config.toml` on Linux/macOS,
+   `%APPDATA%\subx\config.toml` on Windows)
+3. **Built-in defaults** (lowest priority)
 
-### Quick Configuration Check
+You can set a custom config file path with `SUBX_CONFIG_PATH`.
+
+## Quick Start
 
 ```bash
-# View all configuration settings
+# View all settings
 subx-cli config list
 
-# View specific configuration item
+# View a specific setting
 subx-cli config get ai.provider
-```
 
-### Set Configuration Items
-
-```bash
-# Set AI provider
+# Set a value
 subx-cli config set ai.provider openai
-
-# Set API key
 subx-cli config set ai.api_key "sk-your-api-key-here"
 
-# Reset to default values
+# Reset everything to defaults
 subx-cli config reset
 ```
 
-## Configuration Overview
-
-SubX uses a layered configuration system supporting multiple configuration sources in priority order:
-
-1. **Environment Variables** (highest priority)
-2. **User Configuration File** (`~/.config/subx/config.toml`)
-3. **Default Configuration** (lowest priority)
-
 ## AI Configuration (`[ai]`)
 
-Controls AI-related functionality settings.
+This section controls AI provider selection and request behavior.
 
 ```toml
 [ai]
-provider = "openai"                            # AI provider: openai, openrouter, azure-openai
+provider = "openai"                            # openai, openrouter, or azure-openai
 api_key = "sk-your-api-key-here"              # API key (Option<String>)
-model = "gpt-4.1-mini"                        # AI model to use (String)
-base_url = "https://api.openai.com/v1"        # API endpoint URL (String)
-max_sample_length = 3000                      # Maximum content length sent to AI (usize, 100-10000)
-temperature = 0.3                             # Response randomness control (f32, 0.0-2.0)
-max_tokens = 10000                            # Maximum tokens in response (u32, 1-100000)
-retry_attempts = 3                            # API request retry count (u32, 1-10)
-retry_delay_ms = 1000                         # Retry delay in milliseconds (u64, 100-10000)
-request_timeout_seconds = 120                 # API request timeout in seconds (u64)
-api_version = "2025-04-01-preview"            # API version for Azure OpenAI (Option<String>)
+model = "gpt-4.1-mini"                        # Model identifier
+base_url = "https://api.openai.com/v1"        # API endpoint URL
+max_sample_length = 3000                      # Max content length sent to AI (100–10000)
+temperature = 0.3                             # Response randomness (0.0–2.0)
+max_tokens = 10000                            # Max tokens in response (1–100000)
+retry_attempts = 3                            # API retry count (1–10)
+retry_delay_ms = 1000                         # Retry delay in milliseconds (100–10000)
+request_timeout_seconds = 120                 # Request timeout in seconds
+api_version = "2025-04-01-preview"            # Azure OpenAI API version (Option<String>)
 ```
 
 ### OpenRouter Provider
+
+OpenRouter acts as a unified gateway to multiple AI models. Set the
+`base_url` to the OpenRouter endpoint and choose any model from their
+catalog.
 
 ```toml
 [ai]
@@ -66,215 +62,183 @@ base_url = "https://openrouter.ai/api/v1"
 
 ### Azure OpenAI Provider
 
+Azure OpenAI uses deployment-based routing. The `model` field takes the
+Azure deployment name (not the model name), and the `base_url` points to
+your Azure resource endpoint. The `api_version` field is required.
+
 ```toml
 [ai]
 provider = "azure-openai"
 api_key = "your-azure-api-key"
-model = "your-deployment-id"   # Use the Azure OpenAI deployment name here
+model = "your-deployment-id"
 base_url = "https://your-resource.openai.azure.com"
 api_version = "2025-04-01-preview"
 ```
 
 ## Format Configuration (`[formats]`)
 
-Controls file format processing options.
+This section controls subtitle file format handling and encoding detection.
 
 ```toml
 [formats]
-default_output = "srt"                        # Default output format: srt, vtt, ass, lrc (String)
-preserve_styling = false                      # Whether to preserve format styling (bool)
-default_encoding = "utf-8"                    # Default file encoding (String)
-encoding_detection_confidence = 0.8           # Encoding detection confidence threshold (f32, 0.0-1.0)
+default_output = "srt"                        # Default output format: srt, vtt, ass, lrc
+preserve_styling = false                      # Preserve format-specific styling on conversion
+default_encoding = "utf-8"                    # Default file encoding
+encoding_detection_confidence = 0.8           # Encoding auto-detection confidence threshold (0.0–1.0)
 ```
 
 ## Sync Configuration (`[sync]`)
 
-Controls audio-subtitle synchronization functionality using local VAD processing.
-
-### Overview
-
-SubX supports two main synchronization methods:
-
-1. **Local VAD (Voice Activity Detection)** - Privacy-focused on-device speech detection with full audio file processing
-2. **Manual Offset** - User-specified time adjustment for precise control
-
-### Basic Configuration
+This section controls audio-subtitle synchronization. SubX supports two
+methods: local Voice Activity Detection (VAD) for automated alignment, and
+manual offset for direct time adjustment.
 
 ```toml
 [sync]
-default_method = "auto"                      # Default sync method: auto, vad (String)
-max_offset_seconds = 60.0                    # Maximum allowed time offset in seconds (f32)
-
-# Local VAD configuration
-[sync.vad]
-enabled = true                               # Enable local VAD method (bool)
-sensitivity = 0.25                           # Speech detection sensitivity (0.0-1.0) (f32)
-padding_chunks = 3                           # Padding chunks before and after speech detection (u32)
-min_speech_duration_ms = 300                 # Minimum speech duration in milliseconds (u32)
+default_method = "auto"                      # Sync method: auto, vad
+max_offset_seconds = 60.0                    # Maximum allowed time offset in seconds
 ```
 
-### VAD Processing Architecture
+### VAD Configuration (`[sync.vad]`)
 
-The sync engine uses optimized local VAD processing for reliable speech detection:
-
-- **VAD Processing**: Uses Voice Activity Detection with optimized parameters for local processing
-- **Manual Offset**: Applies user-specified time adjustments directly without analysis
-
-### Advanced Configuration
-
-#### VAD Fine-tuning
+VAD performs on-device speech detection to calculate subtitle timing offsets.
+All processing happens locally — no audio data leaves your machine.
 
 ```toml
 [sync.vad]
-# For quiet speech or background noise
-sensitivity = 0.8              # Higher sensitivity for difficult audio
-padding_chunks = 5            # More padding for complex transitions
-
-# For clear speech with minimal noise
-sensitivity = 0.6             # Lower sensitivity to avoid false positives
-min_speech_duration_ms = 50   # Shorter minimum for rapid speech
+enabled = true                               # Enable VAD-based sync
+sensitivity = 0.25                           # Speech detection sensitivity (0.0–1.0)
+padding_chunks = 3                           # Padding chunks around detected speech
+min_speech_duration_ms = 300                 # Minimum speech segment duration in milliseconds
 ```
+
+The `sensitivity` parameter controls the trade-off between detection
+coverage and false positives. A higher value (e.g., 0.8) catches quieter
+speech but may trigger on background noise. A lower value (e.g., 0.1)
+requires clearer speech signals.
+
+For audio with significant background noise, increase both `sensitivity`
+and `padding_chunks`. For clean recordings with rapid speech, lower the
+`min_speech_duration_ms` to avoid clipping short utterances.
 
 ## General Configuration (`[general]`)
 
-Controls general application behavior.
+This section controls overall application behavior.
 
 ```toml
 [general]
-backup_enabled = false                        # Whether to enable file backup (bool)
-max_concurrent_jobs = 4                       # Maximum concurrent tasks (usize)
-task_timeout_seconds = 300                    # Task execution timeout in seconds (u64)
-workspace = "."                               # Working directory (PathBuf)
-enable_progress_bar = true                    # Whether to show progress bar (bool)
-worker_idle_timeout_seconds = 60              # Worker thread idle timeout in seconds (u64)
+backup_enabled = false                        # Create backup files before modifications
+max_concurrent_jobs = 4                       # Maximum concurrent processing tasks
+task_timeout_seconds = 300                    # Task execution timeout in seconds
+workspace = "."                               # Working directory
+enable_progress_bar = true                    # Show progress indicators
+worker_idle_timeout_seconds = 60              # Worker thread idle timeout in seconds
 ```
 
 ## Parallel Processing Configuration (`[parallel]`)
 
-Controls parallel processing behavior.
+This section controls the worker pool and task scheduling. The default
+`max_workers` matches the CPU core count.
 
 ```toml
 [parallel]
-max_workers = 8                               # Maximum worker threads (usize, default: CPU cores)
-task_queue_size = 1000                        # Task queue size (usize)
-enable_task_priorities = false                # Whether to enable task priorities (bool)
-auto_balance_workers = true                   # Whether to auto-balance load (bool)
-overflow_strategy = "Block"                   # Queue overflow strategy: Block, DropOldest, Reject, Drop, Expand (String)
+max_workers = 8                               # Maximum worker threads (default: CPU cores)
+task_queue_size = 1000                        # Task queue capacity
+enable_task_priorities = false                # Enable priority-based task ordering
+auto_balance_workers = true                   # Automatically balance worker load
+overflow_strategy = "Block"                   # Queue overflow: Block, DropOldest, Reject, Drop, Expand
 ```
 
-## Environment Variable Support
+The `overflow_strategy` determines what happens when the task queue is full.
+`Block` waits for space (safest), `DropOldest` discards the oldest queued
+task, `Reject` refuses the new task, `Drop` discards the new task silently,
+and `Expand` grows the queue dynamically.
 
-### Special AI Configuration Environment Variables
+## Environment Variables
 
-SubX supports the following OpenAI environment variables for compatibility:
+### Provider-Specific Variables
+
+Each AI provider has dedicated environment variables. When set, these
+automatically configure the provider and inject credentials.
 
 ```bash
+# OpenAI
 export OPENAI_API_KEY="sk-your-api-key-here"
 export OPENAI_BASE_URL="https://api.openai.com/v1"
 
+# OpenRouter
+export OPENROUTER_API_KEY="your-openrouter-api-key"
+
+# Azure OpenAI
 export AZURE_OPENAI_API_KEY="your-azure-api-key"
 export AZURE_OPENAI_ENDPOINT="https://your-resource.openai.azure.com"
 export AZURE_OPENAI_DEPLOYMENT_ID="your-deployment-id"
 export AZURE_OPENAI_API_VERSION="2025-04-01-preview"
 ```
 
-### Universal SUBX_ Prefix Override
+### General Overrides with `SUBX_` Prefix
 
-Any configuration item can be overridden using environment variables with the `SUBX_` prefix. The configuration system automatically loads these variables and applies them with the highest priority.
-
-#### Environment Variable Examples
+Any configuration key can be overridden via environment variable by
+converting the dotted key path to uppercase with underscores and adding the
+`SUBX_` prefix. For example, `ai.api_key` becomes `SUBX_AI_API_KEY`, and
+`parallel.max_workers` becomes `SUBX_PARALLEL_MAX_WORKERS`.
 
 ```bash
-# Override file backup setting
-export SUBX_GENERAL_BACKUP_ENABLED=true
-
-# Override AI-related configuration
+# AI settings
 export SUBX_AI_PROVIDER=openai
 export SUBX_AI_MODEL=gpt-4o-mini
 export SUBX_AI_TEMPERATURE=0.5
 
-# Override parallel processing configuration
+# General settings
+export SUBX_GENERAL_BACKUP_ENABLED=true
+
+# Parallel processing
 export SUBX_PARALLEL_MAX_WORKERS=16
-export SUBX_PARALLEL_TASK_QUEUE_SIZE=2000
 
-# Override configuration file path
-export SUBX_CONFIG_PATH="/custom/path/to/config.toml"
-```
-
-#### Environment Variable Naming Rules
-
-The environment variable naming follows these rules:
-- Use `SUBX_` prefix
-- Convert nested configuration paths to uppercase with underscores
-- Examples:
-  - `ai.api_key` → `SUBX_AI_API_KEY`
-  - `general.backup_enabled` → `SUBX_GENERAL_BACKUP_ENABLED`
-  - `parallel.max_workers` → `SUBX_PARALLEL_MAX_WORKERS`
-
-#### Additional Environment Variable Examples
-
-```bash
-# Format configuration
+# Format settings
 export SUBX_FORMATS_DEFAULT_OUTPUT=vtt
-export SUBX_FORMATS_PRESERVE_STYLING=true
-export SUBX_FORMATS_DEFAULT_ENCODING=utf-16
 
-# Sync configuration - Basic settings
-export SUBX_SYNC_MAX_OFFSET_SECONDS=120.0
-
-# Sync configuration - Local VAD
-export SUBX_SYNC_VAD_ENABLED=true
+# Sync VAD settings
 export SUBX_SYNC_VAD_SENSITIVITY=0.8
-export SUBX_SYNC_VAD_PADDING_CHUNKS=5
-export SUBX_SYNC_VAD_MIN_SPEECH_DURATION_MS=100
+
+# Custom config file path
+export SUBX_CONFIG_PATH="/custom/path/to/config.toml"
+
+# Workspace override
+export SUBX_WORKSPACE="/path/to/working/directory"
 ```
 
-## Configuration File Locations
-
-- **Linux/macOS**: `~/.config/subx/config.toml`
-- **Windows**: `%APPDATA%\subx\config.toml`
-- **Custom Path**: Specify via `SUBX_CONFIG_PATH` environment variable
-
-## Error Messages
-
-When configuration issues occur, you may encounter these errors:
-
-- **"Configuration validation failed"**: Configuration values don't meet required format or range
-- **"Failed to build configuration"**: Configuration file has format errors or cannot be read
-- **"Unable to determine config directory"**: Cannot determine configuration directory location
-- **"Unknown configuration key"**: Used a non-existent configuration key
+Note that provider-specific variables (like `OPENAI_API_KEY`) are checked
+before `SUBX_` prefixed variables. The env-var handling has special cases in
+`src/config/service.rs` — if a specific override does not take effect as
+expected, check the implementation.
 
 ## Troubleshooting
 
-### Configuration Loading Issues
+If `subx-cli config list` fails or shows unexpected values, start by
+checking for conflicting environment variables with `env | grep -E
+'SUBX_|OPENAI_|AZURE_OPENAI_|OPENROUTER_'`. Environment variables take
+precedence over the config file and can silently override your settings.
 
-1. **Check configuration file syntax**:
-   ```bash
-   # Check if TOML syntax is correct
-   subx-cli config list
-   ```
+For TOML syntax errors, `subx-cli config list` reports the parsing failure.
+Fix the syntax in your config file, or run `subx-cli config reset` to
+restore defaults.
 
-2. **Check environment variables**:
-   ```bash
-   # Check for conflicting environment variables
-   env | grep SUBX_
-   env | grep OPENAI_
-   ```
+If the config file cannot be written, verify write permissions on the
+configuration directory and check available disk space.
 
-3. **Reset configuration**:
-   ```bash
-   # Reset to default values
-   subx-cli config reset
-   ```
+Common error messages and their causes:
 
-### Permission Issues
+- **"Configuration validation failed"** — A value is outside its allowed
+  range or format. Check the field constraints listed in each section above.
+- **"Failed to build configuration"** — The config file has TOML syntax
+  errors or is unreadable.
+- **"Unable to determine config directory"** — The system cannot resolve the
+  user config directory. Set `SUBX_CONFIG_PATH` explicitly.
+- **"Unknown configuration key"** — The key name does not match any known
+  configuration field.
 
-If the configuration file cannot be written, check:
-- Write permissions for the configuration directory
-- Available disk space
-- Whether antivirus software is blocking file writes
-
-## Complete Configuration File Example
+## Complete Configuration Example
 
 ```toml
 [ai]
@@ -282,7 +246,7 @@ provider = "openai"
 model = "gpt-4.1-mini"
 base_url = "https://api.openai.com/v1"
 max_sample_length = 3000
-temperature = 0.30000001192092896
+temperature = 0.3
 max_tokens = 10000
 retry_attempts = 3
 retry_delay_ms = 1000
@@ -292,7 +256,7 @@ request_timeout_seconds = 120
 default_output = "srt"
 preserve_styling = false
 default_encoding = "utf-8"
-encoding_detection_confidence = 0.800000011920929
+encoding_detection_confidence = 0.8
 
 [sync]
 default_method = "auto"
@@ -313,7 +277,7 @@ enable_progress_bar = true
 worker_idle_timeout_seconds = 60
 
 [parallel]
-max_workers = 24
+max_workers = 8
 overflow_strategy = "Block"
 task_queue_size = 1000
 enable_task_priorities = false
