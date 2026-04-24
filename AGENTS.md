@@ -16,28 +16,7 @@ subtitle files for video collections. Key features:
 - Comprehensive cache management for repeated operations
 
 - **Repository:** <https://github.com/jim60105/subx-cli>
-- **Language:** Rust (edition 2021)
-- **Primary CLI binary:** `subx`
-
-## Role and Response Language
-
-- Act as a technical expert responsible for both development and code review.
-- Respond to the user in **Traditional Chinese (`zh-TW` 正體中文)**.
-- All code, code comments, documentation, commit messages, PR titles/bodies,
-  issue descriptions, and CLI user-facing strings MUST be written in **English**.
-- PR report *bodies* (narrative content) are written in Traditional Chinese;
-  PR *titles* remain English conventional-commit format.
-
-## Key Directives
-
-- Maintain the highest standard of quality in all deliverables.
-- Proactively consult core documentation in `docs/` and prior conversation
-  history to ensure accurate comprehension of every requirement.
-- Prefer completeness and correctness over minimal changes. Do not leave
-  partial solutions; if a task implies multi-step work, finish all steps.
-- DRY (Don't Repeat Yourself) and KISS (Keep It Simple, Stupid) are paramount.
-  Favor removing unnecessary designs over preserving backward compatibility.
-- When a module is no longer used, delete it.
+- **Language:** Rust (edition 2024)
 
 ## Rust Coding Guidelines
 
@@ -62,60 +41,6 @@ subtitle files for video collections. Key features:
   - Never modify global state in tests.
 - Follow [Rustdoc Guidelines](docs/rustdoc-guidelines.md) for public API
   documentation.
-
-## DevOps Workflow
-
-This project manages all backlogs, bugs, and enhancement requests via
-**GitHub Issues** on `jim60105/subx-cli`. Use whichever tooling is available
-to you (`gh` CLI, GitHub MCP tools, etc.) to perform GitHub operations.
-
-> **🚨 Highest-level restriction:** All issue and PR operations are limited
-> to repositories owned by **`jim60105`** only. Never create, modify, or
-> comment on issues or PRs in any other repository.
-
-### Planning Stage
-
-Do **not** begin implementation during planning. Planning produces a detailed
-GitHub issue.
-
-1. **Create Issue** — Write the issue description in Traditional Chinese, but
-   use English for example code comments and CLI responses. The plan must be
-   comprehensive enough that any contributor could complete the task from it
-   alone. Include architecture, files to change, edge cases, test strategy.
-2. **Confirm With User** — Share the issue number and URL, and ask whether
-   the description needs revisions before moving to implementation.
-
-### Implementation Stage
-
-Only begin implementation when the user explicitly requests it.
-
-1. **Check git status.** If not on `master`, inspect the current branch's
-   log against `master` to understand in-progress work.
-2. **List issues**, identify the target issue.
-3. **Read the issue body carefully** — never skip this step.
-4. **Read issue comments** for updates, discussion, and progress notes.
-5. **Inspect existing pull requests** related to the issue to see what is
-   already done or under review.
-6. **Create a branch** named `issue-<number>-<short-description>` (skip if
-   already on the correct branch).
-7. **Implement** the plan step-by-step. Do not deviate silently from the
-   issue's design.
-8. **Test and lint** per the Rust guidelines above.
-9. **Self-review** your changes against the issue requirements.
-10. **Commit and push:**
-    - Conventional-commit format in English.
-    - Always use `--signoff`.
-    - Use `--author="Codex-CLI <bot@ChenJ.im>"` (or the equivalent author
-      string the current agent is configured with).
-    - Reference the issue number in the body.
-11. **Open a Pull Request to `origin`** (never to `upstream`):
-    - Title: English, conventional-commit format.
-    - Body: Traditional Chinese, following the templates in
-      [`docs/report-guidelines.md`](docs/report-guidelines.md) and
-      [`docs/REPORT_TEMPLATE.md`](docs/REPORT_TEMPLATE.md) exactly.
-    - End the body with `Resolves #<issue-number>`.
-
-> **🚨 Pull requests must always target `origin`, never `upstream`.**
 
 ## File Organization
 
