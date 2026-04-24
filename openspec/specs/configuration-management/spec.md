@@ -106,3 +106,41 @@ The system SHALL reject legacy `[sync]` TOML that lacks the new required fields 
 - **GIVEN** a `ProductionConfigService` has been constructed and has returned a configuration once
 - **WHEN** `service.reload()` is called and then `service.get_config()` is called again
 - **THEN** the second call SHALL succeed and SHALL reflect any applicable on-disk or environment changes without restarting the process
+
+### Requirement: Workspace Directory Override
+
+The system SHALL, at CLI startup, change the process's current working directory to a workspace directory when one is configured, preferring the `SUBX_WORKSPACE` environment variable over `general.workspace` in configuration. A failure to change directory SHALL surface as a `SubXError::CommandExecution` error; an empty `general.workspace` SHALL leave the working directory unchanged. Implemented in `src/cli/mod.rs` around the CLI-run entry point.
+
+#### Scenario: Environment variable takes precedence
+- **GIVEN** `SUBX_WORKSPACE` is set to `/path/A` and `general.workspace` is set to `/path/B`
+- **WHEN** the CLI initializes before dispatching a subcommand
+- **THEN** the process working directory SHALL be changed to `/path/A`
+
+#### Scenario: Configured workspace is applied when env var is unset
+- **GIVEN** `SUBX_WORKSPACE` is not set and `general.workspace` is `/path/B`
+- **WHEN** the CLI initializes
+- **THEN** the process working directory SHALL be changed to `/path/B`
+
+#### Scenario: Empty configured workspace leaves cwd unchanged
+- **GIVEN** `SUBX_WORKSPACE` is not set and `general.workspace` is an empty path
+- **WHEN** the CLI initializes
+- **THEN** the process working directory SHALL NOT be changed by the workspace logic
+
+### Requirement: Compatibility Environment Variables For Third-Party Providers
+
+In addition to `SUBX_AI_*` overrides, `ProductionConfigService` SHALL recognize industry-standard environment variables for each supported provider and apply them on top of the loaded configuration: `OPENAI_API_KEY` (sets `ai.api_key` when no key is already configured), `OPENAI_BASE_URL` (sets `ai.base_url`), `OPENROUTER_API_KEY` (sets `ai.api_key` and switches `ai.provider` to `openrouter`), and `AZURE_OPENAI_API_KEY` / `AZURE_OPENAI_ENDPOINT` / `AZURE_OPENAI_API_VERSION` / `AZURE_OPENAI_DEPLOYMENT_ID` (switch `ai.provider` to `azure-openai` and populate the Azure fields). Implemented in `src/config/service.rs`.
+
+#### Scenario: `OPENROUTER_API_KEY` switches provider
+- **GIVEN** configuration file leaves `ai.provider` at its default and `OPENROUTER_API_KEY=sk-or-...`
+- **WHEN** `ProductionConfigService` loads configuration
+- **THEN** the resolved `Config.ai.provider` SHALL equal `"openrouter"` and `Config.ai.api_key` SHALL equal `Some("sk-or-...")`
+
+#### Scenario: `AZURE_OPENAI_*` variables populate Azure fields
+- **GIVEN** `AZURE_OPENAI_API_KEY=k`, `AZURE_OPENAI_ENDPOINT=https://x.openai.azure.com/`, `AZURE_OPENAI_API_VERSION=2024-02-15-preview`, and `AZURE_OPENAI_DEPLOYMENT_ID=gpt-4o`
+- **WHEN** configuration is loaded
+- **THEN** `Config.ai.provider` SHALL equal `"azure-openai"`, `Config.ai.base_url` SHALL equal the endpoint, `Config.ai.api_version` SHALL equal `Some("2024-02-15-preview")`, and `Config.ai.model` SHALL equal `"gpt-4o"`
+
+#### Scenario: `OPENAI_API_KEY` is backward-compatible fallback
+- **GIVEN** the configuration file has no `ai.api_key` and `OPENAI_API_KEY=sk-...` is set
+- **WHEN** configuration is loaded
+- **THEN** `Config.ai.api_key` SHALL equal `Some("sk-...")`

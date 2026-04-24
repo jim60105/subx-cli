@@ -51,3 +51,30 @@ When a cached match result is reused on a subsequent `subx match` run with the s
 - **GIVEN** `subx match --copy --dry-run <dir>` has populated the cache for a given file set
 - **WHEN** the user runs `subx match --copy <dir>` (actual execution) on the same files and configuration
 - **THEN** the files written to disk SHALL land in the same target directories that the dry-run preview reported
+
+### Requirement: Dry-Run Cache Reuse Without AI Calls
+
+When a `subx match` invocation (including `--dry-run`) has populated the match cache for a given set of files, subsequent invocations with the same input files, relocation mode, backup setting, and configuration hash SHALL reuse the cached match operations and SHALL NOT call the AI provider again. Implemented in `src/core/matcher/engine.rs` (via `check_file_list_cache` / `save_file_list_cache`) and exercised by `tests/match_cache_reuse_tests.rs`.
+
+#### Scenario: Repeated dry-run does not call the AI provider
+- **GIVEN** the user has run `subx match --copy --dry-run <dir>` once against a mock AI provider and the cache has been populated
+- **WHEN** the user runs the same `subx match --copy --dry-run <dir>` command a second time with no file or configuration changes
+- **THEN** the mock AI provider SHALL have received exactly one chat-completion request in total across both invocations
+
+### Requirement: Cache Invalidation On Relocation-Affecting Config Change
+
+The `CacheData.config_hash` SHALL be derived from the configuration values that affect file-operation planning — specifically `relocation_mode` and `backup_enabled` — such that a change to either of those values on a subsequent run SHALL cause the cache entry to be treated as stale and a fresh AI call SHALL be performed. Implemented in `src/core/matcher/engine.rs::calculate_config_hash`.
+
+#### Scenario: Relocation mode change invalidates cache
+- **GIVEN** the cache was produced by a run with `relocation_mode = None`
+- **WHEN** the user re-runs `subx match --copy <dir>` on the same files (relocation mode `Copy`)
+- **THEN** the cached operations SHALL NOT be reused verbatim for the new relocation mode and the run SHALL either recompute or re-derive operations consistent with the new mode
+
+### Requirement: Cache Scoped To File-List Directory Key
+
+The cache SHALL be keyed on the sorted set of canonicalized input file paths (with size and modification time) combined with the configuration hash, so that cache reuse applies only when the same target file set is supplied on a subsequent run. Implemented by the `filelist_<hash>` key computed in `src/core/matcher/engine.rs` and exercised by `tests/match_cache_target_directory_tests.rs`.
+
+#### Scenario: Different input file set misses the cache
+- **GIVEN** a cache produced for file set `{A.mp4, A.srt}` in directory `videos/`
+- **WHEN** the user runs `subx match` on a different file set `{B.mp4, B.srt}`
+- **THEN** the new run SHALL compute a different cache key and SHALL NOT reuse the cached operations from the first file set

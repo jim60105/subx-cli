@@ -55,3 +55,37 @@ The system SHALL expose `TaskScheduler::submit_batch_tasks` (or equivalent) that
 - **GIVEN** a scheduler built via `TaskScheduler::new_with_defaults()` and `N` boxed `FileProcessingTask` values
 - **WHEN** `scheduler.submit_batch_tasks(tasks)` is awaited
 - **THEN** the returned `Vec<TaskResult>` SHALL have length `N` and successful tasks SHALL be reported as `TaskResult::Success(_)`
+
+### Requirement: Task Queue Overflow Strategy
+
+When the scheduler's internal task queue has reached `parallel.task_queue_size` and a new task is submitted, the system SHALL apply the configured `parallel.overflow_strategy` before enqueueing the task, supporting the following variants with these exact semantics. Implemented in `src/core/parallel/scheduler.rs::submit_task_with_priority`.
+
+- `Block` — the call SHALL wait (polling at ~10 ms intervals) until queue space becomes available, then enqueue the new task.
+- `DropOldest` — the scheduler SHALL pop the oldest pending task from the front of the queue and then enqueue the new task.
+- `Reject` — the call SHALL return `SubXError::parallel_processing("Task queue is full")` without enqueueing.
+- `Drop` — the call SHALL return `TaskResult::Failed("Task dropped due to queue overflow")` without enqueueing.
+- `Expand` — the scheduler SHALL enqueue the new task even though the queue size exceeds `task_queue_size`.
+
+#### Scenario: Reject strategy returns an error when full
+- **GIVEN** `parallel.overflow_strategy = Reject`, the queue already holds `task_queue_size` tasks, and a new task is submitted
+- **WHEN** `submit_task_with_priority` executes
+- **THEN** it SHALL return a `SubXError::parallel_processing` error whose message contains `Task queue is full` and the new task SHALL NOT be enqueued
+
+#### Scenario: DropOldest replaces the oldest pending task
+- **GIVEN** `parallel.overflow_strategy = DropOldest`, the queue is full, and a new task is submitted
+- **WHEN** `submit_task_with_priority` executes
+- **THEN** the oldest pending task SHALL be removed from the queue and the new task SHALL be enqueued
+
+### Requirement: Optional Task Priority Ordering
+
+When `parallel.enable_task_priorities` is `true`, the scheduler SHALL insert each incoming task ahead of all pending tasks with a strictly lower `TaskPriority` (defined in `src/core/parallel/scheduler.rs` with variants `Low`, `Normal`, `High`, `Critical`), and the worker SHALL dispatch the highest-priority pending task first. When `enable_task_priorities` is `false`, tasks SHALL be enqueued in FIFO order regardless of their declared priority.
+
+#### Scenario: High-priority task runs before earlier normal tasks
+- **GIVEN** `parallel.enable_task_priorities = true`, a queue holding one `TaskPriority::Normal` task, and a new `TaskPriority::High` task submitted afterwards
+- **WHEN** a worker becomes available to dispatch the next task
+- **THEN** the `High` task SHALL be dispatched before the earlier `Normal` task
+
+#### Scenario: Priorities ignored when the flag is disabled
+- **GIVEN** `parallel.enable_task_priorities = false` and tasks submitted in the order `Low`, `Critical`, `Normal`
+- **WHEN** a worker dispatches tasks
+- **THEN** the tasks SHALL be dispatched in the order they were submitted (`Low`, `Critical`, `Normal`)

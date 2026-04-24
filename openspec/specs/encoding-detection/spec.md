@@ -56,3 +56,26 @@ The system SHALL complete encoding detection for each supplied file without term
 - **GIVEN** a file containing binary (non-text) bytes supplied to `subx detect-encoding`
 - **WHEN** the command runs
 - **THEN** the command SHALL not panic and SHALL exit successfully, emitting either a best-effort detection result or a per-file error message without aborting subsequent inputs
+
+### Requirement: Low-Confidence Fallback To Default Encoding
+
+When no encoding candidate scores above `formats.encoding_detection_confidence`, the detector SHALL fall back to the configured default encoding (e.g. UTF-8), SHALL report a fixed fallback confidence of `0.5`, and SHALL prefix the sample text with a `Low confidence detection, using default:` marker. When there are no candidates at all, the fallback SHALL instead use confidence `0.1` and prefix the sample with `Unable to detect encoding, using default:`. Implemented in `src/core/formats/encoding/detector.rs::select_best_encoding`.
+
+#### Scenario: Best candidate below threshold
+- **GIVEN** a byte sequence whose highest-scoring encoding candidate has a confidence strictly less than `formats.encoding_detection_confidence`
+- **WHEN** the encoding detector selects a result
+- **THEN** the returned `EncodingInfo.charset` SHALL be the configured default encoding, `EncodingInfo.confidence` SHALL equal `0.5`, and `EncodingInfo.sample_text` SHALL start with `Low confidence detection, using default:`
+
+#### Scenario: No viable candidates at all
+- **GIVEN** a byte sequence for which no charset yields a confidence above the internal lower bound
+- **WHEN** the encoding detector selects a result
+- **THEN** the returned `EncodingInfo.confidence` SHALL equal `0.1` and `EncodingInfo.sample_text` SHALL start with `Unable to detect encoding, using default:`
+
+### Requirement: Legacy Positional File Paths Accepted
+
+The system SHALL accept file paths passed through the legacy `file_paths: Vec<String>` argument on `DetectEncodingArgs` in addition to the newer `input_paths: Vec<PathBuf>` field, processing both sources equivalently. Exercised by `tests/detect_encoding_command_comprehensive_tests.rs::test_detect_encoding_command_with_legacy_file_paths`.
+
+#### Scenario: Legacy string file path is detected
+- **GIVEN** `DetectEncodingArgs { input_paths: vec![], file_paths: vec!["legacy.srt".into()], .. }`
+- **WHEN** `detect_encoding_command` runs
+- **THEN** the command SHALL succeed and SHALL emit an encoding report for `legacy.srt` just as if it had been passed via `input_paths`

@@ -171,3 +171,12 @@ When VAD-assisted sync computes an offset by aligning the first detected speech 
 - **GIVEN** a real audio+subtitle asset pair and a VAD-enabled `SyncEngine`
 - **WHEN** `detect_sync_offset(..., Some(SyncMethod::Auto))` returns a result
 - **THEN** `additional_info.first_speech_start - additional_info.expected_subtitle_start` SHALL equal `offset_seconds` within ±0.01
+
+### Requirement: VAD Padding Chunks Configuration
+
+The system SHALL apply `sync.vad.padding_chunks` (default `3`) as the number of non-speech chunks included before and after each detected speech segment when `LocalVadDetector` labels audio via the VAD backend. A change in `padding_chunks` SHALL be passed through to the VAD labeling step without requiring any other configuration change. Implemented in `src/services/vad/detector.rs` (the `vad.label(..., padding_chunks, ...)` call) and defined in `src/config/mod.rs::VadConfig`.
+
+#### Scenario: Configured padding is applied to the VAD backend
+- **GIVEN** `sync.vad.padding_chunks = 5` in configuration
+- **WHEN** `LocalVadDetector` runs VAD labeling over an audio buffer
+- **THEN** it SHALL invoke the underlying VAD label function with the padding-chunks argument equal to `5`
