@@ -15,7 +15,6 @@ use crate::services::ai::prompts::{PromptBuilder, ResponseParser};
 use crate::services::ai::retry::HttpRetryClient;
 
 /// OpenAI client implementation
-#[derive(Debug)]
 pub struct OpenAIClient {
     client: Client,
     api_key: String,
@@ -25,6 +24,21 @@ pub struct OpenAIClient {
     retry_attempts: u32,
     retry_delay_ms: u64,
     base_url: String,
+}
+
+impl std::fmt::Debug for OpenAIClient {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("OpenAIClient")
+            .field("client", &self.client)
+            .field("api_key", &"[REDACTED]")
+            .field("model", &self.model)
+            .field("temperature", &self.temperature)
+            .field("max_tokens", &self.max_tokens)
+            .field("retry_attempts", &self.retry_attempts)
+            .field("retry_delay_ms", &self.retry_delay_ms)
+            .field("base_url", &self.base_url)
+            .finish()
+    }
 }
 
 impl PromptBuilder for OpenAIClient {}
@@ -270,6 +284,7 @@ impl OpenAIClient {
 
         // Validate base URL format
         Self::validate_base_url(&config.base_url)?;
+        crate::services::ai::security::warn_on_insecure_http_str(&config.base_url, api_key);
 
         Ok(Self::new_with_base_url_and_timeout(
             api_key.clone(),
@@ -318,18 +333,48 @@ impl OpenAIClient {
             .header("Authorization", format!("Bearer {}", self.api_key))
             .header("Content-Type", "application/json")
             .json(&request_body);
-        let response = self.make_request_with_retry(request).await?;
+        let mut response = self.make_request_with_retry(request).await?;
+
+        const MAX_AI_RESPONSE_BYTES: u64 = 10 * 1024 * 1024; // 10 MiB
+        if let Some(len) = response.content_length() {
+            if len > MAX_AI_RESPONSE_BYTES {
+                return Err(SubXError::AiService(format!(
+                    "AI response too large: {} bytes (limit: {} bytes)",
+                    len, MAX_AI_RESPONSE_BYTES
+                )));
+            }
+        }
 
         if !response.status().is_success() {
             let status = response.status();
             let error_text = response.text().await?;
+            let safe_body = crate::services::ai::error_sanitizer::sanitize_url_in_error(
+                &crate::services::ai::error_sanitizer::truncate_error_body(
+                    &error_text,
+                    crate::services::ai::error_sanitizer::DEFAULT_ERROR_BODY_MAX_LEN,
+                ),
+            );
             return Err(SubXError::AiService(format!(
                 "OpenAI API error {}: {}",
-                status, error_text
+                status, safe_body
             )));
         }
 
-        let response_json: Value = response.json().await?;
+        // Bounded chunked read to guard against oversized responses when
+        // content_length() is not reported by the server.
+        let mut body = Vec::new();
+        while let Some(chunk) = response.chunk().await? {
+            body.extend_from_slice(&chunk);
+            if body.len() as u64 > MAX_AI_RESPONSE_BYTES {
+                return Err(SubXError::AiService(format!(
+                    "AI response too large: {} bytes read (limit: {} bytes)",
+                    body.len(),
+                    MAX_AI_RESPONSE_BYTES
+                )));
+            }
+        }
+        let response_json: Value = serde_json::from_slice(&body)
+            .map_err(|e| SubXError::AiService(format!("Failed to parse AI response: {}", e)))?;
         let content = response_json["choices"][0]["message"]["content"]
             .as_str()
             .ok_or_else(|| SubXError::AiService("Invalid API response format".to_string()))?;

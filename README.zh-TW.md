@@ -44,7 +44,7 @@ media/
 curl -fsSL https://raw.githubusercontent.com/jim60105/subx-cli/master/scripts/install.sh | bash
 
 # 設定（使用 OpenRouter 免費 DeepSeek 模型）
-export OPENROUTER_API_KEY="your-key"
+export OPENROUTER_API_KEY="<YOUR_API_KEY>"
 subx-cli config set ai.provider openrouter
 subx-cli config set ai.model "deepseek/deepseek-r1-0528:free"
 

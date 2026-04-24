@@ -292,7 +292,12 @@ impl FileDiscovery {
             let entry = entry?;
             let path = entry.path();
 
-            if path.is_file() {
+            let ft = entry.file_type();
+            if ft.is_symlink() {
+                log::debug!("Skipping symlink: {}", path.display());
+                continue;
+            }
+            if ft.is_file() {
                 if let Some(media_file) = self.classify_file(path, root_path)? {
                     files.push(media_file);
                 }

@@ -68,26 +68,45 @@ impl VadAudioProcessor {
         &self,
         audio_path: &Path,
     ) -> Result<ProcessedAudioData> {
-        // 1. Load with DirectAudioLoader
-        let loader = DirectAudioLoader::new()?;
-        let (samples, info) = match loader.load_audio_samples(audio_path) {
-            Ok((samples, info)) => (samples, info),
-            Err(e) => {
-                // If the file is empty, return empty samples
-                if let Ok(metadata) = std::fs::metadata(audio_path) {
-                    if metadata.len() == 0 {
-                        return Ok(ProcessedAudioData {
-                            samples: vec![],
-                            info: AudioInfo {
-                                sample_rate: 16000, // Default value
-                                channels: 1,
-                                duration_seconds: 0.0,
-                                total_samples: 0,
-                            },
-                        });
+        // 1. Load with DirectAudioLoader in a blocking task to avoid stalling
+        //    the async runtime during synchronous decoding / filesystem access.
+        let audio_path_buf = audio_path.to_path_buf();
+        let load_result =
+            tokio::task::spawn_blocking(move || -> Result<Option<(Vec<i16>, AudioInfo)>> {
+                let loader = DirectAudioLoader::new()?;
+                // Defense-in-depth fallback limit; matches the default value
+                // of `general.max_audio_bytes`. Production callers invoking
+                // `DirectAudioLoader::load_audio_samples` directly should pass
+                // the configured value from `GeneralConfig`.
+                const DEFAULT_MAX_AUDIO_BYTES: u64 = 2_147_483_648;
+                match loader.load_audio_samples(&audio_path_buf, DEFAULT_MAX_AUDIO_BYTES) {
+                    Ok((samples, info)) => Ok(Some((samples, info))),
+                    Err(e) => {
+                        // If the file is empty, return None to signal empty samples
+                        if let Ok(metadata) = std::fs::metadata(&audio_path_buf) {
+                            if metadata.len() == 0 {
+                                return Ok(None);
+                            }
+                        }
+                        Err(e)
                     }
                 }
-                return Err(e);
+            })
+            .await
+            .map_err(|e| crate::error::SubXError::audio_processing(e.to_string()))??;
+
+        let (samples, info) = match load_result {
+            Some(v) => v,
+            None => {
+                return Ok(ProcessedAudioData {
+                    samples: vec![],
+                    info: AudioInfo {
+                        sample_rate: 16000, // Default value
+                        channels: 1,
+                        duration_seconds: 0.0,
+                        total_samples: 0,
+                    },
+                });
             }
         };
 

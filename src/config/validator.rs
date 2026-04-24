@@ -324,32 +324,40 @@ mod tests {
 
     #[test]
     fn test_validate_ai_config_valid() {
-        let mut ai_config = AIConfig::default();
-        ai_config.provider = "openai".to_string();
-        ai_config.api_key = Some("sk-test123456789".to_string());
-        ai_config.temperature = 0.8;
+        let ai_config = AIConfig {
+            provider: "openai".to_string(),
+            api_key: Some("sk-test123456789".to_string()),
+            temperature: 0.8,
+            ..Default::default()
+        };
         assert!(validate_ai_config(&ai_config).is_ok());
 
         // openrouter test
-        let mut ai_config = AIConfig::default();
-        ai_config.provider = "openrouter".to_string();
-        ai_config.api_key = Some("test-openrouter-key".to_string());
-        ai_config.model = "deepseek/deepseek-r1-0528:free".to_string();
+        let ai_config = AIConfig {
+            provider: "openrouter".to_string(),
+            api_key: Some("test-openrouter-key".to_string()),
+            model: "deepseek/deepseek-r1-0528:free".to_string(),
+            ..Default::default()
+        };
         assert!(validate_ai_config(&ai_config).is_ok());
 
         // azure-openai test
-        let mut ai_config = AIConfig::default();
-        ai_config.provider = "azure-openai".to_string();
-        ai_config.api_key = Some("azure-key-123".to_string());
-        ai_config.model = "dep123".to_string();
-        ai_config.api_version = Some("2025-04-01-preview".to_string());
+        let ai_config = AIConfig {
+            provider: "azure-openai".to_string(),
+            api_key: Some("azure-key-123".to_string()),
+            model: "dep123".to_string(),
+            api_version: Some("2025-04-01-preview".to_string()),
+            ..Default::default()
+        };
         assert!(validate_ai_config(&ai_config).is_ok());
     }
 
     #[test]
     fn test_validate_ai_config_invalid_provider() {
-        let mut ai_config = AIConfig::default();
-        ai_config.provider = "invalid".to_string();
+        let ai_config = AIConfig {
+            provider: "invalid".to_string(),
+            ..Default::default()
+        };
         let err = validate_ai_config(&ai_config).unwrap_err();
         assert!(err.to_string().contains(
             "Unsupported AI provider: invalid. Supported providers: openai, openrouter, anthropic, azure-openai"
@@ -358,17 +366,21 @@ mod tests {
 
     #[test]
     fn test_validate_ai_config_invalid_temperature() {
-        let mut ai_config = AIConfig::default();
-        ai_config.provider = "openai".to_string();
-        ai_config.temperature = 3.0; // Too high
+        let ai_config = AIConfig {
+            provider: "openai".to_string(),
+            temperature: 3.0, // Too high
+            ..Default::default()
+        };
         assert!(validate_ai_config(&ai_config).is_err());
     }
 
     #[test]
     fn test_validate_ai_config_invalid_openai_key() {
-        let mut ai_config = AIConfig::default();
-        ai_config.provider = "openai".to_string();
-        ai_config.api_key = Some("invalid-key".to_string());
+        let ai_config = AIConfig {
+            provider: "openai".to_string(),
+            api_key: Some("invalid-key".to_string()),
+            ..Default::default()
+        };
         assert!(validate_ai_config(&ai_config).is_err());
     }
 
@@ -380,8 +392,10 @@ mod tests {
 
     #[test]
     fn test_validate_vad_config_invalid_sensitivity() {
-        let mut vad_config = VadConfig::default();
-        vad_config.sensitivity = 1.5; // Too high (should be 0.0-1.0)
+        let vad_config = VadConfig {
+            sensitivity: 1.5, // Too high (should be 0.0-1.0)
+            ..Default::default()
+        };
         assert!(vad_config.validate().is_err());
     }
 

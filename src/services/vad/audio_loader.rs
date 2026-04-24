@@ -30,7 +30,7 @@ mod tests {
         // Test direct audio loading using assets/SubX - The Subtitle Revolution.mp4
         let loader = DirectAudioLoader::new().expect("Failed to initialize DirectAudioLoader");
         let (samples, info) = loader
-            .load_audio_samples("assets/SubX - The Subtitle Revolution.mp4")
+            .load_audio_samples("assets/SubX - The Subtitle Revolution.mp4", 2_147_483_648)
             .expect("load_audio_samples failed");
         assert!(!samples.is_empty(), "Sample data should not be empty");
         assert!(info.sample_rate > 0, "sample_rate should be greater than 0");
@@ -51,12 +51,22 @@ impl DirectAudioLoader {
     }
 
     /// Loads i16 samples and audio information from an audio file path.
-    pub fn load_audio_samples<P: AsRef<Path>>(&self, path: P) -> Result<(Vec<i16>, AudioInfo)> {
+    ///
+    /// `max_audio_bytes` caps the accepted file size as a defense-in-depth
+    /// guard; callers should thread the configured limit from
+    /// `GeneralConfig.max_audio_bytes`.
+    pub fn load_audio_samples<P: AsRef<Path>>(
+        &self,
+        path: P,
+        max_audio_bytes: u64,
+    ) -> Result<(Vec<i16>, AudioInfo)> {
         let path_ref = path.as_ref();
         debug!(
             "[DirectAudioLoader] Start loading audio file: {:?}",
             path_ref
         );
+        crate::core::fs_util::check_file_size(path_ref, max_audio_bytes, "Audio")
+            .map_err(|e| SubXError::audio_processing(e.to_string()))?;
         // Open the media source.
         let file = File::open(path_ref).map_err(|e| {
             warn!(

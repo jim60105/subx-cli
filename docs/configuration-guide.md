@@ -21,7 +21,7 @@ subx-cli config get ai.provider
 
 # Set a value
 subx-cli config set ai.provider openai
-subx-cli config set ai.api_key "sk-your-api-key-here"
+subx-cli config set ai.api_key "<YOUR_API_KEY>"
 
 # Reset everything to defaults
 subx-cli config reset
@@ -34,7 +34,7 @@ This section controls AI provider selection and request behavior.
 ```toml
 [ai]
 provider = "openai"                            # openai, openrouter, or azure-openai
-api_key = "sk-your-api-key-here"              # API key (Option<String>)
+api_key = "<YOUR_API_KEY>"                    # API key (Option<String>)
 model = "gpt-4.1-mini"                        # Model identifier
 base_url = "https://api.openai.com/v1"        # API endpoint URL
 max_sample_length = 3000                      # Max content length sent to AI (100–10000)
@@ -55,7 +55,7 @@ catalog.
 ```toml
 [ai]
 provider = "openrouter"
-api_key = "your-openrouter-api-key"
+api_key = "<YOUR_API_KEY>"
 model = "deepseek/deepseek-r1-0528:free"
 base_url = "https://openrouter.ai/api/v1"
 ```
@@ -69,7 +69,7 @@ your Azure resource endpoint. The `api_version` field is required.
 ```toml
 [ai]
 provider = "azure-openai"
-api_key = "your-azure-api-key"
+api_key = "<YOUR_API_KEY>"
 model = "your-deployment-id"
 base_url = "https://your-resource.openai.azure.com"
 api_version = "2025-04-01-preview"
@@ -163,14 +163,14 @@ automatically configure the provider and inject credentials.
 
 ```bash
 # OpenAI
-export OPENAI_API_KEY="sk-your-api-key-here"
+export OPENAI_API_KEY="<YOUR_API_KEY>"
 export OPENAI_BASE_URL="https://api.openai.com/v1"
 
 # OpenRouter
-export OPENROUTER_API_KEY="your-openrouter-api-key"
+export OPENROUTER_API_KEY="<YOUR_API_KEY>"
 
 # Azure OpenAI
-export AZURE_OPENAI_API_KEY="your-azure-api-key"
+export AZURE_OPENAI_API_KEY="<YOUR_API_KEY>"
 export AZURE_OPENAI_ENDPOINT="https://your-resource.openai.azure.com"
 export AZURE_OPENAI_DEPLOYMENT_ID="your-deployment-id"
 export AZURE_OPENAI_API_VERSION="2025-04-01-preview"
@@ -212,6 +212,59 @@ Note that provider-specific variables (like `OPENAI_API_KEY`) are checked
 before `SUBX_` prefixed variables. The env-var handling has special cases in
 `src/config/service.rs` — if a specific override does not take effect as
 expected, check the implementation.
+
+## Security Considerations
+
+SubX handles API credentials and local media files. A few defaults and
+recommendations help keep your setup safe.
+
+### API Key Storage
+
+Prefer environment variables over `config set` for API keys. Commands like
+`subx-cli config set ai.api_key <key>` write the raw key as an argument to
+your shell, which records it in history files such as `~/.bash_history` or
+`~/.zsh_history`. Exporting `SUBX_AI_API_KEY` (or a provider-specific
+variable like `OPENAI_API_KEY`) avoids this problem and keeps the key out of
+persistent command history.
+
+If you must place the key in the configuration file, SubX writes user
+configuration files with mode `0600` and creates the config directory with
+mode `0700` on Unix systems, so only your user account can read the file.
+
+### File Permissions
+
+When SubX creates or updates the config file, it sets restrictive
+permissions automatically: `0600` on the file and `0700` on the containing
+directory (Unix only). If you migrate the config from another machine or
+edit it with an external tool, verify the permissions with `ls -l` and
+tighten them with `chmod 600 ~/.config/subx/config.toml` if needed.
+
+### Shell History
+
+Any command that takes an API key on the command line — including
+`subx-cli config set ai.api_key <key>` — will be stored in shell history by
+default. Use one of these safer alternatives:
+
+- Export the key as an environment variable in your shell profile.
+- Pipe it in from a password manager, e.g.
+  `SUBX_AI_API_KEY="$(pass show openai/api-key)" subx-cli match ...`.
+- Use your shell's "do not save" prefix (a leading space in Bash with
+  `HISTCONTROL=ignorespace`, for example).
+
+### Size Limits
+
+To guard against accidentally processing extremely large files, SubX
+enforces two configurable ceilings under `[general]`:
+
+- `max_subtitle_bytes` — maximum size of a subtitle file that will be
+  loaded or written. Default: `52_428_800` (50 MiB).
+- `max_audio_bytes` — maximum size of an audio file considered for sync
+  and VAD processing. Default: `2_147_483_648` (2 GiB).
+
+Files larger than these limits are rejected before any parsing or network
+activity happens. Raise the values if you legitimately need to work with
+larger media, but keep them in place as a safety net against typos and
+runaway scripts.
 
 ## Troubleshooting
 

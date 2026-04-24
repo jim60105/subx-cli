@@ -108,7 +108,7 @@
 //! ```
 
 use crate::cli::{ConfigAction, ConfigArgs};
-use crate::config::ConfigService;
+use crate::config::{ConfigService, mask_sensitive_value};
 use crate::error::{SubXError, SubXResult};
 
 /// Execute configuration management operations with validation and type safety.
@@ -249,10 +249,12 @@ pub async fn execute(args: ConfigArgs, config_service: &dyn ConfigService) -> Su
     match args.action {
         ConfigAction::Set { key, value } => {
             config_service.set_config_value(&key, &value)?;
-            println!("✓ Configuration '{key}' set to '{value}'");
+            let masked = mask_sensitive_value(&key, &value);
+            println!("✓ Configuration '{key}' set to '{masked}'");
             // Display the updated value to confirm
             if let Ok(current) = config_service.get_config_value(&key) {
-                println!("  Current value: {current}");
+                let masked_current = mask_sensitive_value(&key, &current);
+                println!("  Current value: {masked_current}");
             }
             if let Ok(path) = config_service.get_config_file_path() {
                 println!("  Saved to: {}", path.display());
@@ -260,12 +262,18 @@ pub async fn execute(args: ConfigArgs, config_service: &dyn ConfigService) -> Su
         }
         ConfigAction::Get { key } => {
             let value = config_service.get_config_value(&key)?;
-            println!("{value}");
+            let masked = mask_sensitive_value(&key, &value);
+            println!("{masked}");
         }
         ConfigAction::List => {
-            let config = config_service.get_config()?;
+            let mut config = config_service.get_config()?;
             if let Ok(path) = config_service.get_config_file_path() {
                 println!("# Configuration file path: {}\n", path.display());
+            }
+            // Redact sensitive values prior to serialization so the printed
+            // TOML never contains the real API key.
+            if let Some(key) = config.ai.api_key.as_ref() {
+                config.ai.api_key = Some(mask_sensitive_value("ai.api_key", key));
             }
             println!(
                 "{}",
@@ -304,10 +312,12 @@ pub async fn execute_with_config(
     match args.action {
         ConfigAction::Set { key, value } => {
             config_service.set_config_value(&key, &value)?;
-            println!("✓ Configuration '{key}' set to '{value}'");
+            let masked = mask_sensitive_value(&key, &value);
+            println!("✓ Configuration '{key}' set to '{masked}'");
             // Display the updated value to confirm
             if let Ok(current) = config_service.get_config_value(&key) {
-                println!("  Current value: {current}");
+                let masked_current = mask_sensitive_value(&key, &current);
+                println!("  Current value: {masked_current}");
             }
             if let Ok(path) = config_service.get_config_file_path() {
                 println!("  Saved to: {}", path.display());
@@ -315,12 +325,18 @@ pub async fn execute_with_config(
         }
         ConfigAction::Get { key } => {
             let value = config_service.get_config_value(&key)?;
-            println!("{value}");
+            let masked = mask_sensitive_value(&key, &value);
+            println!("{masked}");
         }
         ConfigAction::List => {
-            let config = config_service.get_config()?;
+            let mut config = config_service.get_config()?;
             if let Ok(path) = config_service.get_config_file_path() {
                 println!("# Configuration file path: {}\n", path.display());
+            }
+            // Redact sensitive values prior to serialization so the printed
+            // TOML never contains the real API key.
+            if let Some(key) = config.ai.api_key.as_ref() {
+                config.ai.api_key = Some(mask_sensitive_value("ai.api_key", key));
             }
             println!(
                 "{}",

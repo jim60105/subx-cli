@@ -64,6 +64,7 @@ async fn test_rename_operation_success_and_error_messages() {
             relocation_mode: FileRelocationMode::None,
             conflict_resolution: ConflictResolution::Skip,
             ai_model: "test-model".to_string(),
+            max_subtitle_bytes: 52_428_800,
         },
     );
 
@@ -106,6 +107,7 @@ async fn test_file_relocation_operations_with_success_indicators() {
             relocation_mode: FileRelocationMode::None,
             conflict_resolution: ConflictResolution::Skip,
             ai_model: "test-model".to_string(),
+            max_subtitle_bytes: 52_428_800,
         },
     );
 

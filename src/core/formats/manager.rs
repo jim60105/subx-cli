@@ -75,6 +75,11 @@ impl FormatManager {
 
     /// Read subtitle and auto-detect encoding, convert to UTF-8
     pub fn read_subtitle_with_encoding_detection(&self, file_path: &str) -> crate::Result<String> {
+        crate::core::fs_util::check_file_size(
+            std::path::Path::new(file_path),
+            52_428_800, // 50 MiB default fallback
+            "Subtitle",
+        )?;
         let detector = crate::core::formats::encoding::EncodingDetector::with_defaults();
         let info = detector.detect_file_encoding(file_path)?;
         let converter = crate::core::formats::encoding::EncodingConverter::new();
@@ -101,6 +106,10 @@ impl FormatManager {
 
     /// Load subtitle from file with encoding detection and parsing
     pub fn load_subtitle(&self, file_path: &std::path::Path) -> crate::Result<Subtitle> {
+        crate::core::fs_util::check_file_size(
+            file_path, 52_428_800, // 50 MiB default fallback
+            "Subtitle",
+        )?;
         let content =
             self.read_subtitle_with_encoding_detection(file_path.to_str().ok_or_else(|| {
                 crate::error::SubXError::subtitle_format("", "Invalid file path encoding")
@@ -145,6 +154,28 @@ mod tests {
             .get_format_by_extension("vtt")
             .expect("get_format_by_extension vtt");
         assert_eq!(vtt.format_name(), "VTT");
+    }
+
+    #[test]
+    fn test_load_subtitle_rejects_oversized_file() {
+        use std::io::Write;
+        let temp = tempfile::TempDir::new().expect("tempdir");
+        let path = temp.path().join("huge.srt");
+        // Write 51 MiB of junk which exceeds the 50 MiB hardcoded fallback.
+        let mut f = std::fs::File::create(&path).expect("create");
+        let chunk = vec![b'a'; 1024 * 1024];
+        for _ in 0..51 {
+            f.write_all(&chunk).expect("write");
+        }
+        drop(f);
+        let mgr = FormatManager::new();
+        let err = mgr.load_subtitle(&path).unwrap_err();
+        let msg = format!("{}", err);
+        assert!(
+            msg.contains("Subtitle file too large"),
+            "expected oversize error, got: {}",
+            msg
+        );
     }
 
     #[test]

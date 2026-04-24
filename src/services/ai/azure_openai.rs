@@ -13,7 +13,6 @@ use tokio::time;
 use url::{ParseError, Url};
 
 /// Azure OpenAI client implementation
-#[derive(Debug)]
 pub struct AzureOpenAIClient {
     client: Client,
     api_key: String,
@@ -25,6 +24,23 @@ pub struct AzureOpenAIClient {
     retry_attempts: u32,
     retry_delay_ms: u64,
     request_timeout_seconds: u64,
+}
+
+impl std::fmt::Debug for AzureOpenAIClient {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("AzureOpenAIClient")
+            .field("client", &self.client)
+            .field("api_key", &"[REDACTED]")
+            .field("model", &self.model)
+            .field("base_url", &self.base_url)
+            .field("api_version", &self.api_version)
+            .field("temperature", &self.temperature)
+            .field("max_tokens", &self.max_tokens)
+            .field("retry_attempts", &self.retry_attempts)
+            .field("retry_delay_ms", &self.retry_delay_ms)
+            .field("request_timeout_seconds", &self.request_timeout_seconds)
+            .finish()
+    }
 }
 
 const DEFAULT_AZURE_API_VERSION: &str = "2025-04-01-preview";
@@ -101,6 +117,7 @@ impl AzureOpenAIClient {
                 "Azure OpenAI endpoint must use http or https".to_string(),
             ));
         }
+        crate::services::ai::security::warn_on_insecure_http(&parsed, &api_key);
 
         Ok(Self::new_with_all(
             api_key,
@@ -118,10 +135,15 @@ impl AzureOpenAIClient {
     async fn make_request_with_retry(
         &self,
         request: reqwest::RequestBuilder,
-    ) -> reqwest::Result<reqwest::Response> {
+    ) -> crate::Result<reqwest::Response> {
         let mut attempts = 0;
         loop {
-            match request.try_clone().unwrap().send().await {
+            let cloned = request.try_clone().ok_or_else(|| {
+                crate::error::SubXError::AiService(
+                    "Request body cannot be cloned for retry".to_string(),
+                )
+            })?;
+            match cloned.send().await {
                 Ok(resp) => {
                     if attempts > 0 {
                         log::info!("Request succeeded after {} retry attempts", attempts);
@@ -158,7 +180,7 @@ impl AzureOpenAIClient {
                             "AI service error: Connection failed. Check network connection and Azure OpenAI endpoint settings."
                         );
                     }
-                    return Err(e);
+                    return Err(e.into());
                 }
             }
         }
@@ -185,16 +207,47 @@ impl AzureOpenAIClient {
             "stream": false
         });
         let request = req.json(&body);
-        let response = self.make_request_with_retry(request).await?;
+        let mut response = self.make_request_with_retry(request).await?;
+
+        const MAX_AI_RESPONSE_BYTES: u64 = 10 * 1024 * 1024; // 10 MiB
+        if let Some(len) = response.content_length() {
+            if len > MAX_AI_RESPONSE_BYTES {
+                return Err(SubXError::AiService(format!(
+                    "AI response too large: {} bytes (limit: {} bytes)",
+                    len, MAX_AI_RESPONSE_BYTES
+                )));
+            }
+        }
+
         if !response.status().is_success() {
             let status = response.status();
             let text = response.text().await?;
+            let safe_body = crate::services::ai::error_sanitizer::sanitize_url_in_error(
+                &crate::services::ai::error_sanitizer::truncate_error_body(
+                    &text,
+                    crate::services::ai::error_sanitizer::DEFAULT_ERROR_BODY_MAX_LEN,
+                ),
+            );
             return Err(SubXError::AiService(format!(
                 "Azure OpenAI API error {}: {}",
-                status, text
+                status, safe_body
             )));
         }
-        let resp_json: Value = response.json().await?;
+        // Bounded chunked read to guard against oversized responses when
+        // content_length() is not reported by the server.
+        let mut body = Vec::new();
+        while let Some(chunk) = response.chunk().await? {
+            body.extend_from_slice(&chunk);
+            if body.len() as u64 > MAX_AI_RESPONSE_BYTES {
+                return Err(SubXError::AiService(format!(
+                    "AI response too large: {} bytes read (limit: {} bytes)",
+                    body.len(),
+                    MAX_AI_RESPONSE_BYTES
+                )));
+            }
+        }
+        let resp_json: Value = serde_json::from_slice(&body)
+            .map_err(|e| SubXError::AiService(format!("Failed to parse AI response: {}", e)))?;
         if let Some(usage) = resp_json.get("usage") {
             if let (Some(p), Some(c), Some(t)) = (
                 usage.get("prompt_tokens").and_then(Value::as_u64),

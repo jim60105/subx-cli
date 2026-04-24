@@ -196,6 +196,8 @@ impl ConfigService for TestConfigService {
             ["general", "worker_idle_timeout_seconds"] => {
                 Ok(config.general.worker_idle_timeout_seconds.to_string())
             }
+            ["general", "max_subtitle_bytes"] => Ok(config.general.max_subtitle_bytes.to_string()),
+            ["general", "max_audio_bytes"] => Ok(config.general.max_audio_bytes.to_string()),
             ["general", "max_concurrent_jobs"] => {
                 Ok(config.general.max_concurrent_jobs.to_string())
             }
@@ -374,6 +376,14 @@ impl TestConfigService {
             ["general", "worker_idle_timeout_seconds"] => {
                 let v = validate_u64_range(value, 10, 3600)?;
                 config.general.worker_idle_timeout_seconds = v;
+            }
+            ["general", "max_subtitle_bytes"] => {
+                let v = validate_u64_range(value, 1024, 1_073_741_824)?;
+                config.general.max_subtitle_bytes = v;
+            }
+            ["general", "max_audio_bytes"] => {
+                let v = validate_u64_range(value, 1024, 10_737_418_240)?;
+                config.general.max_audio_bytes = v;
             }
             ["parallel", "max_workers"] => {
                 let v = validate_usize_range(value, 1, 64)?;

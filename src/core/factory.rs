@@ -76,6 +76,7 @@ impl ComponentFactory {
             relocation_mode: crate::core::matcher::engine::FileRelocationMode::None,
             conflict_resolution: crate::core::matcher::engine::ConflictResolution::AutoRename,
             ai_model: self.config.ai.model.clone(),
+            max_subtitle_bytes: self.config.general.max_subtitle_bytes,
         };
         Ok(MatchEngine::new(ai_provider, match_config))
     }

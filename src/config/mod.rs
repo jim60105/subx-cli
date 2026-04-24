@@ -58,17 +58,21 @@
 //! should go through the [`ConfigService`] trait.
 
 use serde::{Deserialize, Serialize};
+use std::fmt;
 use std::path::PathBuf;
 
 // Configuration service system
 pub mod builder;
 pub mod environment;
 pub mod field_validator;
+pub mod masking;
 pub mod service;
 pub mod test_macros;
 pub mod test_service;
 pub mod validation;
 pub mod validator;
+
+pub use masking::mask_sensitive_value;
 
 // ============================================================================
 // Configuration Type Definitions
@@ -138,7 +142,7 @@ pub struct Config {
 /// assert_eq!(ai_config.model, "gpt-4.1-mini");
 /// assert_eq!(ai_config.temperature, 0.3);
 /// ```
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Serialize, Deserialize, Clone)]
 pub struct AIConfig {
     /// AI provider name (e.g. "openai", "anthropic").
     pub provider: String,
@@ -166,6 +170,24 @@ pub struct AIConfig {
     /// Azure OpenAI API version (optional, defaults to latest)
     #[serde(default)]
     pub api_version: Option<String>,
+}
+
+impl fmt::Debug for AIConfig {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("AIConfig")
+            .field("provider", &self.provider)
+            .field("api_key", &self.api_key.as_ref().map(|_| "[REDACTED]"))
+            .field("model", &self.model)
+            .field("base_url", &self.base_url)
+            .field("max_sample_length", &self.max_sample_length)
+            .field("temperature", &self.temperature)
+            .field("max_tokens", &self.max_tokens)
+            .field("retry_attempts", &self.retry_attempts)
+            .field("retry_delay_ms", &self.retry_delay_ms)
+            .field("request_timeout_seconds", &self.request_timeout_seconds)
+            .field("api_version", &self.api_version)
+            .finish()
+    }
 }
 
 impl Default for AIConfig {
@@ -367,6 +389,10 @@ pub struct GeneralConfig {
     pub enable_progress_bar: bool,
     /// Worker idle timeout in seconds.
     pub worker_idle_timeout_seconds: u64,
+    /// Maximum subtitle file size in bytes (default 50 MiB).
+    pub max_subtitle_bytes: u64,
+    /// Maximum audio file size in bytes (default 2 GiB).
+    pub max_audio_bytes: u64,
 }
 
 impl Default for GeneralConfig {
@@ -379,6 +405,8 @@ impl Default for GeneralConfig {
             workspace: std::path::PathBuf::from("."),
             enable_progress_bar: true,
             worker_idle_timeout_seconds: 60,
+            max_subtitle_bytes: 52_428_800,
+            max_audio_bytes: 2_147_483_648,
         }
     }
 }
@@ -483,6 +511,30 @@ mod config_tests {
     use super::*;
 
     #[test]
+    fn test_ai_config_debug_redacts_api_key() {
+        let ai = AIConfig {
+            api_key: Some("sk-topsecret-1234567890".to_string()),
+            ..AIConfig::default()
+        };
+        let rendered = format!("{:?}", ai);
+        assert!(
+            !rendered.contains("sk-topsecret-1234567890"),
+            "Debug output must not leak API key: {rendered}"
+        );
+        assert!(
+            rendered.contains("[REDACTED]"),
+            "Debug output should mark api_key as redacted: {rendered}"
+        );
+    }
+
+    #[test]
+    fn test_ai_config_debug_none_api_key_is_none() {
+        let ai = AIConfig::default();
+        let rendered = format!("{:?}", ai);
+        assert!(rendered.contains("api_key: None"), "got: {rendered}");
+    }
+
+    #[test]
     fn test_default_config_creation() {
         let config = Config::default();
         assert_eq!(config.ai.provider, "openai");
@@ -504,8 +556,10 @@ mod config_tests {
 
     #[test]
     fn test_ai_config_max_tokens_configuration() {
-        let mut ai_config = AIConfig::default();
-        ai_config.max_tokens = 5000;
+        let mut ai_config = AIConfig {
+            max_tokens: 5000,
+            ..Default::default()
+        };
         assert_eq!(ai_config.max_tokens, 5000);
 
         // Test with different value

@@ -108,20 +108,35 @@ impl SubtitleFormat for AssFormat {
                 if parts.len() < fields.len() {
                     continue;
                 }
-                let start = parts[fields
+                let start_index = fields
                     .iter()
                     .position(|&f| f.eq_ignore_ascii_case("start"))
-                    .unwrap()]
-                .trim();
-                let end = parts[fields
+                    .ok_or_else(|| {
+                        SubXError::subtitle_format(
+                            "ASS",
+                            "Missing 'Start' field in Format declaration",
+                        )
+                    })?;
+                let end_index = fields
                     .iter()
                     .position(|&f| f.eq_ignore_ascii_case("end"))
-                    .unwrap()]
-                .trim();
+                    .ok_or_else(|| {
+                        SubXError::subtitle_format(
+                            "ASS",
+                            "Missing 'End' field in Format declaration",
+                        )
+                    })?;
                 let text_index = fields
                     .iter()
                     .position(|&f| f.eq_ignore_ascii_case("text"))
-                    .unwrap();
+                    .ok_or_else(|| {
+                        SubXError::subtitle_format(
+                            "ASS",
+                            "Missing 'Text' field in Format declaration",
+                        )
+                    })?;
+                let start = parts[start_index].trim();
+                let end = parts[end_index].trim();
                 let text = parts[text_index..].join(",").replace("\\N", "\n");
                 let start_time = parse_ass_time(start)?;
                 let end_time = parse_ass_time(end)?;
@@ -205,6 +220,49 @@ mod tests {
         assert!(out.contains("Dialogue: 0,0:00:01.00,0:00:02.50"));
         assert!(out.contains("Hello\\NASS"));
     }
+
+    #[test]
+    fn test_parse_ass_missing_start_field() {
+        let fmt = AssFormat;
+        // Format line omits the Start field.
+        let content = "[Events]\nFormat: Layer,End,Style,Name,MarginL,MarginR,MarginV,Effect,Text\nDialogue: 0,0:00:02.50,Default,,0000,0000,0000,,Hi\n";
+        let err = fmt.parse(content).expect_err("missing Start must error");
+        let msg = err.to_string();
+        assert!(msg.contains("Start"), "unexpected error: {}", msg);
+    }
+
+    #[test]
+    fn test_parse_ass_missing_end_field() {
+        let fmt = AssFormat;
+        let content = "[Events]\nFormat: Layer,Start,Style,Name,MarginL,MarginR,MarginV,Effect,Text\nDialogue: 0,0:00:01.00,Default,,0000,0000,0000,,Hi\n";
+        let err = fmt.parse(content).expect_err("missing End must error");
+        assert!(err.to_string().contains("End"));
+    }
+
+    #[test]
+    fn test_parse_ass_missing_text_field() {
+        let fmt = AssFormat;
+        let content = "[Events]\nFormat: Layer,Start,End,Style,Name,MarginL,MarginR,MarginV,Effect\nDialogue: 0,0:00:01.00,0:00:02.50,Default,,0000,0000,0000,\n";
+        let err = fmt.parse(content).expect_err("missing Text must error");
+        assert!(err.to_string().contains("Text"));
+    }
+
+    #[test]
+    fn test_parse_ass_time_overflow() {
+        // Hours value near u64::MAX to force checked_mul overflow.
+        let overflow_time = format!("{}:00:00.00", u64::MAX);
+        let err = parse_ass_time(&overflow_time).expect_err("overflow must be detected");
+        assert!(err.to_string().to_lowercase().contains("overflow"));
+    }
+
+    #[test]
+    fn test_parse_ass_time_valid() {
+        let d = parse_ass_time("1:02:03.45").expect("valid time");
+        assert_eq!(
+            d,
+            Duration::from_millis(3_600_000 + 2 * 60_000 + 3 * 1000 + 450)
+        );
+    }
 }
 
 fn parse_ass_time(time: &str) -> Result<Duration> {
@@ -227,9 +285,19 @@ fn parse_ass_time(time: &str) -> Result<Duration> {
     let centi: u64 = parts[3]
         .parse()
         .map_err(|e: std::num::ParseIntError| SubXError::subtitle_format("ASS", e.to_string()))?;
-    Ok(Duration::from_millis(
-        hours * 3600 * 1000 + minutes * 60 * 1000 + seconds * 1000 + centi * 10,
-    ))
+
+    let overflow =
+        || SubXError::subtitle_format("ASS", format!("Timestamp arithmetic overflow: {}", time));
+    let total_ms = hours
+        .checked_mul(3_600_000)
+        .ok_or_else(overflow)?
+        .checked_add(minutes.checked_mul(60_000).ok_or_else(overflow)?)
+        .ok_or_else(overflow)?
+        .checked_add(seconds.checked_mul(1_000).ok_or_else(overflow)?)
+        .ok_or_else(overflow)?
+        .checked_add(centi.checked_mul(10).ok_or_else(overflow)?)
+        .ok_or_else(overflow)?;
+    Ok(Duration::from_millis(total_ms))
 }
 
 fn format_ass_time(duration: Duration) -> String {

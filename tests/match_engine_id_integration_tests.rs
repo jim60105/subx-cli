@@ -105,6 +105,7 @@ async fn test_file_id_based_matching_integration() {
         relocation_mode: subx_cli::core::matcher::engine::FileRelocationMode::None,
         conflict_resolution: subx_cli::core::matcher::engine::ConflictResolution::Skip,
         ai_model: "test-model".to_string(),
+        max_subtitle_bytes: 52_428_800,
     };
 
     let engine = MatchEngine::new(Box::new(MockAIClientWithIds), config);

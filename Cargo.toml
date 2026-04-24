@@ -61,7 +61,13 @@ regex = "1.0"
 encoding_rs = "0.8"
 
 # Async runtime
-tokio = { version = "1.0", features = ["full"] }
+tokio = { version = "1.0", features = [
+    "rt-multi-thread",
+    "macros",
+    "time",
+    "sync",
+    "fs",
+] }
 
 # Error handling
 anyhow = "1.0"
@@ -103,11 +109,21 @@ colored = "3.0"
 tabled = "0.20"
 indicatif = "0.18"
 dialoguer = "0.11"
-md5 = "0.7"
+md-5 = "0.10"
 
 # Configuration management dependencies: path resolution and multi-core detection
 # Audio processing
-symphonia = { version = "0.5", features = ["all"] }
+symphonia = { version = "0.5", default-features = false, features = [
+    "isomp4",
+    "mkv",
+    "ogg",
+    "wav",
+    "aac",
+    "flac",
+    "mp3",
+    "pcm",
+    "vorbis",
+] }
 
 # VAD
 tokio-util = { version = "0.7", features = ["codec"] }

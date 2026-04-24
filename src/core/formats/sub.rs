@@ -48,11 +48,24 @@ impl SubtitleFormat for SubFormat {
                     SubXError::subtitle_format(self.format_name(), e.to_string())
                 })?;
                 let text = cap[3].replace("|", "\n");
-                let start_time = Duration::from_millis(
-                    (start_frame as f64 * 1000.0 / fps as f64).round() as u64,
-                );
-                let end_time =
-                    Duration::from_millis((end_frame as f64 * 1000.0 / fps as f64).round() as u64);
+                let start_ms = (start_frame as f64 * 1000.0 / fps as f64).round() as u64;
+                let end_ms = (end_frame as f64 * 1000.0 / fps as f64).round() as u64;
+
+                const MAX_DURATION_MS: u64 = 86_400_000; // 24 hours
+                if start_ms > MAX_DURATION_MS || end_ms > MAX_DURATION_MS {
+                    log::debug!(
+                        "Skipping SUB entry with out-of-range frames: {{{}}}{{{}}} (computed {}ms -> {}ms, limit {}ms)",
+                        start_frame,
+                        end_frame,
+                        start_ms,
+                        end_ms,
+                        MAX_DURATION_MS
+                    );
+                    continue;
+                }
+
+                let start_time = Duration::from_millis(start_ms);
+                let end_time = Duration::from_millis(end_ms);
                 entries.push(SubtitleEntry {
                     index: entries.len() + 1,
                     start_time,
@@ -160,5 +173,17 @@ mod tests {
         let out = fmt.serialize(&subtitle).expect("serialize fps failed");
         // 1s * 50fps = 50 frames
         assert!(out.contains("{50}{100}X"));
+    }
+
+    #[test]
+    fn test_parse_sub_skips_huge_frame_numbers() {
+        // 25fps -> 86_400_000ms (24h) corresponds to 2_160_000 frames.
+        // Use a frame count well above that so the entry must be skipped.
+        let content = "{0}{25}Good\n{999999999}{999999999}TooBig\n{50}{75}AlsoGood\n";
+        let fmt = SubFormat;
+        let subtitle = fmt.parse(content).expect("parse must succeed");
+        assert_eq!(subtitle.entries.len(), 2);
+        assert_eq!(subtitle.entries[0].text, "Good");
+        assert_eq!(subtitle.entries[1].text, "AlsoGood");
     }
 }

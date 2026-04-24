@@ -178,6 +178,7 @@ impl FormatConverter {
 
     /// Read file and convert to UTF-8 string
     async fn read_file_with_encoding(&self, path: &Path) -> crate::Result<String> {
+        crate::core::fs_util::check_file_size(path, 52_428_800, "Subtitle")?;
         let bytes = tokio::fs::read(path).await?;
         // Auto-detect encoding and convert to UTF-8
         let detector = crate::core::formats::encoding::EncodingDetector::with_defaults();

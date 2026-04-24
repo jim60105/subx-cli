@@ -12,6 +12,48 @@ use log::debug;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, RwLock};
 
+/// Write configuration content to `path` with restrictive permissions.
+///
+/// On Unix the parent directory is created (if missing) with mode `0o700` and
+/// the file is created/truncated with mode `0o600`, ensuring only the current
+/// user can read the file containing sensitive values such as API keys.
+///
+/// On non-Unix platforms the file is written with the platform's default
+/// permissions because POSIX modes do not apply.
+#[cfg(unix)]
+fn secure_write_config_file(path: &Path, content: &str) -> std::io::Result<()> {
+    use std::io::Write;
+    use std::os::unix::fs::{OpenOptionsExt, PermissionsExt};
+
+    if let Some(parent) = path.parent() {
+        if !parent.as_os_str().is_empty() && !parent.exists() {
+            std::fs::create_dir_all(parent)?;
+            std::fs::set_permissions(parent, std::fs::Permissions::from_mode(0o700))?;
+        }
+    }
+
+    let mut file = std::fs::OpenOptions::new()
+        .write(true)
+        .create(true)
+        .truncate(true)
+        .mode(0o600)
+        .open(path)?;
+    file.write_all(content.as_bytes())?;
+    // Ensure an existing file's permissions are tightened as well.
+    std::fs::set_permissions(path, std::fs::Permissions::from_mode(0o600))?;
+    Ok(())
+}
+
+#[cfg(not(unix))]
+fn secure_write_config_file(path: &Path, content: &str) -> std::io::Result<()> {
+    if let Some(parent) = path.parent() {
+        if !parent.as_os_str().is_empty() && !parent.exists() {
+            std::fs::create_dir_all(parent)?;
+        }
+    }
+    std::fs::write(path, content)
+}
+
 /// Configuration service trait for dependency injection.
 ///
 /// This trait abstracts configuration loading and reloading operations,
@@ -436,6 +478,14 @@ impl ProductionConfigService {
                 let v = value.parse().unwrap(); // Validation already done
                 config.general.worker_idle_timeout_seconds = v;
             }
+            ["general", "max_subtitle_bytes"] => {
+                let v = value.parse().unwrap(); // Validation already done
+                config.general.max_subtitle_bytes = v;
+            }
+            ["general", "max_audio_bytes"] => {
+                let v = value.parse().unwrap(); // Validation already done
+                config.general.max_audio_bytes = v;
+            }
             ["parallel", "max_workers"] => {
                 let v = value.parse().unwrap(); // Validation already done
                 config.parallel.max_workers = v;
@@ -483,12 +533,7 @@ impl ProductionConfigService {
     ) -> Result<()> {
         let toml_content = toml::to_string_pretty(config)
             .map_err(|e| SubXError::config(format!("TOML serialization error: {e}")))?;
-        if let Some(parent) = path.parent() {
-            std::fs::create_dir_all(parent).map_err(|e| {
-                SubXError::config(format!("Failed to create config directory: {e}"))
-            })?;
-        }
-        std::fs::write(path, toml_content)
+        secure_write_config_file(path, &toml_content)
             .map_err(|e| SubXError::config(format!("Failed to write config file: {e}")))?;
         Ok(())
     }
@@ -544,13 +589,7 @@ impl ConfigService for ProductionConfigService {
         let toml_content = toml::to_string_pretty(&config)
             .map_err(|e| SubXError::config(format!("TOML serialization error: {e}")))?;
 
-        if let Some(parent) = path.parent() {
-            std::fs::create_dir_all(parent).map_err(|e| {
-                SubXError::config(format!("Failed to create config directory: {e}"))
-            })?;
-        }
-
-        std::fs::write(path, toml_content)
+        secure_write_config_file(path, &toml_content)
             .map_err(|e| SubXError::config(format!("Failed to write config file: {e}")))?;
 
         Ok(())
@@ -611,6 +650,8 @@ impl ConfigService for ProductionConfigService {
             ["general", "worker_idle_timeout_seconds"] => {
                 Ok(config.general.worker_idle_timeout_seconds.to_string())
             }
+            ["general", "max_subtitle_bytes"] => Ok(config.general.max_subtitle_bytes.to_string()),
+            ["general", "max_audio_bytes"] => Ok(config.general.max_audio_bytes.to_string()),
 
             ["parallel", "max_workers"] => Ok(config.parallel.max_workers.to_string()),
             ["parallel", "task_queue_size"] => Ok(config.parallel.task_queue_size.to_string()),
@@ -661,13 +702,7 @@ impl ConfigService for ProductionConfigService {
         let toml_content = toml::to_string_pretty(&default_config)
             .map_err(|e| SubXError::config(format!("TOML serialization error: {}", e)))?;
 
-        if let Some(parent) = path.parent() {
-            std::fs::create_dir_all(parent).map_err(|e| {
-                SubXError::config(format!("Failed to create config directory: {}", e))
-            })?;
-        }
-
-        std::fs::write(&path, toml_content)
+        secure_write_config_file(&path, &toml_content)
             .map_err(|e| SubXError::config(format!("Failed to write config file: {}", e)))?;
 
         self.reload()
@@ -856,6 +891,54 @@ mod tests {
     }
 
     #[test]
+    fn test_config_size_limits_defaults() {
+        let service = TestConfigService::with_defaults();
+        let cfg = service.get_config().unwrap();
+        assert_eq!(cfg.general.max_subtitle_bytes, 52_428_800);
+        assert_eq!(cfg.general.max_audio_bytes, 2_147_483_648);
+    }
+
+    #[test]
+    fn test_config_size_limits_roundtrip() {
+        let service = TestConfigService::with_defaults();
+
+        service
+            .set_config_value("general.max_subtitle_bytes", "65536")
+            .unwrap();
+        service
+            .set_config_value("general.max_audio_bytes", "1048576")
+            .unwrap();
+
+        assert_eq!(
+            service
+                .get_config_value("general.max_subtitle_bytes")
+                .unwrap(),
+            "65536"
+        );
+        assert_eq!(
+            service.get_config_value("general.max_audio_bytes").unwrap(),
+            "1048576"
+        );
+    }
+
+    #[test]
+    fn test_config_size_limits_validation_reject() {
+        let service = TestConfigService::with_defaults();
+        // Below minimum (1024)
+        assert!(
+            service
+                .set_config_value("general.max_subtitle_bytes", "100")
+                .is_err()
+        );
+        // Above maximum (1 GiB)
+        assert!(
+            service
+                .set_config_value("general.max_subtitle_bytes", "2147483648")
+                .is_err()
+        );
+    }
+
+    #[test]
     fn test_config_service_direct_access() {
         // Test direct configuration access and mutation
         let test_service = TestConfigService::with_defaults();
@@ -968,5 +1051,56 @@ mod tests {
         // SUBX_AI_APIKEY should have higher priority (since it's processed first)
         // This test only verifies priority order, should at least have a value
         assert!(config.ai.api_key.is_some());
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn test_secure_write_config_file_sets_0600_permissions() {
+        use std::os::unix::fs::PermissionsExt;
+
+        let dir = tempfile::tempdir().expect("create tempdir");
+        let nested = dir.path().join("subdir");
+        let path = nested.join("config.toml");
+
+        super::secure_write_config_file(&path, "api_key = \"secret\"\n")
+            .expect("secure write should succeed");
+
+        let meta = std::fs::metadata(&path).expect("file must exist");
+        let mode = meta.permissions().mode() & 0o777;
+        assert_eq!(
+            mode, 0o600,
+            "file permissions must be 0o600, got {:o}",
+            mode
+        );
+
+        let dir_meta = std::fs::metadata(&nested).expect("parent must exist");
+        let dir_mode = dir_meta.permissions().mode() & 0o777;
+        assert_eq!(
+            dir_mode, 0o700,
+            "directory permissions must be 0o700, got {:o}",
+            dir_mode
+        );
+
+        let contents = std::fs::read_to_string(&path).unwrap();
+        assert_eq!(contents, "api_key = \"secret\"\n");
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn test_secure_write_config_file_truncates_existing_file() {
+        use std::os::unix::fs::PermissionsExt;
+
+        let dir = tempfile::tempdir().expect("create tempdir");
+        let path = dir.path().join("config.toml");
+
+        // Create an existing file with permissive mode and stale contents.
+        std::fs::write(&path, "stale contents that should be replaced").unwrap();
+        std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o644)).unwrap();
+
+        super::secure_write_config_file(&path, "new = \"value\"\n").expect("secure write");
+
+        let mode = std::fs::metadata(&path).unwrap().permissions().mode() & 0o777;
+        assert_eq!(mode, 0o600);
+        assert_eq!(std::fs::read_to_string(&path).unwrap(), "new = \"value\"\n");
     }
 }

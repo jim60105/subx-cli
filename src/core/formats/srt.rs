@@ -32,12 +32,17 @@ impl SubtitleFormat for SrtFormat {
                 continue;
             }
 
-            let index: usize = lines[0].trim().parse().map_err(|e| {
-                SubXError::subtitle_format(
-                    self.format_name(),
-                    format!("Invalid sequence number: {}", e),
-                )
-            })?;
+            let index: usize = match lines[0].trim().parse() {
+                Ok(idx) => idx,
+                Err(e) => {
+                    log::debug!(
+                        "Skipping SRT block with invalid sequence number '{}': {}",
+                        lines[0].trim(),
+                        e
+                    );
+                    continue;
+                }
+            };
 
             if let Some(caps) = time_regex.captures(lines[1]) {
                 let start_time = parse_time(&caps, 1)?;
@@ -189,7 +194,8 @@ mod tests {
         let subtitle = format.parse(invalid_time).unwrap();
         assert_eq!(subtitle.entries.len(), 0);
         let invalid_index = "invalid\n00:00:01,000 --> 00:00:03,000\nText\n\n";
-        assert!(format.parse(invalid_index).is_err());
+        let subtitle = format.parse(invalid_index).unwrap();
+        assert_eq!(subtitle.entries.len(), 0);
     }
 
     #[test]
@@ -221,5 +227,18 @@ mod tests {
         let format = SrtFormat;
         assert_eq!(format.file_extensions(), &["srt"]);
         assert_eq!(format.format_name(), "SRT");
+    }
+
+    #[test]
+    fn test_srt_bad_block_index_skipped() {
+        let format = SrtFormat;
+        let input = "notanumber\n00:00:01,000 --> 00:00:02,000\nBad block\n\n\
+                     2\n00:00:03,000 --> 00:00:04,000\nGood block\n\n";
+        let subtitle = format
+            .parse(input)
+            .expect("parser must not abort on bad block index");
+        assert_eq!(subtitle.entries.len(), 1);
+        assert_eq!(subtitle.entries[0].index, 2);
+        assert_eq!(subtitle.entries[0].text, "Good block");
     }
 }

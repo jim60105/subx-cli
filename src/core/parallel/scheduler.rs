@@ -15,6 +15,24 @@ struct PendingTask {
     priority: TaskPriority,
 }
 
+/// RAII guard that removes a task entry from `active_tasks` when dropped.
+///
+/// This ensures the scheduler's active task map stays consistent even if
+/// the awaiting future is cancelled, panics, or returns through an early
+/// error path before reaching the explicit cleanup site.
+struct ActiveTaskGuard {
+    active_tasks: Arc<Mutex<std::collections::HashMap<String, TaskInfo>>>,
+    task_id: String,
+}
+
+impl Drop for ActiveTaskGuard {
+    fn drop(&mut self) {
+        if let Ok(mut active) = self.active_tasks.lock() {
+            active.remove(&self.task_id);
+        }
+    }
+}
+
 impl PartialEq for PendingTask {
     fn eq(&self, other: &Self) -> bool {
         self.priority == other.priority
@@ -286,6 +304,13 @@ impl TaskScheduler {
             );
         }
 
+        // RAII guard ensures the active_tasks entry is removed on any exit
+        // path (normal completion, early return, cancellation, or panic).
+        let _guard = ActiveTaskGuard {
+            active_tasks: Arc::clone(&self.active_tasks),
+            task_id: task_id.clone(),
+        };
+
         // Handle queue overflow strategy before enqueuing
         let pending = PendingTask {
             task,
@@ -302,8 +327,25 @@ impl TaskScheduler {
                     }
                 }
                 OverflowStrategy::DropOldest => {
-                    let mut q = self.task_queue.lock().unwrap();
-                    q.pop_front();
+                    let evicted_id = {
+                        let mut q = self.task_queue.lock().unwrap();
+                        if let Some(evicted) = q.pop_front() {
+                            let id = evicted.task_id.clone();
+                            let _ = evicted.result_sender.send(TaskResult::Failed(
+                                "Task dropped due to queue overflow".to_string(),
+                            ));
+                            Some(id)
+                        } else {
+                            None
+                        }
+                    };
+                    if let Some(id) = evicted_id {
+                        // Clean up the evicted task from active_tasks as its
+                        // original submitter may still be awaiting the guard
+                        // drop; removing here prevents a stale entry window.
+                        let mut active = self.active_tasks.lock().unwrap();
+                        active.remove(&id);
+                    }
                 }
                 OverflowStrategy::Reject => {
                     return Err(SubXError::parallel_processing(
@@ -336,17 +378,36 @@ impl TaskScheduler {
             }
         }
 
-        // Await result
+        // Ensure the scheduler loop is alive; restart it if it exited due
+        // to the idle timeout so queued tasks continue to be drained.
+        self.ensure_scheduler_running();
+
+        // Await result. The `_guard` defined above will clean up the
+        // active_tasks entry automatically when this function returns,
+        // regardless of which branch is taken.
         let result = rx.await.map_err(|_| {
             crate::error::SubXError::parallel_processing("Task execution interrupted".to_string())
         })?;
 
-        // Clean up
-        {
-            let mut active = self.active_tasks.lock().unwrap();
-            active.remove(&task_id);
-        }
         Ok(result)
+    }
+
+    /// Restart the background scheduler loop if it has exited.
+    ///
+    /// The scheduler loop voluntarily terminates after the configured idle
+    /// timeout. When new work is submitted afterwards we must bring it back
+    /// up, otherwise queued tasks would never be drained.
+    fn ensure_scheduler_running(&self) {
+        let needs_restart = {
+            let handle = self.scheduler_handle.lock().unwrap();
+            match handle.as_ref() {
+                Some(h) => h.is_finished(),
+                None => true,
+            }
+        };
+        if needs_restart {
+            self.start_scheduler_loop();
+        }
     }
 
     async fn try_execute_next_task(&self) {
@@ -398,8 +459,22 @@ impl TaskScheduler {
                         }
                     }
                     OverflowStrategy::DropOldest => {
-                        let mut q = self.task_queue.lock().unwrap();
-                        q.pop_front();
+                        let evicted_id = {
+                            let mut q = self.task_queue.lock().unwrap();
+                            if let Some(evicted) = q.pop_front() {
+                                let id = evicted.task_id.clone();
+                                let _ = evicted.result_sender.send(TaskResult::Failed(
+                                    "Task dropped due to queue overflow".to_string(),
+                                ));
+                                Some(id)
+                            } else {
+                                None
+                            }
+                        };
+                        if let Some(id) = evicted_id {
+                            let mut active = self.active_tasks.lock().unwrap();
+                            active.remove(&id);
+                        }
                     }
                     OverflowStrategy::Reject => {
                         // Reject entire batch when queue is full
@@ -431,6 +506,9 @@ impl TaskScheduler {
 
             receivers.push((task_id, rx));
         }
+
+        // Ensure the scheduler loop is alive after enqueuing the batch.
+        self.ensure_scheduler_running();
 
         // Wait for all results
         let mut results = Vec::new();
@@ -1080,5 +1158,167 @@ mod tests {
         // Verify final state
         assert_eq!(scheduler.get_queue_size(), 0);
         assert_eq!(scheduler.get_active_workers(), 0);
+    }
+
+    /// Verify that `ActiveTaskGuard` removes its entry from `active_tasks`
+    /// when dropped, independently of any explicit cleanup code path.
+    #[tokio::test]
+    async fn test_active_task_guard_cleanup() {
+        use super::{ActiveTaskGuard, TaskInfo};
+        use std::collections::HashMap;
+
+        let active_tasks = Arc::new(Mutex::new(HashMap::<String, TaskInfo>::new()));
+        let task_id = "guard_test_task".to_string();
+
+        active_tasks.lock().unwrap().insert(
+            task_id.clone(),
+            TaskInfo {
+                task_id: task_id.clone(),
+                task_type: "mock".to_string(),
+                status: crate::core::parallel::TaskStatus::Pending,
+                start_time: std::time::Instant::now(),
+                progress: 0.0,
+            },
+        );
+        assert!(active_tasks.lock().unwrap().contains_key(&task_id));
+
+        {
+            let _guard = ActiveTaskGuard {
+                active_tasks: Arc::clone(&active_tasks),
+                task_id: task_id.clone(),
+            };
+            // Guard is alive here; entry still present.
+            assert!(active_tasks.lock().unwrap().contains_key(&task_id));
+        }
+
+        // After the guard drops, the entry must be gone.
+        assert!(!active_tasks.lock().unwrap().contains_key(&task_id));
+    }
+
+    /// Verify that the `DropOldest` overflow strategy delivers a
+    /// `TaskResult::Failed` back to the evicted submitter rather than
+    /// silently dropping its oneshot sender.
+    #[tokio::test]
+    async fn test_drop_oldest_sends_failed() {
+        use crate::config::{Config, OverflowStrategy};
+
+        let mut config = Config::default();
+        config.parallel.task_queue_size = 1;
+        config.general.max_concurrent_jobs = 1;
+        config.parallel.overflow_strategy = OverflowStrategy::DropOldest;
+        config.parallel.enable_task_priorities = false;
+        config.parallel.auto_balance_workers = false;
+
+        let scheduler = TaskScheduler::new_with_config(&config).unwrap();
+
+        // Occupy the single worker with a slow task so the queue fills.
+        let blocker = Box::new(MockTask {
+            name: "blocker".to_string(),
+            duration: Duration::from_millis(300),
+        });
+        let blocker_scheduler = scheduler.clone();
+        let blocker_handle =
+            tokio::spawn(async move { blocker_scheduler.submit_task(blocker).await });
+
+        // Give the blocker a moment to start running.
+        tokio::time::sleep(Duration::from_millis(30)).await;
+
+        // Fill the queue slot.
+        let first = Box::new(MockTask {
+            name: "first_queued".to_string(),
+            duration: Duration::from_millis(50),
+        });
+        let first_scheduler = scheduler.clone();
+        let first_handle = tokio::spawn(async move { first_scheduler.submit_task(first).await });
+
+        // Ensure the first queued task is actually enqueued before the second.
+        tokio::time::sleep(Duration::from_millis(30)).await;
+
+        // Submitting a second task should evict the first with DropOldest.
+        let second = Box::new(MockTask {
+            name: "second_queued".to_string(),
+            duration: Duration::from_millis(10),
+        });
+        let second_scheduler = scheduler.clone();
+        let second_handle = tokio::spawn(async move { second_scheduler.submit_task(second).await });
+
+        // The evicted (first) task must receive a Failed result.
+        let first_result = first_handle.await.unwrap().unwrap();
+        match first_result {
+            TaskResult::Failed(msg) => {
+                assert!(
+                    msg.contains("overflow"),
+                    "expected overflow-related failure message, got: {}",
+                    msg
+                );
+            }
+            other => panic!("expected Failed for evicted task, got {:?}", other),
+        }
+
+        // The blocker and second task should still complete successfully.
+        let blocker_result = blocker_handle.await.unwrap().unwrap();
+        assert!(matches!(blocker_result, TaskResult::Success(_)));
+        let second_result = second_handle.await.unwrap().unwrap();
+        assert!(matches!(second_result, TaskResult::Success(_)));
+    }
+
+    /// Verify that submitting a task after the scheduler loop has exited
+    /// due to idle timeout transparently restarts the loop and completes
+    /// the new task.
+    #[tokio::test]
+    async fn test_scheduler_restart_after_idle() {
+        let mut scheduler = TaskScheduler::new_with_defaults();
+
+        // Abort the default scheduler loop so we can restart it with a
+        // short idle timeout.
+        {
+            let mut handle = scheduler.scheduler_handle.lock().unwrap();
+            if let Some(h) = handle.take() {
+                h.abort();
+            }
+        }
+        // Allow the aborted task to be fully cancelled before we continue.
+        tokio::time::sleep(Duration::from_millis(30)).await;
+
+        scheduler.worker_idle_timeout = Duration::from_millis(100);
+        scheduler.start_scheduler_loop();
+
+        // Submit and complete a task normally.
+        let t1 = Box::new(MockTask {
+            name: "before_idle".to_string(),
+            duration: Duration::from_millis(10),
+        });
+        let r1 = scheduler.submit_task(t1).await.unwrap();
+        assert!(matches!(r1, TaskResult::Success(_)));
+
+        // Wait well past the idle timeout so the loop exits on its own.
+        tokio::time::sleep(Duration::from_millis(350)).await;
+
+        let loop_finished = {
+            let handle = scheduler.scheduler_handle.lock().unwrap();
+            handle.as_ref().map(|h| h.is_finished()).unwrap_or(true)
+        };
+        assert!(
+            loop_finished,
+            "scheduler loop should have exited after idle timeout"
+        );
+
+        // Submitting again must restart the loop and run the task.
+        let t2 = Box::new(MockTask {
+            name: "after_idle".to_string(),
+            duration: Duration::from_millis(10),
+        });
+        let r2 = scheduler.submit_task(t2).await.unwrap();
+        assert!(matches!(r2, TaskResult::Success(_)));
+
+        // The handle should now point at a running loop again.
+        let still_running = {
+            let handle = scheduler.scheduler_handle.lock().unwrap();
+            handle.as_ref().map(|h| !h.is_finished()).unwrap_or(false)
+        };
+        assert!(
+            still_running,
+            "scheduler loop should be running after restart"
+        );
     }
 }

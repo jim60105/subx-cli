@@ -84,6 +84,11 @@ impl EncodingConverter {
         file_path: &str,
         encoding_info: &EncodingInfo,
     ) -> Result<ConversionResult> {
+        crate::core::fs_util::check_file_size(
+            std::path::Path::new(file_path),
+            52_428_800,
+            "Subtitle",
+        )?;
         let data = std::fs::read(file_path)?;
         let slice = if encoding_info.bom_detected {
             self.skip_bom(&data, &encoding_info.charset)

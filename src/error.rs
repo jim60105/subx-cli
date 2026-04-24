@@ -214,12 +214,118 @@ mod tests {
         assert!(message.contains("AI service error:"));
         assert!(message.contains("check network connection"));
     }
+
+    /// Audit: enumerates every `SubXError` variant and asserts that a
+    /// representative instance — built from non-sensitive dummy data —
+    /// never surfaces an OpenAI-style API key prefix (`sk-`) through
+    /// `Display`, `Debug`, or `user_friendly_message()`. If you add a
+    /// new variant, extend this list so the audit remains exhaustive.
+    ///
+    /// Separately, this test also exercises the sanitizing construction
+    /// paths (`From<reqwest::Error>`-style flows via the AI client's
+    /// `error_sanitizer` helpers) to confirm that when input *does*
+    /// contain an `sk-*` secret, it is stripped before wrapping it in
+    /// `SubXError::AiService`.
+    #[test]
+    fn test_no_api_key_leaks_in_any_variant() {
+        use crate::services::ai::error_sanitizer::{
+            DEFAULT_ERROR_BODY_MAX_LEN, sanitize_url_in_error, truncate_error_body,
+        };
+        use std::path::PathBuf;
+
+        // 1. Canonical variant audit: benign dummy data must never yield
+        //    an `sk-` substring.
+        let variants: Vec<SubXError> = vec![
+            SubXError::Io(io::Error::other("disk error")),
+            SubXError::Config {
+                message: "missing key".to_string(),
+            },
+            SubXError::SubtitleFormat {
+                format: "SRT".to_string(),
+                message: "bad timestamp".to_string(),
+            },
+            SubXError::AiService("upstream service failed".to_string()),
+            SubXError::Api {
+                message: "auth failed".to_string(),
+                source: ApiErrorSource::OpenAI,
+            },
+            SubXError::AudioProcessing {
+                message: "codec failure".to_string(),
+            },
+            SubXError::FileMatching {
+                message: "pattern mismatch".to_string(),
+            },
+            SubXError::FileAlreadyExists("/tmp/example".to_string()),
+            SubXError::FileNotFound("/tmp/example".to_string()),
+            SubXError::InvalidFileName("bad?name".to_string()),
+            SubXError::FileOperationFailed("rename failed".to_string()),
+            SubXError::CommandExecution("exit 1".to_string()),
+            SubXError::NoInputSpecified,
+            SubXError::InvalidPath(PathBuf::from("/tmp/example")),
+            SubXError::PathNotFound(PathBuf::from("/tmp/example")),
+            SubXError::DirectoryReadError {
+                path: PathBuf::from("/tmp/example"),
+                source: io::Error::other("denied"),
+            },
+            SubXError::InvalidSyncConfiguration,
+            SubXError::UnsupportedFileType("xyz".to_string()),
+            SubXError::Other(anyhow::anyhow!("wrapped")),
+        ];
+
+        for err in &variants {
+            let display = format!("{}", err);
+            let debug = format!("{:?}", err);
+            let friendly = err.user_friendly_message();
+            for (label, text) in [
+                ("Display", &display),
+                ("Debug", &debug),
+                ("friendly", &friendly),
+            ] {
+                assert!(
+                    !text.contains("sk-"),
+                    "{} surface for variant {:?} contains `sk-` prefix: {}",
+                    label,
+                    err,
+                    text,
+                );
+            }
+        }
+
+        // 2. Sanitizing construction paths: API keys injected via the
+        //    upstream response body or URL query string must be stripped
+        //    before being embedded into `SubXError::AiService`.
+        const SECRET: &str = "sk-test-key-12345";
+        let upstream_body = format!(
+            "{{\"error\": \"invalid\", \"echoed\": \"Bearer {}\"}}",
+            SECRET
+        );
+        let truncated = truncate_error_body(&upstream_body, DEFAULT_ERROR_BODY_MAX_LEN);
+        // Helper does not itself mask secrets shorter than the limit; this
+        // documents that short bodies pass through unchanged so upstream
+        // callers must continue to keep secrets out of request bodies.
+        assert!(truncated.contains(SECRET));
+
+        let url_leak = format!(
+            "request error: https://api.example.com/v1/chat?api-key={}",
+            SECRET
+        );
+        let cleaned = sanitize_url_in_error(&url_leak);
+        assert!(!cleaned.contains("sk-test-key"));
+        let wrapped = SubXError::AiService(cleaned);
+        assert!(!format!("{}", wrapped).contains("sk-test-key"));
+        assert!(!format!("{:?}", wrapped).contains("sk-test-key"));
+    }
 }
 
 // Convert reqwest error to AI service error
 impl From<reqwest::Error> for SubXError {
     fn from(err: reqwest::Error) -> Self {
-        SubXError::AiService(err.to_string())
+        let raw = err.to_string();
+        // Strip query strings from any embedded URLs, since reqwest's Display
+        // implementation includes the full request URL which may carry
+        // sensitive credentials (e.g. `?api-key=...`).
+        let sanitized = crate::services::ai::error_sanitizer::sanitize_url_in_error(&raw);
+        SubXError::AiService(sanitized)
     }
 }
 

@@ -300,6 +300,12 @@ pub mod prompts;
 /// Retry logic and backoff strategies for AI services
 pub mod retry;
 
+/// Helpers for sanitizing upstream error payloads before surfacing them.
+pub mod error_sanitizer;
+
+/// Shared security helpers for AI client implementations.
+pub mod security;
+
 pub use cache::AICache;
 pub use openai::OpenAIClient;
 pub use retry::{RetryConfig, retry_with_backoff};

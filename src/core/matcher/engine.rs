@@ -67,6 +67,9 @@ pub struct MatchConfig {
     pub conflict_resolution: ConflictResolution,
     /// AI model name used for analysis
     pub ai_model: String,
+    /// Maximum subtitle file size in bytes accepted for content sampling.
+    /// Populated from `GeneralConfig.max_subtitle_bytes`.
+    pub max_subtitle_bytes: u64,
 }
 
 #[cfg(test)]
@@ -102,6 +105,7 @@ mod language_name_tests {
                 relocation_mode: FileRelocationMode::None,
                 conflict_resolution: ConflictResolution::Skip,
                 ai_model: "test-model".to_string(),
+                max_subtitle_bytes: 52_428_800,
             },
         );
         let video = MediaFile {
@@ -138,6 +142,7 @@ mod language_name_tests {
                 relocation_mode: FileRelocationMode::None,
                 conflict_resolution: ConflictResolution::Skip,
                 ai_model: "test-model".to_string(),
+                max_subtitle_bytes: 52_428_800,
             },
         );
         let video = MediaFile {
@@ -174,6 +179,7 @@ mod language_name_tests {
                 relocation_mode: FileRelocationMode::None,
                 conflict_resolution: ConflictResolution::Skip,
                 ai_model: "test-model".to_string(),
+                max_subtitle_bytes: 52_428_800,
             },
         );
         let video = MediaFile {
@@ -209,6 +215,7 @@ mod language_name_tests {
                 relocation_mode: FileRelocationMode::None,
                 conflict_resolution: ConflictResolution::Skip,
                 ai_model: "test-model".to_string(),
+                max_subtitle_bytes: 52_428_800,
             },
         );
         let video = MediaFile {
@@ -245,6 +252,7 @@ mod language_name_tests {
                 relocation_mode: FileRelocationMode::None,
                 conflict_resolution: ConflictResolution::Skip,
                 ai_model: "test-model".to_string(),
+                max_subtitle_bytes: 52_428_800,
             },
         );
         let video = MediaFile {
@@ -281,6 +289,7 @@ mod language_name_tests {
                 relocation_mode: FileRelocationMode::None,
                 conflict_resolution: ConflictResolution::Skip,
                 ai_model: "test-model".to_string(),
+                max_subtitle_bytes: 52_428_800,
             },
         );
         // File name contains multiple dots and no extension case
@@ -333,6 +342,7 @@ mod language_name_tests {
                 relocation_mode: FileRelocationMode::None,
                 conflict_resolution: ConflictResolution::Skip,
                 ai_model: "test-model".to_string(),
+                max_subtitle_bytes: 52_428_800,
             },
         );
 
@@ -412,6 +422,7 @@ mod language_name_tests {
                 relocation_mode: FileRelocationMode::None,
                 conflict_resolution: ConflictResolution::Skip,
                 ai_model: "test-model".to_string(),
+                max_subtitle_bytes: 52_428_800,
             },
         );
 
@@ -738,7 +749,16 @@ impl MatchEngine {
         let mut samples = Vec::new();
 
         for subtitle in subtitles {
-            let content = std::fs::read_to_string(&subtitle.path)?;
+            let path = subtitle.path.clone();
+            crate::core::fs_util::check_file_size(
+                &path,
+                self.config.max_subtitle_bytes,
+                "Subtitle",
+            )
+            .map_err(SubXError::Io)?;
+            let content = tokio::task::spawn_blocking(move || std::fs::read_to_string(&path))
+                .await
+                .map_err(|e| SubXError::Io(std::io::Error::other(e.to_string())))??;
             let preview = self.create_content_preview(&content);
 
             samples.push(ContentSample {
@@ -873,6 +893,18 @@ impl MatchEngine {
                     .unwrap_or("file");
                 let extension = target.extension().and_then(|s| s.to_str()).unwrap_or("");
                 let parent = target.parent().unwrap_or_else(|| std::path::Path::new("."));
+                // Try the base name first via atomic create; if it succeeds we drop
+                // the handle immediately since the downstream FileProcessingTask
+                // performs its own I/O against this path.
+                match crate::core::fs_util::atomic_create_file(&target) {
+                    Ok(_f) => {
+                        // Remove the placeholder so the downstream task can create it.
+                        let _ = std::fs::remove_file(&target);
+                        return Ok(target);
+                    }
+                    Err(e) if e.kind() == std::io::ErrorKind::AlreadyExists => {}
+                    Err(e) => return Err(SubXError::from(e)),
+                }
                 for i in 1..1000 {
                     let new_name = if extension.is_empty() {
                         format!("{}.{}", file_stem, i)
@@ -880,8 +912,13 @@ impl MatchEngine {
                         format!("{}.{}.{}", file_stem, i, extension)
                     };
                     let new_path = parent.join(new_name);
-                    if !new_path.exists() {
-                        return Ok(new_path);
+                    match crate::core::fs_util::atomic_create_file(&new_path) {
+                        Ok(_f) => {
+                            let _ = std::fs::remove_file(&new_path);
+                            return Ok(new_path);
+                        }
+                        Err(e) if e.kind() == std::io::ErrorKind::AlreadyExists => continue,
+                        Err(e) => return Err(SubXError::from(e)),
                     }
                 }
                 Err(SubXError::FileOperationFailed(
@@ -1102,10 +1139,16 @@ impl MatchEngine {
         };
 
         // Save cache data to file
-        let cache_dir = cache_file_path.parent().unwrap();
-        std::fs::create_dir_all(cache_dir)?;
+        let cache_dir = cache_file_path.parent().unwrap().to_path_buf();
         let cache_json = serde_json::to_string_pretty(&cache_data)?;
-        std::fs::write(&cache_file_path, cache_json)?;
+        let cache_file_path_clone = cache_file_path.clone();
+        tokio::task::spawn_blocking(move || -> std::io::Result<()> {
+            std::fs::create_dir_all(&cache_dir)?;
+            std::fs::write(&cache_file_path_clone, cache_json)?;
+            Ok(())
+        })
+        .await
+        .map_err(|e| SubXError::Io(std::io::Error::other(e.to_string())))??;
 
         Ok(())
     }

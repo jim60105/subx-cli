@@ -157,6 +157,18 @@ pub fn validate_field(key: &str, value: &str) -> Result<()> {
                 .map_err(|_| SubXError::config("Worker idle timeout must be a positive integer"))?;
             validate_range(timeout, 10, 3600)?;
         }
+        "general.max_subtitle_bytes" => {
+            let bytes: u64 = value
+                .parse()
+                .map_err(|_| SubXError::config("max_subtitle_bytes must be a positive integer"))?;
+            validate_range(bytes, 1024_u64, 1_073_741_824_u64)?;
+        }
+        "general.max_audio_bytes" => {
+            let bytes: u64 = value
+                .parse()
+                .map_err(|_| SubXError::config("max_audio_bytes must be a positive integer"))?;
+            validate_range(bytes, 1024_u64, 10_737_418_240_u64)?;
+        }
 
         // Parallel configuration fields
         "parallel.max_workers" => {
@@ -225,6 +237,8 @@ pub fn get_field_description(key: &str) -> &'static str {
         "general.task_timeout_seconds" => "Task timeout in seconds",
         "general.enable_progress_bar" => "Enable progress bar display",
         "general.worker_idle_timeout_seconds" => "Worker idle timeout in seconds",
+        "general.max_subtitle_bytes" => "Maximum subtitle file size in bytes",
+        "general.max_audio_bytes" => "Maximum audio file size in bytes",
 
         "parallel.max_workers" => "Maximum number of worker threads",
         "parallel.task_queue_size" => "Size of the task queue",

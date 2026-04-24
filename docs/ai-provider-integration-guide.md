@@ -171,6 +171,16 @@ Update the fallthrough error message to list all supported providers. Add a
 test that constructs an `AIConfig` with the new provider and verifies
 `validate_ai_config` succeeds.
 
+> **Note on HTTP vs HTTPS endpoints.** SubX accepts both `http://` and
+> `https://` base URLs — this is intentional, because many users point SubX
+> at self-hosted AI proxies (LiteLLM, OpenRouter proxies, local gateways)
+> inside a trusted network without TLS. When the configured `base_url` uses
+> plaintext HTTP against a non-loopback host and an API key is set, SubX
+> logs an advisory warning that the key will be transmitted unencrypted
+> (see `src/services/ai/security.rs`). The warning is informational only;
+> SubX never blocks HTTP connections, so new providers do not need to add
+> extra scheme enforcement beyond the shared `http`/`https` check.
+
 ### Step 5. Handle Environment Variables
 
 **File:** `src/config/service.rs`

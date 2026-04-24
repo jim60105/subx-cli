@@ -297,8 +297,18 @@ impl InputPathHandler {
                 path: dir.to_path_buf(),
                 source: e,
             })?;
+            let ft = entry
+                .file_type()
+                .map_err(|e| SubXError::DirectoryReadError {
+                    path: dir.to_path_buf(),
+                    source: e,
+                })?;
+            if ft.is_symlink() {
+                log::debug!("Skipping symlink: {}", entry.path().display());
+                continue;
+            }
             let p = entry.path();
-            if p.is_file() && self.matches_extension(&p) {
+            if ft.is_file() && self.matches_extension(&p) {
                 result.push(p);
             }
         }
@@ -316,15 +326,67 @@ impl InputPathHandler {
                 path: dir.to_path_buf(),
                 source: e,
             })?;
+            let ft = entry
+                .file_type()
+                .map_err(|e| SubXError::DirectoryReadError {
+                    path: dir.to_path_buf(),
+                    source: e,
+                })?;
+            if ft.is_symlink() {
+                log::debug!("Skipping symlink: {}", entry.path().display());
+                continue;
+            }
             let p = entry.path();
-            if p.is_file() {
+            if ft.is_file() {
                 if self.matches_extension(&p) {
                     result.push(p.clone());
                 }
-            } else if p.is_dir() {
+            } else if ft.is_dir() {
                 result.extend(self.scan_directory_recursive(&p)?);
             }
         }
         Ok(result)
+    }
+}
+
+#[cfg(test)]
+mod symlink_tests {
+    use super::*;
+    use std::fs;
+    use tempfile::TempDir;
+
+    #[cfg(unix)]
+    #[test]
+    fn test_scan_directory_recursive_skips_symlinks() {
+        let tmp = TempDir::new().unwrap();
+        let real = tmp.path().join("real.txt");
+        fs::write(&real, b"x").unwrap();
+        let link = tmp.path().join("link.txt");
+        std::os::unix::fs::symlink(&real, &link).unwrap();
+
+        let handler = InputPathHandler::from_args(&[tmp.path().to_path_buf()], true).unwrap();
+        let results = handler.scan_directory_recursive(tmp.path()).unwrap();
+
+        assert!(results.iter().any(|p| p == &real));
+        assert!(
+            !results.iter().any(|p| p == &link),
+            "symlinked file should have been skipped"
+        );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn test_scan_directory_flat_skips_symlinks() {
+        let tmp = TempDir::new().unwrap();
+        let real = tmp.path().join("real.txt");
+        fs::write(&real, b"x").unwrap();
+        let link = tmp.path().join("link.txt");
+        std::os::unix::fs::symlink(&real, &link).unwrap();
+
+        let handler = InputPathHandler::from_args(&[tmp.path().to_path_buf()], false).unwrap();
+        let results = handler.scan_directory_flat(tmp.path()).unwrap();
+
+        assert!(results.iter().any(|p| p == &real));
+        assert!(!results.iter().any(|p| p == &link));
     }
 }

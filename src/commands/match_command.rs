@@ -322,6 +322,7 @@ pub async fn execute_with_client(
         relocation_mode,
         conflict_resolution: crate::core::matcher::engine::ConflictResolution::AutoRename,
         ai_model: config.ai.model.clone(),
+        max_subtitle_bytes: config.general.max_subtitle_bytes,
     };
 
     // Initialize the matching engine with AI client and configuration

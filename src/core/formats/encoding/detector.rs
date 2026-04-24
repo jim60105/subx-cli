@@ -44,6 +44,11 @@ impl EncodingDetector {
 
     /// Detect file encoding
     pub fn detect_file_encoding(&self, file_path: &str) -> Result<EncodingInfo> {
+        crate::core::fs_util::check_file_size(
+            std::path::Path::new(file_path),
+            52_428_800,
+            "Subtitle",
+        )?;
         let mut file = File::open(file_path)?;
         let mut buffer = vec![0; self.max_sample_size];
         let bytes_read = file.read(&mut buffer)?;

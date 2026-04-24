@@ -1,4 +1,5 @@
 use crate::Result;
+use crate::error::SubXError;
 use tokio::time::{Duration, sleep};
 
 /// Retry configuration for AI service operations.
@@ -33,6 +34,12 @@ where
     F: Fn() -> Fut,
     Fut: std::future::Future<Output = Result<T>>,
 {
+    if config.max_attempts == 0 {
+        return Err(SubXError::AiService(
+            "Retry configuration invalid: max_attempts must be at least 1".to_string(),
+        ));
+    }
+
     let mut last_error = None;
 
     for attempt in 0..config.max_attempts {
@@ -56,7 +63,10 @@ where
         }
     }
 
-    Err(last_error.unwrap())
+    // `last_error` is guaranteed to be `Some` here because `max_attempts >= 1`
+    // was verified above and the loop always populates it on failure.
+    Err(last_error
+        .unwrap_or_else(|| SubXError::AiService("Retry loop produced no error state".to_string())))
 }
 
 /// HTTP request retry trait for AI clients.
@@ -71,7 +81,7 @@ pub trait HttpRetryClient {
     async fn make_request_with_retry(
         &self,
         request: reqwest::RequestBuilder,
-    ) -> reqwest::Result<reqwest::Response> {
+    ) -> Result<reqwest::Response> {
         make_http_request_with_retry_impl(request, self.retry_attempts(), self.retry_delay_ms())
             .await
     }
@@ -82,17 +92,19 @@ async fn make_http_request_with_retry_impl(
     request: reqwest::RequestBuilder,
     retry_attempts: u32,
     retry_delay_ms: u64,
-) -> reqwest::Result<reqwest::Response> {
+) -> Result<reqwest::Response> {
     let mut attempts = 0;
     loop {
-        let cloned = request.try_clone().unwrap();
+        let cloned = request.try_clone().ok_or_else(|| {
+            SubXError::AiService("Request body cannot be cloned for retry".to_string())
+        })?;
         match cloned.send().await {
             Ok(resp) => match resp.error_for_status() {
                 Ok(success) => return Ok(success),
-                Err(err) if attempts + 1 >= retry_attempts => return Err(err),
+                Err(err) if attempts + 1 >= retry_attempts => return Err(err.into()),
                 Err(_) => {}
             },
-            Err(err) if attempts + 1 >= retry_attempts => return Err(err),
+            Err(err) if attempts + 1 >= retry_attempts => return Err(err.into()),
             Err(_) => {}
         }
         attempts += 1;
@@ -223,6 +235,36 @@ mod tests {
             let delay2 = times[2].duration_since(times[1]);
             // Second delay should be capped at max_delay (±50ms tolerance)
             assert!(delay2 <= Duration::from_millis(250));
+        }
+    }
+
+    /// When `max_attempts == 0` the retry loop must fail fast instead of
+    /// attempting to unwrap a `None` error.
+    #[tokio::test]
+    async fn test_retry_rejects_zero_max_attempts() {
+        let config = RetryConfig {
+            max_attempts: 0,
+            base_delay: Duration::from_millis(1),
+            max_delay: Duration::from_millis(1),
+            backoff_multiplier: 2.0,
+        };
+
+        let called = Arc::new(Mutex::new(false));
+        let called_clone = called.clone();
+        let operation = || {
+            let called = called_clone.clone();
+            async move {
+                *called.lock().unwrap() = true;
+                Ok::<_, SubXError>("should not run".to_string())
+            }
+        };
+
+        let result: Result<String> = retry_with_backoff(operation, &config).await;
+        assert!(result.is_err());
+        assert!(!*called.lock().unwrap(), "operation must not be invoked");
+        match result {
+            Err(SubXError::AiService(msg)) => assert!(msg.contains("max_attempts")),
+            other => panic!("unexpected result: {:?}", other),
         }
     }
 

@@ -1,8 +1,62 @@
 //! Task definition and utilities for parallel processing
-use crate::core::fs_util::copy_file_cifs_safe;
+use crate::core::fs_util::{atomic_create_file, validate_write_target};
 use async_trait::async_trait;
 use std::fmt;
+use std::fs::File;
+use std::io;
 use std::path::Path;
+
+/// Returns true if the given I/O error indicates a cross-device link failure,
+/// which is the signal to fall back from `rename` to copy+delete.
+fn is_cross_device_error(err: &io::Error) -> bool {
+    #[cfg(unix)]
+    {
+        // EXDEV == 18 on Linux and most Unixes
+        if err.raw_os_error() == Some(18) {
+            return true;
+        }
+    }
+    // Fallback check: some platforms report cross-device via a message or kind.
+    matches!(err.kind(), io::ErrorKind::Unsupported)
+}
+
+/// Resolve filename conflicts by atomically creating the target.
+///
+/// Returns the resolved path together with the open file handle. Callers
+/// should write through this handle to avoid TOCTOU races between conflict
+/// resolution and file creation.
+fn resolve_filename_conflict(
+    target: std::path::PathBuf,
+) -> Result<(std::path::PathBuf, File), Box<dyn std::error::Error + Send + Sync>> {
+    match atomic_create_file(&target) {
+        Ok(f) => return Ok((target, f)),
+        Err(e) if e.kind() == io::ErrorKind::AlreadyExists => {}
+        Err(e) => return Err(e.into()),
+    }
+
+    let file_stem = target
+        .file_stem()
+        .and_then(|s| s.to_str())
+        .unwrap_or("file");
+    let extension = target.extension().and_then(|s| s.to_str()).unwrap_or("");
+    let parent = target.parent().unwrap_or_else(|| std::path::Path::new("."));
+
+    for i in 1..1000 {
+        let new_name = if extension.is_empty() {
+            format!("{}.{}", file_stem, i)
+        } else {
+            format!("{}.{}.{}", file_stem, i, extension)
+        };
+        let new_path = parent.join(new_name);
+        match atomic_create_file(&new_path) {
+            Ok(f) => return Ok((new_path, f)),
+            Err(e) if e.kind() == io::ErrorKind::AlreadyExists => continue,
+            Err(e) => return Err(e.into()),
+        }
+    }
+
+    Err("Could not resolve filename conflict".into())
+}
 
 /// Trait defining a unit of work that can be executed asynchronously.
 ///
@@ -368,17 +422,29 @@ impl FileProcessingTask {
         source: &Path,
         target: &Path,
     ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-        // Create target directory if it doesn't exist
-        if let Some(parent) = target.parent() {
-            std::fs::create_dir_all(parent)?;
-        }
+        let source = source.to_path_buf();
+        let target = target.to_path_buf();
+        tokio::task::spawn_blocking(
+            move || -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+                // Create target directory if it doesn't exist
+                if let Some(parent) = target.parent() {
+                    std::fs::create_dir_all(parent)?;
+                }
 
-        // Handle filename conflicts
-        let final_target = self.resolve_filename_conflict(target.to_path_buf()).await?;
+                // Atomically resolve filename conflicts and obtain an open file handle.
+                let (final_target, mut file) = resolve_filename_conflict(target)?;
 
-        // Execute copy operation
-        copy_file_cifs_safe(source, &final_target)?;
-        Ok(())
+                if let Some(parent) = final_target.parent() {
+                    validate_write_target(&final_target, parent)?;
+                }
+
+                // Stream the source file contents through the exclusive handle.
+                let mut src = std::fs::File::open(&source)?;
+                std::io::copy(&mut src, &mut file)?;
+                Ok(())
+            },
+        )
+        .await?
     }
 
     /// Execute move operation for file relocation
@@ -387,51 +453,39 @@ impl FileProcessingTask {
         source: &Path,
         target: &Path,
     ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-        // Create target directory if it doesn't exist
-        if let Some(parent) = target.parent() {
-            std::fs::create_dir_all(parent)?;
-        }
+        let source = source.to_path_buf();
+        let target = target.to_path_buf();
+        tokio::task::spawn_blocking(
+            move || -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+                // Create target directory if it doesn't exist
+                if let Some(parent) = target.parent() {
+                    std::fs::create_dir_all(parent)?;
+                }
 
-        // Handle filename conflicts
-        let final_target = self.resolve_filename_conflict(target.to_path_buf()).await?;
+                // Try a fast in-filesystem rename first; fall back to copy+delete otherwise.
+                if !target.exists() {
+                    match std::fs::rename(&source, &target) {
+                        Ok(_) => return Ok(()),
+                        Err(e) if is_cross_device_error(&e) => {}
+                        Err(_) => { /* fall through to copy+delete path */ }
+                    }
+                }
 
-        // Execute move operation
-        std::fs::rename(source, &final_target)?;
-        Ok(())
-    }
+                let (final_target, mut file) = resolve_filename_conflict(target)?;
 
-    /// Resolve filename conflicts by adding numeric suffix
-    async fn resolve_filename_conflict(
-        &self,
-        target: std::path::PathBuf,
-    ) -> Result<std::path::PathBuf, Box<dyn std::error::Error + Send + Sync>> {
-        if !target.exists() {
-            return Ok(target);
-        }
+                if let Some(parent) = final_target.parent() {
+                    validate_write_target(&final_target, parent)?;
+                }
 
-        // Extract filename components
-        let file_stem = target
-            .file_stem()
-            .and_then(|s| s.to_str())
-            .unwrap_or("file");
-        let extension = target.extension().and_then(|s| s.to_str()).unwrap_or("");
-
-        let parent = target.parent().unwrap_or_else(|| std::path::Path::new("."));
-
-        // Try adding numeric suffixes
-        for i in 1..1000 {
-            let new_name = if extension.is_empty() {
-                format!("{}.{}", file_stem, i)
-            } else {
-                format!("{}.{}.{}", file_stem, i, extension)
-            };
-            let new_path = parent.join(new_name);
-            if !new_path.exists() {
-                return Ok(new_path);
-            }
-        }
-
-        Err("Could not resolve filename conflict".into())
+                let mut src = std::fs::File::open(&source)?;
+                std::io::copy(&mut src, &mut file)?;
+                file.sync_all()?;
+                drop(file);
+                std::fs::remove_file(&source)?;
+                Ok(())
+            },
+        )
+        .await?
     }
 
     /// Execute a copy with rename operation (local copy) using CIFS-safe copy
@@ -440,24 +494,46 @@ impl FileProcessingTask {
         source: &Path,
         target: &Path,
     ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-        if let Some(parent) = target.parent() {
-            std::fs::create_dir_all(parent)?;
-        }
-        copy_file_cifs_safe(source, target)?;
-        Ok(())
+        let source = source.to_path_buf();
+        let target = target.to_path_buf();
+        tokio::task::spawn_blocking(
+            move || -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+                if let Some(parent) = target.parent() {
+                    std::fs::create_dir_all(parent)?;
+                }
+                crate::core::fs_util::copy_file_cifs_safe(&source, &target)?;
+                Ok(())
+            },
+        )
+        .await?
     }
 
-    /// Execute a create backup operation using CIFS-safe copy
+    /// Execute a create backup operation using an atomically created destination.
     async fn execute_create_backup_operation(
         &self,
         source: &Path,
         backup: &Path,
     ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-        if let Some(parent) = backup.parent() {
-            std::fs::create_dir_all(parent)?;
-        }
-        copy_file_cifs_safe(source, backup)?;
-        Ok(())
+        let source = source.to_path_buf();
+        let backup = backup.to_path_buf();
+        tokio::task::spawn_blocking(
+            move || -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+                if let Some(parent) = backup.parent() {
+                    std::fs::create_dir_all(parent)?;
+                }
+
+                let (final_target, mut file) = resolve_filename_conflict(backup)?;
+
+                if let Some(parent) = final_target.parent() {
+                    validate_write_target(&final_target, parent)?;
+                }
+
+                let mut src = std::fs::File::open(&source)?;
+                std::io::copy(&mut src, &mut file)?;
+                Ok(())
+            },
+        )
+        .await?
     }
 
     /// Execute a file rename operation
@@ -466,11 +542,37 @@ impl FileProcessingTask {
         source: &Path,
         target: &Path,
     ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-        if let Some(parent) = target.parent() {
-            std::fs::create_dir_all(parent)?;
-        }
-        std::fs::rename(source, target)?;
-        Ok(())
+        let source = source.to_path_buf();
+        let target = target.to_path_buf();
+        tokio::task::spawn_blocking(
+            move || -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+                if let Some(parent) = target.parent() {
+                    std::fs::create_dir_all(parent)?;
+                }
+
+                if !target.exists() {
+                    match std::fs::rename(&source, &target) {
+                        Ok(_) => return Ok(()),
+                        Err(e) if is_cross_device_error(&e) => {}
+                        Err(_) => { /* fall through to copy+delete path */ }
+                    }
+                }
+
+                let (final_target, mut file) = resolve_filename_conflict(target)?;
+
+                if let Some(parent) = final_target.parent() {
+                    validate_write_target(&final_target, parent)?;
+                }
+
+                let mut src = std::fs::File::open(&source)?;
+                std::io::copy(&mut src, &mut file)?;
+                file.sync_all()?;
+                drop(file);
+                std::fs::remove_file(&source)?;
+                Ok(())
+            },
+        )
+        .await?
     }
 
     async fn convert_format(&self, _from: &str, _to: &str) -> crate::Result<std::path::PathBuf> {
@@ -626,7 +728,7 @@ mod tests {
         );
         let result = task.execute().await;
         assert!(matches!(result, TaskResult::Success(_)));
-        assert!(!tokio::fs::metadata(&src).await.is_ok());
+        assert!(tokio::fs::metadata(&src).await.is_err());
         let data = tokio::fs::read(&dst).await.unwrap();
         assert_eq!(data, b"rename");
     }
@@ -938,5 +1040,52 @@ Second subtitle
 
         let result = fail_task.execute().await;
         assert!(matches!(result, TaskResult::Failed(_)));
+    }
+
+    #[tokio::test]
+    async fn test_resolve_filename_conflict_sequential_suffixes() {
+        let tmp = TempDir::new().unwrap();
+        let base = tmp.path().join("x.txt");
+        tokio::fs::write(&base, b"first").await.unwrap();
+
+        let (p1, f1) = resolve_filename_conflict(base.clone()).unwrap();
+        assert_eq!(p1.file_name().unwrap(), "x.1.txt");
+        drop(f1);
+
+        let (p2, _f2) = resolve_filename_conflict(base.clone()).unwrap();
+        assert_eq!(p2.file_name().unwrap(), "x.2.txt");
+    }
+
+    #[tokio::test]
+    async fn test_execute_copy_operation_atomic() {
+        let tmp = TempDir::new().unwrap();
+        let src = tmp.path().join("src.txt");
+        let dst = tmp.path().join("dst.txt");
+        tokio::fs::write(&src, b"payload").await.unwrap();
+
+        let task = FileProcessingTask {
+            input_path: src.clone(),
+            output_path: None,
+            operation: ProcessingOperation::ValidateFormat,
+        };
+        task.execute_copy_operation(&src, &dst).await.unwrap();
+        assert_eq!(tokio::fs::read(&dst).await.unwrap(), b"payload");
+    }
+
+    #[tokio::test]
+    async fn test_execute_move_operation_deletes_source() {
+        let tmp = TempDir::new().unwrap();
+        let src = tmp.path().join("from.txt");
+        let dst = tmp.path().join("to.txt");
+        tokio::fs::write(&src, b"moved").await.unwrap();
+
+        let task = FileProcessingTask {
+            input_path: src.clone(),
+            output_path: None,
+            operation: ProcessingOperation::ValidateFormat,
+        };
+        task.execute_move_operation(&src, &dst).await.unwrap();
+        assert!(tokio::fs::metadata(&src).await.is_err());
+        assert_eq!(tokio::fs::read(&dst).await.unwrap(), b"moved");
     }
 }

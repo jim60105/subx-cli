@@ -209,7 +209,10 @@ pub async fn execute(args: CacheArgs) -> Result<()> {
 
             if path.exists() {
                 // Remove the cache file with proper error handling
-                std::fs::remove_file(&path)?;
+                let path_clone = path.clone();
+                tokio::task::spawn_blocking(move || std::fs::remove_file(&path_clone))
+                    .await
+                    .map_err(|e| SubXError::Io(std::io::Error::other(e.to_string())))??;
                 println!("Cache file cleared: {}", path.display());
             } else {
                 println!("No cache file found");
