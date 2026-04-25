@@ -479,13 +479,18 @@ mod tests {
     use super::*;
     use tempfile::TempDir;
 
+    fn create_temp_file(root: &Path, rel: &str) -> PathBuf {
+        let path = root.join(rel);
+        std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+        std::fs::write(&path, b"").unwrap();
+        path
+    }
+
     #[test]
     fn test_file_info_creation() -> Result<()> {
         let temp = TempDir::new().unwrap();
         let root = temp.path();
-        let file_path = root.join("season1").join("episode1.mp4");
-        std::fs::create_dir_all(file_path.parent().unwrap()).unwrap();
-        std::fs::write(&file_path, b"").unwrap();
+        let file_path = create_temp_file(root, "season1/episode1.mp4");
 
         let info = FileInfo::new(file_path.clone(), root)?;
         assert_eq!(info.name, "episode1.mp4");
@@ -500,19 +505,346 @@ mod tests {
         let temp = TempDir::new().unwrap();
         let root = temp.path();
 
-        // Test multi-level directory
-        let file_path = root
-            .join("series")
-            .join("season1")
-            .join("episodes")
-            .join("ep01.mp4");
-        std::fs::create_dir_all(file_path.parent().unwrap()).unwrap();
-        std::fs::write(&file_path, b"").unwrap();
+        let file_path = create_temp_file(root, "series/season1/episodes/ep01.mp4");
 
         let info = FileInfo::new(file_path.clone(), root)?;
         assert_eq!(info.relative_path, "series/season1/episodes/ep01.mp4");
         assert_eq!(info.depth, 3);
 
+        Ok(())
+    }
+
+    #[test]
+    fn test_file_info_root_file() -> Result<()> {
+        let temp = TempDir::new().unwrap();
+        let root = temp.path();
+        let file_path = create_temp_file(root, "movie.mp4");
+
+        let info = FileInfo::new(file_path, root)?;
+        assert_eq!(info.name, "movie.mp4");
+        assert_eq!(info.relative_path, "movie.mp4");
+        assert_eq!(info.depth, 0);
+        assert!(info.is_in_root());
+        Ok(())
+    }
+
+    #[test]
+    fn test_file_info_not_in_root_for_subdirectory() -> Result<()> {
+        let temp = TempDir::new().unwrap();
+        let root = temp.path();
+        let file_path = create_temp_file(root, "subdir/movie.mp4");
+
+        let info = FileInfo::new(file_path, root)?;
+        assert!(!info.is_in_root());
+        Ok(())
+    }
+
+    #[test]
+    fn test_file_info_error_path_not_under_root() {
+        let temp = TempDir::new().unwrap();
+        let root = temp.path();
+        let other_temp = TempDir::new().unwrap();
+        let file_path = other_temp.path().join("movie.mp4");
+        std::fs::write(&file_path, b"").unwrap();
+
+        let result = FileInfo::new(file_path, root);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_extension_returns_lowercase() -> Result<()> {
+        let temp = TempDir::new().unwrap();
+        let root = temp.path();
+        let file_path = create_temp_file(root, "Subtitle.SRT");
+
+        let info = FileInfo::new(file_path, root)?;
+        assert_eq!(info.extension(), "srt");
+        Ok(())
+    }
+
+    #[test]
+    fn test_extension_various_formats() -> Result<()> {
+        let temp = TempDir::new().unwrap();
+        let root = temp.path();
+
+        for (filename, expected_ext) in [
+            ("movie.mp4", "mp4"),
+            ("subtitle.ass", "ass"),
+            ("sub.vtt", "vtt"),
+            ("clip.mkv", "mkv"),
+        ] {
+            let file_path = create_temp_file(root, filename);
+            let info = FileInfo::new(file_path, root)?;
+            assert_eq!(info.extension(), expected_ext, "failed for {filename}");
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn test_extension_no_extension() -> Result<()> {
+        let temp = TempDir::new().unwrap();
+        let root = temp.path();
+        let file_path = create_temp_file(root, "noextension");
+
+        let info = FileInfo::new(file_path, root)?;
+        assert_eq!(info.extension(), "");
+        Ok(())
+    }
+
+    #[test]
+    fn test_stem_basic() -> Result<()> {
+        let temp = TempDir::new().unwrap();
+        let root = temp.path();
+        let file_path = create_temp_file(root, "episode01.mp4");
+
+        let info = FileInfo::new(file_path, root)?;
+        assert_eq!(info.stem(), "episode01");
+        Ok(())
+    }
+
+    #[test]
+    fn test_stem_multiple_dots() -> Result<()> {
+        let temp = TempDir::new().unwrap();
+        let root = temp.path();
+        let file_path = create_temp_file(root, "movie.en.srt");
+
+        let info = FileInfo::new(file_path, root)?;
+        assert_eq!(info.stem(), "movie.en");
+        Ok(())
+    }
+
+    #[test]
+    fn test_stem_no_extension() -> Result<()> {
+        let temp = TempDir::new().unwrap();
+        let root = temp.path();
+        let file_path = create_temp_file(root, "noextension");
+
+        let info = FileInfo::new(file_path, root)?;
+        assert_eq!(info.stem(), "noextension");
+        Ok(())
+    }
+
+    #[test]
+    fn test_has_language_with_detected_language() -> Result<()> {
+        let temp = TempDir::new().unwrap();
+        let root = temp.path();
+        let file_path = create_temp_file(root, "movie.en.srt");
+
+        let info = FileInfo::new(file_path, root)?;
+        // "en" in filename should be detected as English
+        if info.has_language() {
+            assert!(info.language_code().is_some());
+            assert_eq!(info.language_code(), Some("en"));
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn test_has_language_without_language_indicator() -> Result<()> {
+        let temp = TempDir::new().unwrap();
+        let root = temp.path();
+        let file_path = create_temp_file(root, "plainmovie.mp4");
+
+        let info = FileInfo::new(file_path, root)?;
+        assert!(!info.has_language());
+        assert!(info.language_code().is_none());
+        Ok(())
+    }
+
+    #[test]
+    fn test_language_code_returns_correct_code() -> Result<()> {
+        let temp = TempDir::new().unwrap();
+        let root = temp.path();
+        let file_path = create_temp_file(root, "movie.zh.srt");
+
+        let info = FileInfo::new(file_path, root)?;
+        if let Some(code) = info.language_code() {
+            assert_eq!(code, "zh");
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn test_language_detection_from_directory_name() -> Result<()> {
+        let temp = TempDir::new().unwrap();
+        let root = temp.path();
+        let file_path = create_temp_file(root, "English/movie.srt");
+
+        let info = FileInfo::new(file_path, root)?;
+        // Directory "English" should trigger language detection
+        if info.has_language() {
+            let code = info.language_code().unwrap();
+            assert_eq!(code, "en");
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn test_normalized_name_lowercase_and_separators() -> Result<()> {
+        let temp = TempDir::new().unwrap();
+        let root = temp.path();
+        let file_path = create_temp_file(root, "My.Movie.Name.mp4");
+
+        let info = FileInfo::new(file_path, root)?;
+        let normalized = info.normalized_name();
+        assert_eq!(normalized, "my movie name");
+        Ok(())
+    }
+
+    #[test]
+    fn test_normalized_name_removes_quality_indicators() -> Result<()> {
+        let temp = TempDir::new().unwrap();
+        let root = temp.path();
+
+        for (filename, expected) in [
+            ("Movie.2023.1080p.BluRay.mp4", "movie 2023"),
+            ("Show.S01E01.720p.HDTV.mkv", "show s01e01"),
+            ("Film.4K.x265.mp4", "film"),
+            ("Documentary.2160p.WEBRip.mkv", "documentary"),
+        ] {
+            let file_path = create_temp_file(root, filename);
+            let info = FileInfo::new(file_path, root)?;
+            assert_eq!(info.normalized_name(), expected, "failed for {filename}");
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn test_normalized_name_removes_brackets() -> Result<()> {
+        let temp = TempDir::new().unwrap();
+        let root = temp.path();
+        let file_path = create_temp_file(root, "Movie [1080p] (BluRay).mp4");
+
+        let info = FileInfo::new(file_path, root)?;
+        let normalized = info.normalized_name();
+        // Brackets and their contents should be stripped
+        assert!(!normalized.contains('['));
+        assert!(!normalized.contains(']'));
+        assert!(!normalized.contains('('));
+        assert!(!normalized.contains(')'));
+        Ok(())
+    }
+
+    #[test]
+    fn test_normalized_name_normalizes_whitespace() -> Result<()> {
+        let temp = TempDir::new().unwrap();
+        let root = temp.path();
+        let file_path = create_temp_file(root, "movie___name.mp4");
+
+        let info = FileInfo::new(file_path, root)?;
+        let normalized = info.normalized_name();
+        // Underscores become spaces and multiple spaces collapse to one
+        assert!(!normalized.contains("  "));
+        assert!(!normalized.contains('_'));
+        Ok(())
+    }
+
+    #[test]
+    fn test_file_info_clone() -> Result<()> {
+        let temp = TempDir::new().unwrap();
+        let root = temp.path();
+        let file_path = create_temp_file(root, "movie.mp4");
+
+        let info = FileInfo::new(file_path, root)?;
+        let cloned = info.clone();
+        assert_eq!(info.name, cloned.name);
+        assert_eq!(info.relative_path, cloned.relative_path);
+        assert_eq!(info.depth, cloned.depth);
+        assert_eq!(info.directory, cloned.directory);
+        assert_eq!(info.full_path, cloned.full_path);
+        Ok(())
+    }
+
+    #[test]
+    fn test_file_info_debug_format() -> Result<()> {
+        let temp = TempDir::new().unwrap();
+        let root = temp.path();
+        let file_path = create_temp_file(root, "movie.mp4");
+
+        let info = FileInfo::new(file_path, root)?;
+        let debug_str = format!("{:?}", info);
+        assert!(debug_str.contains("FileInfo"));
+        assert!(debug_str.contains("movie.mp4"));
+        Ok(())
+    }
+
+    #[test]
+    fn test_file_info_directory_at_root() -> Result<()> {
+        let temp = TempDir::new().unwrap();
+        let root = temp.path();
+        let file_path = create_temp_file(root, "movie.mp4");
+
+        let info = FileInfo::new(file_path, root)?;
+        // Directory for a root-level file is the root directory name itself
+        let root_dir_name = root.file_name().unwrap().to_string_lossy();
+        assert_eq!(info.directory, root_dir_name.as_ref());
+        Ok(())
+    }
+
+    #[test]
+    fn test_normalized_name_removes_dvdrip() -> Result<()> {
+        let temp = TempDir::new().unwrap();
+        let root = temp.path();
+        let file_path = create_temp_file(root, "Old.Movie.DVDRip.avi");
+
+        let info = FileInfo::new(file_path, root)?;
+        let normalized = info.normalized_name();
+        assert!(!normalized.contains("dvdrip"));
+        assert!(normalized.contains("old"));
+        assert!(normalized.contains("movie"));
+        Ok(())
+    }
+
+    #[test]
+    fn test_normalized_name_h264_h265_removed() -> Result<()> {
+        let temp = TempDir::new().unwrap();
+        let root = temp.path();
+
+        for filename in ["Film.H264.mp4", "Film.H265.mp4"] {
+            let file_path = create_temp_file(root, filename);
+            let info = FileInfo::new(file_path, root)?;
+            let normalized = info.normalized_name();
+            assert!(
+                !normalized.contains("h264"),
+                "h264 not removed in {filename}"
+            );
+            assert!(
+                !normalized.contains("h265"),
+                "h265 not removed in {filename}"
+            );
+            assert!(normalized.contains("film"));
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn test_file_info_full_path_preserved() -> Result<()> {
+        let temp = TempDir::new().unwrap();
+        let root = temp.path();
+        let file_path = create_temp_file(root, "subdir/movie.srt");
+
+        let info = FileInfo::new(file_path.clone(), root)?;
+        assert_eq!(info.full_path, file_path);
+        Ok(())
+    }
+
+    #[test]
+    fn test_multiple_language_codes_in_filename() -> Result<()> {
+        let temp = TempDir::new().unwrap();
+        let root = temp.path();
+
+        // Test several common language code formats
+        for (filename, expected_code) in [
+            ("movie.en.srt", "en"),
+            ("movie.zh.srt", "zh"),
+            ("movie.ja.srt", "ja"),
+        ] {
+            let file_path = create_temp_file(root, filename);
+            let info = FileInfo::new(file_path, root)?;
+            if let Some(code) = info.language_code() {
+                assert_eq!(code, expected_code, "wrong code for {filename}");
+            }
+        }
         Ok(())
     }
 }

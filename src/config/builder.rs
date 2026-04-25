@@ -439,4 +439,380 @@ mod tests {
         assert_eq!(config.ai.model, "deepseek/deepseek-r1-0528:free");
         assert_eq!(config.ai.api_key, Some("test-openrouter-key".to_string()));
     }
+
+    #[test]
+    fn test_builder_default_trait() {
+        let config = TestConfigBuilder::default().build_config();
+        let default_config = Config::default();
+        assert_eq!(config.ai.provider, default_config.ai.provider);
+        assert_eq!(config.ai.model, default_config.ai.model);
+        assert_eq!(
+            config.formats.default_output,
+            default_config.formats.default_output
+        );
+    }
+
+    #[test]
+    fn test_builder_with_ai_base_url() {
+        let config = TestConfigBuilder::new()
+            .with_ai_base_url("https://custom.api.example.com/v2")
+            .build_config();
+        assert_eq!(config.ai.base_url, "https://custom.api.example.com/v2");
+    }
+
+    #[test]
+    fn test_builder_with_ai_max_tokens() {
+        let config = TestConfigBuilder::new()
+            .with_ai_max_tokens(4096)
+            .build_config();
+        assert_eq!(config.ai.max_tokens, 4096);
+    }
+
+    #[test]
+    fn test_builder_with_ai_retry() {
+        let config = TestConfigBuilder::new()
+            .with_ai_retry(5, 2000)
+            .build_config();
+        assert_eq!(config.ai.retry_attempts, 5);
+        assert_eq!(config.ai.retry_delay_ms, 2000);
+    }
+
+    #[test]
+    fn test_builder_with_ai_request_timeout() {
+        let config = TestConfigBuilder::new()
+            .with_ai_request_timeout(60)
+            .build_config();
+        assert_eq!(config.ai.request_timeout_seconds, 60);
+    }
+
+    #[test]
+    fn test_builder_with_default_output_format() {
+        let config = TestConfigBuilder::new()
+            .with_default_output_format("ass")
+            .build_config();
+        assert_eq!(config.formats.default_output, "ass");
+    }
+
+    #[test]
+    fn test_builder_with_preserve_styling_true() {
+        let config = TestConfigBuilder::new()
+            .with_preserve_styling(true)
+            .build_config();
+        assert!(config.formats.preserve_styling);
+    }
+
+    #[test]
+    fn test_builder_with_preserve_styling_false() {
+        let config = TestConfigBuilder::new()
+            .with_preserve_styling(false)
+            .build_config();
+        assert!(!config.formats.preserve_styling);
+    }
+
+    #[test]
+    fn test_builder_with_default_encoding() {
+        let config = TestConfigBuilder::new()
+            .with_default_encoding("gbk")
+            .build_config();
+        assert_eq!(config.formats.default_encoding, "gbk");
+    }
+
+    #[test]
+    fn test_builder_with_encoding_detection_confidence() {
+        let config = TestConfigBuilder::new()
+            .with_encoding_detection_confidence(0.95)
+            .build_config();
+        assert!((config.formats.encoding_detection_confidence - 0.95).abs() < f32::EPSILON);
+    }
+
+    #[test]
+    fn test_builder_with_backup_enabled_true() {
+        let config = TestConfigBuilder::new()
+            .with_backup_enabled(true)
+            .build_config();
+        assert!(config.general.backup_enabled);
+    }
+
+    #[test]
+    fn test_builder_with_backup_enabled_false() {
+        let config = TestConfigBuilder::new()
+            .with_backup_enabled(false)
+            .build_config();
+        assert!(!config.general.backup_enabled);
+    }
+
+    #[test]
+    fn test_builder_with_task_timeout() {
+        let config = TestConfigBuilder::new()
+            .with_task_timeout(600)
+            .build_config();
+        assert_eq!(config.general.task_timeout_seconds, 600);
+    }
+
+    #[test]
+    fn test_builder_with_progress_bar_enabled() {
+        let config = TestConfigBuilder::new()
+            .with_progress_bar(true)
+            .build_config();
+        assert!(config.general.enable_progress_bar);
+    }
+
+    #[test]
+    fn test_builder_with_progress_bar_disabled() {
+        let config = TestConfigBuilder::new()
+            .with_progress_bar(false)
+            .build_config();
+        assert!(!config.general.enable_progress_bar);
+    }
+
+    #[test]
+    fn test_builder_with_worker_idle_timeout() {
+        let config = TestConfigBuilder::new()
+            .with_worker_idle_timeout(120)
+            .build_config();
+        assert_eq!(config.general.worker_idle_timeout_seconds, 120);
+    }
+
+    #[test]
+    fn test_builder_with_task_priorities_enabled() {
+        let config = TestConfigBuilder::new()
+            .with_task_priorities(true)
+            .build_config();
+        assert!(config.parallel.enable_task_priorities);
+    }
+
+    #[test]
+    fn test_builder_with_task_priorities_disabled() {
+        let config = TestConfigBuilder::new()
+            .with_task_priorities(false)
+            .build_config();
+        assert!(!config.parallel.enable_task_priorities);
+    }
+
+    #[test]
+    fn test_builder_with_auto_balance_workers_enabled() {
+        let config = TestConfigBuilder::new()
+            .with_auto_balance_workers(true)
+            .build_config();
+        assert!(config.parallel.auto_balance_workers);
+    }
+
+    #[test]
+    fn test_builder_with_auto_balance_workers_disabled() {
+        let config = TestConfigBuilder::new()
+            .with_auto_balance_workers(false)
+            .build_config();
+        assert!(!config.parallel.auto_balance_workers);
+    }
+
+    #[test]
+    fn test_builder_with_queue_overflow_strategy_block() {
+        let config = TestConfigBuilder::new()
+            .with_queue_overflow_strategy(OverflowStrategy::Block)
+            .build_config();
+        assert_eq!(config.parallel.overflow_strategy, OverflowStrategy::Block);
+    }
+
+    #[test]
+    fn test_builder_with_queue_overflow_strategy_drop() {
+        let config = TestConfigBuilder::new()
+            .with_queue_overflow_strategy(OverflowStrategy::Drop)
+            .build_config();
+        assert_eq!(config.parallel.overflow_strategy, OverflowStrategy::Drop);
+    }
+
+    #[test]
+    fn test_builder_with_queue_overflow_strategy_expand() {
+        let config = TestConfigBuilder::new()
+            .with_queue_overflow_strategy(OverflowStrategy::Expand)
+            .build_config();
+        assert_eq!(config.parallel.overflow_strategy, OverflowStrategy::Expand);
+    }
+
+    #[test]
+    fn test_builder_with_queue_overflow_strategy_drop_oldest() {
+        let config = TestConfigBuilder::new()
+            .with_queue_overflow_strategy(OverflowStrategy::DropOldest)
+            .build_config();
+        assert_eq!(
+            config.parallel.overflow_strategy,
+            OverflowStrategy::DropOldest
+        );
+    }
+
+    #[test]
+    fn test_builder_with_queue_overflow_strategy_reject() {
+        let config = TestConfigBuilder::new()
+            .with_queue_overflow_strategy(OverflowStrategy::Reject)
+            .build_config();
+        assert_eq!(config.parallel.overflow_strategy, OverflowStrategy::Reject);
+    }
+
+    #[test]
+    fn test_builder_with_parallel_settings() {
+        let config = TestConfigBuilder::new()
+            .with_parallel_settings(16, 500)
+            .build_config();
+        assert_eq!(config.general.max_concurrent_jobs, 16);
+        assert_eq!(config.parallel.task_queue_size, 500);
+    }
+
+    #[test]
+    fn test_builder_config_ref() {
+        let builder = TestConfigBuilder::new().with_ai_provider("ref-provider");
+        let config_ref = builder.config();
+        assert_eq!(config_ref.ai.provider, "ref-provider");
+    }
+
+    #[test]
+    fn test_builder_config_mut() {
+        let mut builder = TestConfigBuilder::new();
+        builder.config_mut().ai.provider = "mutated-provider".to_string();
+        let config = builder.build_config();
+        assert_eq!(config.ai.provider, "mutated-provider");
+    }
+
+    #[test]
+    fn test_builder_with_mock_ai_server() {
+        let config = TestConfigBuilder::new()
+            .with_mock_ai_server("http://localhost:8080")
+            .build_config();
+        assert_eq!(config.ai.base_url, "http://localhost:8080");
+        assert_eq!(config.ai.api_key, Some("mock-api-key".to_string()));
+    }
+
+    #[test]
+    fn test_builder_override_preserves_other_fields() {
+        let config = TestConfigBuilder::new()
+            .with_ai_provider("openai")
+            .with_ai_model("gpt-4.1")
+            .with_ai_temperature(0.9)
+            .with_ai_provider("anthropic")
+            .build_config();
+        assert_eq!(config.ai.provider, "anthropic");
+        assert_eq!(config.ai.model, "gpt-4.1");
+        assert!((config.ai.temperature - 0.9).abs() < f32::EPSILON);
+    }
+
+    #[test]
+    fn test_builder_full_ai_configuration() {
+        let config = TestConfigBuilder::new()
+            .with_ai_provider("openai")
+            .with_ai_model("gpt-4.1")
+            .with_ai_api_key("sk-test-key")
+            .with_ai_base_url("https://api.openai.com/v1")
+            .with_max_sample_length(8000)
+            .with_ai_temperature(0.5)
+            .with_ai_max_tokens(2000)
+            .with_ai_retry(2, 500)
+            .with_ai_request_timeout(30)
+            .build_config();
+
+        assert_eq!(config.ai.provider, "openai");
+        assert_eq!(config.ai.model, "gpt-4.1");
+        assert_eq!(config.ai.api_key, Some("sk-test-key".to_string()));
+        assert_eq!(config.ai.base_url, "https://api.openai.com/v1");
+        assert_eq!(config.ai.max_sample_length, 8000);
+        assert!((config.ai.temperature - 0.5).abs() < f32::EPSILON);
+        assert_eq!(config.ai.max_tokens, 2000);
+        assert_eq!(config.ai.retry_attempts, 2);
+        assert_eq!(config.ai.retry_delay_ms, 500);
+        assert_eq!(config.ai.request_timeout_seconds, 30);
+    }
+
+    #[test]
+    fn test_builder_full_formats_configuration() {
+        let config = TestConfigBuilder::new()
+            .with_default_output_format("vtt")
+            .with_preserve_styling(true)
+            .with_default_encoding("utf-16")
+            .with_encoding_detection_confidence(0.75)
+            .build_config();
+
+        assert_eq!(config.formats.default_output, "vtt");
+        assert!(config.formats.preserve_styling);
+        assert_eq!(config.formats.default_encoding, "utf-16");
+        assert!((config.formats.encoding_detection_confidence - 0.75).abs() < f32::EPSILON);
+    }
+
+    #[test]
+    fn test_builder_full_general_configuration() {
+        let config = TestConfigBuilder::new()
+            .with_backup_enabled(true)
+            .with_max_concurrent_jobs(2)
+            .with_task_timeout(120)
+            .with_progress_bar(false)
+            .with_worker_idle_timeout(30)
+            .build_config();
+
+        assert!(config.general.backup_enabled);
+        assert_eq!(config.general.max_concurrent_jobs, 2);
+        assert_eq!(config.general.task_timeout_seconds, 120);
+        assert!(!config.general.enable_progress_bar);
+        assert_eq!(config.general.worker_idle_timeout_seconds, 30);
+    }
+
+    #[test]
+    fn test_builder_full_parallel_configuration() {
+        let config = TestConfigBuilder::new()
+            .with_task_queue_size(256)
+            .with_task_priorities(true)
+            .with_auto_balance_workers(false)
+            .with_queue_overflow_strategy(OverflowStrategy::Expand)
+            .build_config();
+
+        assert_eq!(config.parallel.task_queue_size, 256);
+        assert!(config.parallel.enable_task_priorities);
+        assert!(!config.parallel.auto_balance_workers);
+        assert_eq!(config.parallel.overflow_strategy, OverflowStrategy::Expand);
+    }
+
+    #[test]
+    fn test_builder_vad_disabled() {
+        let config = TestConfigBuilder::new()
+            .with_vad_enabled(false)
+            .build_config();
+        assert!(!config.sync.vad.enabled);
+    }
+
+    #[test]
+    fn test_builder_vad_sensitivity_boundary_zero() {
+        let config = TestConfigBuilder::new()
+            .with_vad_sensitivity(0.0)
+            .build_config();
+        assert!((config.sync.vad.sensitivity - 0.0).abs() < f32::EPSILON);
+    }
+
+    #[test]
+    fn test_builder_vad_sensitivity_boundary_one() {
+        let config = TestConfigBuilder::new()
+            .with_vad_sensitivity(1.0)
+            .build_config();
+        assert!((config.sync.vad.sensitivity - 1.0).abs() < f32::EPSILON);
+    }
+
+    #[test]
+    fn test_builder_service_returns_correct_config() {
+        let service = TestConfigBuilder::new()
+            .with_ai_provider("test-ai")
+            .with_ai_model("test-model")
+            .with_backup_enabled(true)
+            .build_service();
+
+        let config = service.get_config().unwrap();
+        assert_eq!(config.ai.provider, "test-ai");
+        assert_eq!(config.ai.model, "test-model");
+        assert!(config.general.backup_enabled);
+    }
+
+    #[test]
+    fn test_builder_parallel_settings_overrides_individual_methods() {
+        let config = TestConfigBuilder::new()
+            .with_max_concurrent_jobs(4)
+            .with_task_queue_size(100)
+            .with_parallel_settings(8, 200)
+            .build_config();
+        assert_eq!(config.general.max_concurrent_jobs, 8);
+        assert_eq!(config.parallel.task_queue_size, 200);
+    }
 }

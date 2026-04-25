@@ -1088,4 +1088,646 @@ Second subtitle
         assert!(tokio::fs::metadata(&src).await.is_err());
         assert_eq!(tokio::fs::read(&dst).await.unwrap(), b"moved");
     }
+
+    // ── is_cross_device_error ──────────────────────────────────────────────
+
+    #[test]
+    fn test_is_cross_device_error_unsupported() {
+        let err = io::Error::new(io::ErrorKind::Unsupported, "unsupported");
+        assert!(is_cross_device_error(&err));
+    }
+
+    #[test]
+    fn test_is_cross_device_error_other_kind() {
+        let err = io::Error::new(io::ErrorKind::NotFound, "not found");
+        assert!(!is_cross_device_error(&err));
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn test_is_cross_device_error_exdev() {
+        // EXDEV == 18 on Linux
+        let err = io::Error::from_raw_os_error(18);
+        assert!(is_cross_device_error(&err));
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn test_is_cross_device_error_other_os_error() {
+        let err = io::Error::from_raw_os_error(2); // ENOENT
+        assert!(!is_cross_device_error(&err));
+    }
+
+    // ── resolve_filename_conflict edge cases ───────────────────────────────
+
+    #[test]
+    fn test_resolve_filename_conflict_new_file() {
+        let tmp = TempDir::new().unwrap();
+        let target = tmp.path().join("fresh.txt");
+        let (path, _file) = resolve_filename_conflict(target.clone()).unwrap();
+        assert_eq!(path, target);
+    }
+
+    #[test]
+    fn test_resolve_filename_conflict_no_extension() {
+        let tmp = TempDir::new().unwrap();
+        let base = tmp.path().join("noext");
+        std::fs::write(&base, b"data").unwrap();
+
+        let (p1, _f1) = resolve_filename_conflict(base.clone()).unwrap();
+        assert_eq!(p1.file_name().unwrap(), "noext.1");
+    }
+
+    #[test]
+    fn test_resolve_filename_conflict_creates_parent_on_demand() {
+        let tmp = TempDir::new().unwrap();
+        // Parent directory exists via tempdir; file should not
+        let target = tmp.path().join("brand_new.srt");
+        let (path, _file) = resolve_filename_conflict(target.clone()).unwrap();
+        assert_eq!(path, target);
+    }
+
+    // ── CopyToVideoFolder and MoveToVideoFolder via execute() ──────────────
+
+    #[tokio::test]
+    async fn test_execute_copy_to_video_folder_success() {
+        let tmp = TempDir::new().unwrap();
+        let src = tmp.path().join("sub.srt");
+        let dst = tmp.path().join("video_dir").join("sub.srt");
+        tokio::fs::write(&src, b"copy content").await.unwrap();
+
+        let task = FileProcessingTask::new(
+            src.clone(),
+            None,
+            ProcessingOperation::CopyToVideoFolder {
+                source: src.clone(),
+                target: dst.clone(),
+            },
+        );
+        let result = task.execute().await;
+        assert!(matches!(result, TaskResult::Success(_)));
+        assert_eq!(tokio::fs::read(&dst).await.unwrap(), b"copy content");
+    }
+
+    #[tokio::test]
+    async fn test_execute_copy_to_video_folder_failure() {
+        let tmp = TempDir::new().unwrap();
+        let src = tmp.path().join("nonexistent.srt");
+        let dst = tmp.path().join("dst.srt");
+
+        let task = FileProcessingTask::new(
+            src.clone(),
+            None,
+            ProcessingOperation::CopyToVideoFolder {
+                source: src.clone(),
+                target: dst.clone(),
+            },
+        );
+        let result = task.execute().await;
+        assert!(matches!(result, TaskResult::Failed(_)));
+    }
+
+    #[tokio::test]
+    async fn test_execute_move_to_video_folder_success() {
+        let tmp = TempDir::new().unwrap();
+        let src = tmp.path().join("move_me.srt");
+        let dst = tmp.path().join("dest_dir").join("move_me.srt");
+        tokio::fs::write(&src, b"move content").await.unwrap();
+
+        let task = FileProcessingTask::new(
+            src.clone(),
+            None,
+            ProcessingOperation::MoveToVideoFolder {
+                source: src.clone(),
+                target: dst.clone(),
+            },
+        );
+        let result = task.execute().await;
+        assert!(matches!(result, TaskResult::Success(_)));
+        assert!(tokio::fs::metadata(&src).await.is_err());
+        assert_eq!(tokio::fs::read(&dst).await.unwrap(), b"move content");
+    }
+
+    #[tokio::test]
+    async fn test_execute_move_to_video_folder_failure() {
+        let tmp = TempDir::new().unwrap();
+        let src = tmp.path().join("missing.srt");
+        let dst = tmp.path().join("dst.srt");
+
+        let task = FileProcessingTask::new(
+            src.clone(),
+            None,
+            ProcessingOperation::MoveToVideoFolder {
+                source: src.clone(),
+                target: dst.clone(),
+            },
+        );
+        let result = task.execute().await;
+        assert!(matches!(result, TaskResult::Failed(_)));
+    }
+
+    // ── Failure cases for other operations ────────────────────────────────
+
+    #[tokio::test]
+    async fn test_execute_copy_with_rename_failure() {
+        let tmp = TempDir::new().unwrap();
+        let src = tmp.path().join("ghost.txt");
+        let dst = tmp.path().join("out.txt");
+
+        let task = FileProcessingTask::new(
+            src.clone(),
+            None,
+            ProcessingOperation::CopyWithRename {
+                source: src.clone(),
+                target: dst.clone(),
+            },
+        );
+        let result = task.execute().await;
+        assert!(matches!(result, TaskResult::Failed(_)));
+    }
+
+    #[tokio::test]
+    async fn test_execute_create_backup_failure() {
+        let tmp = TempDir::new().unwrap();
+        let src = tmp.path().join("ghost.txt");
+        let bak = tmp.path().join("ghost.bak");
+
+        let task = FileProcessingTask::new(
+            src.clone(),
+            None,
+            ProcessingOperation::CreateBackup {
+                source: src.clone(),
+                backup: bak.clone(),
+            },
+        );
+        let result = task.execute().await;
+        assert!(matches!(result, TaskResult::Failed(_)));
+    }
+
+    #[tokio::test]
+    async fn test_execute_rename_file_failure() {
+        let tmp = TempDir::new().unwrap();
+        let src = tmp.path().join("ghost.txt");
+        let dst = tmp.path().join("new_name.txt");
+
+        let task = FileProcessingTask::new(
+            src.clone(),
+            None,
+            ProcessingOperation::RenameFile {
+                source: src.clone(),
+                target: dst.clone(),
+            },
+        );
+        let result = task.execute().await;
+        assert!(matches!(result, TaskResult::Failed(_)));
+    }
+
+    // ── Move/rename with existing target (conflict resolution path) ────────
+
+    #[tokio::test]
+    async fn test_execute_move_operation_conflict_resolved() {
+        let tmp = TempDir::new().unwrap();
+        let src = tmp.path().join("src_conflict.txt");
+        let dst = tmp.path().join("dst_conflict.txt");
+        tokio::fs::write(&src, b"conflict source").await.unwrap();
+        tokio::fs::write(&dst, b"existing dest").await.unwrap();
+
+        let task = FileProcessingTask {
+            input_path: src.clone(),
+            output_path: None,
+            operation: ProcessingOperation::ValidateFormat,
+        };
+        task.execute_move_operation(&src, &dst).await.unwrap();
+        // Source deleted, a renamed copy exists
+        assert!(tokio::fs::metadata(&src).await.is_err());
+        assert_eq!(
+            tokio::fs::read(&dst).await.unwrap(),
+            b"existing dest",
+            "Original target must not be overwritten"
+        );
+        // The moved file should be at dst_conflict.1.txt
+        let renamed = tmp.path().join("dst_conflict.1.txt");
+        assert_eq!(tokio::fs::read(&renamed).await.unwrap(), b"conflict source");
+    }
+
+    #[tokio::test]
+    async fn test_execute_rename_file_conflict_resolved() {
+        let tmp = TempDir::new().unwrap();
+        let src = tmp.path().join("ren_src.txt");
+        let dst = tmp.path().join("ren_dst.txt");
+        tokio::fs::write(&src, b"rename conflict").await.unwrap();
+        tokio::fs::write(&dst, b"existing").await.unwrap();
+
+        let task = FileProcessingTask {
+            input_path: src.clone(),
+            output_path: None,
+            operation: ProcessingOperation::ValidateFormat,
+        };
+        task.execute_rename_file_operation(&src, &dst)
+            .await
+            .unwrap();
+        assert!(tokio::fs::metadata(&src).await.is_err());
+        let renamed = tmp.path().join("ren_dst.1.txt");
+        assert_eq!(tokio::fs::read(&renamed).await.unwrap(), b"rename conflict");
+    }
+
+    // ── task_type() for every operation variant ────────────────────────────
+
+    #[test]
+    fn test_task_type_all_variants() {
+        let tmp = std::path::PathBuf::from("x");
+
+        let cases: &[(&str, ProcessingOperation)] = &[
+            (
+                "convert",
+                ProcessingOperation::ConvertFormat {
+                    from: "srt".into(),
+                    to: "ass".into(),
+                },
+            ),
+            (
+                "sync",
+                ProcessingOperation::SyncSubtitle {
+                    audio_path: tmp.clone(),
+                },
+            ),
+            (
+                "match",
+                ProcessingOperation::MatchFiles { recursive: false },
+            ),
+            ("validate", ProcessingOperation::ValidateFormat),
+            (
+                "copy_to_video_folder",
+                ProcessingOperation::CopyToVideoFolder {
+                    source: tmp.clone(),
+                    target: tmp.clone(),
+                },
+            ),
+            (
+                "move_to_video_folder",
+                ProcessingOperation::MoveToVideoFolder {
+                    source: tmp.clone(),
+                    target: tmp.clone(),
+                },
+            ),
+            (
+                "copy_with_rename",
+                ProcessingOperation::CopyWithRename {
+                    source: tmp.clone(),
+                    target: tmp.clone(),
+                },
+            ),
+            (
+                "create_backup",
+                ProcessingOperation::CreateBackup {
+                    source: tmp.clone(),
+                    backup: tmp.clone(),
+                },
+            ),
+            (
+                "rename_file",
+                ProcessingOperation::RenameFile {
+                    source: tmp.clone(),
+                    target: tmp.clone(),
+                },
+            ),
+        ];
+
+        for (expected, op) in cases {
+            let task = FileProcessingTask::new(tmp.clone(), None, op.clone());
+            assert_eq!(
+                task.task_type(),
+                *expected,
+                "task_type mismatch for {expected}"
+            );
+        }
+    }
+
+    // ── description() for every operation variant ─────────────────────────
+
+    #[test]
+    fn test_description_all_variants() {
+        let p = std::path::PathBuf::from("a.srt");
+        let q = std::path::PathBuf::from("b.srt");
+
+        let cases: &[(ProcessingOperation, &str)] = &[
+            (
+                ProcessingOperation::ConvertFormat {
+                    from: "srt".into(),
+                    to: "ass".into(),
+                },
+                "Convert",
+            ),
+            (
+                ProcessingOperation::SyncSubtitle {
+                    audio_path: q.clone(),
+                },
+                "Sync subtitle",
+            ),
+            (
+                ProcessingOperation::MatchFiles { recursive: false },
+                "Match files",
+            ),
+            (
+                ProcessingOperation::MatchFiles { recursive: true },
+                "(recursive)",
+            ),
+            (ProcessingOperation::ValidateFormat, "Validate format"),
+            (
+                ProcessingOperation::CopyToVideoFolder {
+                    source: p.clone(),
+                    target: q.clone(),
+                },
+                "Copy",
+            ),
+            (
+                ProcessingOperation::MoveToVideoFolder {
+                    source: p.clone(),
+                    target: q.clone(),
+                },
+                "Move",
+            ),
+            (
+                ProcessingOperation::CopyWithRename {
+                    source: p.clone(),
+                    target: q.clone(),
+                },
+                "CopyWithRename",
+            ),
+            (
+                ProcessingOperation::CreateBackup {
+                    source: p.clone(),
+                    backup: q.clone(),
+                },
+                "CreateBackup",
+            ),
+            (
+                ProcessingOperation::RenameFile {
+                    source: p.clone(),
+                    target: q.clone(),
+                },
+                "Rename",
+            ),
+        ];
+
+        for (op, expected_substr) in cases {
+            let task = FileProcessingTask::new(p.clone(), None, op.clone());
+            let desc = task.description();
+            assert!(
+                desc.contains(expected_substr),
+                "description '{desc}' does not contain '{expected_substr}'"
+            );
+        }
+    }
+
+    // ── estimated_duration() ──────────────────────────────────────────────
+
+    #[test]
+    fn test_estimated_duration_nonexistent_file() {
+        let task = FileProcessingTask::new(
+            std::path::PathBuf::from("/does/not/exist.srt"),
+            None,
+            ProcessingOperation::ValidateFormat,
+        );
+        assert!(task.estimated_duration().is_none());
+    }
+
+    #[tokio::test]
+    async fn test_estimated_duration_all_operations() {
+        let tmp = TempDir::new().unwrap();
+        let file = tmp.path().join("test.srt");
+        tokio::fs::write(&file, "1\n00:00:01,000 --> 00:00:02,000\nHi\n")
+            .await
+            .unwrap();
+        let p = file.clone();
+
+        let ops = vec![
+            ProcessingOperation::ConvertFormat {
+                from: "srt".into(),
+                to: "ass".into(),
+            },
+            ProcessingOperation::SyncSubtitle {
+                audio_path: p.clone(),
+            },
+            ProcessingOperation::MatchFiles { recursive: true },
+            ProcessingOperation::ValidateFormat,
+            ProcessingOperation::CopyToVideoFolder {
+                source: p.clone(),
+                target: p.clone(),
+            },
+            ProcessingOperation::MoveToVideoFolder {
+                source: p.clone(),
+                target: p.clone(),
+            },
+            ProcessingOperation::CopyWithRename {
+                source: p.clone(),
+                target: p.clone(),
+            },
+            ProcessingOperation::CreateBackup {
+                source: p.clone(),
+                backup: p.clone(),
+            },
+            ProcessingOperation::RenameFile {
+                source: p.clone(),
+                target: p.clone(),
+            },
+        ];
+
+        for op in ops {
+            let task = FileProcessingTask::new(p.clone(), None, op);
+            // For an existing file estimated_duration must return Some
+            assert!(
+                task.estimated_duration().is_some(),
+                "expected Some for operation when file exists"
+            );
+        }
+    }
+
+    // ── task_id uniqueness ─────────────────────────────────────────────────
+
+    #[test]
+    fn test_task_id_uniqueness() {
+        let p1 = std::path::PathBuf::from("a.srt");
+        let p2 = std::path::PathBuf::from("b.srt");
+
+        let t1 = FileProcessingTask::new(p1.clone(), None, ProcessingOperation::ValidateFormat);
+        let t2 = FileProcessingTask::new(p2.clone(), None, ProcessingOperation::ValidateFormat);
+        assert_ne!(
+            t1.task_id(),
+            t2.task_id(),
+            "different paths → different IDs"
+        );
+
+        let t3 = FileProcessingTask::new(
+            p1.clone(),
+            None,
+            ProcessingOperation::ConvertFormat {
+                from: "srt".into(),
+                to: "ass".into(),
+            },
+        );
+        assert_ne!(
+            t1.task_id(),
+            t3.task_id(),
+            "different operations → different IDs"
+        );
+    }
+
+    // ── Debug for TaskResult and TaskStatus ───────────────────────────────
+
+    #[test]
+    fn test_task_result_debug() {
+        assert!(format!("{:?}", TaskResult::Success("ok".into())).contains("Success"));
+        assert!(format!("{:?}", TaskResult::Failed("err".into())).contains("Failed"));
+        assert!(format!("{:?}", TaskResult::Cancelled).contains("Cancelled"));
+        assert!(
+            format!("{:?}", TaskResult::PartialSuccess("a".into(), "b".into()))
+                .contains("PartialSuccess")
+        );
+    }
+
+    #[test]
+    fn test_task_status_debug() {
+        assert!(format!("{:?}", TaskStatus::Pending).contains("Pending"));
+        assert!(format!("{:?}", TaskStatus::Running).contains("Running"));
+        assert!(
+            format!("{:?}", TaskStatus::Completed(TaskResult::Cancelled)).contains("Completed")
+        );
+        assert!(format!("{:?}", TaskStatus::Failed("x".into())).contains("Failed"));
+        assert!(format!("{:?}", TaskStatus::Cancelled).contains("Cancelled"));
+    }
+
+    // ── Clone for TaskResult and TaskStatus ───────────────────────────────
+
+    #[test]
+    fn test_task_result_clone() {
+        let orig = TaskResult::PartialSuccess("s".into(), "w".into());
+        let cloned = orig.clone();
+        assert_eq!(format!("{orig}"), format!("{cloned}"));
+    }
+
+    #[test]
+    fn test_task_status_clone() {
+        let orig = TaskStatus::Completed(TaskResult::Success("done".into()));
+        let cloned = orig.clone();
+        assert_eq!(format!("{orig}"), format!("{cloned}"));
+    }
+
+    // ── Default Task trait methods via minimal impl ────────────────────────
+
+    #[tokio::test]
+    async fn test_default_task_trait_methods() {
+        struct MinimalTask;
+
+        #[async_trait::async_trait]
+        impl Task for MinimalTask {
+            async fn execute(&self) -> TaskResult {
+                TaskResult::Cancelled
+            }
+            fn task_type(&self) -> &'static str {
+                "minimal"
+            }
+            fn task_id(&self) -> String {
+                "minimal_1".into()
+            }
+        }
+
+        let t = MinimalTask;
+        // Default estimated_duration returns None
+        assert!(t.estimated_duration().is_none());
+        // Default description uses task_type()
+        assert_eq!(t.description(), "minimal task");
+    }
+
+    // ── Hash impl covers all ProcessingOperation variants ─────────────────
+
+    #[test]
+    fn test_processing_operation_hash_all_variants() {
+        use std::collections::hash_map::DefaultHasher;
+        use std::hash::{Hash, Hasher};
+
+        fn compute_hash(op: &ProcessingOperation) -> u64 {
+            let mut h = DefaultHasher::new();
+            op.hash(&mut h);
+            h.finish()
+        }
+
+        let p = std::path::PathBuf::from("x");
+
+        let ops = vec![
+            ProcessingOperation::ConvertFormat {
+                from: "srt".into(),
+                to: "ass".into(),
+            },
+            ProcessingOperation::SyncSubtitle {
+                audio_path: p.clone(),
+            },
+            ProcessingOperation::MatchFiles { recursive: true },
+            ProcessingOperation::MatchFiles { recursive: false },
+            ProcessingOperation::ValidateFormat,
+            ProcessingOperation::CopyToVideoFolder {
+                source: p.clone(),
+                target: p.clone(),
+            },
+            ProcessingOperation::MoveToVideoFolder {
+                source: p.clone(),
+                target: p.clone(),
+            },
+            ProcessingOperation::CopyWithRename {
+                source: p.clone(),
+                target: p.clone(),
+            },
+            ProcessingOperation::CreateBackup {
+                source: p.clone(),
+                backup: p.clone(),
+            },
+            ProcessingOperation::RenameFile {
+                source: p.clone(),
+                target: p.clone(),
+            },
+        ];
+
+        let hashes: Vec<u64> = ops.iter().map(compute_hash).collect();
+        // All hashes must be computable (no panics); non-duplicate ops should differ
+        assert_ne!(hashes[0], hashes[4], "convert vs validate should differ");
+        assert_ne!(
+            hashes[2], hashes[3],
+            "recursive vs non-recursive should differ"
+        );
+    }
+
+    // ── MatchFiles recursive variant via execute() ────────────────────────
+
+    #[tokio::test]
+    async fn test_file_matching_task_recursive() {
+        let tmp = TempDir::new().unwrap();
+        let task = FileProcessingTask {
+            input_path: tmp.path().to_path_buf(),
+            output_path: None,
+            operation: ProcessingOperation::MatchFiles { recursive: true },
+        };
+        let result = task.execute().await;
+        assert!(matches!(result, TaskResult::Success(_)));
+        if let TaskResult::Success(msg) = result {
+            assert!(msg.contains("matches"));
+        }
+    }
+
+    // ── execute_copy_operation creates parent dirs ────────────────────────
+
+    #[tokio::test]
+    async fn test_execute_copy_operation_creates_parent() {
+        let tmp = TempDir::new().unwrap();
+        let src = tmp.path().join("src.txt");
+        let dst = tmp.path().join("subdir").join("dst.txt");
+        tokio::fs::write(&src, b"content").await.unwrap();
+
+        let task = FileProcessingTask {
+            input_path: src.clone(),
+            output_path: None,
+            operation: ProcessingOperation::ValidateFormat,
+        };
+        task.execute_copy_operation(&src, &dst).await.unwrap();
+        assert_eq!(tokio::fs::read(&dst).await.unwrap(), b"content");
+    }
 }

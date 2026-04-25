@@ -1145,3 +1145,660 @@ pub trait SubtitleFormat {
         false
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // ── SubtitleFormatType ────────────────────────────────────────────────────
+
+    #[test]
+    fn format_type_as_str_all_variants() {
+        assert_eq!(SubtitleFormatType::Srt.as_str(), "srt");
+        assert_eq!(SubtitleFormatType::Ass.as_str(), "ass");
+        assert_eq!(SubtitleFormatType::Vtt.as_str(), "vtt");
+        assert_eq!(SubtitleFormatType::Sub.as_str(), "sub");
+    }
+
+    #[test]
+    fn format_type_display_matches_as_str() {
+        for fmt in [
+            SubtitleFormatType::Srt,
+            SubtitleFormatType::Ass,
+            SubtitleFormatType::Vtt,
+            SubtitleFormatType::Sub,
+        ] {
+            assert_eq!(fmt.to_string(), fmt.as_str());
+        }
+    }
+
+    #[test]
+    fn format_type_supports_basic_timing_always_true() {
+        for fmt in [
+            SubtitleFormatType::Srt,
+            SubtitleFormatType::Ass,
+            SubtitleFormatType::Vtt,
+            SubtitleFormatType::Sub,
+        ] {
+            assert!(fmt.supports_basic_timing());
+        }
+    }
+
+    #[test]
+    fn format_type_supports_advanced_styling() {
+        assert!(!SubtitleFormatType::Srt.supports_advanced_styling());
+        assert!(SubtitleFormatType::Ass.supports_advanced_styling());
+        assert!(SubtitleFormatType::Vtt.supports_advanced_styling());
+        assert!(!SubtitleFormatType::Sub.supports_advanced_styling());
+    }
+
+    #[test]
+    fn format_type_uses_frame_timing_only_sub() {
+        assert!(!SubtitleFormatType::Srt.uses_frame_timing());
+        assert!(!SubtitleFormatType::Ass.uses_frame_timing());
+        assert!(!SubtitleFormatType::Vtt.uses_frame_timing());
+        assert!(SubtitleFormatType::Sub.uses_frame_timing());
+    }
+
+    #[test]
+    fn format_type_clone_and_eq() {
+        let fmt = SubtitleFormatType::Ass;
+        let cloned = fmt.clone();
+        assert_eq!(fmt, cloned);
+        assert_ne!(SubtitleFormatType::Srt, SubtitleFormatType::Ass);
+    }
+
+    #[test]
+    fn format_type_debug_contains_variant_name() {
+        assert!(format!("{:?}", SubtitleFormatType::Srt).contains("Srt"));
+        assert!(format!("{:?}", SubtitleFormatType::Ass).contains("Ass"));
+        assert!(format!("{:?}", SubtitleFormatType::Vtt).contains("Vtt"));
+        assert!(format!("{:?}", SubtitleFormatType::Sub).contains("Sub"));
+    }
+
+    // ── SubtitleEntry ─────────────────────────────────────────────────────────
+
+    fn make_entry(index: usize, start_ms: u64, end_ms: u64, text: &str) -> SubtitleEntry {
+        SubtitleEntry::new(
+            index,
+            Duration::from_millis(start_ms),
+            Duration::from_millis(end_ms),
+            text.to_string(),
+        )
+    }
+
+    #[test]
+    fn entry_new_sets_fields_correctly() {
+        let entry = make_entry(1, 10_000, 13_000, "Hello");
+        assert_eq!(entry.index, 1);
+        assert_eq!(entry.start_time, Duration::from_secs(10));
+        assert_eq!(entry.end_time, Duration::from_secs(13));
+        assert_eq!(entry.text, "Hello");
+        assert!(entry.styling.is_none());
+    }
+
+    #[test]
+    #[should_panic(expected = "Start time must be before end time")]
+    fn entry_new_panics_when_start_equals_end() {
+        SubtitleEntry::new(
+            1,
+            Duration::from_secs(5),
+            Duration::from_secs(5),
+            "x".into(),
+        );
+    }
+
+    #[test]
+    #[should_panic(expected = "Start time must be before end time")]
+    fn entry_new_panics_when_start_after_end() {
+        SubtitleEntry::new(
+            1,
+            Duration::from_secs(10),
+            Duration::from_secs(5),
+            "x".into(),
+        );
+    }
+
+    #[test]
+    fn entry_duration_calculation() {
+        let entry = make_entry(1, 10_500, 13_750, "text");
+        assert_eq!(entry.duration(), Duration::from_millis(3_250));
+    }
+
+    #[test]
+    fn entry_is_valid_timing_true_for_valid() {
+        let entry = make_entry(1, 0, 1_000, "t");
+        assert!(entry.is_valid_timing());
+    }
+
+    #[test]
+    fn entry_is_valid_timing_false_for_invalid() {
+        // Manually construct an invalid entry (bypass the assertion in new()).
+        let entry = SubtitleEntry {
+            index: 1,
+            start_time: Duration::from_secs(10),
+            end_time: Duration::from_secs(5),
+            text: "bad".into(),
+            styling: None,
+        };
+        assert!(!entry.is_valid_timing());
+    }
+
+    #[test]
+    fn entry_overlaps_with_overlapping_pair() {
+        let a = make_entry(1, 0, 2_000, "a");
+        let b = make_entry(2, 1_000, 3_000, "b");
+        assert!(a.overlaps_with(&b));
+        assert!(b.overlaps_with(&a));
+    }
+
+    #[test]
+    fn entry_overlaps_with_non_overlapping_pair() {
+        let a = make_entry(1, 0, 1_000, "a");
+        let b = make_entry(2, 1_000, 2_000, "b");
+        assert!(!a.overlaps_with(&b));
+        assert!(!b.overlaps_with(&a));
+    }
+
+    #[test]
+    fn entry_overlaps_with_same_entry() {
+        let e = make_entry(1, 1_000, 3_000, "e");
+        assert!(e.overlaps_with(&e));
+    }
+
+    #[test]
+    fn entry_plain_text_removes_basic_html_tags() {
+        let entry = make_entry(1, 0, 1_000, "<b>bold</b> and <i>italic</i>");
+        assert_eq!(entry.plain_text(), "bold and italic");
+    }
+
+    #[test]
+    fn entry_plain_text_removes_underline_tag() {
+        let entry = make_entry(1, 0, 1_000, "<u>underlined</u>");
+        assert_eq!(entry.plain_text(), "underlined");
+    }
+
+    #[test]
+    fn entry_plain_text_removes_br_tag() {
+        let entry = make_entry(1, 0, 1_000, "line1<br>line2");
+        // <br> is replaced with space; whitespace is collapsed
+        assert_eq!(entry.plain_text(), "line1 line2");
+    }
+
+    #[test]
+    fn entry_plain_text_removes_br_self_closing() {
+        let entry = make_entry(1, 0, 1_000, "a<br/>b");
+        assert_eq!(entry.plain_text(), "a b");
+    }
+
+    #[test]
+    fn entry_plain_text_collapses_whitespace() {
+        let entry = make_entry(1, 0, 1_000, "  word1   word2  ");
+        assert_eq!(entry.plain_text(), "word1 word2");
+    }
+
+    #[test]
+    fn entry_plain_text_empty_string() {
+        let entry = make_entry(1, 0, 1_000, "");
+        assert_eq!(entry.plain_text(), "");
+    }
+
+    #[test]
+    fn entry_plain_text_special_unicode_characters() {
+        let entry = make_entry(1, 0, 1_000, "日本語テスト 🎬");
+        assert_eq!(entry.plain_text(), "日本語テスト 🎬");
+    }
+
+    #[test]
+    fn entry_clone_and_debug() {
+        let entry = make_entry(2, 1_000, 2_000, "clone me");
+        let cloned = entry.clone();
+        assert_eq!(cloned.index, entry.index);
+        assert_eq!(cloned.text, entry.text);
+        let dbg = format!("{:?}", entry);
+        assert!(dbg.contains("clone me"));
+    }
+
+    // ── Subtitle ──────────────────────────────────────────────────────────────
+
+    fn make_subtitle_with_entries() -> Subtitle {
+        let metadata = SubtitleMetadata::new(SubtitleFormatType::Srt);
+        let mut sub = Subtitle::new(SubtitleFormatType::Srt, metadata);
+        sub.entries.push(make_entry(1, 1_000, 3_000, "first"));
+        sub.entries.push(make_entry(2, 4_000, 6_000, "second"));
+        sub
+    }
+
+    #[test]
+    fn subtitle_new_starts_with_empty_entries() {
+        let meta = SubtitleMetadata::new(SubtitleFormatType::Ass);
+        let sub = Subtitle::new(SubtitleFormatType::Ass, meta);
+        assert!(sub.entries.is_empty());
+        assert_eq!(sub.format, SubtitleFormatType::Ass);
+    }
+
+    #[test]
+    fn subtitle_total_duration_empty() {
+        let meta = SubtitleMetadata::new(SubtitleFormatType::Srt);
+        let sub = Subtitle::new(SubtitleFormatType::Srt, meta);
+        assert_eq!(sub.total_duration(), Duration::ZERO);
+    }
+
+    #[test]
+    fn subtitle_total_duration_with_entries() {
+        let sub = make_subtitle_with_entries();
+        // first starts at 1s, last ends at 6s → span = 5s
+        assert_eq!(sub.total_duration(), Duration::from_secs(5));
+    }
+
+    #[test]
+    fn subtitle_has_overlaps_false_for_non_overlapping() {
+        let sub = make_subtitle_with_entries();
+        assert!(!sub.has_overlaps());
+    }
+
+    #[test]
+    fn subtitle_has_overlaps_true_for_overlapping() {
+        let metadata = SubtitleMetadata::new(SubtitleFormatType::Srt);
+        let mut sub = Subtitle::new(SubtitleFormatType::Srt, metadata);
+        sub.entries.push(make_entry(1, 0, 3_000, "a"));
+        sub.entries.push(make_entry(2, 2_000, 5_000, "b"));
+        assert!(sub.has_overlaps());
+    }
+
+    #[test]
+    fn subtitle_has_overlaps_false_for_single_entry() {
+        let metadata = SubtitleMetadata::new(SubtitleFormatType::Srt);
+        let mut sub = Subtitle::new(SubtitleFormatType::Srt, metadata);
+        sub.entries.push(make_entry(1, 0, 1_000, "only"));
+        assert!(!sub.has_overlaps());
+    }
+
+    #[test]
+    fn subtitle_sort_entries_reorders_and_reindexes() {
+        let metadata = SubtitleMetadata::new(SubtitleFormatType::Srt);
+        let mut sub = Subtitle::new(SubtitleFormatType::Srt, metadata);
+        sub.entries.push(make_entry(1, 5_000, 7_000, "later"));
+        sub.entries.push(make_entry(2, 1_000, 3_000, "earlier"));
+        sub.sort_entries();
+        assert_eq!(sub.entries[0].text, "earlier");
+        assert_eq!(sub.entries[0].index, 1);
+        assert_eq!(sub.entries[1].text, "later");
+        assert_eq!(sub.entries[1].index, 2);
+    }
+
+    #[test]
+    fn subtitle_clone_and_debug() {
+        let sub = make_subtitle_with_entries();
+        let cloned = sub.clone();
+        assert_eq!(cloned.entries.len(), sub.entries.len());
+        let dbg = format!("{:?}", sub);
+        assert!(dbg.contains("Srt"));
+    }
+
+    // ── SubtitleMetadata ──────────────────────────────────────────────────────
+
+    #[test]
+    fn metadata_new_default_values() {
+        let meta = SubtitleMetadata::new(SubtitleFormatType::Vtt);
+        assert!(meta.title.is_none());
+        assert!(meta.language.is_none());
+        assert_eq!(meta.encoding, "UTF-8");
+        assert!(meta.frame_rate.is_none());
+        assert_eq!(meta.original_format, SubtitleFormatType::Vtt);
+    }
+
+    #[test]
+    fn metadata_default_uses_srt() {
+        let meta = SubtitleMetadata::default();
+        assert_eq!(meta.original_format, SubtitleFormatType::Srt);
+        assert_eq!(meta.encoding, "UTF-8");
+    }
+
+    #[test]
+    fn metadata_is_frame_based_true_for_sub() {
+        let meta = SubtitleMetadata::new(SubtitleFormatType::Sub);
+        assert!(meta.is_frame_based());
+    }
+
+    #[test]
+    fn metadata_is_frame_based_false_for_non_sub() {
+        for fmt in [
+            SubtitleFormatType::Srt,
+            SubtitleFormatType::Ass,
+            SubtitleFormatType::Vtt,
+        ] {
+            let meta = SubtitleMetadata::new(fmt);
+            assert!(!meta.is_frame_based());
+        }
+    }
+
+    #[test]
+    fn metadata_display_name_both_title_and_language() {
+        let meta = SubtitleMetadata {
+            title: Some("Episode 1".to_string()),
+            language: Some("en".to_string()),
+            encoding: "UTF-8".to_string(),
+            frame_rate: None,
+            original_format: SubtitleFormatType::Srt,
+        };
+        assert_eq!(meta.display_name(), "Episode 1 (EN)");
+    }
+
+    #[test]
+    fn metadata_display_name_title_only() {
+        let meta = SubtitleMetadata {
+            title: Some("My Movie".to_string()),
+            language: None,
+            encoding: "UTF-8".to_string(),
+            frame_rate: None,
+            original_format: SubtitleFormatType::Srt,
+        };
+        assert_eq!(meta.display_name(), "My Movie");
+    }
+
+    #[test]
+    fn metadata_display_name_language_only() {
+        let meta = SubtitleMetadata {
+            title: None,
+            language: Some("zh".to_string()),
+            encoding: "UTF-8".to_string(),
+            frame_rate: None,
+            original_format: SubtitleFormatType::Srt,
+        };
+        assert_eq!(meta.display_name(), "ZH");
+    }
+
+    #[test]
+    fn metadata_display_name_neither() {
+        let meta = SubtitleMetadata::new(SubtitleFormatType::Srt);
+        assert_eq!(meta.display_name(), "Unknown");
+    }
+
+    #[test]
+    fn metadata_is_complete_all_set_non_frame_based() {
+        let meta = SubtitleMetadata {
+            title: Some("Title".to_string()),
+            language: Some("en".to_string()),
+            encoding: "UTF-8".to_string(),
+            frame_rate: None,
+            original_format: SubtitleFormatType::Srt,
+        };
+        assert!(meta.is_complete());
+    }
+
+    #[test]
+    fn metadata_is_complete_frame_based_with_frame_rate() {
+        let meta = SubtitleMetadata {
+            title: Some("Title".to_string()),
+            language: Some("en".to_string()),
+            encoding: "UTF-8".to_string(),
+            frame_rate: Some(23.976),
+            original_format: SubtitleFormatType::Sub,
+        };
+        assert!(meta.is_complete());
+    }
+
+    #[test]
+    fn metadata_is_complete_frame_based_without_frame_rate() {
+        let meta = SubtitleMetadata {
+            title: Some("Title".to_string()),
+            language: Some("en".to_string()),
+            encoding: "UTF-8".to_string(),
+            frame_rate: None,
+            original_format: SubtitleFormatType::Sub,
+        };
+        assert!(!meta.is_complete());
+    }
+
+    #[test]
+    fn metadata_is_complete_missing_title() {
+        let meta = SubtitleMetadata {
+            title: None,
+            language: Some("en".to_string()),
+            encoding: "UTF-8".to_string(),
+            frame_rate: None,
+            original_format: SubtitleFormatType::Srt,
+        };
+        assert!(!meta.is_complete());
+    }
+
+    #[test]
+    fn metadata_is_complete_missing_language() {
+        let meta = SubtitleMetadata {
+            title: Some("Title".to_string()),
+            language: None,
+            encoding: "UTF-8".to_string(),
+            frame_rate: None,
+            original_format: SubtitleFormatType::Srt,
+        };
+        assert!(!meta.is_complete());
+    }
+
+    #[test]
+    fn metadata_clone_and_debug() {
+        let meta = SubtitleMetadata {
+            title: Some("T".to_string()),
+            language: Some("ja".to_string()),
+            encoding: "UTF-8".to_string(),
+            frame_rate: Some(29.97),
+            original_format: SubtitleFormatType::Ass,
+        };
+        let cloned = meta.clone();
+        assert_eq!(cloned.title, meta.title);
+        let dbg = format!("{:?}", meta);
+        assert!(dbg.contains("Ass"));
+    }
+
+    // ── StylingInfo ───────────────────────────────────────────────────────────
+
+    #[test]
+    fn styling_new_sets_flags_and_clears_font_fields() {
+        let style = StylingInfo::new(true, false, true);
+        assert!(style.bold);
+        assert!(!style.italic);
+        assert!(style.underline);
+        assert!(style.font_name.is_none());
+        assert!(style.font_size.is_none());
+        assert!(style.color.is_none());
+    }
+
+    #[test]
+    fn styling_default_all_false_and_none() {
+        let style = StylingInfo::default();
+        assert!(!style.bold);
+        assert!(!style.italic);
+        assert!(!style.underline);
+        assert!(style.font_name.is_none());
+        assert!(style.font_size.is_none());
+        assert!(style.color.is_none());
+    }
+
+    #[test]
+    fn styling_has_font_styling_with_font_name() {
+        let style = StylingInfo {
+            font_name: Some("Arial".to_string()),
+            ..Default::default()
+        };
+        assert!(style.has_font_styling());
+    }
+
+    #[test]
+    fn styling_has_font_styling_with_font_size() {
+        let style = StylingInfo {
+            font_size: Some(20),
+            ..Default::default()
+        };
+        assert!(style.has_font_styling());
+    }
+
+    #[test]
+    fn styling_has_font_styling_with_color() {
+        let style = StylingInfo {
+            color: Some("#FF0000".to_string()),
+            ..Default::default()
+        };
+        assert!(style.has_font_styling());
+    }
+
+    #[test]
+    fn styling_has_font_styling_false_when_empty() {
+        let style = StylingInfo::default();
+        assert!(!style.has_font_styling());
+    }
+
+    #[test]
+    fn styling_has_text_decoration_bold() {
+        let style = StylingInfo::new(true, false, false);
+        assert!(style.has_text_decoration());
+    }
+
+    #[test]
+    fn styling_has_text_decoration_italic() {
+        let style = StylingInfo::new(false, true, false);
+        assert!(style.has_text_decoration());
+    }
+
+    #[test]
+    fn styling_has_text_decoration_underline() {
+        let style = StylingInfo::new(false, false, true);
+        assert!(style.has_text_decoration());
+    }
+
+    #[test]
+    fn styling_has_text_decoration_false_when_none() {
+        let style = StylingInfo::default();
+        assert!(!style.has_text_decoration());
+    }
+
+    #[test]
+    fn styling_has_any_styling_font_only() {
+        let style = StylingInfo {
+            font_name: Some("Arial".to_string()),
+            ..Default::default()
+        };
+        assert!(style.has_any_styling());
+    }
+
+    #[test]
+    fn styling_has_any_styling_decoration_only() {
+        let style = StylingInfo::new(false, true, false);
+        assert!(style.has_any_styling());
+    }
+
+    #[test]
+    fn styling_has_any_styling_false_when_default() {
+        let style = StylingInfo::default();
+        assert!(!style.has_any_styling());
+    }
+
+    #[test]
+    fn styling_normalized_color_none_returns_none() {
+        let style = StylingInfo::default();
+        assert!(style.normalized_color().is_none());
+    }
+
+    #[test]
+    fn styling_normalized_color_hex_uppercased() {
+        let style = StylingInfo {
+            color: Some("#ff0000".to_string()),
+            ..Default::default()
+        };
+        assert_eq!(style.normalized_color(), Some("#FF0000".to_string()));
+    }
+
+    #[test]
+    fn styling_normalized_color_hex_already_uppercase_unchanged() {
+        let style = StylingInfo {
+            color: Some("#FFFFFF".to_string()),
+            ..Default::default()
+        };
+        assert_eq!(style.normalized_color(), Some("#FFFFFF".to_string()));
+    }
+
+    #[test]
+    fn styling_normalized_color_rgb_passthrough() {
+        let style = StylingInfo {
+            color: Some("rgb(255, 0, 0)".to_string()),
+            ..Default::default()
+        };
+        assert_eq!(style.normalized_color(), Some("rgb(255, 0, 0)".to_string()));
+    }
+
+    #[test]
+    fn styling_normalized_color_named_passthrough() {
+        let style = StylingInfo {
+            color: Some("red".to_string()),
+            ..Default::default()
+        };
+        assert_eq!(style.normalized_color(), Some("red".to_string()));
+    }
+
+    #[test]
+    fn styling_to_css_empty_when_default() {
+        let style = StylingInfo::default();
+        assert_eq!(style.to_css(), "");
+    }
+
+    #[test]
+    fn styling_to_css_bold() {
+        let style = StylingInfo::new(true, false, false);
+        assert_eq!(style.to_css(), "font-weight: bold");
+    }
+
+    #[test]
+    fn styling_to_css_italic() {
+        let style = StylingInfo::new(false, true, false);
+        assert_eq!(style.to_css(), "font-style: italic");
+    }
+
+    #[test]
+    fn styling_to_css_underline() {
+        let style = StylingInfo::new(false, false, true);
+        assert_eq!(style.to_css(), "text-decoration: underline");
+    }
+
+    #[test]
+    fn styling_to_css_full_styling() {
+        let style = StylingInfo {
+            font_name: Some("Arial".to_string()),
+            font_size: Some(20),
+            color: Some("#FFFFFF".to_string()),
+            bold: true,
+            italic: false,
+            underline: false,
+        };
+        let css = style.to_css();
+        assert!(css.contains("font-family: Arial"));
+        assert!(css.contains("font-size: 20pt"));
+        assert!(css.contains("color: #FFFFFF"));
+        assert!(css.contains("font-weight: bold"));
+        assert!(!css.contains("italic"));
+        assert!(!css.contains("underline"));
+    }
+
+    #[test]
+    fn styling_to_css_all_decorations() {
+        let style = StylingInfo::new(true, true, true);
+        let css = style.to_css();
+        assert!(css.contains("font-weight: bold"));
+        assert!(css.contains("font-style: italic"));
+        assert!(css.contains("text-decoration: underline"));
+    }
+
+    #[test]
+    fn styling_clone_and_debug() {
+        let style = StylingInfo {
+            font_name: Some("Times".to_string()),
+            font_size: Some(16),
+            color: Some("#000000".to_string()),
+            bold: false,
+            italic: true,
+            underline: false,
+        };
+        let cloned = style.clone();
+        assert_eq!(cloned.font_name, style.font_name);
+        let dbg = format!("{:?}", style);
+        assert!(dbg.contains("Times"));
+    }
+}

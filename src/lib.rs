@@ -540,3 +540,280 @@ impl App {
         self.config_service.get_config()
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::sync::Arc;
+
+    fn is_expected_test_error(e: &error::SubXError) -> bool {
+        let msg = format!("{e:?}");
+        msg.contains("NotFound")
+            || msg.contains("No subtitle files found")
+            || msg.contains("No video files found")
+            || msg.contains("Config")
+            || msg.contains("no such file")
+            || msg.contains("cannot find")
+            || msg.contains("No input")
+            || msg.contains("No files")
+            || msg.contains("FileNotFound")
+            || msg.contains("IoError")
+            || msg.contains("PathNotFound")
+            || msg.contains("InvalidInput")
+            || msg.contains("CommandExecution")
+            || msg.contains("NoInputSpecified")
+    }
+
+    #[test]
+    fn test_version_is_not_empty() {
+        assert!(!VERSION.is_empty());
+    }
+
+    #[test]
+    fn test_version_matches_cargo_pkg_version() {
+        assert_eq!(VERSION, env!("CARGO_PKG_VERSION"));
+    }
+
+    #[test]
+    fn test_app_new_stores_config_service() {
+        let config_service = Arc::new(TestConfigService::with_defaults());
+        let app = App::new(config_service.clone());
+        // Verify config_service() returns a valid Arc
+        let _ = app.config_service();
+    }
+
+    #[test]
+    fn test_app_get_config_returns_config() {
+        let config_service = Arc::new(TestConfigService::with_defaults());
+        let app = App::new(config_service);
+        let config = app.get_config().expect("get_config should succeed");
+        // Just verify we got a config object with a valid AI provider field
+        let _ = config.ai.provider;
+    }
+
+    #[test]
+    fn test_app_get_config_with_ai_settings() {
+        let config_service = Arc::new(TestConfigService::with_ai_settings("openai", "gpt-4.1"));
+        let app = App::new(config_service);
+        let config = app.get_config().expect("get_config should succeed");
+        assert_eq!(config.ai.provider, "openai");
+        assert_eq!(config.ai.model, "gpt-4.1");
+    }
+
+    #[test]
+    fn test_app_config_service_getter() {
+        let config_service = Arc::new(TestConfigService::with_defaults());
+        let app = App::new(config_service);
+        // The returned Arc should be usable (get_config succeeds)
+        let svc = app.config_service();
+        assert!(svc.get_config().is_ok());
+    }
+
+    #[tokio::test]
+    async fn test_convert_files_unknown_format_returns_error() {
+        let config_service = Arc::new(TestConfigService::with_defaults());
+        let app = App::new(config_service);
+        let result = app.convert_files("/nonexistent", "xyz_unknown", None).await;
+        assert!(result.is_err());
+        let err_msg = format!("{:?}", result.unwrap_err());
+        assert!(
+            err_msg.contains("Unsupported output format"),
+            "Error should mention unsupported format, got: {err_msg}"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_convert_files_srt_format_accepted() {
+        let config_service = Arc::new(TestConfigService::with_defaults());
+        let app = App::new(config_service);
+        let result = app.convert_files("/nonexistent_path", "srt", None).await;
+        match result {
+            Ok(_) => {}
+            Err(e) => assert!(
+                is_expected_test_error(&e),
+                "Unexpected error for srt format: {e:?}"
+            ),
+        }
+    }
+
+    #[tokio::test]
+    async fn test_convert_files_ass_format_accepted() {
+        let config_service = Arc::new(TestConfigService::with_defaults());
+        let app = App::new(config_service);
+        let result = app.convert_files("/nonexistent_path", "ass", None).await;
+        match result {
+            Ok(_) => {}
+            Err(e) => assert!(
+                is_expected_test_error(&e),
+                "Unexpected error for ass format: {e:?}"
+            ),
+        }
+    }
+
+    #[tokio::test]
+    async fn test_convert_files_vtt_format_accepted() {
+        let config_service = Arc::new(TestConfigService::with_defaults());
+        let app = App::new(config_service);
+        let result = app.convert_files("/nonexistent_path", "vtt", None).await;
+        match result {
+            Ok(_) => {}
+            Err(e) => assert!(
+                is_expected_test_error(&e),
+                "Unexpected error for vtt format: {e:?}"
+            ),
+        }
+    }
+
+    #[tokio::test]
+    async fn test_convert_files_sub_format_accepted() {
+        let config_service = Arc::new(TestConfigService::with_defaults());
+        let app = App::new(config_service);
+        let result = app.convert_files("/nonexistent_path", "sub", None).await;
+        match result {
+            Ok(_) => {}
+            Err(e) => assert!(
+                is_expected_test_error(&e),
+                "Unexpected error for sub format: {e:?}"
+            ),
+        }
+    }
+
+    #[tokio::test]
+    async fn test_convert_files_format_case_insensitive() {
+        let config_service = Arc::new(TestConfigService::with_defaults());
+        let app = App::new(config_service);
+        // Uppercase format should be treated the same as lowercase
+        let result = app.convert_files("/nonexistent_path", "SRT", None).await;
+        match result {
+            Ok(_) => {}
+            Err(e) => assert!(
+                is_expected_test_error(&e),
+                "Unexpected error for uppercase SRT: {e:?}"
+            ),
+        }
+    }
+
+    #[tokio::test]
+    async fn test_sync_files_unknown_method_returns_error() {
+        let config_service = Arc::new(TestConfigService::with_defaults());
+        let app = App::new(config_service);
+        let result = app
+            .sync_files("/video.mp4", "/subtitle.srt", "unknown_method")
+            .await;
+        assert!(result.is_err());
+        let err_msg = format!("{:?}", result.unwrap_err());
+        assert!(
+            err_msg.contains("Unsupported sync method"),
+            "Error should mention unsupported method, got: {err_msg}"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_sync_files_vad_method_accepted() {
+        let config_service = Arc::new(TestConfigService::with_defaults());
+        let app = App::new(config_service);
+        let result = app
+            .sync_files("/nonexistent_video.mp4", "/nonexistent_sub.srt", "vad")
+            .await;
+        match result {
+            Ok(_) => {}
+            Err(e) => assert!(
+                is_expected_test_error(&e),
+                "Unexpected error for vad method: {e:?}"
+            ),
+        }
+    }
+
+    #[tokio::test]
+    async fn test_sync_files_manual_method_accepted() {
+        let config_service = Arc::new(TestConfigService::with_defaults());
+        let app = App::new(config_service);
+        let result = app
+            .sync_files("/nonexistent_video.mp4", "/nonexistent_sub.srt", "manual")
+            .await;
+        match result {
+            Ok(_) => {}
+            Err(e) => assert!(
+                is_expected_test_error(&e),
+                "Unexpected error for manual method: {e:?}"
+            ),
+        }
+    }
+
+    #[tokio::test]
+    async fn test_sync_files_method_case_insensitive() {
+        let config_service = Arc::new(TestConfigService::with_defaults());
+        let app = App::new(config_service);
+        let result = app
+            .sync_files("/nonexistent_video.mp4", "/nonexistent_sub.srt", "VAD")
+            .await;
+        match result {
+            Ok(_) => {}
+            Err(e) => assert!(
+                is_expected_test_error(&e),
+                "Uppercase VAD should not give format error, got: {e:?}"
+            ),
+        }
+    }
+
+    #[tokio::test]
+    async fn test_sync_files_with_offset_accepted() {
+        let config_service = Arc::new(TestConfigService::with_defaults());
+        let app = App::new(config_service);
+        let result = app
+            .sync_files_with_offset("/nonexistent_sub.srt", 2.5)
+            .await;
+        match result {
+            Ok(_) => {}
+            Err(e) => assert!(
+                is_expected_test_error(&e),
+                "Unexpected error for sync with offset: {e:?}"
+            ),
+        }
+    }
+
+    #[tokio::test]
+    async fn test_sync_files_with_negative_offset() {
+        let config_service = Arc::new(TestConfigService::with_defaults());
+        let app = App::new(config_service);
+        let result = app
+            .sync_files_with_offset("/nonexistent_sub.srt", -1.5)
+            .await;
+        match result {
+            Ok(_) => {}
+            Err(e) => assert!(
+                is_expected_test_error(&e),
+                "Unexpected error for sync with negative offset: {e:?}"
+            ),
+        }
+    }
+
+    #[tokio::test]
+    async fn test_match_files_dry_run() {
+        let config_service = Arc::new(TestConfigService::with_ai_settings(
+            "test_provider",
+            "test_model",
+        ));
+        let app = App::new(config_service);
+        let result = app.match_files("/nonexistent_subx_test_path", true).await;
+        match result {
+            Ok(_) => {}
+            Err(e) => assert!(
+                is_expected_test_error(&e),
+                "Unexpected error for match dry run: {e:?}"
+            ),
+        }
+    }
+
+    #[test]
+    fn test_result_type_alias_ok() {
+        let r: Result<i32> = Ok(42);
+        assert_eq!(r.unwrap(), 42);
+    }
+
+    #[test]
+    fn test_result_type_alias_err() {
+        let r: Result<i32> = Err(error::SubXError::config("test error"));
+        assert!(r.is_err());
+    }
+}

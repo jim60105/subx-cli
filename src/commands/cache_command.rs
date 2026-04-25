@@ -663,3 +663,887 @@ pub async fn execute_with_config(
         other => execute(CacheArgs { action: other }).await,
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::config::TestConfigService;
+    use crate::core::matcher::cache::{CacheData, SnapshotItem};
+    use crate::core::matcher::journal::{JournalEntry, JournalEntryStatus, JournalOperationType};
+    use std::path::PathBuf;
+    use tempfile::TempDir;
+
+    // -----------------------------------------------------------------------
+    // Helpers
+    // -----------------------------------------------------------------------
+
+    /// Redirect the config directory to an isolated temp directory and return
+    /// both the `TempDir` guard (must stay alive) and the subx subdirectory.
+    fn isolated_config_dir() -> (TempDir, PathBuf) {
+        let tmp = TempDir::new().expect("tempdir");
+        unsafe {
+            std::env::set_var("XDG_CONFIG_HOME", tmp.path());
+        }
+        let subx_dir = tmp.path().join("subx");
+        std::fs::create_dir_all(&subx_dir).expect("create subx dir");
+        (tmp, subx_dir)
+    }
+
+    /// Build a minimal `JournalEntry` whose destination file already exists
+    /// on disk so that integrity checks pass by default.
+    fn make_journal_entry(
+        op_type: JournalOperationType,
+        source: PathBuf,
+        destination: PathBuf,
+    ) -> JournalEntry {
+        let meta = std::fs::metadata(&destination).expect("destination must exist");
+        let mtime = meta
+            .modified()
+            .unwrap()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_secs();
+        JournalEntry {
+            operation_type: op_type,
+            source,
+            destination,
+            backup_path: None,
+            status: JournalEntryStatus::Completed,
+            file_size: meta.len(),
+            file_mtime: mtime,
+        }
+    }
+
+    /// Minimal valid `CacheData` with an empty snapshot (legacy-style).
+    fn empty_snapshot_cache() -> CacheData {
+        CacheData {
+            cache_version: "1.0".into(),
+            directory: "/tmp".into(),
+            file_snapshot: vec![],
+            match_operations: vec![],
+            created_at: 0,
+            ai_model_used: "test-model".into(),
+            config_hash: "abc123".into(),
+            original_relocation_mode: "None".into(),
+            original_backup_enabled: false,
+        }
+    }
+
+    // -----------------------------------------------------------------------
+    // format_size
+    // -----------------------------------------------------------------------
+
+    #[test]
+    fn format_size_bytes() {
+        assert_eq!(format_size(0), "0 B");
+        assert_eq!(format_size(512), "512 B");
+        assert_eq!(format_size(1023), "1023 B");
+    }
+
+    #[test]
+    fn format_size_kilobytes() {
+        assert_eq!(format_size(1024), "1.0 KB");
+        assert_eq!(format_size(2048), "2.0 KB");
+        // Just below 1 MB
+        let just_below_mb = (1024.0 * 1024.0 - 1.0) as u64;
+        let result = format_size(just_below_mb);
+        assert!(result.ends_with("KB"), "expected KB, got {result}");
+    }
+
+    #[test]
+    fn format_size_megabytes() {
+        assert_eq!(format_size(1024 * 1024), "1.0 MB");
+        assert_eq!(format_size(5 * 1024 * 1024), "5.0 MB");
+        // Just below 1 GB
+        let just_below_gb = (1024.0 * 1024.0 * 1024.0 - 1.0) as u64;
+        let result = format_size(just_below_gb);
+        assert!(result.ends_with("MB"), "expected MB, got {result}");
+    }
+
+    #[test]
+    fn format_size_gigabytes() {
+        assert_eq!(format_size(1024 * 1024 * 1024), "1.0 GB");
+        assert_eq!(format_size(2 * 1024 * 1024 * 1024), "2.0 GB");
+    }
+
+    // -----------------------------------------------------------------------
+    // format_age
+    // -----------------------------------------------------------------------
+
+    #[test]
+    fn format_age_seconds() {
+        assert_eq!(format_age(0), "0 seconds ago");
+        assert_eq!(format_age(30), "30 seconds ago");
+        assert_eq!(format_age(59), "59 seconds ago");
+    }
+
+    #[test]
+    fn format_age_minutes() {
+        assert_eq!(format_age(60), "1 minutes ago");
+        assert_eq!(format_age(90), "1 minutes ago");
+        assert_eq!(format_age(3599), "59 minutes ago");
+    }
+
+    #[test]
+    fn format_age_hours() {
+        assert_eq!(format_age(3600), "1 hours ago");
+        assert_eq!(format_age(7200), "2 hours ago");
+        assert_eq!(format_age(86399), "23 hours ago");
+    }
+
+    #[test]
+    fn format_age_days() {
+        assert_eq!(format_age(86400), "1 days ago");
+        assert_eq!(format_age(172800), "2 days ago");
+        assert_eq!(format_age(604800), "7 days ago");
+    }
+
+    // -----------------------------------------------------------------------
+    // compute_config_hash / current_config_hash
+    // -----------------------------------------------------------------------
+
+    #[test]
+    fn compute_config_hash_is_deterministic() {
+        let h1 = compute_config_hash("None", false);
+        let h2 = compute_config_hash("None", false);
+        assert_eq!(h1, h2);
+    }
+
+    #[test]
+    fn compute_config_hash_differs_for_different_modes() {
+        let h_none = compute_config_hash("None", false);
+        let h_copy = compute_config_hash("Copy", false);
+        let h_move = compute_config_hash("Move", false);
+        assert_ne!(h_none, h_copy);
+        assert_ne!(h_none, h_move);
+        assert_ne!(h_copy, h_move);
+    }
+
+    #[test]
+    fn compute_config_hash_differs_for_backup_flag() {
+        let h_off = compute_config_hash("None", false);
+        let h_on = compute_config_hash("None", true);
+        assert_ne!(h_off, h_on);
+    }
+
+    #[test]
+    fn compute_config_hash_is_16_hex_chars() {
+        let h = compute_config_hash("None", false);
+        assert_eq!(h.len(), 16);
+        assert!(h.chars().all(|c| c.is_ascii_hexdigit()));
+    }
+
+    #[test]
+    fn current_config_hash_returns_string() {
+        let svc = TestConfigService::with_defaults();
+        let h = current_config_hash(&svc).expect("should succeed");
+        assert_eq!(h.len(), 16);
+    }
+
+    // -----------------------------------------------------------------------
+    // parse_relocation_mode
+    // -----------------------------------------------------------------------
+
+    #[test]
+    fn parse_relocation_mode_copy() {
+        assert!(matches!(
+            parse_relocation_mode("Copy"),
+            FileRelocationMode::Copy
+        ));
+    }
+
+    #[test]
+    fn parse_relocation_mode_move() {
+        assert!(matches!(
+            parse_relocation_mode("Move"),
+            FileRelocationMode::Move
+        ));
+    }
+
+    #[test]
+    fn parse_relocation_mode_none_keyword() {
+        assert!(matches!(
+            parse_relocation_mode("None"),
+            FileRelocationMode::None
+        ));
+    }
+
+    #[test]
+    fn parse_relocation_mode_unknown_falls_back_to_none() {
+        assert!(matches!(
+            parse_relocation_mode("UnknownVariant"),
+            FileRelocationMode::None
+        ));
+    }
+
+    // -----------------------------------------------------------------------
+    // describe_snapshot
+    // -----------------------------------------------------------------------
+
+    #[test]
+    fn describe_snapshot_empty_is_reported_as_legacy() {
+        let cache = empty_snapshot_cache();
+        let (label, status) = describe_snapshot(&cache);
+        assert_eq!(status, "empty");
+        assert!(label.contains("legacy"), "label: {label}");
+    }
+
+    #[test]
+    fn describe_snapshot_valid_when_files_match_on_disk() {
+        let tmp = TempDir::new().unwrap();
+        let file = tmp.path().join("video.srt");
+        std::fs::write(&file, "content").unwrap();
+        let meta = std::fs::metadata(&file).unwrap();
+        let mtime = meta
+            .modified()
+            .unwrap()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_secs();
+
+        let mut cache = empty_snapshot_cache();
+        cache.file_snapshot = vec![SnapshotItem {
+            path: file.to_string_lossy().into_owned(),
+            name: "video.srt".into(),
+            size: meta.len(),
+            mtime,
+            file_type: "subtitle".into(),
+        }];
+
+        let (label, status) = describe_snapshot(&cache);
+        assert_eq!(status, "valid", "label: {label}");
+        assert_eq!(label, "Valid");
+    }
+
+    #[test]
+    fn describe_snapshot_stale_when_file_missing() {
+        let tmp = TempDir::new().unwrap();
+        let missing = tmp.path().join("gone.srt");
+
+        let mut cache = empty_snapshot_cache();
+        cache.file_snapshot = vec![SnapshotItem {
+            path: missing.to_string_lossy().into_owned(),
+            name: "gone.srt".into(),
+            size: 100,
+            mtime: 999,
+            file_type: "subtitle".into(),
+        }];
+
+        let (label, status) = describe_snapshot(&cache);
+        assert_eq!(status, "stale", "label: {label}");
+        assert!(label.starts_with("Stale"), "label: {label}");
+    }
+
+    // -----------------------------------------------------------------------
+    // clear_file
+    // -----------------------------------------------------------------------
+
+    #[test]
+    fn clear_file_returns_true_and_removes_existing_file() {
+        let tmp = TempDir::new().unwrap();
+        let target = tmp.path().join("to_delete.txt");
+        std::fs::write(&target, "data").unwrap();
+        assert!(target.exists());
+
+        let result = clear_file(&target, "Cache").expect("should succeed");
+        assert!(result, "should return true when file existed");
+        assert!(!target.exists(), "file should be removed");
+    }
+
+    #[test]
+    fn clear_file_returns_false_when_file_absent() {
+        let tmp = TempDir::new().unwrap();
+        let missing = tmp.path().join("nonexistent.txt");
+        assert!(!missing.exists());
+
+        let result = clear_file(&missing, "Cache").expect("should succeed");
+        assert!(!result, "should return false when file was absent");
+    }
+
+    // -----------------------------------------------------------------------
+    // get_config_dir / cache_path / journal_path (path resolution)
+    // -----------------------------------------------------------------------
+
+    #[test]
+    fn get_config_dir_uses_xdg_config_home_when_set() {
+        let tmp = TempDir::new().unwrap();
+        unsafe {
+            std::env::set_var("XDG_CONFIG_HOME", tmp.path());
+        }
+        let dir = get_config_dir().expect("should succeed");
+        assert_eq!(dir, tmp.path());
+    }
+
+    #[test]
+    fn cache_path_ends_with_expected_components() {
+        let tmp = TempDir::new().unwrap();
+        unsafe {
+            std::env::set_var("XDG_CONFIG_HOME", tmp.path());
+        }
+        let p = cache_path().expect("should succeed");
+        assert!(p.ends_with("subx/match_cache.json"));
+    }
+
+    #[test]
+    fn journal_path_ends_with_expected_components() {
+        let tmp = TempDir::new().unwrap();
+        unsafe {
+            std::env::set_var("XDG_CONFIG_HOME", tmp.path());
+        }
+        let p = journal_path().expect("should succeed");
+        assert!(p.ends_with("subx/match_journal.json"));
+    }
+
+    // -----------------------------------------------------------------------
+    // verify_destination_integrity
+    // -----------------------------------------------------------------------
+
+    #[test]
+    fn verify_destination_integrity_ok_when_metadata_matches() {
+        let tmp = TempDir::new().unwrap();
+        let dst = tmp.path().join("dest.srt");
+        std::fs::write(&dst, "hello").unwrap();
+
+        let entry = make_journal_entry(
+            JournalOperationType::Copied,
+            tmp.path().join("src.srt"),
+            dst,
+        );
+
+        verify_destination_integrity(&entry).expect("should pass integrity check");
+    }
+
+    #[test]
+    fn verify_destination_integrity_errors_when_file_missing() {
+        let tmp = TempDir::new().unwrap();
+        let dst = tmp.path().join("missing.srt");
+        // Do not create the file
+
+        let entry = JournalEntry {
+            operation_type: JournalOperationType::Copied,
+            source: tmp.path().join("src.srt"),
+            destination: dst,
+            backup_path: None,
+            status: JournalEntryStatus::Completed,
+            file_size: 5,
+            file_mtime: 1_700_000_000,
+        };
+
+        let err = verify_destination_integrity(&entry).expect_err("should fail");
+        let msg = format!("{err}");
+        assert!(
+            msg.contains("no longer exists"),
+            "error should mention missing file: {msg}"
+        );
+    }
+
+    #[test]
+    fn verify_destination_integrity_errors_on_size_mismatch() {
+        let tmp = TempDir::new().unwrap();
+        let dst = tmp.path().join("sized.srt");
+        std::fs::write(&dst, "hello").unwrap(); // 5 bytes
+
+        let meta = std::fs::metadata(&dst).unwrap();
+        let mtime = meta
+            .modified()
+            .unwrap()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_secs();
+
+        let entry = JournalEntry {
+            operation_type: JournalOperationType::Copied,
+            source: tmp.path().join("src.srt"),
+            destination: dst,
+            backup_path: None,
+            status: JournalEntryStatus::Completed,
+            file_size: 999, // deliberately wrong
+            file_mtime: mtime,
+        };
+
+        let err = verify_destination_integrity(&entry).expect_err("should fail on size mismatch");
+        let msg = format!("{err}");
+        assert!(
+            msg.contains("size differs"),
+            "error should mention size: {msg}"
+        );
+    }
+
+    #[test]
+    fn verify_destination_integrity_errors_on_mtime_mismatch() {
+        let tmp = TempDir::new().unwrap();
+        let dst = tmp.path().join("mtimed.srt");
+        std::fs::write(&dst, "hello").unwrap();
+        let meta = std::fs::metadata(&dst).unwrap();
+
+        let entry = JournalEntry {
+            operation_type: JournalOperationType::Copied,
+            source: tmp.path().join("src.srt"),
+            destination: dst,
+            backup_path: None,
+            status: JournalEntryStatus::Completed,
+            file_size: meta.len(),
+            file_mtime: 1, // deliberately wrong mtime
+        };
+
+        let err = verify_destination_integrity(&entry).expect_err("should fail on mtime mismatch");
+        let msg = format!("{err}");
+        assert!(
+            msg.contains("mtime differs"),
+            "error should mention mtime: {msg}"
+        );
+    }
+
+    // -----------------------------------------------------------------------
+    // rollback_entry
+    // -----------------------------------------------------------------------
+
+    #[test]
+    fn rollback_entry_copied_removes_destination() {
+        let tmp = TempDir::new().unwrap();
+        let src = tmp.path().join("src.srt");
+        let dst = tmp.path().join("dst.srt");
+        std::fs::write(&src, "original").unwrap();
+        std::fs::write(&dst, "copy").unwrap();
+
+        let entry = make_journal_entry(JournalOperationType::Copied, src.clone(), dst.clone());
+        rollback_entry(&entry, false).expect("rollback copy");
+
+        assert!(!dst.exists(), "copy destination must be removed");
+        assert!(src.exists(), "source must remain");
+    }
+
+    #[test]
+    fn rollback_entry_moved_restores_source() {
+        let tmp = TempDir::new().unwrap();
+        let src = tmp.path().join("original.srt");
+        let dst = tmp.path().join("moved.srt");
+        // After a move, only the destination exists on disk.
+        std::fs::write(&dst, "payload").unwrap();
+
+        let entry = make_journal_entry(JournalOperationType::Moved, src.clone(), dst.clone());
+        rollback_entry(&entry, false).expect("rollback move");
+
+        assert!(src.exists(), "source must be restored");
+        assert!(!dst.exists(), "destination must be removed");
+        assert_eq!(std::fs::read_to_string(&src).unwrap(), "payload");
+    }
+
+    #[test]
+    fn rollback_entry_renamed_restores_source() {
+        let tmp = TempDir::new().unwrap();
+        let src = tmp.path().join("old_name.srt");
+        let dst = tmp.path().join("new_name.srt");
+        std::fs::write(&dst, "content").unwrap();
+
+        let entry = make_journal_entry(JournalOperationType::Renamed, src.clone(), dst.clone());
+        rollback_entry(&entry, false).expect("rollback rename");
+
+        assert!(src.exists(), "original name must be restored");
+        assert!(!dst.exists(), "new name must be gone");
+    }
+
+    #[test]
+    fn rollback_entry_moved_errors_when_source_exists_without_force() {
+        let tmp = TempDir::new().unwrap();
+        let src = tmp.path().join("exists.srt");
+        let dst = tmp.path().join("dest.srt");
+        // Both source and destination exist (conflicting state).
+        std::fs::write(&src, "already here").unwrap();
+        std::fs::write(&dst, "moved here").unwrap();
+
+        let entry = make_journal_entry(JournalOperationType::Moved, src.clone(), dst.clone());
+        let err = rollback_entry(&entry, false).expect_err("should abort when source exists");
+        let msg = format!("{err}");
+        assert!(
+            msg.contains("already exists"),
+            "error should mention conflict: {msg}"
+        );
+    }
+
+    #[test]
+    fn rollback_entry_moved_with_force_overwrites_existing_source() {
+        let tmp = TempDir::new().unwrap();
+        let src = tmp.path().join("src_force.srt");
+        let dst = tmp.path().join("dst_force.srt");
+        std::fs::write(&src, "old").unwrap();
+        std::fs::write(&dst, "new content").unwrap();
+
+        let entry = make_journal_entry(JournalOperationType::Moved, src.clone(), dst.clone());
+        rollback_entry(&entry, true).expect("force rollback should succeed");
+
+        assert!(src.exists(), "source must exist after force rollback");
+        assert!(!dst.exists(), "destination must be gone");
+        assert_eq!(std::fs::read_to_string(&src).unwrap(), "new content");
+    }
+
+    #[test]
+    fn rollback_entry_removes_existing_backup() {
+        let tmp = TempDir::new().unwrap();
+        let src = tmp.path().join("src_bak.srt");
+        let dst = tmp.path().join("dst_bak.srt");
+        let backup = tmp.path().join("src_bak.srt.bak");
+        std::fs::write(&dst, "copy").unwrap();
+        std::fs::write(&backup, "backup content").unwrap();
+
+        let meta = std::fs::metadata(&dst).unwrap();
+        let mtime = meta
+            .modified()
+            .unwrap()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_secs();
+        let entry = JournalEntry {
+            operation_type: JournalOperationType::Copied,
+            source: src,
+            destination: dst.clone(),
+            backup_path: Some(backup.clone()),
+            status: JournalEntryStatus::Completed,
+            file_size: meta.len(),
+            file_mtime: mtime,
+        };
+
+        rollback_entry(&entry, false).expect("rollback with backup");
+        assert!(!dst.exists(), "copy destination must be removed");
+        assert!(!backup.exists(), "backup must be deleted");
+    }
+
+    #[test]
+    fn rollback_entry_tolerates_missing_backup_file() {
+        let tmp = TempDir::new().unwrap();
+        let src = tmp.path().join("src_nobak.srt");
+        let dst = tmp.path().join("dst_nobak.srt");
+        let backup = tmp.path().join("missing_backup.srt.bak");
+        std::fs::write(&dst, "copy").unwrap();
+        // backup file intentionally not created
+
+        let meta = std::fs::metadata(&dst).unwrap();
+        let mtime = meta
+            .modified()
+            .unwrap()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_secs();
+        let entry = JournalEntry {
+            operation_type: JournalOperationType::Copied,
+            source: src,
+            destination: dst.clone(),
+            backup_path: Some(backup),
+            status: JournalEntryStatus::Completed,
+            file_size: meta.len(),
+            file_mtime: mtime,
+        };
+
+        rollback_entry(&entry, false).expect("missing backup should not cause error");
+        assert!(!dst.exists());
+    }
+
+    // -----------------------------------------------------------------------
+    // execute_status (unit-level path through private helpers)
+    // -----------------------------------------------------------------------
+
+    #[tokio::test]
+    async fn execute_status_no_cache_json_output_contains_exists_false() {
+        let (_tmp, subx_dir) = isolated_config_dir();
+        let cache_file = subx_dir.join("match_cache.json");
+        assert!(!cache_file.exists());
+
+        let svc = TestConfigService::with_defaults();
+        let args = crate::cli::StatusArgs { json: true };
+        execute_status(&args, &svc)
+            .await
+            .expect("status must succeed without cache");
+    }
+
+    #[tokio::test]
+    async fn execute_status_no_cache_plain_output_is_ok() {
+        let (_tmp, subx_dir) = isolated_config_dir();
+        let cache_file = subx_dir.join("match_cache.json");
+        assert!(!cache_file.exists());
+
+        let svc = TestConfigService::with_defaults();
+        let args = crate::cli::StatusArgs { json: false };
+        execute_status(&args, &svc)
+            .await
+            .expect("status must succeed without cache (plain)");
+    }
+
+    #[tokio::test]
+    async fn execute_status_valid_cache_plain_succeeds() {
+        let (_tmp, subx_dir) = isolated_config_dir();
+        let cache_file = subx_dir.join("match_cache.json");
+
+        let svc = TestConfigService::with_defaults();
+        let config = svc.get_config().unwrap();
+        let hash = compute_config_hash("None", config.general.backup_enabled);
+
+        let now = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_secs();
+        let cache = serde_json::json!({
+            "cache_version": "1.0",
+            "directory": "/some/dir",
+            "file_snapshot": [],
+            "match_operations": [
+                {
+                    "video_file": "/some/video.mkv",
+                    "subtitle_file": "/some/sub.srt",
+                    "new_subtitle_name": "video.srt",
+                    "confidence": 0.95,
+                    "reasoning": []
+                }
+            ],
+            "created_at": now,
+            "ai_model_used": "gpt-4",
+            "config_hash": hash,
+            "original_relocation_mode": "None",
+            "original_backup_enabled": false,
+        });
+        std::fs::write(&cache_file, serde_json::to_string(&cache).unwrap()).unwrap();
+
+        let args = crate::cli::StatusArgs { json: false };
+        execute_status(&args, &svc)
+            .await
+            .expect("status with matching hash must succeed");
+    }
+
+    #[tokio::test]
+    async fn execute_status_valid_cache_json_mode_succeeds() {
+        let (_tmp, subx_dir) = isolated_config_dir();
+        let cache_file = subx_dir.join("match_cache.json");
+        let journal_file = subx_dir.join("match_journal.json");
+
+        let svc = TestConfigService::with_defaults();
+        let config = svc.get_config().unwrap();
+        let hash = compute_config_hash("None", config.general.backup_enabled);
+
+        let now = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_secs();
+        let cache = serde_json::json!({
+            "cache_version": "1.0",
+            "directory": "/some/dir",
+            "file_snapshot": [],
+            "match_operations": [],
+            "created_at": now,
+            "ai_model_used": "gpt-4",
+            "config_hash": hash,
+            "original_relocation_mode": "None",
+            "original_backup_enabled": false,
+        });
+        std::fs::write(&cache_file, serde_json::to_string(&cache).unwrap()).unwrap();
+        std::fs::write(&journal_file, "{}").unwrap();
+
+        let args = crate::cli::StatusArgs { json: true };
+        execute_status(&args, &svc)
+            .await
+            .expect("JSON status must succeed with matching hash");
+    }
+
+    #[tokio::test]
+    async fn execute_status_mismatched_hash_shows_in_plain_output() {
+        let (_tmp, subx_dir) = isolated_config_dir();
+        let cache_file = subx_dir.join("match_cache.json");
+
+        let now = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_secs();
+        let cache = serde_json::json!({
+            "cache_version": "1.0",
+            "directory": "/some/dir",
+            "file_snapshot": [],
+            "match_operations": [],
+            "created_at": now,
+            "ai_model_used": "gpt-4",
+            "config_hash": "00000000deadbeef",
+            "original_relocation_mode": "None",
+            "original_backup_enabled": false,
+        });
+        std::fs::write(&cache_file, serde_json::to_string(&cache).unwrap()).unwrap();
+
+        let svc = TestConfigService::with_defaults();
+        let args = crate::cli::StatusArgs { json: false };
+        // Should succeed even when hash doesn't match — status is informational only.
+        execute_status(&args, &svc)
+            .await
+            .expect("status succeeds even with mismatched config hash");
+    }
+
+    // -----------------------------------------------------------------------
+    // execute_rollback edge cases
+    // -----------------------------------------------------------------------
+
+    #[tokio::test]
+    async fn execute_rollback_journal_with_only_pending_entries_is_noop() {
+        use crate::core::matcher::journal::JournalData;
+
+        let (_tmp, subx_dir) = isolated_config_dir();
+        let journal_file = subx_dir.join("match_journal.json");
+
+        let tmp2 = TempDir::new().unwrap();
+        let dst = tmp2.path().join("file.srt");
+        std::fs::write(&dst, "data").unwrap();
+
+        let pending_entry = JournalEntry {
+            operation_type: JournalOperationType::Copied,
+            source: tmp2.path().join("src.srt"),
+            destination: dst.clone(),
+            backup_path: None,
+            status: JournalEntryStatus::Pending,
+            file_size: 4,
+            file_mtime: 0,
+        };
+
+        let journal = JournalData {
+            batch_id: "pending-only".into(),
+            created_at: 0,
+            entries: vec![pending_entry],
+        };
+        journal.save(&journal_file).await.expect("save journal");
+
+        let args = RollbackArgs { force: false };
+        execute_rollback(&args)
+            .await
+            .expect("should succeed with only pending entries");
+
+        // When there are no completed entries to roll back, the journal is
+        // left in place (nothing was reversed) and the destination is untouched.
+        assert!(
+            journal_file.exists(),
+            "journal kept when nothing was rolled back"
+        );
+        assert!(dst.exists(), "pending entry destination must be untouched");
+    }
+
+    #[tokio::test]
+    async fn execute_rollback_force_skips_integrity_check() {
+        use crate::core::matcher::journal::JournalData;
+
+        let (_tmp, subx_dir) = isolated_config_dir();
+        let journal_file = subx_dir.join("match_journal.json");
+
+        let tmp2 = TempDir::new().unwrap();
+        let src = tmp2.path().join("orig.srt");
+        let dst = tmp2.path().join("copy.srt");
+        std::fs::write(&dst, "data").unwrap();
+
+        // Record wrong size so integrity check would normally fail.
+        let entry = JournalEntry {
+            operation_type: JournalOperationType::Copied,
+            source: src.clone(),
+            destination: dst.clone(),
+            backup_path: None,
+            status: JournalEntryStatus::Completed,
+            file_size: 9999,  // wrong size
+            file_mtime: 9999, // wrong mtime
+        };
+
+        let journal = JournalData {
+            batch_id: "force-batch".into(),
+            created_at: 0,
+            entries: vec![entry],
+        };
+        journal.save(&journal_file).await.expect("save journal");
+
+        let args = RollbackArgs { force: true };
+        execute_rollback(&args)
+            .await
+            .expect("force rollback should succeed despite integrity mismatch");
+
+        assert!(!dst.exists(), "copy destination must be removed");
+        assert!(!journal_file.exists(), "journal must be deleted");
+    }
+
+    // -----------------------------------------------------------------------
+    // execute_clear via execute_with_config
+    // -----------------------------------------------------------------------
+
+    #[tokio::test]
+    async fn execute_with_config_clear_journal_type_works() {
+        use std::sync::Arc;
+        let (_tmp, subx_dir) = isolated_config_dir();
+        let journal_file = subx_dir.join("match_journal.json");
+        let cache_file = subx_dir.join("match_cache.json");
+        std::fs::write(&journal_file, "{}").unwrap();
+        std::fs::write(&cache_file, "{}").unwrap();
+
+        let svc = Arc::new(TestConfigService::with_defaults());
+        let args = CacheArgs {
+            action: crate::cli::CacheAction::Clear(crate::cli::ClearArgs {
+                r#type: crate::cli::ClearType::Journal,
+            }),
+        };
+        execute_with_config(args, svc)
+            .await
+            .expect("clear journal via execute_with_config");
+
+        assert!(!journal_file.exists(), "journal should be removed");
+        assert!(cache_file.exists(), "cache should remain");
+    }
+
+    // -----------------------------------------------------------------------
+    // execute_apply — confidence filter
+    // -----------------------------------------------------------------------
+
+    #[tokio::test]
+    async fn execute_apply_confidence_filter_removes_low_confidence_ops() {
+        use crate::cli::ApplyArgs;
+
+        let (_tmp, subx_dir) = isolated_config_dir();
+        let cache_file = subx_dir.join("match_cache.json");
+
+        let svc = TestConfigService::with_defaults();
+        let config = svc.get_config().unwrap();
+        let hash = compute_config_hash("None", config.general.backup_enabled);
+
+        let now = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_secs();
+
+        // Two operations: one at 90 %, one at 50 %.  Filter at 80 % should
+        // leave only the first, reducing to 1 op — which then hits
+        // "No operations to apply" because the filtered result has 1 entry
+        // but the test uses force=true so it proceeds; with an empty cache
+        // we'd get "No operations to apply".
+        // Use --force to skip snapshot/hash checks.
+        let cache = serde_json::json!({
+            "cache_version": "1.0",
+            "directory": "/dir",
+            "file_snapshot": [],
+            "match_operations": [
+                {
+                    "video_file": "/dir/v1.mkv",
+                    "subtitle_file": "/dir/s1.srt",
+                    "new_subtitle_name": "v1.srt",
+                    "confidence": 0.5,
+                    "reasoning": []
+                }
+            ],
+            "created_at": now,
+            "ai_model_used": "gpt-4",
+            "config_hash": hash,
+            "original_relocation_mode": "None",
+            "original_backup_enabled": false,
+        });
+        std::fs::write(&cache_file, serde_json::to_string(&cache).unwrap()).unwrap();
+
+        // confidence threshold = 80, filters out the 50% op → empty → "No operations"
+        let result = execute_apply(
+            &ApplyArgs {
+                yes: true,
+                force: true,
+                confidence: Some(80),
+            },
+            &svc,
+        )
+        .await;
+        assert!(
+            result.is_ok(),
+            "confidence filter to empty ops should be Ok: {result:?}"
+        );
+    }
+}

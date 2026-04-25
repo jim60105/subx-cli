@@ -221,3 +221,368 @@ impl FormatConverter {
         })
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use tempfile::TempDir;
+
+    // ── Helpers ─────────────────────────────────────────────────────────────
+
+    fn default_config() -> ConversionConfig {
+        ConversionConfig {
+            preserve_styling: false,
+            target_encoding: "UTF-8".to_string(),
+            keep_original: false,
+            validate_output: false,
+        }
+    }
+
+    fn validating_config() -> ConversionConfig {
+        ConversionConfig {
+            validate_output: true,
+            ..default_config()
+        }
+    }
+
+    const SAMPLE_SRT: &str = "1\n00:00:01,000 --> 00:00:02,500\nHello world\n\n2\n00:00:03,000 --> 00:00:04,000\nSecond line\n\n";
+    const SAMPLE_VTT: &str = "WEBVTT\n\n1\n00:00:01.000 --> 00:00:02.500\nHello world\n\n2\n00:00:03.000 --> 00:00:04.000\nSecond line\n\n";
+    const SAMPLE_ASS: &str = "[Script Info]\nScriptType: v4.00+\n\n[V4+ Styles]\nFormat: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text\n\n[Events]\nFormat: Layer,Start,End,Style,Name,MarginL,MarginR,MarginV,Effect,Text\nDialogue: 0,0:00:01.00,0:00:02.50,Default,,0000,0000,0000,,Hello world\nDialogue: 0,0:00:03.00,0:00:04.00,Default,,0000,0000,0000,,Second line\n";
+
+    fn write_temp_file(dir: &TempDir, name: &str, content: &str) -> std::path::PathBuf {
+        let path = dir.path().join(name);
+        std::fs::write(&path, content).expect("write temp file");
+        path
+    }
+
+    // ── ConversionConfig & ConversionResult ──────────────────────────────────
+
+    #[test]
+    fn conversion_config_clone_and_debug() {
+        let cfg = default_config();
+        let cloned = cfg.clone();
+        assert_eq!(cloned.target_encoding, "UTF-8");
+        assert!(!cloned.preserve_styling);
+        assert!(!cloned.keep_original);
+        assert!(!cloned.validate_output);
+        let dbg = format!("{:?}", cfg);
+        assert!(dbg.contains("ConversionConfig"));
+    }
+
+    #[test]
+    fn conversion_result_debug() {
+        let r = ConversionResult {
+            success: true,
+            input_format: "srt".to_string(),
+            output_format: "ass".to_string(),
+            original_entries: 2,
+            converted_entries: 2,
+            warnings: vec![],
+            errors: vec![],
+        };
+        let dbg = format!("{:?}", r);
+        assert!(dbg.contains("ConversionResult"));
+    }
+
+    #[test]
+    fn format_converter_clone() {
+        let conv = FormatConverter::new(default_config());
+        let cloned = conv.clone();
+        assert!(!cloned.config.preserve_styling);
+    }
+
+    // ── convert_file: SRT → ASS ──────────────────────────────────────────────
+
+    #[tokio::test]
+    async fn convert_file_srt_to_ass() {
+        let dir = TempDir::new().unwrap();
+        let input = write_temp_file(&dir, "test.srt", SAMPLE_SRT);
+        let output = dir.path().join("test.ass");
+
+        let conv = FormatConverter::new(default_config());
+        let result = conv.convert_file(&input, &output, "ass").await.unwrap();
+
+        assert!(result.success);
+        assert_eq!(result.input_format, "srt");
+        assert_eq!(result.output_format, "ass");
+        assert_eq!(result.original_entries, 2);
+        assert_eq!(result.converted_entries, 2);
+        assert!(result.warnings.is_empty());
+        assert!(result.errors.is_empty());
+        assert!(output.exists());
+    }
+
+    // ── convert_file: ASS → SRT ──────────────────────────────────────────────
+
+    #[tokio::test]
+    async fn convert_file_ass_to_srt() {
+        let dir = TempDir::new().unwrap();
+        let input = write_temp_file(&dir, "test.ass", SAMPLE_ASS);
+        let output = dir.path().join("test.srt");
+
+        let conv = FormatConverter::new(default_config());
+        let result = conv.convert_file(&input, &output, "srt").await.unwrap();
+
+        assert!(result.success);
+        assert_eq!(result.input_format, "ass");
+        assert_eq!(result.output_format, "srt");
+        assert_eq!(result.original_entries, 2);
+        assert_eq!(result.converted_entries, 2);
+        assert!(output.exists());
+    }
+
+    // ── convert_file: SRT → VTT ──────────────────────────────────────────────
+
+    #[tokio::test]
+    async fn convert_file_srt_to_vtt() {
+        let dir = TempDir::new().unwrap();
+        let input = write_temp_file(&dir, "test.srt", SAMPLE_SRT);
+        let output = dir.path().join("test.vtt");
+
+        let conv = FormatConverter::new(default_config());
+        let result = conv.convert_file(&input, &output, "vtt").await.unwrap();
+
+        assert!(result.success);
+        assert_eq!(result.input_format, "srt");
+        assert_eq!(result.output_format, "vtt");
+        assert_eq!(result.converted_entries, 2);
+        assert!(output.exists());
+        let content = std::fs::read_to_string(&output).unwrap();
+        assert!(content.contains("WEBVTT"));
+    }
+
+    // ── convert_file: VTT → SRT ──────────────────────────────────────────────
+
+    #[tokio::test]
+    async fn convert_file_vtt_to_srt() {
+        let dir = TempDir::new().unwrap();
+        let input = write_temp_file(&dir, "test.vtt", SAMPLE_VTT);
+        let output = dir.path().join("test.srt");
+
+        let conv = FormatConverter::new(default_config());
+        let result = conv.convert_file(&input, &output, "srt").await.unwrap();
+
+        assert!(result.success);
+        assert_eq!(result.input_format, "vtt");
+        assert_eq!(result.output_format, "srt");
+        assert_eq!(result.converted_entries, 2);
+        assert!(output.exists());
+        let content = std::fs::read_to_string(&output).unwrap();
+        assert!(content.contains("-->"));
+    }
+
+    // ── convert_file: ASS → VTT ──────────────────────────────────────────────
+
+    #[tokio::test]
+    async fn convert_file_ass_to_vtt() {
+        let dir = TempDir::new().unwrap();
+        let input = write_temp_file(&dir, "test.ass", SAMPLE_ASS);
+        let output = dir.path().join("test.vtt");
+
+        let conv = FormatConverter::new(default_config());
+        let result = conv.convert_file(&input, &output, "vtt").await.unwrap();
+
+        assert!(result.success);
+        assert_eq!(result.input_format, "ass");
+        assert_eq!(result.output_format, "vtt");
+        assert_eq!(result.converted_entries, 2);
+        assert!(output.exists());
+    }
+
+    // ── convert_file: VTT → ASS ──────────────────────────────────────────────
+
+    #[tokio::test]
+    async fn convert_file_vtt_to_ass() {
+        let dir = TempDir::new().unwrap();
+        let input = write_temp_file(&dir, "test.vtt", SAMPLE_VTT);
+        let output = dir.path().join("test.ass");
+
+        let conv = FormatConverter::new(default_config());
+        let result = conv.convert_file(&input, &output, "ass").await.unwrap();
+
+        assert!(result.success);
+        assert_eq!(result.input_format, "vtt");
+        assert_eq!(result.output_format, "ass");
+        assert_eq!(result.converted_entries, 2);
+        assert!(output.exists());
+    }
+
+    // ── convert_file: validate_output=true (equal entry counts) ─────────────
+
+    #[tokio::test]
+    async fn convert_file_with_validate_output_success() {
+        let dir = TempDir::new().unwrap();
+        let input = write_temp_file(&dir, "test.srt", SAMPLE_SRT);
+        let output = dir.path().join("test.ass");
+
+        let conv = FormatConverter::new(validating_config());
+        let result = conv.convert_file(&input, &output, "ass").await.unwrap();
+
+        assert!(result.success);
+        assert!(result.errors.is_empty());
+        assert_eq!(result.original_entries, result.converted_entries);
+    }
+
+    // ── convert_file: validate_output=true, VTT → SRT ───────────────────────
+
+    #[tokio::test]
+    async fn convert_file_vtt_to_srt_with_validation() {
+        let dir = TempDir::new().unwrap();
+        let input = write_temp_file(&dir, "test.vtt", SAMPLE_VTT);
+        let output = dir.path().join("test.srt");
+
+        let conv = FormatConverter::new(validating_config());
+        let result = conv.convert_file(&input, &output, "srt").await.unwrap();
+
+        assert!(result.success);
+        assert_eq!(result.original_entries, result.converted_entries);
+    }
+
+    // ── convert_file: non-existent input file → error ───────────────────────
+
+    #[tokio::test]
+    async fn convert_file_missing_input_returns_error() {
+        let dir = TempDir::new().unwrap();
+        let input = dir.path().join("nonexistent.srt");
+        let output = dir.path().join("out.ass");
+
+        let conv = FormatConverter::new(default_config());
+        let err = conv.convert_file(&input, &output, "ass").await;
+        assert!(err.is_err());
+    }
+
+    // ── convert_file: unsupported target format → error ─────────────────────
+
+    #[tokio::test]
+    async fn convert_file_unsupported_target_format_returns_error() {
+        let dir = TempDir::new().unwrap();
+        let input = write_temp_file(&dir, "test.srt", SAMPLE_SRT);
+        let output = dir.path().join("test.xyz");
+
+        let conv = FormatConverter::new(default_config());
+        let err = conv.convert_file(&input, &output, "xyz").await;
+        assert!(err.is_err());
+        let msg = format!("{}", err.unwrap_err());
+        assert!(
+            msg.to_lowercase().contains("unsupported")
+                || msg.contains("xyz")
+                || msg.contains("format")
+        );
+    }
+
+    // ── convert_file: invalid/unrecognized content → error ───────────────────
+
+    #[tokio::test]
+    async fn convert_file_unrecognized_format_returns_error() {
+        let dir = TempDir::new().unwrap();
+        let input = write_temp_file(&dir, "test.srt", "this is not a subtitle file");
+        let output = dir.path().join("out.ass");
+
+        let conv = FormatConverter::new(default_config());
+        let err = conv.convert_file(&input, &output, "ass").await;
+        assert!(err.is_err());
+    }
+
+    // ── convert_file: output file is written correctly ───────────────────────
+
+    #[tokio::test]
+    async fn convert_file_output_is_valid_ass() {
+        let dir = TempDir::new().unwrap();
+        let input = write_temp_file(&dir, "test.srt", SAMPLE_SRT);
+        let output = dir.path().join("test.ass");
+
+        let conv = FormatConverter::new(default_config());
+        conv.convert_file(&input, &output, "ass").await.unwrap();
+
+        let content = std::fs::read_to_string(&output).unwrap();
+        assert!(content.contains("[Events]"));
+        assert!(content.contains("Dialogue:"));
+    }
+
+    // ── convert_file: SRT → SRT (same format) ───────────────────────────────
+
+    #[tokio::test]
+    async fn convert_file_srt_to_srt_same_format() {
+        let dir = TempDir::new().unwrap();
+        let input = write_temp_file(&dir, "test.srt", SAMPLE_SRT);
+        let output = dir.path().join("out.srt");
+
+        let conv = FormatConverter::new(default_config());
+        let result = conv.convert_file(&input, &output, "srt").await.unwrap();
+
+        assert!(result.success);
+        assert_eq!(result.input_format, "srt");
+        assert_eq!(result.output_format, "srt");
+        assert_eq!(result.original_entries, 2);
+    }
+
+    // ── convert_batch: empty directory ───────────────────────────────────────
+
+    #[tokio::test]
+    async fn convert_batch_empty_directory_returns_empty_vec() {
+        let dir = TempDir::new().unwrap();
+
+        let conv = FormatConverter::new(default_config());
+        let results = conv.convert_batch(dir.path(), "ass", false).await.unwrap();
+        assert!(results.is_empty());
+    }
+
+    // ── convert_batch: directory with SRT files ───────────────────────────────
+
+    #[tokio::test]
+    async fn convert_batch_converts_srt_files_to_ass() {
+        let dir = TempDir::new().unwrap();
+        write_temp_file(&dir, "a.srt", SAMPLE_SRT);
+        write_temp_file(&dir, "b.srt", SAMPLE_SRT);
+
+        let conv = FormatConverter::new(default_config());
+        let results = conv.convert_batch(dir.path(), "ass", false).await.unwrap();
+
+        assert_eq!(results.len(), 2);
+        for r in &results {
+            assert!(r.success);
+            assert_eq!(r.output_format, "ass");
+        }
+    }
+
+    // ── convert_batch: recursive flag ────────────────────────────────────────
+
+    #[tokio::test]
+    async fn convert_batch_recursive_discovers_nested_files() {
+        let dir = TempDir::new().unwrap();
+        let subdir = dir.path().join("sub");
+        std::fs::create_dir(&subdir).unwrap();
+        write_temp_file(&dir, "top.srt", SAMPLE_SRT);
+        std::fs::write(subdir.join("nested.srt"), SAMPLE_SRT).unwrap();
+
+        let conv = FormatConverter::new(default_config());
+
+        // Non-recursive: only top-level
+        let flat = conv.convert_batch(dir.path(), "vtt", false).await.unwrap();
+        assert_eq!(flat.len(), 1);
+
+        // Recursive: includes nested
+        let dir2 = TempDir::new().unwrap();
+        let subdir2 = dir2.path().join("sub");
+        std::fs::create_dir(&subdir2).unwrap();
+        write_temp_file(&dir2, "top.srt", SAMPLE_SRT);
+        std::fs::write(subdir2.join("nested.srt"), SAMPLE_SRT).unwrap();
+        let recursive = conv.convert_batch(dir2.path(), "vtt", true).await.unwrap();
+        assert_eq!(recursive.len(), 2);
+    }
+
+    // ── convert_batch: VTT files ─────────────────────────────────────────────
+
+    #[tokio::test]
+    async fn convert_batch_converts_vtt_files_to_srt() {
+        let dir = TempDir::new().unwrap();
+        write_temp_file(&dir, "a.vtt", SAMPLE_VTT);
+
+        let conv = FormatConverter::new(default_config());
+        let results = conv.convert_batch(dir.path(), "srt", false).await.unwrap();
+
+        assert_eq!(results.len(), 1);
+        assert!(results[0].success);
+        assert_eq!(results[0].output_format, "srt");
+    }
+}

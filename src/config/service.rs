@@ -722,6 +722,15 @@ mod tests {
     use crate::config::TestEnvironmentProvider;
     use std::sync::Arc;
 
+    /// Helper: create a ProductionConfigService whose config file lives in
+    /// the given TempDir so file-writing tests are isolated.
+    fn make_service_with_tmp_config(dir: &tempfile::TempDir) -> ProductionConfigService {
+        let config_path = dir.path().join("config.toml");
+        let mut env = TestEnvironmentProvider::new();
+        env.set_var("SUBX_CONFIG_PATH", config_path.to_str().unwrap());
+        ProductionConfigService::with_env_provider(Arc::new(env)).unwrap()
+    }
+
     #[test]
     fn test_production_config_service_creation() {
         let service = ProductionConfigService::new();
@@ -1102,5 +1111,881 @@ mod tests {
         let mode = std::fs::metadata(&path).unwrap().permissions().mode() & 0o777;
         assert_eq!(mode, 0o600);
         assert_eq!(std::fs::read_to_string(&path).unwrap(), "new = \"value\"\n");
+    }
+
+    // -----------------------------------------------------------------------
+    // Caching behaviour
+    // -----------------------------------------------------------------------
+
+    #[test]
+    fn test_production_config_get_config_caches_result() {
+        let dir = tempfile::tempdir().unwrap();
+        let service = make_service_with_tmp_config(&dir);
+        let config1 = service.get_config().unwrap();
+        let config2 = service.get_config().unwrap();
+        assert_eq!(config1.ai.provider, config2.ai.provider);
+        assert_eq!(config1.ai.model, config2.ai.model);
+    }
+
+    #[test]
+    fn test_production_config_reload_clears_cache_and_reloads() {
+        let dir = tempfile::tempdir().unwrap();
+        let service = make_service_with_tmp_config(&dir);
+        service.get_config().unwrap(); // populate cache
+        service.reload().unwrap(); // must clear then reload
+        let config = service.get_config().unwrap();
+        assert_eq!(config.ai.provider, "openai");
+    }
+
+    // -----------------------------------------------------------------------
+    // Azure OpenAI environment variable handling
+    // -----------------------------------------------------------------------
+
+    #[test]
+    fn test_azure_openai_api_key_sets_provider_and_key() {
+        let mut env = TestEnvironmentProvider::new();
+        env.set_var("AZURE_OPENAI_API_KEY", "azure-api-key-test");
+        env.set_var("SUBX_CONFIG_PATH", "/nonexistent/azure_api_key_test.toml");
+        let service = ProductionConfigService::with_env_provider(Arc::new(env)).unwrap();
+        let config = service.get_config().unwrap();
+        assert_eq!(config.ai.provider, "azure-openai");
+        assert_eq!(config.ai.api_key, Some("azure-api-key-test".to_string()));
+    }
+
+    #[test]
+    fn test_azure_openai_endpoint_sets_base_url() {
+        let mut env = TestEnvironmentProvider::new();
+        env.set_var(
+            "AZURE_OPENAI_ENDPOINT",
+            "https://my-instance.openai.azure.com",
+        );
+        env.set_var("SUBX_CONFIG_PATH", "/nonexistent/azure_endpoint_test.toml");
+        let service = ProductionConfigService::with_env_provider(Arc::new(env)).unwrap();
+        let config = service.get_config().unwrap();
+        assert_eq!(config.ai.base_url, "https://my-instance.openai.azure.com");
+    }
+
+    #[test]
+    fn test_azure_openai_api_version_sets_api_version() {
+        let mut env = TestEnvironmentProvider::new();
+        env.set_var("AZURE_OPENAI_API_VERSION", "2024-02-01");
+        env.set_var("SUBX_CONFIG_PATH", "/nonexistent/azure_version_test.toml");
+        let service = ProductionConfigService::with_env_provider(Arc::new(env)).unwrap();
+        let config = service.get_config().unwrap();
+        assert_eq!(config.ai.api_version, Some("2024-02-01".to_string()));
+    }
+
+    #[test]
+    fn test_azure_openai_deployment_id_sets_model() {
+        let mut env = TestEnvironmentProvider::new();
+        env.set_var("AZURE_OPENAI_API_KEY", "azure-key-for-deploy");
+        env.set_var("AZURE_OPENAI_DEPLOYMENT_ID", "my-gpt4-deployment");
+        env.set_var("SUBX_CONFIG_PATH", "/nonexistent/azure_deploy_test.toml");
+        let service = ProductionConfigService::with_env_provider(Arc::new(env)).unwrap();
+        let config = service.get_config().unwrap();
+        assert_eq!(config.ai.model, "my-gpt4-deployment");
+    }
+
+    #[test]
+    fn test_azure_openai_all_env_vars_together() {
+        let mut env = TestEnvironmentProvider::new();
+        env.set_var("AZURE_OPENAI_API_KEY", "full-azure-api-key");
+        env.set_var("AZURE_OPENAI_ENDPOINT", "https://full.openai.azure.com");
+        env.set_var("AZURE_OPENAI_API_VERSION", "2024-05-01");
+        env.set_var("AZURE_OPENAI_DEPLOYMENT_ID", "full-deployment-name");
+        env.set_var("SUBX_CONFIG_PATH", "/nonexistent/azure_full_test.toml");
+        let service = ProductionConfigService::with_env_provider(Arc::new(env)).unwrap();
+        let config = service.get_config().unwrap();
+        assert_eq!(config.ai.provider, "azure-openai");
+        assert_eq!(config.ai.api_key, Some("full-azure-api-key".to_string()));
+        assert_eq!(config.ai.base_url, "https://full.openai.azure.com");
+        assert_eq!(config.ai.api_version, Some("2024-05-01".to_string()));
+        assert_eq!(config.ai.model, "full-deployment-name");
+    }
+
+    // -----------------------------------------------------------------------
+    // get_config_file_path
+    // -----------------------------------------------------------------------
+
+    #[test]
+    fn test_get_config_file_path_uses_subx_config_path_env() {
+        let mut env = TestEnvironmentProvider::new();
+        env.set_var("SUBX_CONFIG_PATH", "/custom/path/config.toml");
+        let service = ProductionConfigService::with_env_provider(Arc::new(env)).unwrap();
+        let path = service.get_config_file_path().unwrap();
+        assert_eq!(path, PathBuf::from("/custom/path/config.toml"));
+    }
+
+    #[test]
+    fn test_get_config_file_path_default_contains_subx() {
+        let env = TestEnvironmentProvider::new(); // no SUBX_CONFIG_PATH
+        let service = ProductionConfigService::with_env_provider(Arc::new(env)).unwrap();
+        let path = service.get_config_file_path().unwrap();
+        let s = path.to_str().unwrap();
+        assert!(s.contains("subx"), "expected 'subx' in path: {s}");
+        assert!(
+            s.ends_with("config.toml"),
+            "expected 'config.toml' suffix: {s}"
+        );
+    }
+
+    // -----------------------------------------------------------------------
+    // save_config_to_file / save_config
+    // -----------------------------------------------------------------------
+
+    #[test]
+    fn test_save_config_to_file_writes_valid_toml() {
+        let dir = tempfile::tempdir().unwrap();
+        let service = make_service_with_tmp_config(&dir);
+        let save_path = dir.path().join("output.toml");
+        service.save_config_to_file(&save_path).unwrap();
+        let content = std::fs::read_to_string(&save_path).unwrap();
+        assert!(content.contains("[ai]"), "missing [ai] section: {content}");
+        assert!(
+            content.contains("provider"),
+            "missing 'provider': {content}"
+        );
+    }
+
+    #[test]
+    fn test_save_config_writes_to_configured_path() {
+        let dir = tempfile::tempdir().unwrap();
+        let service = make_service_with_tmp_config(&dir);
+        service.save_config().unwrap();
+        let config_path = dir.path().join("config.toml");
+        assert!(config_path.exists(), "config file was not created");
+        let content = std::fs::read_to_string(&config_path).unwrap();
+        assert!(content.contains("[ai]"));
+    }
+
+    // -----------------------------------------------------------------------
+    // reset_to_defaults
+    // -----------------------------------------------------------------------
+
+    #[test]
+    fn test_reset_to_defaults_restores_default_config() {
+        let dir = tempfile::tempdir().unwrap();
+        let service = make_service_with_tmp_config(&dir);
+        // First write a file so reset has something to overwrite
+        service.save_config().unwrap();
+        service.reset_to_defaults().unwrap();
+        let config = service.get_config().unwrap();
+        assert_eq!(config.ai.provider, "openai");
+        assert_eq!(config.ai.model, "gpt-4.1-mini");
+        assert_eq!(config.formats.default_output, "srt");
+    }
+
+    // -----------------------------------------------------------------------
+    // get_config_value – all branches in ProductionConfigService
+    // -----------------------------------------------------------------------
+
+    #[test]
+    fn test_get_config_value_all_ai_keys() {
+        let dir = tempfile::tempdir().unwrap();
+        let service = make_service_with_tmp_config(&dir);
+        for key in &[
+            "ai.provider",
+            "ai.model",
+            "ai.api_key",
+            "ai.base_url",
+            "ai.max_sample_length",
+            "ai.temperature",
+            "ai.max_tokens",
+            "ai.retry_attempts",
+            "ai.retry_delay_ms",
+            "ai.request_timeout_seconds",
+        ] {
+            assert!(
+                service.get_config_value(key).is_ok(),
+                "failed for key: {key}"
+            );
+        }
+    }
+
+    #[test]
+    fn test_get_config_value_all_formats_keys() {
+        let dir = tempfile::tempdir().unwrap();
+        let service = make_service_with_tmp_config(&dir);
+        for key in &[
+            "formats.default_output",
+            "formats.default_encoding",
+            "formats.preserve_styling",
+            "formats.encoding_detection_confidence",
+        ] {
+            assert!(
+                service.get_config_value(key).is_ok(),
+                "failed for key: {key}"
+            );
+        }
+    }
+
+    #[test]
+    fn test_get_config_value_all_sync_keys() {
+        let dir = tempfile::tempdir().unwrap();
+        let service = make_service_with_tmp_config(&dir);
+        for key in &[
+            "sync.default_method",
+            "sync.max_offset_seconds",
+            "sync.vad.enabled",
+            "sync.vad.sensitivity",
+            "sync.vad.padding_chunks",
+            "sync.vad.min_speech_duration_ms",
+        ] {
+            assert!(
+                service.get_config_value(key).is_ok(),
+                "failed for key: {key}"
+            );
+        }
+    }
+
+    #[test]
+    fn test_get_config_value_all_general_keys() {
+        let dir = tempfile::tempdir().unwrap();
+        let service = make_service_with_tmp_config(&dir);
+        for key in &[
+            "general.backup_enabled",
+            "general.max_concurrent_jobs",
+            "general.task_timeout_seconds",
+            "general.enable_progress_bar",
+            "general.worker_idle_timeout_seconds",
+            "general.max_subtitle_bytes",
+            "general.max_audio_bytes",
+        ] {
+            assert!(
+                service.get_config_value(key).is_ok(),
+                "failed for key: {key}"
+            );
+        }
+    }
+
+    #[test]
+    fn test_get_config_value_all_parallel_keys() {
+        let dir = tempfile::tempdir().unwrap();
+        let service = make_service_with_tmp_config(&dir);
+        for key in &[
+            "parallel.max_workers",
+            "parallel.task_queue_size",
+            "parallel.enable_task_priorities",
+            "parallel.auto_balance_workers",
+            "parallel.overflow_strategy",
+        ] {
+            assert!(
+                service.get_config_value(key).is_ok(),
+                "failed for key: {key}"
+            );
+        }
+    }
+
+    #[test]
+    fn test_get_config_value_unknown_key_returns_error() {
+        let dir = tempfile::tempdir().unwrap();
+        let service = make_service_with_tmp_config(&dir);
+        assert!(service.get_config_value("nonexistent.key").is_err());
+        assert!(service.get_config_value("ai").is_err());
+    }
+
+    #[test]
+    fn test_get_config_value_returns_correct_defaults() {
+        let dir = tempfile::tempdir().unwrap();
+        let service = make_service_with_tmp_config(&dir);
+        assert_eq!(service.get_config_value("ai.provider").unwrap(), "openai");
+        assert_eq!(
+            service.get_config_value("ai.model").unwrap(),
+            "gpt-4.1-mini"
+        );
+        assert_eq!(service.get_config_value("ai.api_key").unwrap(), "");
+        assert_eq!(
+            service.get_config_value("formats.default_output").unwrap(),
+            "srt"
+        );
+        assert_eq!(
+            service.get_config_value("general.backup_enabled").unwrap(),
+            "false"
+        );
+    }
+
+    // -----------------------------------------------------------------------
+    // set_config_value – AI section
+    // -----------------------------------------------------------------------
+
+    #[test]
+    fn test_set_config_value_ai_provider() {
+        let dir = tempfile::tempdir().unwrap();
+        let service = make_service_with_tmp_config(&dir);
+        service
+            .set_config_value("ai.provider", "openrouter")
+            .unwrap();
+        assert_eq!(
+            service.get_config_value("ai.provider").unwrap(),
+            "openrouter"
+        );
+    }
+
+    #[test]
+    fn test_set_config_value_ai_model() {
+        let dir = tempfile::tempdir().unwrap();
+        let service = make_service_with_tmp_config(&dir);
+        service.set_config_value("ai.model", "gpt-4.1").unwrap();
+        assert_eq!(service.get_config_value("ai.model").unwrap(), "gpt-4.1");
+    }
+
+    #[test]
+    fn test_set_config_value_ai_api_key_non_empty() {
+        let dir = tempfile::tempdir().unwrap();
+        let service = make_service_with_tmp_config(&dir);
+        service
+            .set_config_value("ai.api_key", "sk-test-apikey-12345")
+            .unwrap();
+        assert_eq!(
+            service.get_config_value("ai.api_key").unwrap(),
+            "sk-test-apikey-12345"
+        );
+    }
+
+    #[test]
+    fn test_set_config_value_ai_api_key_empty_clears_key() {
+        let dir = tempfile::tempdir().unwrap();
+        let service = make_service_with_tmp_config(&dir);
+        // Set a key first
+        service
+            .set_config_value("ai.api_key", "sk-test-apikey-12345")
+            .unwrap();
+        // Then clear it
+        service.set_config_value("ai.api_key", "").unwrap();
+        assert_eq!(service.get_config_value("ai.api_key").unwrap(), "");
+        let config = service.get_config().unwrap();
+        assert!(config.ai.api_key.is_none());
+    }
+
+    #[test]
+    fn test_set_config_value_ai_base_url() {
+        let dir = tempfile::tempdir().unwrap();
+        let service = make_service_with_tmp_config(&dir);
+        service
+            .set_config_value("ai.base_url", "https://custom.example.com/v1")
+            .unwrap();
+        let config = service.get_config().unwrap();
+        assert_eq!(config.ai.base_url, "https://custom.example.com/v1");
+    }
+
+    #[test]
+    fn test_set_config_value_ai_temperature() {
+        let dir = tempfile::tempdir().unwrap();
+        let service = make_service_with_tmp_config(&dir);
+        service.set_config_value("ai.temperature", "0.7").unwrap();
+        let config = service.get_config().unwrap();
+        assert!((config.ai.temperature - 0.7).abs() < 0.001);
+    }
+
+    #[test]
+    fn test_set_config_value_ai_max_tokens() {
+        let dir = tempfile::tempdir().unwrap();
+        let service = make_service_with_tmp_config(&dir);
+        service.set_config_value("ai.max_tokens", "5000").unwrap();
+        assert_eq!(service.get_config_value("ai.max_tokens").unwrap(), "5000");
+    }
+
+    #[test]
+    fn test_set_config_value_ai_retry_attempts() {
+        let dir = tempfile::tempdir().unwrap();
+        let service = make_service_with_tmp_config(&dir);
+        service.set_config_value("ai.retry_attempts", "5").unwrap();
+        assert_eq!(service.get_config_value("ai.retry_attempts").unwrap(), "5");
+    }
+
+    #[test]
+    fn test_set_config_value_ai_retry_delay_ms() {
+        let dir = tempfile::tempdir().unwrap();
+        let service = make_service_with_tmp_config(&dir);
+        service
+            .set_config_value("ai.retry_delay_ms", "2000")
+            .unwrap();
+        assert_eq!(
+            service.get_config_value("ai.retry_delay_ms").unwrap(),
+            "2000"
+        );
+    }
+
+    #[test]
+    fn test_set_config_value_ai_request_timeout_seconds() {
+        let dir = tempfile::tempdir().unwrap();
+        let service = make_service_with_tmp_config(&dir);
+        service
+            .set_config_value("ai.request_timeout_seconds", "60")
+            .unwrap();
+        assert_eq!(
+            service
+                .get_config_value("ai.request_timeout_seconds")
+                .unwrap(),
+            "60"
+        );
+    }
+
+    #[test]
+    fn test_set_config_value_ai_max_sample_length() {
+        let dir = tempfile::tempdir().unwrap();
+        let service = make_service_with_tmp_config(&dir);
+        service
+            .set_config_value("ai.max_sample_length", "500")
+            .unwrap();
+        assert_eq!(
+            service.get_config_value("ai.max_sample_length").unwrap(),
+            "500"
+        );
+    }
+
+    #[test]
+    fn test_set_config_value_ai_api_version_non_empty() {
+        let dir = tempfile::tempdir().unwrap();
+        let service = make_service_with_tmp_config(&dir);
+        service
+            .set_config_value("ai.api_version", "2024-02-01")
+            .unwrap();
+        let config = service.get_config().unwrap();
+        assert_eq!(config.ai.api_version, Some("2024-02-01".to_string()));
+    }
+
+    // -----------------------------------------------------------------------
+    // set_config_value – formats section
+    // -----------------------------------------------------------------------
+
+    #[test]
+    fn test_set_config_value_formats_default_output() {
+        let dir = tempfile::tempdir().unwrap();
+        let service = make_service_with_tmp_config(&dir);
+        service
+            .set_config_value("formats.default_output", "ass")
+            .unwrap();
+        assert_eq!(
+            service.get_config_value("formats.default_output").unwrap(),
+            "ass"
+        );
+    }
+
+    #[test]
+    fn test_set_config_value_formats_preserve_styling() {
+        let dir = tempfile::tempdir().unwrap();
+        let service = make_service_with_tmp_config(&dir);
+        service
+            .set_config_value("formats.preserve_styling", "true")
+            .unwrap();
+        let config = service.get_config().unwrap();
+        assert!(config.formats.preserve_styling);
+    }
+
+    #[test]
+    fn test_set_config_value_formats_default_encoding() {
+        let dir = tempfile::tempdir().unwrap();
+        let service = make_service_with_tmp_config(&dir);
+        service
+            .set_config_value("formats.default_encoding", "utf-8")
+            .unwrap();
+        assert_eq!(
+            service
+                .get_config_value("formats.default_encoding")
+                .unwrap(),
+            "utf-8"
+        );
+    }
+
+    #[test]
+    fn test_set_config_value_formats_encoding_detection_confidence() {
+        let dir = tempfile::tempdir().unwrap();
+        let service = make_service_with_tmp_config(&dir);
+        service
+            .set_config_value("formats.encoding_detection_confidence", "0.9")
+            .unwrap();
+        let config = service.get_config().unwrap();
+        assert!((config.formats.encoding_detection_confidence - 0.9).abs() < 0.001);
+    }
+
+    // -----------------------------------------------------------------------
+    // set_config_value – sync section
+    // -----------------------------------------------------------------------
+
+    #[test]
+    fn test_set_config_value_sync_max_offset_seconds() {
+        let dir = tempfile::tempdir().unwrap();
+        let service = make_service_with_tmp_config(&dir);
+        service
+            .set_config_value("sync.max_offset_seconds", "30")
+            .unwrap();
+        let config = service.get_config().unwrap();
+        assert!((config.sync.max_offset_seconds - 30.0).abs() < 0.001);
+    }
+
+    #[test]
+    fn test_set_config_value_sync_default_method() {
+        let dir = tempfile::tempdir().unwrap();
+        let service = make_service_with_tmp_config(&dir);
+        service
+            .set_config_value("sync.default_method", "vad")
+            .unwrap();
+        assert_eq!(
+            service.get_config_value("sync.default_method").unwrap(),
+            "vad"
+        );
+    }
+
+    #[test]
+    fn test_set_config_value_sync_vad_enabled() {
+        let dir = tempfile::tempdir().unwrap();
+        let service = make_service_with_tmp_config(&dir);
+        service
+            .set_config_value("sync.vad.enabled", "false")
+            .unwrap();
+        let config = service.get_config().unwrap();
+        assert!(!config.sync.vad.enabled);
+    }
+
+    #[test]
+    fn test_set_config_value_sync_vad_sensitivity() {
+        let dir = tempfile::tempdir().unwrap();
+        let service = make_service_with_tmp_config(&dir);
+        service
+            .set_config_value("sync.vad.sensitivity", "0.5")
+            .unwrap();
+        let config = service.get_config().unwrap();
+        assert!((config.sync.vad.sensitivity - 0.5).abs() < 0.001);
+    }
+
+    #[test]
+    fn test_set_config_value_sync_vad_padding_chunks() {
+        let dir = tempfile::tempdir().unwrap();
+        let service = make_service_with_tmp_config(&dir);
+        service
+            .set_config_value("sync.vad.padding_chunks", "5")
+            .unwrap();
+        assert_eq!(
+            service.get_config_value("sync.vad.padding_chunks").unwrap(),
+            "5"
+        );
+    }
+
+    #[test]
+    fn test_set_config_value_sync_vad_min_speech_duration_ms() {
+        let dir = tempfile::tempdir().unwrap();
+        let service = make_service_with_tmp_config(&dir);
+        service
+            .set_config_value("sync.vad.min_speech_duration_ms", "500")
+            .unwrap();
+        assert_eq!(
+            service
+                .get_config_value("sync.vad.min_speech_duration_ms")
+                .unwrap(),
+            "500"
+        );
+    }
+
+    // -----------------------------------------------------------------------
+    // set_config_value – general section
+    // -----------------------------------------------------------------------
+
+    #[test]
+    fn test_set_config_value_general_backup_enabled() {
+        let dir = tempfile::tempdir().unwrap();
+        let service = make_service_with_tmp_config(&dir);
+        service
+            .set_config_value("general.backup_enabled", "true")
+            .unwrap();
+        let config = service.get_config().unwrap();
+        assert!(config.general.backup_enabled);
+    }
+
+    #[test]
+    fn test_set_config_value_general_max_concurrent_jobs() {
+        let dir = tempfile::tempdir().unwrap();
+        let service = make_service_with_tmp_config(&dir);
+        service
+            .set_config_value("general.max_concurrent_jobs", "8")
+            .unwrap();
+        assert_eq!(
+            service
+                .get_config_value("general.max_concurrent_jobs")
+                .unwrap(),
+            "8"
+        );
+    }
+
+    #[test]
+    fn test_set_config_value_general_task_timeout_seconds() {
+        let dir = tempfile::tempdir().unwrap();
+        let service = make_service_with_tmp_config(&dir);
+        service
+            .set_config_value("general.task_timeout_seconds", "120")
+            .unwrap();
+        assert_eq!(
+            service
+                .get_config_value("general.task_timeout_seconds")
+                .unwrap(),
+            "120"
+        );
+    }
+
+    #[test]
+    fn test_set_config_value_general_enable_progress_bar() {
+        let dir = tempfile::tempdir().unwrap();
+        let service = make_service_with_tmp_config(&dir);
+        service
+            .set_config_value("general.enable_progress_bar", "false")
+            .unwrap();
+        let config = service.get_config().unwrap();
+        assert!(!config.general.enable_progress_bar);
+    }
+
+    #[test]
+    fn test_set_config_value_general_worker_idle_timeout_seconds() {
+        let dir = tempfile::tempdir().unwrap();
+        let service = make_service_with_tmp_config(&dir);
+        service
+            .set_config_value("general.worker_idle_timeout_seconds", "60")
+            .unwrap();
+        assert_eq!(
+            service
+                .get_config_value("general.worker_idle_timeout_seconds")
+                .unwrap(),
+            "60"
+        );
+    }
+
+    // -----------------------------------------------------------------------
+    // set_config_value – parallel section
+    // -----------------------------------------------------------------------
+
+    #[test]
+    fn test_set_config_value_parallel_max_workers() {
+        let dir = tempfile::tempdir().unwrap();
+        let service = make_service_with_tmp_config(&dir);
+        service
+            .set_config_value("parallel.max_workers", "4")
+            .unwrap();
+        assert_eq!(
+            service.get_config_value("parallel.max_workers").unwrap(),
+            "4"
+        );
+    }
+
+    #[test]
+    fn test_set_config_value_parallel_task_queue_size() {
+        let dir = tempfile::tempdir().unwrap();
+        let service = make_service_with_tmp_config(&dir);
+        service
+            .set_config_value("parallel.task_queue_size", "200")
+            .unwrap();
+        assert_eq!(
+            service
+                .get_config_value("parallel.task_queue_size")
+                .unwrap(),
+            "200"
+        );
+    }
+
+    #[test]
+    fn test_set_config_value_parallel_enable_task_priorities() {
+        let dir = tempfile::tempdir().unwrap();
+        let service = make_service_with_tmp_config(&dir);
+        service
+            .set_config_value("parallel.enable_task_priorities", "true")
+            .unwrap();
+        let config = service.get_config().unwrap();
+        assert!(config.parallel.enable_task_priorities);
+    }
+
+    #[test]
+    fn test_set_config_value_parallel_auto_balance_workers() {
+        let dir = tempfile::tempdir().unwrap();
+        let service = make_service_with_tmp_config(&dir);
+        service
+            .set_config_value("parallel.auto_balance_workers", "false")
+            .unwrap();
+        let config = service.get_config().unwrap();
+        assert!(!config.parallel.auto_balance_workers);
+    }
+
+    #[test]
+    fn test_set_config_value_parallel_overflow_strategy_block() {
+        let dir = tempfile::tempdir().unwrap();
+        let service = make_service_with_tmp_config(&dir);
+        service
+            .set_config_value("parallel.overflow_strategy", "Block")
+            .unwrap();
+        let config = service.get_config().unwrap();
+        assert_eq!(
+            config.parallel.overflow_strategy,
+            crate::config::OverflowStrategy::Block
+        );
+    }
+
+    #[test]
+    fn test_set_config_value_parallel_overflow_strategy_drop() {
+        let dir = tempfile::tempdir().unwrap();
+        let service = make_service_with_tmp_config(&dir);
+        service
+            .set_config_value("parallel.overflow_strategy", "Drop")
+            .unwrap();
+        let config = service.get_config().unwrap();
+        assert_eq!(
+            config.parallel.overflow_strategy,
+            crate::config::OverflowStrategy::Drop
+        );
+    }
+
+    #[test]
+    fn test_set_config_value_parallel_overflow_strategy_expand() {
+        let dir = tempfile::tempdir().unwrap();
+        let service = make_service_with_tmp_config(&dir);
+        service
+            .set_config_value("parallel.overflow_strategy", "Expand")
+            .unwrap();
+        let config = service.get_config().unwrap();
+        assert_eq!(
+            config.parallel.overflow_strategy,
+            crate::config::OverflowStrategy::Expand
+        );
+    }
+
+    // -----------------------------------------------------------------------
+    // set_config_value – error paths
+    // -----------------------------------------------------------------------
+
+    #[test]
+    fn test_set_config_value_unknown_key_returns_error() {
+        let dir = tempfile::tempdir().unwrap();
+        let service = make_service_with_tmp_config(&dir);
+        assert!(
+            service
+                .set_config_value("nonexistent.key", "value")
+                .is_err()
+        );
+    }
+
+    #[test]
+    fn test_set_config_value_invalid_value_returns_error() {
+        let dir = tempfile::tempdir().unwrap();
+        let service = make_service_with_tmp_config(&dir);
+        // temperature must be in [0.0, 2.0]
+        assert!(service.set_config_value("ai.temperature", "99.9").is_err());
+        // provider must be a known enum value
+        assert!(
+            service
+                .set_config_value("ai.provider", "unknown-provider")
+                .is_err()
+        );
+    }
+
+    // -----------------------------------------------------------------------
+    // Default trait impl
+    // -----------------------------------------------------------------------
+
+    #[test]
+    fn test_production_config_service_default_trait_impl() {
+        let service = ProductionConfigService::default();
+        let config = service.get_config().unwrap();
+        assert_eq!(config.ai.provider, "openai");
+    }
+
+    // -----------------------------------------------------------------------
+    // Loading config values from a TOML file
+    // -----------------------------------------------------------------------
+
+    #[test]
+    fn test_production_config_service_loads_values_from_toml_file() {
+        let dir = tempfile::tempdir().unwrap();
+        let config_path = dir.path().join("custom.toml");
+
+        // Write a serialised default config with one field overridden
+        let mut cfg = crate::config::Config::default();
+        cfg.ai.provider = "openrouter".to_string();
+        cfg.ai.model = "toml-loaded-model".to_string();
+        let toml_str = toml::to_string_pretty(&cfg).unwrap();
+        std::fs::write(&config_path, toml_str).unwrap();
+
+        let mut env = TestEnvironmentProvider::new();
+        env.set_var("SUBX_CONFIG_PATH", config_path.to_str().unwrap());
+        let service = ProductionConfigService::with_env_provider(Arc::new(env)).unwrap();
+        let loaded = service.get_config().unwrap();
+        assert_eq!(loaded.ai.provider, "openrouter");
+        assert_eq!(loaded.ai.model, "toml-loaded-model");
+    }
+
+    // -----------------------------------------------------------------------
+    // TestConfigService instance methods (set_ai_settings_and_key,
+    // set_ai_settings_with_base_url) – covered here to keep service tests
+    // complete and avoid cross-module duplication.
+    // -----------------------------------------------------------------------
+
+    #[test]
+    fn test_test_config_service_set_ai_settings_and_key_instance_method() {
+        let service = TestConfigService::with_defaults();
+        service.set_ai_settings_and_key("openrouter", "my-model", "test-key-1234567890");
+        let config = service.get_config().unwrap();
+        assert_eq!(config.ai.provider, "openrouter");
+        assert_eq!(config.ai.model, "my-model");
+        assert_eq!(config.ai.api_key, Some("test-key-1234567890".to_string()));
+    }
+
+    #[test]
+    fn test_test_config_service_set_ai_settings_and_key_empty_clears_key() {
+        let service = TestConfigService::with_defaults();
+        service.set_ai_settings_and_key("openai", "gpt-4", "");
+        let config = service.get_config().unwrap();
+        assert!(config.ai.api_key.is_none());
+    }
+
+    #[test]
+    fn test_test_config_service_set_ai_settings_with_base_url() {
+        let service = TestConfigService::with_defaults();
+        service.set_ai_settings_with_base_url(
+            "openai",
+            "gpt-4.1",
+            "sk-test-key-12345",
+            "https://proxy.example.com/v1",
+        );
+        let config = service.get_config().unwrap();
+        assert_eq!(config.ai.provider, "openai");
+        assert_eq!(config.ai.model, "gpt-4.1");
+        assert_eq!(config.ai.api_key, Some("sk-test-key-12345".to_string()));
+        assert_eq!(config.ai.base_url, "https://proxy.example.com/v1");
+    }
+
+    // -----------------------------------------------------------------------
+    // File persistence: set_config_value updates the file on disk
+    // -----------------------------------------------------------------------
+
+    #[test]
+    fn test_set_config_value_persists_to_disk() {
+        let dir = tempfile::tempdir().unwrap();
+        let config_path = dir.path().join("config.toml");
+        let mut env = TestEnvironmentProvider::new();
+        env.set_var("SUBX_CONFIG_PATH", config_path.to_str().unwrap());
+        let service = ProductionConfigService::with_env_provider(Arc::new(env)).unwrap();
+
+        service.set_config_value("ai.model", "gpt-4.1").unwrap();
+
+        let file_content = std::fs::read_to_string(&config_path).unwrap();
+        assert!(
+            file_content.contains("gpt-4.1"),
+            "model not persisted to disk: {file_content}"
+        );
+    }
+
+    // -----------------------------------------------------------------------
+    // secure_write_config_file – parent dir already exists (no creation)
+    // -----------------------------------------------------------------------
+
+    #[cfg(unix)]
+    #[test]
+    fn test_secure_write_config_file_existing_parent_dir() {
+        use std::os::unix::fs::PermissionsExt;
+
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("config.toml");
+
+        super::secure_write_config_file(&path, "key = \"value\"\n")
+            .expect("write to existing dir should succeed");
+
+        let mode = std::fs::metadata(&path).unwrap().permissions().mode() & 0o777;
+        assert_eq!(mode, 0o600);
+        assert_eq!(std::fs::read_to_string(&path).unwrap(), "key = \"value\"\n");
     }
 }
