@@ -10,15 +10,20 @@ they are mutually exclusive). The `config`, `cache`, and
 ### Archive Input Support
 
 The `match`, `convert`, `sync`, and `detect-encoding` commands accept
-`.zip` archives as direct inputs (positional path or via `-i`). Archives
-are transparently extracted to a temporary directory for the duration of
-the command, and the extracted files are processed as if they had been
-supplied directly. Temporary directories are cleaned up automatically
-when the command finishes.
+archive files as direct inputs (positional path or via `-i`). Supported
+formats:
 
-`.rar` archives are supported only when SubX is built with the
-`archive-rar` feature (which links against the native `libunrar`
-library). Standard release builds do not include RAR support.
+| Format | Extension(s) | Notes |
+|---|---|---|
+| ZIP | `.zip` | Always available (pure Rust) |
+| 7-Zip | `.7z` | Always available (pure Rust via `sevenz-rust`) |
+| Tar-Gzip | `.tar.gz`, `.tgz` | Always available (pure Rust via `tar` + `flate2`) |
+| RAR | `.rar` | Requires the `archive-rar` feature flag (links native `libunrar`) |
+
+Archives are transparently extracted to a temporary directory for the
+duration of the command, and the extracted files are processed as if they
+had been supplied directly. Temporary directories are cleaned up
+automatically when the command finishes.
 
 Extraction is governed by safety limits to prevent decompression bombs
 and path-traversal attacks: a maximum total expanded size of 1 GiB and a
@@ -54,7 +59,7 @@ subx-cli match [OPTIONS] [PATH]
 | `--backup` | Back up original files before renaming |
 | `--copy`, `-c` | Copy matched subtitles into the video's directory |
 | `--move`, `-m` | Move matched subtitles into the video's directory |
-| `--no-extract` | Skip automatic extraction of archive files (`.zip`, `.rar`). When set, archive files are treated as regular files and subject to the normal extension filter. |
+| `--no-extract` | Skip automatic extraction of archive files (`.zip`, `.7z`, `.tar.gz`, `.tgz`, `.rar`). When set, archive files are treated as regular files and subject to the normal extension filter. |
 
 `--copy` and `--move` are mutually exclusive. They only take effect when
 the subtitle and video reside in different directories. When a filename
@@ -148,7 +153,7 @@ subx-cli convert [OPTIONS] [INPUT]
 | `--keep-original` | Keep the source file after conversion |
 | `--encoding <ENC>` | Character encoding (default: `utf-8`) |
 | `-r`, `--recursive` | Recurse into subdirectories |
-| `--no-extract` | Skip automatic extraction of archive files (`.zip`, `.rar`). When set, archive files are treated as regular files and subject to the normal extension filter. |
+| `--no-extract` | Skip automatic extraction of archive files (`.zip`, `.7z`, `.tar.gz`, `.tgz`, `.rar`). When set, archive files are treated as regular files and subject to the normal extension filter. |
 
 ### Examples
 
@@ -195,7 +200,7 @@ subx-cli sync [OPTIONS] [PATHS]...
 | `--dry-run` | Preview sync results without writing |
 | `--verbose` | Show detailed processing output |
 | `--force` | Overwrite existing output file without confirmation |
-| `--no-extract` | Skip automatic extraction of archive files (`.zip`, `.rar`). When set, archive files are treated as regular files and subject to the normal extension filter. |
+| `--no-extract` | Skip automatic extraction of archive files (`.zip`, `.7z`, `.tar.gz`, `.tgz`, `.rar`). When set, archive files are treated as regular files and subject to the normal extension filter. |
 
 Supported audio containers: MP4, MKV, WebM, OGG, WAV. SubX decodes audio
 natively via Symphonia — FFmpeg is not required.
@@ -236,7 +241,7 @@ subx-cli detect-encoding [OPTIONS] [FILES]...
 | `-i`, `--input <PATH>` | Input directory path (repeatable; mutually exclusive with positional files) |
 | `-v`, `--verbose` | Show sample text from each file |
 | `-r`, `--recursive` | Recurse into subdirectories |
-| `--no-extract` | Skip automatic extraction of archive files (`.zip`, `.rar`). When set, archive files are treated as regular files and subject to the normal extension filter. |
+| `--no-extract` | Skip automatic extraction of archive files (`.zip`, `.7z`, `.tar.gz`, `.tgz`, `.rar`). When set, archive files are treated as regular files and subject to the normal extension filter. |
 
 Positional file arguments and `-i` cannot be used together. Use `-i` for
 directory-based scanning, or positional arguments for specific files.
