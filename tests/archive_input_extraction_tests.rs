@@ -325,3 +325,310 @@ fn test_empty_archive_produces_no_files() {
 // conditionally compiled in future; currently all tests are cross-platform).
 #[allow(dead_code)]
 fn _unused(_p: PathBuf) {}
+
+// ---------------------------------------------------------------------------
+// Tar-gz archive helpers and integration tests
+// ---------------------------------------------------------------------------
+
+/// Helper: create a tar.gz archive at `tar_gz_path` with the given `(name, content)` entries.
+fn create_tar_gz(tar_gz_path: &Path, entries: &[(&str, &[u8])]) {
+    let file = fs::File::create(tar_gz_path).unwrap();
+    let gz = flate2::write::GzEncoder::new(file, flate2::Compression::fast());
+    let mut builder = tar::Builder::new(gz);
+
+    for (name, content) in entries {
+        let mut header = tar::Header::new_gnu();
+        header.set_path(name).unwrap();
+        header.set_size(content.len() as u64);
+        header.set_mode(0o644);
+        header.set_cksum();
+        builder.append(&header, &content[..]).unwrap();
+    }
+
+    builder.into_inner().unwrap().finish().unwrap();
+}
+
+#[test]
+fn test_tar_gz_input_produces_extracted_files() {
+    let tmp = TempDir::new().unwrap();
+    let tar_gz_path = tmp.path().join("subs.tar.gz");
+    create_tar_gz(
+        &tar_gz_path,
+        &[
+            ("a.srt", b"1\n00:00:01,000 --> 00:00:02,000\nHello\n"),
+            ("b.srt", b"1\n00:00:01,000 --> 00:00:02,000\nWorld\n"),
+        ],
+    );
+
+    let handler = InputPathHandler::from_args(std::slice::from_ref(&tar_gz_path), false)
+        .unwrap()
+        .with_extensions(&["srt", "ass", "vtt", "sub"]);
+    let collected = handler.collect_files().unwrap();
+
+    assert_eq!(collected.len(), 2);
+    for p in collected.iter() {
+        assert_ne!(p, &tar_gz_path, "tar.gz path itself should not be returned");
+        assert_eq!(p.extension().and_then(|e| e.to_str()), Some("srt"));
+        assert!(p.exists(), "extracted file should exist on disk");
+    }
+}
+
+#[test]
+fn test_tar_gz_no_extract_skips_extraction() {
+    let tmp = TempDir::new().unwrap();
+    let tar_gz_path = tmp.path().join("subs.tar.gz");
+    create_tar_gz(&tar_gz_path, &[("a.srt", b"hello")]);
+
+    let handler = InputPathHandler::from_args(std::slice::from_ref(&tar_gz_path), false)
+        .unwrap()
+        .with_extensions(&["srt", "ass", "vtt", "sub"])
+        .with_no_extract(true);
+    let collected = handler.collect_files().unwrap();
+
+    assert!(
+        collected.is_empty(),
+        "no_extract with tar.gz should yield no files, got {:?}",
+        &*collected
+    );
+}
+
+#[test]
+fn test_tar_gz_archive_origin_resolves() {
+    let tmp = TempDir::new().unwrap();
+    let tar_gz_path = tmp.path().join("pack.tar.gz");
+    create_tar_gz(
+        &tar_gz_path,
+        &[("ep1.srt", b"content1"), ("ep2.srt", b"content2")],
+    );
+
+    let handler = InputPathHandler::from_args(std::slice::from_ref(&tar_gz_path), false)
+        .unwrap()
+        .with_extensions(&["srt", "ass", "vtt", "sub"]);
+    let collected = handler.collect_files().unwrap();
+
+    assert_eq!(collected.len(), 2);
+    for p in collected.iter() {
+        let origin = collected
+            .archive_origin(p)
+            .expect("tar.gz extracted files should have an archive origin");
+        assert_eq!(origin, tar_gz_path.as_path());
+    }
+}
+
+#[test]
+fn test_corrupted_tar_gz_skipped_gracefully() {
+    let tmp = TempDir::new().unwrap();
+
+    let bad_tar_gz = tmp.path().join("broken.tar.gz");
+    fs::write(&bad_tar_gz, b"this is not a tar.gz file").unwrap();
+
+    let good = tmp.path().join("good.srt");
+    fs::write(&good, b"valid").unwrap();
+
+    let handler = InputPathHandler::from_args(&[bad_tar_gz.clone(), good.clone()], false)
+        .unwrap()
+        .with_extensions(&["srt", "ass", "vtt", "sub"]);
+
+    let collected = handler
+        .collect_files()
+        .expect("collect_files should not fail when a tar.gz is corrupted");
+
+    assert_eq!(collected.len(), 1);
+    assert_eq!(collected[0], good);
+}
+
+#[test]
+fn test_tgz_input_produces_extracted_files() {
+    let tmp = TempDir::new().unwrap();
+    let tgz_path = tmp.path().join("subs.tgz");
+    create_tar_gz(&tgz_path, &[("a.srt", b"hello"), ("b.ass", b"world")]);
+
+    let handler = InputPathHandler::from_args(std::slice::from_ref(&tgz_path), false)
+        .unwrap()
+        .with_extensions(&["srt", "ass", "vtt", "sub"]);
+    let collected = handler.collect_files().unwrap();
+
+    assert_eq!(collected.len(), 2);
+}
+
+// ---------------------------------------------------------------------------
+// 7z archive helpers and integration tests
+// ---------------------------------------------------------------------------
+
+/// Helper: create a 7z archive at `seven_z_path` with the given `(name, content)` entries.
+fn create_7z(seven_z_path: &Path, entries: &[(&str, &[u8])]) {
+    let mut writer = sevenz_rust::SevenZWriter::create(seven_z_path).unwrap();
+    for (name, content) in entries {
+        let entry = sevenz_rust::SevenZArchiveEntry::from_path(
+            std::path::Path::new(name),
+            name.to_string(),
+        );
+        writer
+            .push_archive_entry(entry, Some(std::io::Cursor::new(content)))
+            .unwrap();
+    }
+    writer.finish().unwrap();
+}
+
+#[test]
+fn test_7z_input_produces_extracted_files() {
+    let tmp = TempDir::new().unwrap();
+    let seven_z_path = tmp.path().join("subs.7z");
+    create_7z(
+        &seven_z_path,
+        &[
+            ("a.srt", b"1\n00:00:01,000 --> 00:00:02,000\nHello\n"),
+            ("b.srt", b"1\n00:00:01,000 --> 00:00:02,000\nWorld\n"),
+        ],
+    );
+
+    let handler = InputPathHandler::from_args(std::slice::from_ref(&seven_z_path), false)
+        .unwrap()
+        .with_extensions(&["srt", "ass", "vtt", "sub"]);
+    let collected = handler.collect_files().unwrap();
+
+    assert_eq!(collected.len(), 2);
+    for p in collected.iter() {
+        assert_ne!(p, &seven_z_path, "7z path itself should not be returned");
+        assert_eq!(p.extension().and_then(|e| e.to_str()), Some("srt"));
+        assert!(p.exists(), "extracted file should exist on disk");
+    }
+}
+
+#[test]
+fn test_7z_no_extract_skips_extraction() {
+    let tmp = TempDir::new().unwrap();
+    let seven_z_path = tmp.path().join("subs.7z");
+    create_7z(&seven_z_path, &[("a.srt", b"hello")]);
+
+    let handler = InputPathHandler::from_args(std::slice::from_ref(&seven_z_path), false)
+        .unwrap()
+        .with_extensions(&["srt", "ass", "vtt", "sub"])
+        .with_no_extract(true);
+    let collected = handler.collect_files().unwrap();
+
+    assert!(
+        collected.is_empty(),
+        "no_extract with 7z should yield no files, got {:?}",
+        &*collected
+    );
+}
+
+#[test]
+fn test_7z_archive_origin_resolves() {
+    let tmp = TempDir::new().unwrap();
+    let seven_z_path = tmp.path().join("pack.7z");
+    create_7z(
+        &seven_z_path,
+        &[("ep1.srt", b"content1"), ("ep2.srt", b"content2")],
+    );
+
+    let handler = InputPathHandler::from_args(std::slice::from_ref(&seven_z_path), false)
+        .unwrap()
+        .with_extensions(&["srt", "ass", "vtt", "sub"]);
+    let collected = handler.collect_files().unwrap();
+
+    assert_eq!(collected.len(), 2);
+    for p in collected.iter() {
+        let origin = collected
+            .archive_origin(p)
+            .expect("7z extracted files should have an archive origin");
+        assert_eq!(origin, seven_z_path.as_path());
+    }
+}
+
+#[test]
+fn test_corrupted_7z_skipped_gracefully() {
+    let tmp = TempDir::new().unwrap();
+
+    let bad_7z = tmp.path().join("broken.7z");
+    fs::write(&bad_7z, b"this is not a 7z file").unwrap();
+
+    let good = tmp.path().join("good.srt");
+    fs::write(&good, b"valid").unwrap();
+
+    let handler = InputPathHandler::from_args(&[bad_7z.clone(), good.clone()], false)
+        .unwrap()
+        .with_extensions(&["srt", "ass", "vtt", "sub"]);
+
+    let collected = handler
+        .collect_files()
+        .expect("collect_files should not fail when a 7z is corrupted");
+
+    assert_eq!(collected.len(), 1);
+    assert_eq!(collected[0], good);
+}
+
+// ---------------------------------------------------------------------------
+// Mixed archive type tests
+// ---------------------------------------------------------------------------
+
+#[test]
+fn test_mixed_archive_types_zip_7z_tar_gz() {
+    let tmp = TempDir::new().unwrap();
+
+    let zip_path = tmp.path().join("pack1.zip");
+    create_zip(&zip_path, &[("from_zip.srt", b"zip content")]);
+
+    let seven_z_path = tmp.path().join("pack2.7z");
+    create_7z(&seven_z_path, &[("from_7z.srt", b"7z content")]);
+
+    let tar_gz_path = tmp.path().join("pack3.tar.gz");
+    create_tar_gz(&tar_gz_path, &[("from_tar.srt", b"tar content")]);
+
+    let handler = InputPathHandler::from_args(
+        &[zip_path.clone(), seven_z_path.clone(), tar_gz_path.clone()],
+        false,
+    )
+    .unwrap()
+    .with_extensions(&["srt", "ass", "vtt", "sub"]);
+    let collected = handler.collect_files().unwrap();
+
+    assert_eq!(collected.len(), 3, "collected = {:?}", &*collected);
+
+    // Each file should have its correct archive origin
+    let mut zip_count = 0;
+    let mut sevenz_count = 0;
+    let mut targz_count = 0;
+    for p in collected.iter() {
+        let origin = collected.archive_origin(p).expect("should have origin");
+        if origin == zip_path.as_path() {
+            zip_count += 1;
+        } else if origin == seven_z_path.as_path() {
+            sevenz_count += 1;
+        } else if origin == tar_gz_path.as_path() {
+            targz_count += 1;
+        }
+    }
+    assert_eq!(zip_count, 1, "one file from zip");
+    assert_eq!(sevenz_count, 1, "one file from 7z");
+    assert_eq!(targz_count, 1, "one file from tar.gz");
+}
+
+#[test]
+fn test_empty_7z_archive_produces_no_files() {
+    let tmp = TempDir::new().unwrap();
+    let seven_z_path = tmp.path().join("empty.7z");
+    create_7z(&seven_z_path, &[]);
+
+    let handler = InputPathHandler::from_args(std::slice::from_ref(&seven_z_path), false)
+        .unwrap()
+        .with_extensions(&["srt", "ass", "vtt", "sub"]);
+    let collected = handler.collect_files().unwrap();
+
+    assert!(collected.is_empty());
+}
+
+#[test]
+fn test_empty_tar_gz_archive_produces_no_files() {
+    let tmp = TempDir::new().unwrap();
+    let tar_gz_path = tmp.path().join("empty.tar.gz");
+    create_tar_gz(&tar_gz_path, &[]);
+
+    let handler = InputPathHandler::from_args(std::slice::from_ref(&tar_gz_path), false)
+        .unwrap()
+        .with_extensions(&["srt", "ass", "vtt", "sub"]);
+    let collected = handler.collect_files().unwrap();
+
+    assert!(collected.is_empty());
+}
