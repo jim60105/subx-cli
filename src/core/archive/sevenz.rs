@@ -15,68 +15,58 @@ use super::common::{ExtractionLimits, validate_entry_path};
 /// path traversal, rejects directories and anti-items inline, and
 /// enforces decompression bomb limits via [`ExtractionLimits`].
 pub(super) fn extract_7z(archive_path: &Path, dest_dir: &Path) -> io::Result<Vec<PathBuf>> {
-    let dest_canonical = dest_dir
-        .canonicalize()
-        .unwrap_or_else(|_| dest_dir.to_path_buf());
     let mut extracted_paths: Vec<PathBuf> = Vec::new();
     let mut limits = ExtractionLimits::new(archive_path);
 
-    sevenz_rust::decompress_file_with_extract_fn(
-        archive_path,
-        &dest_canonical,
-        |entry, reader, _dest| {
-            if entry.is_directory || entry.is_anti_item {
-                return Ok(true);
-            }
+    sevenz_rust::decompress_file_with_extract_fn(archive_path, dest_dir, |entry, reader, _dest| {
+        if entry.is_directory || entry.is_anti_item {
+            return Ok(true);
+        }
 
-            // Reject reparse points (Windows symlinks)
-            if entry.has_windows_attributes && entry.windows_attributes & 0x0400 != 0 {
+        // Reject reparse points (Windows symlinks)
+        if entry.has_windows_attributes && entry.windows_attributes & 0x0400 != 0 {
+            warn!(
+                "Skipping reparse-point entry in archive {}: {}",
+                archive_path.display(),
+                entry.name
+            );
+            return Ok(true);
+        }
+
+        limits
+            .check_entry(entry.size)
+            .map_err(|e| sevenz_rust::Error::Other(std::borrow::Cow::Owned(e.to_string())))?;
+
+        let entry_path = Path::new(&entry.name);
+        let target_path = match validate_entry_path(dest_dir, entry_path) {
+            Some(p) => p,
+            None => {
                 warn!(
-                    "Skipping reparse-point entry in archive {}: {}",
+                    "Skipping path-traversal entry in archive {}: {}",
                     archive_path.display(),
                     entry.name
                 );
                 return Ok(true);
             }
+        };
 
-            limits
-                .check_entry(entry.size)
-                .map_err(|e| sevenz_rust::Error::Other(std::borrow::Cow::Owned(e.to_string())))?;
-
-            let entry_path = Path::new(&entry.name);
-            let target_path = match validate_entry_path(&dest_canonical, entry_path) {
-                Some(p) => p,
-                None => {
-                    warn!(
-                        "Skipping path-traversal entry in archive {}: {}",
-                        archive_path.display(),
-                        entry.name
-                    );
-                    return Ok(true);
-                }
-            };
-
-            if let Some(parent) = target_path.parent() {
-                fs::create_dir_all(parent).map_err(|e| {
-                    sevenz_rust::Error::Io(
-                        e,
-                        format!("creating parent dir for {}", entry.name).into(),
-                    )
-                })?;
-            }
-
-            let mut outfile = fs::File::create(&target_path).map_err(|e| {
-                sevenz_rust::Error::Io(e, format!("creating {}", target_path.display()).into())
+        if let Some(parent) = target_path.parent() {
+            fs::create_dir_all(parent).map_err(|e| {
+                sevenz_rust::Error::Io(e, format!("creating parent dir for {}", entry.name).into())
             })?;
-            io::copy(reader, &mut outfile).map_err(|e| {
-                sevenz_rust::Error::Io(e, format!("writing {}", target_path.display()).into())
-            })?;
+        }
 
-            debug!("Extracted: {}", target_path.display());
-            extracted_paths.push(target_path);
-            Ok(true)
-        },
-    )
+        let mut outfile = fs::File::create(&target_path).map_err(|e| {
+            sevenz_rust::Error::Io(e, format!("creating {}", target_path.display()).into())
+        })?;
+        io::copy(reader, &mut outfile).map_err(|e| {
+            sevenz_rust::Error::Io(e, format!("writing {}", target_path.display()).into())
+        })?;
+
+        debug!("Extracted: {}", target_path.display());
+        extracted_paths.push(target_path);
+        Ok(true)
+    })
     .map_err(|e| match e {
         sevenz_rust::Error::PasswordRequired => io::Error::new(
             io::ErrorKind::PermissionDenied,

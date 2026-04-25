@@ -22,9 +22,6 @@ pub(super) fn extract_tar_gz(archive_path: &Path, dest_dir: &Path) -> io::Result
     let gz = GzDecoder::new(file);
     let mut archive = tar::Archive::new(gz);
 
-    let dest_canonical = dest_dir
-        .canonicalize()
-        .unwrap_or_else(|_| dest_dir.to_path_buf());
     let mut extracted_paths = Vec::new();
     let mut limits = ExtractionLimits::new(archive_path);
 
@@ -53,7 +50,7 @@ pub(super) fn extract_tar_gz(archive_path: &Path, dest_dir: &Path) -> io::Result
             EntryType::Regular | EntryType::Continuous => { /* extract below */ }
             EntryType::Directory => {
                 let path = entry.path()?.into_owned();
-                if let Some(target) = validate_entry_path(&dest_canonical, &path) {
+                if let Some(target) = validate_entry_path(dest_dir, &path) {
                     fs::create_dir_all(target)?;
                 }
                 continue;
@@ -81,7 +78,7 @@ pub(super) fn extract_tar_gz(archive_path: &Path, dest_dir: &Path) -> io::Result
 
         limits.check_entry(size)?;
 
-        let target_path = match validate_entry_path(&dest_canonical, &entry_path) {
+        let target_path = match validate_entry_path(dest_dir, &entry_path) {
             Some(p) => p,
             None => {
                 warn!(
