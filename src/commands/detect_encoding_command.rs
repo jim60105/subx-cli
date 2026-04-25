@@ -75,6 +75,8 @@
 //! detect_encoding_command::detect_encoding_command(&["file.srt".to_string()], false)?;
 //! ```
 
+use std::path::PathBuf;
+
 use crate::Result;
 use crate::config::ConfigService;
 use crate::core::formats::encoding::EncodingDetector;
@@ -198,17 +200,29 @@ pub fn detect_encoding_command(args: &DetectEncodingArgs) -> Result<()> {
     // Initialize the encoding detection engine
     let detector = EncodingDetector::with_defaults();
 
-    // Collect target files using InputPathHandler, keeping CollectedFiles
-    // alive so archive temp dirs persist through processing
-    let handler = args
-        .get_input_handler()
-        .map_err(|e| SubXError::CommandExecution(e.to_string()))?;
-    let collected = handler
-        .collect_files()
-        .map_err(|e| SubXError::CommandExecution(e.to_string()))?;
+    // For `-i` input paths, use InputPathHandler with archive extraction support,
+    // keeping CollectedFiles alive so archive temp dirs persist through processing.
+    // For positional file_paths, pass them through directly — they may include
+    // nonexistent paths that are gracefully handled in the processing loop below.
+    let collected;
+    let direct_paths: Vec<PathBuf>;
+    let paths: &[PathBuf] = if !args.input_paths.is_empty() {
+        let handler = args
+            .get_input_handler()
+            .map_err(|e| SubXError::CommandExecution(e.to_string()))?;
+        collected = handler
+            .collect_files()
+            .map_err(|e| SubXError::CommandExecution(e.to_string()))?;
+        &collected
+    } else if !args.file_paths.is_empty() {
+        direct_paths = args.file_paths.iter().map(PathBuf::from).collect();
+        &direct_paths
+    } else {
+        return Err(SubXError::NoInputSpecified);
+    };
 
     // Process each file individually to provide isolated error handling
-    for path in collected.iter() {
+    for path in paths {
         if !path.exists() {
             error!("Path does not exist: {}", path.display());
             continue;

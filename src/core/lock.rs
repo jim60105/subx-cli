@@ -10,13 +10,12 @@
 use crate::Result;
 use crate::core::matcher::journal::lock_path;
 use crate::error::SubXError;
-use std::os::unix::io::AsRawFd;
 use std::path::PathBuf;
 use std::time::{Duration, Instant};
 
 /// RAII guard that holds an exclusive file lock on the SubX lock file.
 ///
-/// Dropping this guard releases the advisory lock via `flock(LOCK_UN)`.
+/// Dropping this guard releases the lock via [`std::fs::File::unlock`].
 #[derive(Debug)]
 pub struct SubxLockGuard {
     file: std::fs::File,
@@ -24,16 +23,14 @@ pub struct SubxLockGuard {
 
 impl Drop for SubxLockGuard {
     fn drop(&mut self) {
-        unsafe {
-            libc::flock(self.file.as_raw_fd(), libc::LOCK_UN);
-        }
+        let _ = self.file.unlock();
     }
 }
 
 /// Acquire the SubX exclusive file lock with a 2-second timeout.
 ///
 /// Creates/opens `$CONFIG_DIR/subx/subx.lock` and attempts a non-blocking
-/// exclusive lock (`flock(LOCK_EX | LOCK_NB)`), retrying every 100ms for up
+/// exclusive lock ([`std::fs::File::try_lock`]), retrying every 100ms for up
 /// to 2 seconds. Returns a [`SubxLockGuard`] on success. If the lock cannot
 /// be acquired within the timeout, returns an error with a diagnostic message.
 pub async fn acquire_subx_lock() -> Result<SubxLockGuard> {
@@ -57,9 +54,10 @@ fn acquire_lock_blocking(path: &PathBuf) -> Result<SubxLockGuard> {
 
     let deadline = Instant::now() + Duration::from_secs(2);
     loop {
-        let ret = unsafe { libc::flock(file.as_raw_fd(), libc::LOCK_EX | libc::LOCK_NB) };
-        if ret == 0 {
-            return Ok(SubxLockGuard { file });
+        match file.try_lock() {
+            Ok(()) => return Ok(SubxLockGuard { file }),
+            Err(std::fs::TryLockError::WouldBlock) => {}
+            Err(e) => return Err(SubXError::Io(e.into())),
         }
         if Instant::now() >= deadline {
             return Err(SubXError::config(format!(
@@ -107,7 +105,7 @@ mod tests {
         let lock_file = tmp.path().join("subx").join("subx.lock");
         std::fs::create_dir_all(lock_file.parent().unwrap()).unwrap();
 
-        // Hold lock in a background thread
+        // Hold lock via std file locking
         let file = std::fs::OpenOptions::new()
             .create(true)
             .truncate(false)
@@ -115,9 +113,7 @@ mod tests {
             .write(true)
             .open(&lock_file)
             .unwrap();
-        unsafe {
-            libc::flock(file.as_raw_fd(), libc::LOCK_EX);
-        }
+        file.lock().unwrap();
 
         unsafe { std::env::set_var("XDG_CONFIG_HOME", tmp.path()) };
         let start = Instant::now();
@@ -129,9 +125,7 @@ mod tests {
         assert!(err_msg.contains("Another SubX operation is in progress"));
         assert!(elapsed >= Duration::from_secs(2));
 
-        unsafe {
-            libc::flock(file.as_raw_fd(), libc::LOCK_UN);
-        }
+        file.unlock().unwrap();
         unsafe { std::env::remove_var("XDG_CONFIG_HOME") };
     }
 }
