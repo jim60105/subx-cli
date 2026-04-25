@@ -8,6 +8,38 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.6.0] - 2026-04-25
+
+### Added
+- Archive input support: transparent extraction of `.zip` and `.rar` archives supplied as direct `-i` inputs, with `--no-extract` opt-out flag across all commands.
+- 7-Zip (`.7z`) and tar-gzip (`.tar.gz`, `.tgz`) archive extraction via pure-Rust `sevenz-rust`, `tar`, and `flate2` crates — always available, no feature flag required.
+- Cache `apply`, `rollback`, and `clear` commands with operation journal, file locking, and snapshot validation.
+- Comprehensive security hardening: secrets redaction in Debug output and CLI, secure config file permissions (0600/0700), atomic file creation, TOCTOU-safe conflict resolution, symlink skipping, parent-chain validation, and configurable input size guards (50 MiB subtitle / 2 GiB audio).
+- Decompression bomb protection for all archive formats: 1 GiB total size limit, 10,000 entry limit, path-traversal prevention, and symlink/hardlink rejection.
+- `archive-rar` feature flag for optional RAR support via native `libunrar`.
+- OpenSpec specification framework for managing capability specs and changes.
+
+### Changed
+- Refactored `archive.rs` into SRP module directory (`src/core/archive/`) with per-format modules: `common.rs`, `zip.rs`, `rar.rs`, `sevenz.rs`, `targz.rs`, and `mod.rs`.
+- Rewrote README.md and README.zh-TW.md with updated project overview and feature documentation.
+- Extracted command reference into `docs/command-reference.md`.
+- Consolidated agent instructions into AGENTS.md.
+- Bumped all dependencies to latest versions, including `indicatif` 0.18 for cargo audit compliance.
+- Bumped GitHub Actions to latest major versions; added `actions-rust-lang/audit` v1.2.7.
+
+### Fixed
+- Cross-platform file locking: replaced Unix-only `libc::flock` with `std::fs::File::try_lock`/`unlock` (Rust 1.86+) for Windows compatibility.
+- `detect-encoding` command now handles nonexistent positional file paths gracefully instead of failing with a validation error.
+- Coverage script no longer fails on test failures — `--full` flag respects explicit profile and diagnostic output is preserved.
+- Archive extraction on macOS: use original destination path instead of canonicalized path, preventing `/var` → `/private/var` symlink mismatch in archive origin lookups.
+- Removed rustdoc warnings for private archive sub-module links.
+- Production config integration tests no longer assert hardcoded model defaults, fixing failures when user config differs from defaults.
+- Moved feature-gated test imports behind `#[cfg(feature = "slow-tests")]` to eliminate unused-import warnings.
+
+### Security
+- HTTP scheme warning for non-loopback AI endpoints using plain HTTP.
+- Copy + fsync + delete pattern for cross-device file moves to prevent data loss.
+
 ## [1.5.2] - 2025-08-23
 ### Changed
 - Updated voice_activity_detector dependency to official crate v0.2.1, replacing the silero-specific fork for improved maintainability and upstream support.
@@ -401,7 +433,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Initial release of SubX CLI tool
 - Rust-based intelligent subtitle processing
 
-[Unreleased]: https://github.com/jim60105/subx-cli/compare/v1.5.2...HEAD  
+[Unreleased]: https://github.com/jim60105/subx-cli/compare/v1.6.0...HEAD
+[1.6.0]: https://github.com/jim60105/subx-cli/compare/v1.5.2...v1.6.0
 [1.5.2]: https://github.com/jim60105/subx-cli/compare/v1.5.1...v1.5.2  
 [1.5.1]: https://github.com/jim60105/subx-cli/compare/v1.5.0...v1.5.1  
 [1.5.0]: https://github.com/jim60105/subx-cli/compare/v1.4.0...v1.5.0  
