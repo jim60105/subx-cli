@@ -39,6 +39,10 @@ pub struct MatchArgs {
     /// Move matched subtitle files to the same folder as their corresponding video files
     #[arg(long = "move", short = 'm')]
     pub move_files: bool,
+
+    /// Disable automatic archive extraction for `-i` inputs
+    #[arg(long, default_value_t = false)]
+    pub no_extract: bool,
 }
 
 impl MatchArgs {
@@ -63,7 +67,8 @@ impl MatchArgs {
         )?;
 
         Ok(InputPathHandler::from_args(&merged_paths, self.recursive)?
-            .with_extensions(&["mp4", "mkv", "avi", "mov", "srt", "ass", "vtt", "sub"]))
+            .with_extensions(&["mp4", "mkv", "avi", "mov", "srt", "ass", "vtt", "sub"])
+            .with_no_extract(self.no_extract))
     }
 }
 

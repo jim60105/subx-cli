@@ -24,6 +24,7 @@ async fn test_audio_sync_workflow_manual_offset() {
         batch: None,
         range: None,
         threshold: None,
+        no_extract: false,
     };
     let result = sync_command::execute(args).await;
     assert!(result.is_ok());

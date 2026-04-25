@@ -71,6 +71,8 @@
 //! convert_command::execute(batch_args).await?;
 //! ```
 
+use std::path::Path;
+
 use crate::cli::{ConvertArgs, OutputSubtitleFormat};
 use crate::config::ConfigService;
 use crate::core::file_manager::FileManager;
@@ -231,31 +233,40 @@ pub async fn execute(args: ConvertArgs, config_service: &dyn ConfigService) -> c
     let handler = args
         .get_input_handler()
         .map_err(|e| SubXError::CommandExecution(e.to_string()))?;
-    let files = handler
+    let collected = handler
         .collect_files()
         .map_err(|e| SubXError::CommandExecution(e.to_string()))?;
-    if files.is_empty() {
+    if collected.is_empty() {
         return Ok(());
     }
     // Process each file
-    for input_path in files {
+    for input_path in collected.iter() {
         let fmt = output_format.to_string();
         let output_path = if let Some(ref o) = args.output {
             let mut p = o.clone();
+            // Append per-file name when output is a directory and there are
+            // multiple files (either from multiple inputs or archive expansion)
             #[allow(clippy::collapsible_if)]
-            if (handler.paths.len() != 1 || handler.paths[0].is_dir()) && p.is_dir() {
+            if p.is_dir()
+                && (handler.paths.len() != 1 || handler.paths[0].is_dir() || collected.len() > 1)
+            {
                 if let Some(stem) = input_path.file_stem().and_then(|s| s.to_str()) {
                     p.push(format!("{stem}.{fmt}"));
                 }
             }
             p
+        } else if let Some(archive_path) = collected.archive_origin(input_path) {
+            // File came from an archive: write output beside the archive
+            let archive_dir = archive_path.parent().unwrap_or(Path::new("."));
+            let stem = input_path
+                .file_stem()
+                .and_then(|s| s.to_str())
+                .unwrap_or("output");
+            archive_dir.join(format!("{stem}.{fmt}"))
         } else {
             input_path.with_extension(fmt.clone())
         };
-        match converter
-            .convert_file(&input_path, &output_path, &fmt)
-            .await
-        {
+        match converter.convert_file(input_path, &output_path, &fmt).await {
             Ok(result) => {
                 if result.success {
                     println!(
@@ -264,7 +275,7 @@ pub async fn execute(args: ConvertArgs, config_service: &dyn ConfigService) -> c
                         output_path.display()
                     );
                     if !args.keep_original {
-                        let _ = FileManager::new().remove_file(&input_path);
+                        let _ = FileManager::new().remove_file(input_path);
                     }
                 } else {
                     eprintln!("✗ Conversion failed for {}", input_path.display());
@@ -332,6 +343,7 @@ mod tests {
             output: Some(output_file.clone()),
             keep_original: false,
             encoding: String::from("utf-8"),
+            no_extract: false,
         };
 
         execute_with_config(args, config_service).await?;
@@ -371,6 +383,7 @@ mod tests {
             output: Some(temp_dir.path().join("output")),
             keep_original: false,
             encoding: String::from("utf-8"),
+            no_extract: false,
         };
 
         // Only check execution result, do not verify actual file generation,
@@ -397,6 +410,7 @@ mod tests {
             output: None,
             keep_original: false,
             encoding: String::from("utf-8"),
+            no_extract: false,
         };
 
         let result = execute_with_config(args, config_service).await;
@@ -432,6 +446,7 @@ mod tests {
             output: Some(output_file.clone()),
             keep_original: true,
             encoding: String::from("utf-8"),
+            no_extract: false,
         };
 
         let result = execute_with_config(args, config_service).await;

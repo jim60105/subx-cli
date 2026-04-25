@@ -108,6 +108,7 @@ async fn test_match_cache_copy_mode_target_directory_correctness() {
         backup: false,
         copy: true,
         move_files: false,
+        no_extract: false,
     };
     match_command::execute(args_dry_run, &config_service)
         .await
@@ -129,6 +130,7 @@ async fn test_match_cache_copy_mode_target_directory_correctness() {
         backup: false,
         copy: true,
         move_files: false,
+        no_extract: false,
     };
     match_command::execute(args_copy, &config_service)
         .await
@@ -245,6 +247,7 @@ async fn test_match_cache_dry_run_vs_actual_execution_consistency() {
         backup: false,
         copy: true,
         move_files: false,
+        no_extract: false,
     };
     match_command::execute(args_dry_run, &config_service)
         .await
@@ -268,6 +271,7 @@ async fn test_match_cache_dry_run_vs_actual_execution_consistency() {
         backup: false,
         copy: true,
         move_files: false,
+        no_extract: false,
     };
     match_command::execute(args_actual, &config_service)
         .await
@@ -363,6 +367,7 @@ async fn test_match_cache_move_mode_target_directory_correctness() {
         backup: false,
         copy: false,
         move_files: true,
+        no_extract: false,
     };
     match_command::execute(args_dry_run, &config_service)
         .await
@@ -379,6 +384,7 @@ async fn test_match_cache_move_mode_target_directory_correctness() {
         backup: false,
         copy: false,
         move_files: true,
+        no_extract: false,
     };
     match_command::execute(args_move, &config_service)
         .await

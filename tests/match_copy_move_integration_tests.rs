@@ -50,6 +50,7 @@ async fn test_match_copy_operation() {
         backup: true,
         copy: true,
         move_files: false,
+        no_extract: false,
     };
 
     let config_service = TestConfigBuilder::new()
@@ -132,6 +133,7 @@ async fn test_match_move_operation() {
         backup: true,
         copy: false,
         move_files: true,
+        no_extract: false,
     };
 
     let config_service = TestConfigBuilder::new()
@@ -214,6 +216,7 @@ async fn test_match_copy_dry_run() {
         backup: false,
         copy: true,
         move_files: false,
+        no_extract: false,
     };
 
     let config_service = TestConfigBuilder::new()
@@ -252,7 +255,8 @@ fn test_copy_move_mutual_exclusion() {
         confidence: 80,
         backup: false,
         copy: true,
-        move_files: true, // Both copy and move set to true
+        move_files: true, // Both copy and move set to true,
+        no_extract: false,
     };
 
     let validation_result = args.validate();
@@ -278,7 +282,8 @@ fn test_no_operation_mode() {
         confidence: 80,
         backup: false,
         copy: false,
-        move_files: false, // Neither copy nor move
+        move_files: false, // Neither copy nor move,
+        no_extract: false,
     };
 
     let validation_result = args.validate();

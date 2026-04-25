@@ -63,6 +63,7 @@ async fn test_copy_mode_preserves_original_file() {
         backup: false,
         copy: true,
         move_files: false,
+        no_extract: false,
     };
     let input_handler = args.get_input_handler().unwrap();
     let directories = input_handler.get_directories();
@@ -144,6 +145,7 @@ async fn test_copy_mode_with_rename() {
         backup: false,
         copy: true,
         move_files: false,
+        no_extract: false,
     };
     let config_service = TestConfigBuilder::new()
         .with_mock_ai_server(&mock_helper.base_url())

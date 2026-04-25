@@ -39,6 +39,7 @@ fn test_sync_args_with_vad_method() {
         dry_run: false,
         force: false,
         batch: None,
+        no_extract: false,
     };
 
     // Verify parameter parsing is correct
@@ -71,6 +72,7 @@ fn test_sync_args_with_vad_default_settings() {
         dry_run: false,
         force: false,
         batch: None,
+        no_extract: false,
     };
 
     // Verify VAD parameters are set correctly
@@ -99,6 +101,7 @@ fn test_sync_args_with_manual_offset() {
         dry_run: false,
         force: false,
         batch: None,
+        no_extract: false,
     };
 
     // Verify manual offset settings
@@ -131,6 +134,7 @@ fn test_sync_args_batch_mode() {
         dry_run: false,
         force: false,
         batch: Some(None),
+        no_extract: false,
     };
 
     // Verify batch mode settings
@@ -160,6 +164,7 @@ fn test_sync_args_validation() {
         dry_run: false,
         force: false,
         batch: None,
+        no_extract: false,
     };
 
     let validation_result = args.validate();
@@ -172,6 +177,7 @@ fn test_sync_args_validation() {
     let valid_args = SyncArgs {
         positional_paths: Vec::new(),
         offset: Some(2.5), // Provide offset
+        no_extract: false,
         ..args
     };
 

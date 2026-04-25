@@ -198,13 +198,17 @@ pub fn detect_encoding_command(args: &DetectEncodingArgs) -> Result<()> {
     // Initialize the encoding detection engine
     let detector = EncodingDetector::with_defaults();
 
-    // Collect target files using InputPathHandler logic
-    let paths = args
-        .get_file_paths()
+    // Collect target files using InputPathHandler, keeping CollectedFiles
+    // alive so archive temp dirs persist through processing
+    let handler = args
+        .get_input_handler()
+        .map_err(|e| SubXError::CommandExecution(e.to_string()))?;
+    let collected = handler
+        .collect_files()
         .map_err(|e| SubXError::CommandExecution(e.to_string()))?;
 
     // Process each file individually to provide isolated error handling
-    for path in paths {
+    for path in collected.iter() {
         if !path.exists() {
             error!("Path does not exist: {}", path.display());
             continue;

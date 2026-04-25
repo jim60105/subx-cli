@@ -30,6 +30,7 @@ mod detect_encoding_command_tests {
             input_paths: vec![utf8_file.clone()],
             recursive: false,
             file_paths: vec![],
+            no_extract: false,
         };
 
         let result = detect_encoding_command(&args);
@@ -54,6 +55,7 @@ mod detect_encoding_command_tests {
             input_paths: vec![ascii_file.clone()],
             recursive: false,
             file_paths: vec![],
+            no_extract: false,
         };
 
         let result = detect_encoding_command(&args);
@@ -78,6 +80,7 @@ mod detect_encoding_command_tests {
             input_paths: vec![test_file.clone()],
             recursive: false,
             file_paths: vec![],
+            no_extract: false,
         };
 
         let result = detect_encoding_command(&args);
@@ -118,6 +121,7 @@ mod detect_encoding_command_tests {
             input_paths: vec![file1.clone(), file2.clone(), file3.clone()],
             recursive: false,
             file_paths: vec![],
+            no_extract: false,
         };
 
         let result = detect_encoding_command(&args);
@@ -148,6 +152,7 @@ mod detect_encoding_command_tests {
                 "/nonexistent/file.srt".to_string(),
                 real_file.to_string_lossy().to_string(),
             ],
+            no_extract: false,
         };
 
         // The command should succeed overall because it will continue processing valid files
@@ -173,6 +178,7 @@ mod detect_encoding_command_tests {
             input_paths: vec![empty_file.clone()],
             recursive: false,
             file_paths: vec![],
+            no_extract: false,
         };
 
         let result = detect_encoding_command(&args);
@@ -197,6 +203,7 @@ mod detect_encoding_command_tests {
             input_paths: vec![binary_file.clone()],
             recursive: false,
             file_paths: vec![],
+            no_extract: false,
         };
 
         let result = detect_encoding_command(&args);
@@ -222,6 +229,7 @@ mod detect_encoding_command_tests {
             input_paths: vec![test_file.clone()],
             recursive: false,
             file_paths: vec![],
+            no_extract: false,
         };
 
         let config_service = TestConfigService::with_defaults();
@@ -248,6 +256,7 @@ mod detect_encoding_command_tests {
             input_paths: vec![],
             recursive: false,
             file_paths: vec![test_file.to_string_lossy().to_string()],
+            no_extract: false,
         };
 
         let result = detect_encoding_command(&args);
@@ -285,6 +294,7 @@ mod detect_encoding_command_tests {
             input_paths: vec![temp_path.to_path_buf()],
             recursive: true,
             file_paths: vec![],
+            no_extract: false,
         };
 
         let result = detect_encoding_command(&args);
@@ -301,6 +311,7 @@ mod detect_encoding_command_tests {
             input_paths: vec![],
             recursive: false,
             file_paths: vec![],
+            no_extract: false,
         };
 
         let result = detect_encoding_command(&args);
@@ -336,6 +347,7 @@ mod detect_encoding_command_tests {
             input_paths: files,
             recursive: false,
             file_paths: vec![],
+            no_extract: false,
         };
 
         let result = detect_encoding_command(&args);

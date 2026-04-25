@@ -26,6 +26,7 @@ mod debug_path_tests {
             backup: false,
             copy: true,
             move_files: false,
+            no_extract: false,
         };
 
         let input_handler = args.get_input_handler().unwrap();

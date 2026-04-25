@@ -168,6 +168,7 @@ pub use discovery::{FileDiscovery, MediaFile, MediaFileType};
 pub use engine::{MatchConfig, MatchEngine, MatchOperation};
 // pub use filename_analyzer::{FilenameAnalyzer, ParsedFilename};
 pub mod cache;
+pub mod journal;
 use crate::Result;
 use crate::core::language::{LanguageDetector, LanguageInfo};
 use crate::error::SubXError;

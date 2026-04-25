@@ -31,6 +31,7 @@ mod sync_command_tests {
             dry_run: false,
             force: false,
             batch: None,
+            no_extract: false,
         }
     }
 

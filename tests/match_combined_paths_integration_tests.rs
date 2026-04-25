@@ -89,6 +89,7 @@ async fn test_match_with_combined_path_and_input_paths_simple() {
         backup: false,
         copy: false,
         move_files: false,
+        no_extract: false,
     };
 
     let result = match_command::execute(args, &config_service).await;
@@ -193,6 +194,7 @@ async fn test_match_with_only_input_paths() {
         backup: false,
         copy: false,
         move_files: false,
+        no_extract: false,
     };
 
     let result = match_command::execute(args, &config_service).await;
@@ -298,6 +300,7 @@ async fn test_match_with_file_and_directory_inputs() {
         backup: false,
         copy: false,
         move_files: false,
+        no_extract: false,
     };
 
     let result = match_command::execute(args, &config_service).await;

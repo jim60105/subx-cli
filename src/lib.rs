@@ -288,6 +288,7 @@ impl App {
     ///     backup: false,
     ///     copy: false,
     ///     move_files: false,
+    ///     no_extract: false,
     /// };
     ///
     /// app.handle_command(Commands::Match(match_args)).await?;
@@ -346,6 +347,7 @@ impl App {
             backup: false,
             copy: false,
             move_files: false,
+            no_extract: false,
         };
         self.handle_command(cli::Commands::Match(args)).await
     }
@@ -403,6 +405,7 @@ impl App {
             output: output_path.map(Into::into),
             keep_original: false,
             encoding: "utf-8".to_string(),
+            no_extract: false,
         };
         self.handle_command(cli::Commands::Convert(args)).await
     }
@@ -465,6 +468,7 @@ impl App {
             dry_run: false,
             force: false,
             batch: None,
+            no_extract: false,
         };
         self.handle_command(cli::Commands::Sync(args)).await
     }
@@ -511,6 +515,7 @@ impl App {
             dry_run: false,
             force: false,
             batch: None,
+            no_extract: false,
         };
         self.handle_command(cli::Commands::Sync(args)).await
     }

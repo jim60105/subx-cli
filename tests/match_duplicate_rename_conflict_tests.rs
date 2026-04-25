@@ -100,6 +100,7 @@ async fn test_multiple_files_rename_to_same_target_with_auto_rename() {
         backup: false,
         copy: true,
         move_files: false,
+        no_extract: false,
     };
 
     let config_service = TestConfigBuilder::new()
@@ -255,6 +256,7 @@ async fn test_conflict_resolution_with_existing_target_files() {
         backup: false,
         copy: true,
         move_files: false,
+        no_extract: false,
     };
 
     let config_service = TestConfigBuilder::new()
@@ -389,6 +391,7 @@ async fn test_move_mode_with_duplicate_rename_conflicts() {
         backup: false,
         copy: false,
         move_files: true,
+        no_extract: false,
     };
 
     let config_service = TestConfigBuilder::new()

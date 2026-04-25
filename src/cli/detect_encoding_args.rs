@@ -56,6 +56,10 @@ pub struct DetectEncodingArgs {
     /// File paths to analyze for encoding detection
     #[arg(required = true, conflicts_with = "input_paths")]
     pub file_paths: Vec<String>,
+
+    /// Disable automatic archive extraction for `-i` inputs
+    #[arg(long, default_value_t = false)]
+    pub no_extract: bool,
 }
 
 #[cfg(test)]
@@ -122,7 +126,8 @@ impl DetectEncodingArgs {
         )?;
 
         Ok(InputPathHandler::from_args(&merged_paths, self.recursive)?
-            .with_extensions(&["srt", "ass", "vtt", "ssa", "sub", "txt"]))
+            .with_extensions(&["srt", "ass", "vtt", "ssa", "sub", "txt"])
+            .with_no_extract(self.no_extract))
     }
 
     /// Get all file paths to process
@@ -130,7 +135,7 @@ impl DetectEncodingArgs {
         if !self.input_paths.is_empty() {
             let handler = InputPathHandler::from_args(&self.input_paths, self.recursive)?
                 .with_extensions(&["srt", "ass", "vtt", "ssa", "sub", "txt"]);
-            return handler.collect_files();
+            return handler.collect_files().map(|cf| cf.into_paths());
         }
         if !self.file_paths.is_empty() {
             return Ok(self.file_paths.iter().map(PathBuf::from).collect());

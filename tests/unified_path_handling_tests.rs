@@ -32,6 +32,7 @@ fn test_match_args_path_merging() {
         backup: false,
         copy: false,
         move_files: false,
+        no_extract: false,
     };
 
     let handler = args.get_input_handler().unwrap();
@@ -66,6 +67,7 @@ fn test_convert_args_path_merging() {
         output: None,
         keep_original: false,
         encoding: "utf-8".to_string(),
+        no_extract: false,
     };
 
     let handler = args.get_input_handler().unwrap();
@@ -107,6 +109,7 @@ fn test_sync_args_path_merging() {
         dry_run: false,
         force: false,
         batch: None,
+        no_extract: false,
     };
 
     let handler = args.get_input_handler().unwrap();
@@ -139,6 +142,7 @@ fn test_detect_encoding_args_path_merging() {
             file1.to_string_lossy().to_string(),
             file2.to_string_lossy().to_string(),
         ],
+        no_extract: false,
     };
 
     let handler = args.get_input_handler().unwrap();

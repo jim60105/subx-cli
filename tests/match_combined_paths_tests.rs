@@ -59,6 +59,7 @@ async fn test_match_command_file_discovery_with_combined_paths() {
         backup: false,
         copy: false,
         move_files: false,
+        no_extract: false,
     };
 
     // Test that get_input_handler combines all paths correctly
@@ -154,6 +155,7 @@ async fn test_match_command_simple_execution_with_combined_paths() {
         backup: false,
         copy: false,
         move_files: false,
+        no_extract: false,
     };
 
     debug!("Executing match command with simple path");
@@ -221,6 +223,7 @@ async fn test_match_command_with_individual_files_and_directories() {
         backup: false,
         copy: false,
         move_files: false,
+        no_extract: false,
     };
 
     // Test that get_input_handler handles mixed inputs correctly

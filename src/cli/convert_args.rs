@@ -61,6 +61,10 @@ pub struct ConvertArgs {
     /// Character encoding for input and output files
     #[arg(long, default_value = "utf-8")]
     pub encoding: String,
+
+    /// Disable automatic archive extraction for `-i` inputs
+    #[arg(long, default_value_t = false)]
+    pub no_extract: bool,
 }
 
 impl ConvertArgs {
@@ -75,7 +79,8 @@ impl ConvertArgs {
         )?;
 
         Ok(InputPathHandler::from_args(&merged_paths, self.recursive)?
-            .with_extensions(&["srt", "ass", "vtt", "sub", "ssa"]))
+            .with_extensions(&["srt", "ass", "vtt", "sub", "ssa"])
+            .with_no_extract(self.no_extract))
     }
 }
 

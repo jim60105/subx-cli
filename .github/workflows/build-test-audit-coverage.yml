@@ -78,6 +78,49 @@ jobs:
         files: target/nextest/ci/junit.xml
         flags: ${{ matrix.os }}
 
+  archive-rar:
+    name: Test (archive-rar feature)
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v6
+
+    - name: Install Rust
+      uses: dtolnay/rust-toolchain@stable
+
+    - name: Install cargo-nextest
+      uses: taiki-e/install-action@v2
+      with:
+        tool: cargo-nextest
+
+    - name: Install libunrar-dev
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y libunrar-dev
+
+    - name: Cache cargo registry
+      uses: actions/cache@v5
+      with:
+        path: ~/.cargo/registry
+        key: ${{ runner.os }}-cargo-registry-archive-rar-${{ hashFiles('**/Cargo.lock') }}
+
+    - name: Cache cargo index
+      uses: actions/cache@v5
+      with:
+        path: ~/.cargo/git
+        key: ${{ runner.os }}-cargo-index-archive-rar-${{ hashFiles('**/Cargo.lock') }}
+
+    - name: Cache cargo build
+      uses: actions/cache@v5
+      with:
+        path: target
+        key: ${{ runner.os }}-cargo-build-target-archive-rar-${{ hashFiles('**/Cargo.lock') }}
+
+    - name: Cargo check with archive-rar feature
+      run: cargo check --features archive-rar
+
+    - name: Run tests with archive-rar feature
+      run: cargo nextest run --features archive-rar
+
   security:
     name: Security Audit
     runs-on: ubuntu-latest

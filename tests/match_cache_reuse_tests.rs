@@ -101,6 +101,7 @@ async fn test_cache_reuse_preserves_copy_mode() {
         backup: false,
         copy: true,
         move_files: false,
+        no_extract: false,
     };
     match_command::execute(args_preview, &config_service)
         .await
@@ -118,6 +119,7 @@ async fn test_cache_reuse_preserves_copy_mode() {
         backup: false,
         copy: true,
         move_files: false,
+        no_extract: false,
     };
     match_command::execute(args_second, &config_service)
         .await
@@ -218,6 +220,7 @@ async fn test_cache_reuse_preserves_move_mode() {
         backup: false,
         copy: false,
         move_files: true,
+        no_extract: false,
     };
     match_command::execute(args_preview, &config_service)
         .await
@@ -235,6 +238,7 @@ async fn test_cache_reuse_preserves_move_mode() {
         backup: false,
         copy: false,
         move_files: true,
+        no_extract: false,
     };
     match_command::execute(args_second, &config_service)
         .await

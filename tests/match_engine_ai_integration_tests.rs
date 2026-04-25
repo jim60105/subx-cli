@@ -100,6 +100,7 @@ async fn test_parallel_match_operations_with_mock() {
         backup: true,
         copy: true,
         move_files: false,
+        no_extract: false,
     };
 
     let start = Instant::now();
@@ -146,6 +147,7 @@ async fn test_confidence_threshold_filtering() {
         backup: true,
         copy: true,
         move_files: false,
+        no_extract: false,
     };
 
     let result = match_command::execute(args, &config_service).await;

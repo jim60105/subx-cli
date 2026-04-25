@@ -34,6 +34,7 @@ async fn test_manual_offset_exceeds_max_limit() -> Result<()> {
         dry_run: true,
         force: false,
         batch: None,
+        no_extract: false,
     };
 
     let result = sync_command::execute_with_config(args, config_service).await;
@@ -75,6 +76,7 @@ async fn test_manual_offset_within_limit() -> Result<()> {
         dry_run: false,
         force: true,
         batch: None,
+        no_extract: false,
     };
 
     let result = sync_command::execute_with_config(args, config_service).await;

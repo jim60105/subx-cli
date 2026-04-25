@@ -36,6 +36,7 @@ fn test_sync_args_basic_parsing() {
         dry_run: false,
         force: false,
         batch: None,
+        no_extract: false,
     };
 
     // Verify parameter parsing is correct
@@ -69,6 +70,7 @@ fn test_sync_args_vad_method() {
         dry_run: false,
         force: false,
         batch: None,
+        no_extract: false,
     };
 
     // Verify VAD parameters
@@ -101,6 +103,7 @@ fn test_sync_args_manual_method() {
         dry_run: false,
         force: false,
         batch: None,
+        no_extract: false,
     };
 
     // Verify manual offset parameters
@@ -135,6 +138,7 @@ fn test_sync_args_batch_mode() {
         dry_run: false,
         force: false,
         batch: Some(None),
+        no_extract: false,
     };
 
     // Verify batch mode settings

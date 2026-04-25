@@ -18,6 +18,7 @@ mod detect_encoding_args_tests {
             input_paths: vec![],
             recursive: false,
             file_paths: vec!["test.srt".to_string()],
+            no_extract: false,
         };
 
         assert_eq!(args.file_paths.len(), 1);
@@ -34,6 +35,7 @@ mod detect_encoding_args_tests {
             input_paths: vec![PathBuf::from("test.srt")],
             recursive: true,
             file_paths: vec![],
+            no_extract: false,
         };
 
         assert_eq!(args.input_paths.len(), 1);
@@ -54,6 +56,7 @@ mod detect_encoding_args_tests {
                 "file2.sub".to_string(),
                 "file3.vtt".to_string(),
             ],
+            no_extract: false,
         };
 
         assert_eq!(args.file_paths.len(), 3);
@@ -71,6 +74,7 @@ mod detect_encoding_args_tests {
             input_paths: vec![PathBuf::from("*.srt"), PathBuf::from("subtitles/**/*.vtt")],
             recursive: true,
             file_paths: vec![],
+            no_extract: false,
         };
 
         assert_eq!(args.input_paths.len(), 2);
@@ -87,6 +91,7 @@ mod detect_encoding_args_tests {
             input_paths: vec![],
             recursive: false,
             file_paths: vec!["test.srt".to_string(), "test.vtt".to_string()],
+            no_extract: false,
         };
 
         assert_eq!(args.file_paths.len(), 2);
@@ -102,6 +107,7 @@ mod detect_encoding_args_tests {
             input_paths: vec![],
             recursive: false,
             file_paths: vec!["file1.srt".to_string(), "file2.vtt".to_string()],
+            no_extract: false,
         };
 
         let result = args.get_file_paths();
@@ -119,6 +125,7 @@ mod detect_encoding_args_tests {
             input_paths: vec![],
             recursive: true,
             file_paths: vec!["test.srt".to_string()],
+            no_extract: false,
         };
 
         // Test that all fields are properly set
@@ -136,6 +143,7 @@ mod detect_encoding_args_tests {
             input_paths: vec![],
             recursive: false,
             file_paths: vec!["test1.srt".to_string(), "test2.vtt".to_string()],
+            no_extract: false,
         };
 
         // Verify we can access all fields
@@ -166,6 +174,7 @@ mod detect_encoding_args_tests {
                 input_paths: vec![],
                 recursive: false,
                 file_paths: vec![filename.clone()],
+                no_extract: false,
             };
 
             assert_eq!(args.file_paths.len(), 1);
@@ -183,6 +192,7 @@ mod detect_encoding_args_tests {
                 "path with spaces.srt".to_string(),
                 "another path/file.vtt".to_string(),
             ],
+            no_extract: false,
         };
 
         assert_eq!(args.file_paths.len(), 2);
@@ -203,6 +213,7 @@ mod detect_encoding_args_tests {
                 "字幕.vtt".to_string(),
                 "ファイル.ass".to_string(),
             ],
+            no_extract: false,
         };
 
         assert_eq!(args.file_paths.len(), 3);
@@ -220,6 +231,7 @@ mod detect_encoding_args_tests {
             input_paths: vec![],
             recursive: false,
             file_paths: vec!["file1.srt".to_string()],
+            no_extract: false,
         };
 
         args.file_paths.push("file2.vtt".to_string());
@@ -244,6 +256,7 @@ mod detect_encoding_args_tests {
             input_paths: vec![PathBuf::from("test.srt")],
             recursive: true,
             file_paths: vec![],
+            no_extract: false,
         };
 
         let result = args.get_input_handler();
@@ -266,6 +279,7 @@ mod detect_encoding_args_tests {
             input_paths: vec![],
             recursive: false,
             file_paths: vec![],
+            no_extract: false,
         };
 
         let result = args.get_file_paths();
@@ -285,6 +299,7 @@ mod detect_encoding_command_tests {
             input_paths: vec![],
             recursive: false,
             file_paths: vec!["nonexistent.srt".to_string()],
+            no_extract: false,
         };
 
         // Test that we can call the detect_encoding_command function
@@ -301,6 +316,7 @@ mod detect_encoding_command_tests {
             input_paths: vec![],
             recursive: false,
             file_paths: vec![],
+            no_extract: false,
         };
 
         let result = detect_encoding_command::detect_encoding_command(&args);
@@ -315,6 +331,7 @@ mod detect_encoding_command_tests {
             input_paths: vec![],
             recursive: false,
             file_paths: vec!["nonexistent.srt".to_string()],
+            no_extract: false,
         };
 
         let result = detect_encoding_command::detect_encoding_command(&args);
@@ -329,6 +346,7 @@ mod detect_encoding_command_tests {
             input_paths: vec![PathBuf::from("nonexistent_dir")],
             recursive: true,
             file_paths: vec![],
+            no_extract: false,
         };
 
         let result = detect_encoding_command::detect_encoding_command(&args);

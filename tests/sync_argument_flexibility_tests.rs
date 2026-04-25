@@ -29,6 +29,7 @@ async fn test_sync_batch_with_directory_argument() {
         dry_run: true,
         force: false,
         batch: Some(Some(test_dir)),
+        no_extract: false,
     };
 
     assert!(args.validate().is_ok());
@@ -68,6 +69,7 @@ async fn test_sync_single_video_positional() {
         dry_run: true,
         force: false,
         batch: None,
+        no_extract: false,
     };
 
     assert!(args.validate().is_ok());
@@ -111,6 +113,7 @@ async fn test_sync_manual_offset_with_positional() {
         dry_run: true,
         force: false,
         batch: None,
+        no_extract: false,
     };
 
     assert!(args.validate().is_ok());
@@ -141,6 +144,7 @@ async fn test_sync_validation_errors() {
         dry_run: true,
         force: false,
         batch: None,
+        no_extract: false,
     };
 
     assert!(args.validate().is_err());

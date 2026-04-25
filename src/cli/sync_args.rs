@@ -136,6 +136,10 @@ pub struct SyncArgs {
         require_equals = false
     )]
     pub batch: Option<Option<PathBuf>>,
+
+    /// Disable automatic archive extraction for `-i` inputs
+    #[arg(long, default_value_t = false)]
+    pub no_extract: bool,
     // === Legacy/Hidden Options (Deprecated) ===
 }
 
@@ -289,7 +293,8 @@ Need help? Run: subx sync --help"
         )?;
 
         Ok(InputPathHandler::from_args(&merged_paths, self.recursive)?
-            .with_extensions(&["mp4", "mkv", "avi", "mov", "srt", "ass", "vtt", "sub"]))
+            .with_extensions(&["mp4", "mkv", "avi", "mov", "srt", "ass", "vtt", "sub"])
+            .with_no_extract(self.no_extract))
     }
 
     /// Get sync mode: single file or batch
@@ -319,7 +324,8 @@ Need help? Run: subx sync --help"
             }
 
             let handler = InputPathHandler::from_args(&paths, self.recursive)?
-                .with_extensions(&["mp4", "mkv", "avi", "mov", "srt", "ass", "vtt", "sub"]);
+                .with_extensions(&["mp4", "mkv", "avi", "mov", "srt", "ass", "vtt", "sub"])
+                .with_no_extract(self.no_extract);
 
             return Ok(SyncMode::Batch(handler));
         }
@@ -445,7 +451,8 @@ pub enum SyncMode {
 
 // Helper functions
 
-fn create_default_output_path(input: &Path) -> PathBuf {
+/// Creates a default output path by appending `_synced` to the file stem.
+pub fn create_default_output_path(input: &Path) -> PathBuf {
     let mut output = input.to_path_buf();
 
     if let Some(stem) = input.file_stem().and_then(|s| s.to_str()) {
@@ -482,6 +489,7 @@ mod tests {
             dry_run: false,
             force: false,
             batch: None,
+            no_extract: false,
         };
         assert_eq!(args.sync_method(), SyncMethod::Manual);
     }
@@ -536,7 +544,8 @@ mod tests {
             verbose: false,
             dry_run: false,
             force: false,
-            batch: Some(None), // batch mode but no inputs
+            batch: Some(None), // batch mode but no inputs,
+            no_extract: false,
         };
 
         assert!(args_invalid.validate().is_err());
@@ -559,6 +568,7 @@ mod tests {
             dry_run: false,
             force: false,
             batch: None,
+            no_extract: false,
         };
         assert_eq!(args.sync_method(), SyncMethod::Auto);
     }

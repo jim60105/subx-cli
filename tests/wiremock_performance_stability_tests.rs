@@ -41,6 +41,7 @@ async fn test_high_load_scenario() {
         backup: true,
         copy: true,
         move_files: false,
+        no_extract: false,
     };
 
     let start_time = std::time::Instant::now();
@@ -80,6 +81,7 @@ async fn test_memory_stability() {
             backup: true,
             copy: false,
             move_files: false,
+            no_extract: false,
         };
 
         let result = match_command::execute(args, &config_service).await;

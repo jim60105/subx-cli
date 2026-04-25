@@ -43,6 +43,7 @@ async fn test_unauthorized_error_handling() {
         backup: false,
         copy: true,
         move_files: false,
+        no_extract: false,
     };
 
     let result = match_command::execute(args, &config_service).await;
@@ -77,6 +78,7 @@ async fn test_rate_limit_error_handling() {
         backup: false,
         copy: true,
         move_files: false,
+        no_extract: false,
     };
 
     let result = match_command::execute(args, &config_service).await;
@@ -111,6 +113,7 @@ async fn test_internal_server_error_handling() {
         backup: false,
         copy: true,
         move_files: false,
+        no_extract: false,
     };
 
     let result = match_command::execute(args, &config_service).await;

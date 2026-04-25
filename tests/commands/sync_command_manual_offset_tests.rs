@@ -36,6 +36,7 @@ async fn test_manual_sync_without_video_file() {
         batch: None,
         range: None,
         threshold: None,
+        no_extract: false,
     };
     let config_service = Arc::new(TestConfigService::new());
     let result = sync_command::execute_with_config(args, config_service).await;
@@ -67,6 +68,7 @@ async fn test_auto_sync_requires_video_file() {
         batch: None,
         range: None,
         threshold: None,
+        no_extract: false,
     };
 
     let result = args.validate();
@@ -97,6 +99,7 @@ async fn test_backward_compatibility() {
         batch: None,
         range: None,
         threshold: None,
+        no_extract: false,
     };
 
     let result = args.validate();

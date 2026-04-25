@@ -42,6 +42,7 @@ use std::sync::Arc;
 ///     backup: false,
 ///     copy: false,
 ///     move_files: false,
+///     no_extract: false,
 /// };
 ///
 /// dispatch_command(Commands::Match(match_args), config_service).await?;
@@ -145,6 +146,7 @@ mod tests {
             backup: false,
             copy: false,
             move_files: false,
+            no_extract: false,
         };
 
         // Should not panic and should handle the command
@@ -180,6 +182,7 @@ mod tests {
             output: None,
             keep_original: false,
             encoding: "utf-8".to_string(),
+            no_extract: false,
         };
 
         // Should handle the command (even if it fails due to missing files)
@@ -199,6 +202,7 @@ mod tests {
             backup: false,
             copy: false,
             move_files: false,
+            no_extract: false,
         };
 
         // Test the reference version

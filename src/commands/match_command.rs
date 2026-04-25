@@ -341,13 +341,30 @@ pub async fn execute_with_client(
     }
 
     // Perform matching using unified file-list based approach
-    let operations = engine.match_file_list(&files).await?;
+    let mut operations = engine.match_file_list(&files).await?;
+
+    // For subtitles extracted from archives, force copy to the video's
+    // parent directory so output never lands in the temp directory.
+    for op in &mut operations {
+        if files.archive_origin(&op.subtitle_file.path).is_some() && !op.requires_relocation {
+            if let Some(video_dir) = op.video_file.path.parent() {
+                op.relocation_target_path = Some(video_dir.join(&op.new_subtitle_name));
+                op.requires_relocation = true;
+                op.relocation_mode = crate::core::matcher::engine::FileRelocationMode::Copy;
+            }
+        }
+    }
 
     // Display formatted results table to user
     display_match_results(&operations, args.dry_run);
 
     // Save operations if dry run, otherwise execute them
     if !args.dry_run {
+        // Acquire the process-wide coordination lock so concurrent SubX
+        // invocations cannot race on file-system mutations or the shared
+        // match journal. The guard is held until the end of the scope,
+        // which covers the full execute + journal-write window.
+        let _lock = crate::core::lock::acquire_subx_lock().await?;
         engine.execute_operations(&operations, args.dry_run).await?;
     }
 
@@ -633,6 +650,7 @@ mod tests {
             backup: false,
             copy: false,
             move_files: false,
+            no_extract: false,
         };
 
         // Note: Since we're testing in isolation, we might need to use execute_with_config

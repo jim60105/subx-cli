@@ -36,17 +36,19 @@ mod detect_encoding_args;
 mod generate_completion_args;
 mod input_handler;
 mod match_args;
-mod sync_args;
+pub mod sync_args;
 pub mod table;
 pub mod ui;
 
-pub use cache_args::{CacheAction, CacheArgs};
+pub use cache_args::{
+    ApplyArgs, CacheAction, CacheArgs, ClearArgs, ClearType, RollbackArgs, StatusArgs,
+};
 use clap::{Parser, Subcommand};
 pub use config_args::{ConfigAction, ConfigArgs};
 pub use convert_args::{ConvertArgs, OutputSubtitleFormat};
 pub use detect_encoding_args::DetectEncodingArgs;
 pub use generate_completion_args::GenerateCompletionArgs;
-pub use input_handler::InputPathHandler;
+pub use input_handler::{CollectedFiles, InputPathHandler};
 pub use match_args::MatchArgs;
 pub use sync_args::{SyncArgs, SyncMethod, SyncMethodArg, SyncMode};
 pub use ui::{

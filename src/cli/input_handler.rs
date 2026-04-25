@@ -1,6 +1,11 @@
+use std::collections::HashMap;
 use std::fs;
 use std::path::{Path, PathBuf};
 
+use log::warn;
+use tempfile::TempDir;
+
+use crate::core::archive;
 use crate::error::SubXError;
 
 /// Universal input path processing structure for CLI commands.
@@ -19,6 +24,26 @@ use crate::error::SubXError;
 /// - **File Filtering**: Filter files by extension for command-specific processing
 /// - **Path Validation**: Validates all input paths exist before processing
 /// - **Cross-Platform**: Handles both absolute and relative paths correctly
+/// - **Archive Extraction**: Transparently extracts `.zip` (and `.rar` when built
+///   with the `archive-rar` feature) archives passed directly as inputs into a
+///   temporary directory and processes the extracted files as if they had been
+///   supplied directly. Archives discovered during recursive directory traversal
+///   are NOT extracted. The behaviour can be disabled per command via
+///   `--no-extract` (see [`with_no_extract`](Self::with_no_extract)), in which
+///   case archive files are treated as regular files and filtered by the
+///   command's extension list.
+///
+/// # Return Value
+///
+/// [`collect_files`](Self::collect_files) returns a [`CollectedFiles`] handle
+/// that dereferences to `&[PathBuf]`. When archive extraction is performed,
+/// `CollectedFiles` owns the underlying [`tempfile::TempDir`] handles; the
+/// extracted directories are removed automatically (RAII) when the
+/// `CollectedFiles` value is dropped. Callers must therefore keep the
+/// `CollectedFiles` value alive for as long as the extracted file paths are
+/// in use. `CollectedFiles` also exposes
+/// [`archive_origin`](CollectedFiles::archive_origin) so callers can map an
+/// extracted file back to the original archive that produced it.
 ///
 /// # Examples
 ///
@@ -95,6 +120,7 @@ use crate::error::SubXError;
 /// #     backup: false,
 /// #     copy: false,
 /// #     move_files: false,
+/// #     no_extract: false,
 /// # };
 /// let handler = args.get_input_handler()?;
 /// let files = handler.collect_files()?;
@@ -109,6 +135,8 @@ pub struct InputPathHandler {
     pub recursive: bool,
     /// File extension filters (lowercase, without dot)
     pub file_extensions: Vec<String>,
+    /// Whether to skip archive extraction for archive file inputs
+    pub no_extract: bool,
 }
 
 impl InputPathHandler {
@@ -182,6 +210,7 @@ impl InputPathHandler {
             paths: input_args.to_vec(),
             recursive,
             file_extensions: Vec::new(),
+            no_extract: false,
         };
         handler.validate()?;
         Ok(handler)
@@ -190,6 +219,16 @@ impl InputPathHandler {
     /// Set supported file extensions (without dot)
     pub fn with_extensions(mut self, extensions: &[&str]) -> Self {
         self.file_extensions = extensions.iter().map(|s| s.to_lowercase()).collect();
+        self
+    }
+
+    /// Set whether to skip archive extraction.
+    ///
+    /// When `true`, archive files (`.zip`, `.rar`) are treated as regular
+    /// files and subject to the normal extension filter instead of being
+    /// extracted.
+    pub fn with_no_extract(mut self, no_extract: bool) -> Self {
+        self.no_extract = no_extract;
         self
     }
 
@@ -251,11 +290,41 @@ impl InputPathHandler {
         directories.into_iter().collect()
     }
 
-    /// Expand files and directories, collecting all files that match the filter conditions
-    pub fn collect_files(&self) -> Result<Vec<PathBuf>, SubXError> {
+    /// Expand files and directories, collecting all files that match the filter conditions.
+    ///
+    /// When archive extraction is enabled (the default), directly-specified
+    /// archive files (`.zip`, `.rar`) are transparently extracted to temporary
+    /// directories and their contents are included in the result instead of
+    /// the archive path itself. Archives found during directory traversal
+    /// are **not** extracted.
+    pub fn collect_files(&self) -> Result<CollectedFiles, SubXError> {
         let mut files = Vec::new();
+        let mut temp_dirs = Vec::new();
+        let mut archive_origins: HashMap<PathBuf, PathBuf> = HashMap::new();
+
         for base in &self.paths {
             if base.is_file() {
+                // Check if this is an archive that should be extracted
+                if !self.no_extract {
+                    if let Some(_format) = archive::detect_format(base) {
+                        match self.extract_and_collect(base) {
+                            Ok((extracted, temp_dir)) => {
+                                let temp_root = temp_dir.path().to_path_buf();
+                                archive_origins.insert(temp_root, base.clone());
+                                files.extend(extracted);
+                                temp_dirs.push(temp_dir);
+                                continue;
+                            }
+                            Err(e) => {
+                                warn!(
+                                    "Failed to extract archive {}, skipping: {e}",
+                                    base.display()
+                                );
+                                continue;
+                            }
+                        }
+                    }
+                }
                 if self.matches_extension(base) {
                     files.push(base.clone());
                 }
@@ -269,7 +338,40 @@ impl InputPathHandler {
                 return Err(SubXError::InvalidPath(base.clone()));
             }
         }
-        Ok(files)
+
+        if temp_dirs.is_empty() {
+            Ok(CollectedFiles::new(files))
+        } else {
+            Ok(CollectedFiles::with_archives(
+                files,
+                temp_dirs,
+                archive_origins,
+            ))
+        }
+    }
+
+    /// Extracts an archive to a temp directory and returns paths matching
+    /// the configured extension filter.
+    fn extract_and_collect(
+        &self,
+        archive_path: &Path,
+    ) -> Result<(Vec<PathBuf>, TempDir), SubXError> {
+        let temp_dir = TempDir::new().map_err(|e| {
+            SubXError::CommandExecution(format!("Failed to create temp directory: {e}"))
+        })?;
+        let extracted = archive::extract_archive(archive_path, temp_dir.path()).map_err(|e| {
+            SubXError::CommandExecution(format!(
+                "Failed to extract {}: {e}",
+                archive_path.display()
+            ))
+        })?;
+
+        let filtered: Vec<PathBuf> = extracted
+            .into_iter()
+            .filter(|p| self.matches_extension(p))
+            .collect();
+
+        Ok((filtered, temp_dir))
     }
 
     fn matches_extension(&self, path: &Path) -> bool {
@@ -346,6 +448,81 @@ impl InputPathHandler {
             }
         }
         Ok(result)
+    }
+}
+
+/// Result of collecting files from input paths, including any temporary
+/// directories created during archive extraction.
+///
+/// This struct owns any `TempDir` handles created during archive extraction.
+/// The temporary directories are automatically cleaned up when this value
+/// is dropped.
+#[derive(Debug)]
+pub struct CollectedFiles {
+    /// Collected file paths
+    paths: Vec<PathBuf>,
+    /// Temporary directories from archive extraction (kept alive by ownership)
+    _temp_dirs: Vec<TempDir>,
+    /// Mapping from temp-directory root to original archive file path
+    archive_origins: HashMap<PathBuf, PathBuf>,
+}
+
+impl CollectedFiles {
+    /// Creates a new `CollectedFiles` with no archive origins.
+    pub fn new(paths: Vec<PathBuf>) -> Self {
+        Self {
+            paths,
+            _temp_dirs: Vec::new(),
+            archive_origins: HashMap::new(),
+        }
+    }
+
+    /// Creates a new `CollectedFiles` with archive context.
+    pub fn with_archives(
+        paths: Vec<PathBuf>,
+        temp_dirs: Vec<TempDir>,
+        archive_origins: HashMap<PathBuf, PathBuf>,
+    ) -> Self {
+        Self {
+            paths,
+            _temp_dirs: temp_dirs,
+            archive_origins,
+        }
+    }
+
+    /// Returns the archive origin path for a file extracted from an archive.
+    ///
+    /// If the given path starts with a known temp-directory root, returns
+    /// the original archive file path. Returns `None` for non-archive paths.
+    pub fn archive_origin(&self, path: &Path) -> Option<&Path> {
+        for (temp_root, archive_path) in &self.archive_origins {
+            if path.starts_with(temp_root) {
+                return Some(archive_path.as_path());
+            }
+        }
+        None
+    }
+
+    /// Consumes self and returns the collected paths.
+    ///
+    /// **Warning:** This drops the `TempDir` handles, so any paths pointing
+    /// to temporary extraction directories will become invalid.
+    pub fn into_paths(self) -> Vec<PathBuf> {
+        self.paths
+    }
+}
+
+impl std::ops::Deref for CollectedFiles {
+    type Target = Vec<PathBuf>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.paths
+    }
+}
+
+impl AsRef<[PathBuf]> for CollectedFiles {
+    fn as_ref(&self) -> &[PathBuf] {
+        &self.paths
     }
 }
 

@@ -17,8 +17,11 @@ use std::path::PathBuf;
 
 use crate::Result;
 use crate::core::language::LanguageDetector;
-use crate::core::matcher::cache::{CacheData, OpItem};
+use crate::core::matcher::cache::{CacheData, OpItem, SnapshotItem};
 use crate::core::matcher::discovery::generate_file_id;
+use crate::core::matcher::journal::{
+    JournalData, JournalEntry, JournalEntryStatus, JournalOperationType, journal_path,
+};
 use crate::core::matcher::{FileDiscovery, MediaFile, MediaFileType};
 use crate::core::parallel::{FileProcessingTask, ProcessingOperation, Task, TaskResult};
 use crate::error::SubXError;
@@ -802,14 +805,21 @@ impl MatchEngine {
         }
     }
 
-    /// Execute match operations with dry-run mode support
+    /// Execute match operations with dry-run mode support.
+    ///
+    /// When `dry_run` is false, a transactional journal is written to
+    /// [`journal_path`] recording every successfully completed operation.
+    /// The journal is saved atomically after each operation so that a
+    /// crash mid-batch still leaves a consistent, resumable on-disk
+    /// record. No journal is written in dry-run mode or when the batch
+    /// performs zero operations.
     pub async fn execute_operations(
         &self,
         operations: &[MatchOperation],
         dry_run: bool,
     ) -> Result<()> {
-        for op in operations {
-            if dry_run {
+        if dry_run {
+            for op in operations {
                 println!(
                     "Preview: {} -> {}",
                     op.subtitle_file.name, op.new_subtitle_name
@@ -829,33 +839,146 @@ impl MatchEngine {
                         );
                     }
                 }
-            } else {
-                // Delegate file operations to FileProcessingTask
-                let mut tasks = Vec::new();
-                // Backup source if move and enabled
-                if op.relocation_mode == FileRelocationMode::Move && self.config.backup_enabled {
-                    tasks.push(
-                        self.create_backup_task(
-                            &op.subtitle_file.path,
-                            &op.subtitle_file.extension,
-                        ),
-                    );
+            }
+            return Ok(());
+        }
+
+        // Prepare a fresh journal for this batch. The journal is saved
+        // atomically after each successful operation so that the on-disk
+        // record never diverges from the in-memory state by more than a
+        // single completed entry.
+        let created_at = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_secs())
+            .unwrap_or(0);
+        let batch_id = {
+            use std::collections::hash_map::DefaultHasher;
+            use std::hash::{Hash, Hasher};
+            let mut hasher = DefaultHasher::new();
+            created_at.hash(&mut hasher);
+            operations.len().hash(&mut hasher);
+            for op in operations {
+                op.subtitle_file.path.hash(&mut hasher);
+                op.new_subtitle_name.hash(&mut hasher);
+            }
+            format!("{:016x}", hasher.finish())
+        };
+        let mut journal = JournalData {
+            batch_id,
+            created_at,
+            entries: Vec::new(),
+        };
+        let journal_file = journal_path().ok();
+
+        let mut first_error: Option<SubXError> = None;
+
+        for op in operations {
+            // Build the task list the same way the previous implementation
+            // did so relocation, backup and rename semantics are preserved.
+            let mut backup_path: Option<PathBuf> = None;
+
+            if op.relocation_mode == FileRelocationMode::Move && self.config.backup_enabled {
+                let backup_task =
+                    self.create_backup_task(&op.subtitle_file.path, &op.subtitle_file.extension);
+                if let ProcessingOperation::CreateBackup { backup, .. } = &backup_task.operation {
+                    backup_path = Some(backup.clone());
                 }
-                // Copy or local copy with rename
-                if op.relocation_mode == FileRelocationMode::Copy {
-                    tasks.push(self.create_copy_task(op));
-                }
-                // Rename original file if any
-                if op.relocation_mode != FileRelocationMode::Copy {
-                    tasks.push(self.create_rename_task(op));
-                }
-                // Execute all tasks sequentially
-                for t in tasks {
-                    if let TaskResult::Failed(err) = t.execute().await {
-                        return Err(SubXError::FileOperationFailed(err));
-                    }
+                if let TaskResult::Failed(err) = backup_task.execute().await {
+                    first_error = Some(SubXError::FileOperationFailed(err));
+                    break;
                 }
             }
+
+            // Either a copy-with-rename task (Copy mode) or a rename task
+            // (Move / None modes) produces the primary journal entry for
+            // this operation.
+            let primary_task = if op.relocation_mode == FileRelocationMode::Copy {
+                self.create_copy_task(op)
+            } else {
+                self.create_rename_task(op)
+            };
+
+            let (journal_source, journal_destination, journal_kind) = match &primary_task.operation
+            {
+                ProcessingOperation::CopyWithRename { source, target }
+                | ProcessingOperation::CopyToVideoFolder { source, target } => {
+                    (source.clone(), target.clone(), JournalOperationType::Copied)
+                }
+                ProcessingOperation::MoveToVideoFolder { source, target } => {
+                    (source.clone(), target.clone(), JournalOperationType::Moved)
+                }
+                ProcessingOperation::RenameFile { source, target } => {
+                    let kind = match op.relocation_mode {
+                        FileRelocationMode::Move => JournalOperationType::Moved,
+                        _ => JournalOperationType::Renamed,
+                    };
+                    (source.clone(), target.clone(), kind)
+                }
+                _ => (
+                    op.subtitle_file.path.clone(),
+                    op.relocation_target_path.clone().unwrap_or_else(|| {
+                        op.subtitle_file.path.with_file_name(&op.new_subtitle_name)
+                    }),
+                    JournalOperationType::Renamed,
+                ),
+            };
+
+            // Capture source metadata before execution because move/rename
+            // will invalidate the source path afterwards.
+            let (pre_file_size, pre_file_mtime) = journal_source
+                .metadata()
+                .ok()
+                .map(|m| {
+                    let mtime = m
+                        .modified()
+                        .ok()
+                        .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
+                        .map(|d| d.as_secs())
+                        .unwrap_or(0);
+                    (m.len(), mtime)
+                })
+                .unwrap_or((0, 0));
+
+            if let TaskResult::Failed(err) = primary_task.execute().await {
+                first_error = Some(SubXError::FileOperationFailed(err));
+                break;
+            }
+
+            // Record destination metadata after execution so that rollback
+            // integrity checks compare against the actual destination state.
+            let (file_size, file_mtime) = journal_destination
+                .metadata()
+                .ok()
+                .map(|m| {
+                    let mtime = m
+                        .modified()
+                        .ok()
+                        .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
+                        .map(|d| d.as_secs())
+                        .unwrap_or(0);
+                    (m.len(), mtime)
+                })
+                .unwrap_or((pre_file_size, pre_file_mtime));
+
+            journal.entries.push(JournalEntry {
+                operation_type: journal_kind,
+                source: journal_source,
+                destination: journal_destination,
+                backup_path: backup_path.clone(),
+                status: JournalEntryStatus::Completed,
+                file_size,
+                file_mtime,
+            });
+
+            if let Some(path) = journal_file.as_ref() {
+                // Persist after every successful operation so interruption
+                // leaves the on-disk journal consistent with the file system.
+                journal.save(path).await?;
+            }
+        }
+
+        if let Some(err) = first_error {
+            return Err(err);
         }
         Ok(())
     }
@@ -1123,10 +1246,48 @@ impl MatchEngine {
             });
         }
 
+        // Build file snapshot with canonical paths, sizes, and mtimes
+        let mut snapshot_items = Vec::new();
+        let mut seen_paths = std::collections::HashSet::new();
+        for op in operations {
+            for path in [&op.video_file.path, &op.subtitle_file.path] {
+                let canonical = path.canonicalize().unwrap_or_else(|_| path.clone());
+                let key = canonical.to_string_lossy().to_string();
+                if seen_paths.insert(key.clone()) {
+                    if let Ok(meta) = std::fs::metadata(&canonical) {
+                        let mtime = meta
+                            .modified()
+                            .ok()
+                            .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
+                            .map(|d| d.as_secs())
+                            .unwrap_or(0);
+                        snapshot_items.push(SnapshotItem {
+                            path: key,
+                            name: canonical
+                                .file_name()
+                                .unwrap_or_default()
+                                .to_string_lossy()
+                                .to_string(),
+                            size: meta.len(),
+                            mtime,
+                            file_type: if canonical.extension().is_some_and(|e| {
+                                ["srt", "ass", "ssa", "vtt", "sub"]
+                                    .contains(&e.to_string_lossy().to_lowercase().as_str())
+                            }) {
+                                "subtitle".to_string()
+                            } else {
+                                "video".to_string()
+                            },
+                        });
+                    }
+                }
+            }
+        }
+
         let cache_data = CacheData {
             cache_version: "1.0".to_string(),
             directory: cache_key.to_string(),
-            file_snapshot: vec![], // Not used for file list cache
+            file_snapshot: snapshot_items,
             match_operations: cache_items,
             created_at: std::time::SystemTime::now()
                 .duration_since(std::time::UNIX_EPOCH)
@@ -1240,5 +1401,143 @@ impl MatchEngine {
         for s in subtitles {
             eprintln!("     - ID: {} | {}", s.id, s.relative_path);
         }
+    }
+}
+
+/// Replay a frozen set of cached match operations.
+///
+/// This helper powers the `cache apply` command. It reconstructs
+/// [`MatchOperation`] values from the paths recorded in `cache`, without
+/// performing any additional AI analysis or validation, and then feeds
+/// them through the standard [`MatchEngine::execute_operations`] pipeline
+/// so the same journal and file-system guarantees apply.
+///
+/// The provided `config` determines runtime behaviour such as relocation
+/// mode, backup handling and conflict resolution. Callers are expected to
+/// synchronise the config with the original cache's recorded values when
+/// strict replay fidelity is required.
+///
+/// # Errors
+///
+/// Returns an error if any cached source path cannot be read or if the
+/// underlying execution pipeline fails.
+pub async fn apply_cached_operations(cache: &CacheData, config: &MatchConfig) -> Result<()> {
+    let operations = reconstruct_operations_from_cache(cache, config)?;
+    let engine = MatchEngine::new(Box::new(NoOpAIProvider), config.clone());
+    engine.execute_operations(&operations, false).await
+}
+
+/// Rebuild [`MatchOperation`] values from a [`CacheData`] payload.
+///
+/// Silently skips entries whose source files no longer exist so the replay
+/// is resilient to partial state (e.g., an earlier apply completed some
+/// operations but was interrupted).
+fn reconstruct_operations_from_cache(
+    cache: &CacheData,
+    config: &MatchConfig,
+) -> Result<Vec<MatchOperation>> {
+    let mut ops = Vec::new();
+    for item in &cache.match_operations {
+        let video_path = PathBuf::from(&item.video_file);
+        let subtitle_path = PathBuf::from(&item.subtitle_file);
+
+        if !video_path.exists() || !subtitle_path.exists() {
+            continue;
+        }
+
+        let video_meta = video_path.metadata()?;
+        let subtitle_meta = subtitle_path.metadata()?;
+
+        let video_file = MediaFile {
+            id: generate_file_id(&video_path, video_meta.len()),
+            path: video_path.clone(),
+            file_type: MediaFileType::Video,
+            size: video_meta.len(),
+            name: video_path
+                .file_name()
+                .unwrap_or_default()
+                .to_string_lossy()
+                .to_string(),
+            extension: video_path
+                .extension()
+                .unwrap_or_default()
+                .to_string_lossy()
+                .to_lowercase(),
+            relative_path: video_path
+                .file_name()
+                .unwrap_or_default()
+                .to_string_lossy()
+                .to_string(),
+        };
+
+        let subtitle_file = MediaFile {
+            id: generate_file_id(&subtitle_path, subtitle_meta.len()),
+            path: subtitle_path.clone(),
+            file_type: MediaFileType::Subtitle,
+            size: subtitle_meta.len(),
+            name: subtitle_path
+                .file_name()
+                .unwrap_or_default()
+                .to_string_lossy()
+                .to_string(),
+            extension: subtitle_path
+                .extension()
+                .unwrap_or_default()
+                .to_string_lossy()
+                .to_lowercase(),
+            relative_path: subtitle_path
+                .file_name()
+                .unwrap_or_default()
+                .to_string_lossy()
+                .to_string(),
+        };
+
+        let requires_relocation = config.relocation_mode != FileRelocationMode::None
+            && subtitle_file.path.parent() != video_file.path.parent();
+        let relocation_target_path = if requires_relocation {
+            video_file
+                .path
+                .parent()
+                .map(|p| p.join(&item.new_subtitle_name))
+        } else {
+            None
+        };
+
+        ops.push(MatchOperation {
+            video_file,
+            subtitle_file,
+            new_subtitle_name: item.new_subtitle_name.clone(),
+            confidence: item.confidence,
+            reasoning: item.reasoning.clone(),
+            relocation_mode: config.relocation_mode.clone(),
+            relocation_target_path,
+            requires_relocation,
+        });
+    }
+    Ok(ops)
+}
+
+/// AI provider stub used by [`apply_cached_operations`].
+///
+/// `execute_operations` never calls the AI service, so replaying a cached
+/// plan does not require a real provider; this stub panics defensively if
+/// accidentally invoked.
+struct NoOpAIProvider;
+
+#[async_trait::async_trait]
+impl AIProvider for NoOpAIProvider {
+    async fn analyze_content(&self, _request: AnalysisRequest) -> crate::Result<MatchResult> {
+        Err(SubXError::config(
+            "AI analysis is not available while replaying cached operations",
+        ))
+    }
+
+    async fn verify_match(
+        &self,
+        _verification: crate::services::ai::VerificationRequest,
+    ) -> crate::Result<crate::services::ai::ConfidenceScore> {
+        Err(SubXError::config(
+            "AI verification is not available while replaying cached operations",
+        ))
     }
 }

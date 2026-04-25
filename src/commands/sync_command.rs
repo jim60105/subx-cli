@@ -6,6 +6,7 @@
 
 use crate::cli::SyncArgs;
 use crate::cli::SyncMode;
+use crate::cli::sync_args::create_default_output_path;
 use crate::config::Config;
 use crate::config::ConfigService;
 use crate::core::formats::manager::FormatManager;
@@ -240,6 +241,17 @@ pub async fn execute(args: SyncArgs, config_service: &dyn ConfigService) -> Resu
             single_args.recursive = false;
             single_args.video = Some(video_files[0].clone());
             single_args.subtitle = Some(subtitle_files[0].clone());
+            // If subtitle came from an archive, redirect output beside the archive
+            if single_args.output.is_none() {
+                if let Some(archive_path) = paths.archive_origin(subtitle_files[0]) {
+                    if let Some(archive_dir) = archive_path.parent() {
+                        let default = create_default_output_path(subtitle_files[0]);
+                        if let Some(filename) = default.file_name() {
+                            single_args.output = Some(archive_dir.join(filename));
+                        }
+                    }
+                }
+            }
             run_single(&single_args, &config, &sync_engine, &format_manager).await?;
             return Ok(());
         }
@@ -291,6 +303,17 @@ pub async fn execute(args: SyncArgs, config_service: &dyn ConfigService) -> Resu
                 single_args.recursive = false;
                 single_args.video = Some((*video_path).clone());
                 single_args.subtitle = Some((*sub_path).clone());
+                // If subtitle came from an archive, redirect output beside the archive
+                if single_args.output.is_none() {
+                    if let Some(archive_path) = paths.archive_origin(sub_path) {
+                        if let Some(archive_dir) = archive_path.parent() {
+                            let default = create_default_output_path(sub_path);
+                            if let Some(filename) = default.file_name() {
+                                single_args.output = Some(archive_dir.join(filename));
+                            }
+                        }
+                    }
+                }
                 run_single(&single_args, &config, &sync_engine, &format_manager).await?;
 
                 processed_videos.insert(video_path.as_path());
@@ -375,7 +398,8 @@ mod tests {
             verbose: false,
             dry_run: true, // Use dry run to avoid file creation
             force: true,
-            batch: None, // Disable batch mode
+            batch: None, // Disable batch mode,
+            no_extract: false,
         };
 
         execute(args, config_service.as_ref()).await?;
