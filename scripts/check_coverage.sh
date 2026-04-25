@@ -30,6 +30,9 @@ NEXTEST_PROFILE=${NEXTEST_PROFILE:-$DEFAULT_NEXTEST_PROFILE}
 # Full tests mode
 FULL_TESTS=false
 
+# Track if profile was explicitly set
+PROFILE_SET=false
+
 # Output LCOV file
 LCOV_OUTPUT_PATH=""
 
@@ -46,7 +49,7 @@ usage() {
     echo "Options:"
     echo "  -t, --threshold PERCENT   Set coverage threshold (default: ${DEFAULT_THRESHOLD}%)"
     echo "  -p, --profile PROFILE     Set nextest profile (default: ${DEFAULT_NEXTEST_PROFILE})"
-    echo "  --full                   Run full tests including slow tests (sets profile to full and enables slow-tests feature)"
+    echo "  --full                   Run full tests including slow tests (uses full profile unless -p is set)"
     echo "  -T, --table              Show coverage table for all files"
     echo "  -f, --file FILENAME      Show coverage for specific file (supports partial matching)"
     echo "  -v, --verbose            Show verbose output"
@@ -138,6 +141,7 @@ parse_args() {
             case "$2" in
                 default|ci|quick|full)
                     NEXTEST_PROFILE="$2"
+                    PROFILE_SET=true
                     ;;
                 *)
                     echo -e "${RED}Error: Invalid profile '$2'. Available profiles: default, ci, quick, full${NC}" >&2
@@ -148,7 +152,10 @@ parse_args() {
             ;;
         --full)
             FULL_TESTS=true
-            NEXTEST_PROFILE="full"
+            # Only override profile if not explicitly set with -p
+            if [[ "$PROFILE_SET" != "true" ]]; then
+                NEXTEST_PROFILE="full"
+            fi
             shift
             ;;
         -T | --table)
@@ -353,13 +360,31 @@ check_coverage() {
     
     echo -e "${BLUE}📄 Running tests to generate coverage data...${NC}"
     
-    # First, run tests once to generate coverage data
-    if ! cargo llvm-cov nextest --profile "${NEXTEST_PROFILE}" --workspace ${coverage_features} --no-report >/dev/null 2>&1; then
-        echo -e "${RED}❌ Unable to run tests for coverage${NC}" >&2
-        exit 1
-    fi
+    # Run tests to generate coverage data.
+    # Coverage profraw files are collected even when some tests fail,
+    # so we continue to generate the report regardless of test exit code.
+    local test_log
+    test_log=$(mktemp)
+    local test_exit_code=0
+    cargo llvm-cov nextest --profile "${NEXTEST_PROFILE}" --workspace ${coverage_features} --no-report >"$test_log" 2>&1 || test_exit_code=$?
     
-    echo -e "${GREEN}✅ Tests completed successfully${NC}"
+    if [[ $test_exit_code -ne 0 ]]; then
+        echo -e "${YELLOW}⚠️  Test runner exited with code ${test_exit_code}${NC}"
+        if [[ "${VERBOSE:-false}" == "true" ]]; then
+            cat "$test_log"
+        else
+            # Show summary line (last few lines) for quick diagnostics
+            echo -e "${YELLOW}   $(tail -3 "$test_log" | head -1)${NC}"
+            echo -e "${YELLOW}   Use -v for full test output${NC}"
+        fi
+    fi
+    rm -f "$test_log"
+    
+    if [[ $test_exit_code -eq 0 ]]; then
+        echo -e "${GREEN}✅ Tests completed successfully${NC}"
+    else
+        echo -e "${YELLOW}⚠️  Continuing with coverage report generation...${NC}"
+    fi
     
     # Generate LCOV output if requested, using report to avoid re-running tests
     if [[ -n "${LCOV_OUTPUT_PATH}" ]]; then
