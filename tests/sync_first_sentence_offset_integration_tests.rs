@@ -1,13 +1,13 @@
 //! Integration test for first sentence sync offset using sample assets
 
-use std::path::Path;
-use subx_cli::config::TestConfigBuilder;
-use subx_cli::core::formats::manager::FormatManager;
-use subx_cli::core::sync::{SyncEngine, SyncMethod};
-
 #[cfg(feature = "slow-tests")]
 #[tokio::test]
 async fn test_sync_first_sentence_with_assets() {
+    use std::path::Path;
+    use subx_cli::config::TestConfigBuilder;
+    use subx_cli::core::formats::manager::FormatManager;
+    use subx_cli::core::sync::{SyncEngine, SyncMethod};
+
     println!("[TEST] Building test configuration with VAD enabled...");
     // Build test configuration with VAD enabled
     let config = TestConfigBuilder::new()

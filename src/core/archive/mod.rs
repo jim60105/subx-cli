@@ -7,14 +7,14 @@
 //!
 //! Each supported format lives in its own sub-module, while shared security
 //! validation (path-traversal checks, decompression-bomb limits) is
-//! centralised in [`common`].
+//! centralised in the `common` module.
 //!
-//! - [`common`] — Shared validation: [`common::validate_entry_path`],
-//!   [`common::ExtractionLimits`], size/count constants.
-//! - [`zip`] — ZIP extraction (always available, pure Rust).
-//! - [`rar`] — RAR extraction (feature-gated `archive-rar`).
-//! - [`sevenz`] — 7-Zip extraction (always available, pure Rust).
-//! - [`targz`] — Tar-gzip extraction (always available, pure Rust).
+//! - `common` — Shared validation: `validate_entry_path`,
+//!   `ExtractionLimits`, size/count constants.
+//! - `zip` — ZIP extraction (always available, pure Rust).
+//! - `rar` — RAR extraction (feature-gated `archive-rar`).
+//! - `sevenz` — 7-Zip extraction (always available, pure Rust).
+//! - `targz` — Tar-gzip extraction (always available, pure Rust).
 //!
 //! # Supported Formats
 //!

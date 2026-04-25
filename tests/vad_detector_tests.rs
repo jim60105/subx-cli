@@ -6,9 +6,8 @@
 mod common;
 
 use std::path::Path;
-use std::time::Duration;
 use subx_cli::config::VadConfig;
-use subx_cli::core::formats::{Subtitle, SubtitleEntry, SubtitleFormatType, SubtitleMetadata};
+use subx_cli::core::formats::{Subtitle, SubtitleFormatType, SubtitleMetadata};
 use subx_cli::services::vad::{LocalVadDetector, VadAudioProcessor, VadSyncDetector};
 
 // Helper to load and process the real audio asset for tests
@@ -53,6 +52,9 @@ async fn test_vad_detector_with_real_audio() {
 #[cfg(feature = "slow-tests")]
 #[tokio::test]
 async fn test_sync_vad_detector_with_real_audio() {
+    use std::time::Duration;
+    use subx_cli::core::formats::SubtitleEntry;
+
     let audio_path = get_test_audio_path();
     let mut vad_config = VadConfig::default();
     vad_config.sensitivity = 0.5;
