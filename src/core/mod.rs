@@ -26,6 +26,7 @@ pub mod lock;
 pub mod matcher;
 pub mod parallel;
 pub mod sync;
+pub mod translation;
 
 // Re-export commonly used types
 pub use factory::ComponentFactory;

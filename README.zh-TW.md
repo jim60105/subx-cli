@@ -35,7 +35,7 @@ media/
     └── 駭客任務_中文字幕.srt
 ```
 
-除了匹配功能，SubX 也支援字幕格式互轉（SRT、ASS、VTT、SUB），透過本地語音活動偵測（VAD）校正時間軸偏移，以及偵測檔案字元編碼。
+除了匹配功能，SubX 也支援字幕格式互轉（SRT、ASS、VTT、SUB），透過本地語音活動偵測（VAD）校正時間軸偏移，偵測檔案字元編碼，並可運用設定的 AI 供應商將字幕內容翻譯為其他語言，同時保留時間軸與字幕順序。
 
 ## 快速開始
 
@@ -59,7 +59,7 @@ subx-cli match --copy /path/to/media/
 
 ## 命令一覽
 
-`match`、`convert`、`sync` 和 `detect-encoding` 命令支援 `-i` 指定多個輸入來源，以及 `--recursive` 遞迴掃描子目錄。完整選項、範例與工作流程請參閱[命令參考](docs/command-reference.md)。
+`match`、`convert`、`sync`、`detect-encoding` 與 `translate` 命令支援 `-i` 指定多個輸入來源，以及 `--recursive` 遞迴掃描子目錄。完整選項、範例與工作流程請參閱[命令參考](docs/command-reference.md)。
 
 | 命令 | 用途 | 範例 |
 |------|------|------|
@@ -67,6 +67,7 @@ subx-cli match --copy /path/to/media/
 | `convert` | 字幕格式互轉 | `subx-cli convert --format srt ./subs/` |
 | `sync` | 透過 VAD 或手動偏移校正時間軸 | `subx-cli sync video.mp4 subtitle.srt` |
 | `detect-encoding` | 偵測字幕檔案字元編碼 | `subx-cli detect-encoding *.srt` |
+| `translate` | 以 AI 將字幕文字翻譯為其他語言 | `subx-cli translate movie.srt --target-language zh-TW` |
 | `config` | 檢視及修改設定 | `subx-cli config set ai.provider openai` |
 | `cache` | 管理 dry-run 結果快取 | `subx-cli cache clear` |
 

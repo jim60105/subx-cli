@@ -186,7 +186,8 @@ impl AzureOpenAIClient {
         }
     }
 
-    async fn chat_completion(&self, messages: Vec<Value>) -> crate::Result<String> {
+    /// Send a raw chat completion request to the Azure OpenAI Chat Completions API.
+    pub async fn chat_completion(&self, messages: Vec<Value>) -> crate::Result<String> {
         let url = format!(
             "{}/openai/deployments/{}/chat/completions?api-version={}",
             self.base_url, self.model, self.api_version
@@ -510,5 +511,9 @@ impl AIProvider for AzureOpenAIClient {
         ];
         let resp = self.chat_completion(messages).await?;
         self.parse_confidence_score(&resp)
+    }
+
+    async fn chat_completion(&self, messages: Vec<Value>) -> crate::Result<String> {
+        AzureOpenAIClient::chat_completion(self, messages).await
     }
 }

@@ -193,6 +193,19 @@ pub fn validate_field(key: &str, value: &str) -> Result<()> {
             validate_enum(value, &["Block", "Drop", "Expand"])?;
         }
 
+        // Translation configuration fields
+        "translation.batch_size" => {
+            let size: usize = value.parse().map_err(|_| {
+                SubXError::config("Translation batch size must be a positive integer")
+            })?;
+            validate_range(size, 1, 1000)?;
+        }
+        "translation.default_target_language" => {
+            if !value.is_empty() {
+                validate_non_empty_string(value, "translation.default_target_language")?;
+            }
+        }
+
         _ => {
             return Err(SubXError::config(format!(
                 "Unknown configuration key: {key}"
@@ -245,6 +258,11 @@ pub fn get_field_description(key: &str) -> &'static str {
         "parallel.enable_task_priorities" => "Enable task priority system",
         "parallel.auto_balance_workers" => "Enable automatic worker load balancing",
         "parallel.overflow_strategy" => "Strategy for handling queue overflow",
+
+        "translation.batch_size" => "Maximum subtitle cues per AI translation request (1-1000)",
+        "translation.default_target_language" => {
+            "Default target language used when --target-language is omitted"
+        }
 
         _ => "Configuration field",
     }

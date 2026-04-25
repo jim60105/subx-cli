@@ -14,7 +14,8 @@ use super::validation::*;
 use crate::Result;
 use crate::config::Config;
 use crate::config::{
-    AIConfig, FormatsConfig, GeneralConfig, ParallelConfig, SyncConfig, VadConfig,
+    AIConfig, FormatsConfig, GeneralConfig, ParallelConfig, SyncConfig, TranslationConfig,
+    VadConfig,
 };
 use crate::error::SubXError;
 
@@ -34,6 +35,7 @@ pub fn validate_config(config: &Config) -> Result<()> {
     validate_general_config(&config.general)?;
     validate_formats_config(&config.formats)?;
     validate_parallel_config(&config.parallel)?;
+    validate_translation_config(&config.translation)?;
 
     // Cross-section validation
     validate_config_consistency(config)?;
@@ -197,6 +199,31 @@ pub fn validate_parallel_config(parallel_config: &ParallelConfig) -> Result<()> 
         return Err(SubXError::config("Task queue size should be at least 100"));
     }
 
+    Ok(())
+}
+
+/// Validate translation configuration section.
+///
+/// Ensures `batch_size` is a positive integer and that
+/// `default_target_language`, when set, is a non-empty trimmed string.
+pub fn validate_translation_config(translation_config: &TranslationConfig) -> Result<()> {
+    if translation_config.batch_size == 0 {
+        return Err(SubXError::config(
+            "translation.batch_size must be greater than zero",
+        ));
+    }
+    if translation_config.batch_size > 1000 {
+        return Err(SubXError::config(
+            "translation.batch_size should not exceed 1000",
+        ));
+    }
+    if let Some(lang) = &translation_config.default_target_language {
+        if lang.trim().is_empty() {
+            return Err(SubXError::config(
+                "translation.default_target_language must not be empty",
+            ));
+        }
+    }
     Ok(())
 }
 

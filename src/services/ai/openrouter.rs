@@ -147,7 +147,8 @@ impl OpenRouterClient {
         Ok(())
     }
 
-    async fn chat_completion(&self, messages: Vec<Value>) -> Result<String> {
+    /// Send a raw chat completion request to the OpenRouter Chat Completions API.
+    pub async fn chat_completion(&self, messages: Vec<Value>) -> Result<String> {
         let request_body = json!({
             "model": self.model,
             "messages": messages,
@@ -326,6 +327,10 @@ impl AIProvider for OpenRouterClient {
         ];
         let response = self.chat_completion(messages).await?;
         self.parse_confidence_score(&response)
+    }
+
+    async fn chat_completion(&self, messages: Vec<Value>) -> Result<String> {
+        OpenRouterClient::chat_completion(self, messages).await
     }
 }
 

@@ -27,3 +27,4 @@ pub mod detect_encoding_command;
 pub mod dispatcher;
 pub mod match_command;
 pub mod sync_command;
+pub mod translate_command;

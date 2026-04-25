@@ -38,8 +38,10 @@ media/
 ```
 
 Beyond matching, SubX converts between subtitle formats (SRT, ASS, VTT,
-SUB), corrects timing drift using local Voice Activity Detection, and
-detects file character encodings.
+SUB), corrects timing drift using local Voice Activity Detection, detects
+file character encodings, and translates subtitle cue text into another
+language using the configured AI provider while preserving timing and cue
+order.
 
 ## Quick Start
 
@@ -66,10 +68,10 @@ and environment variables.
 
 ## Commands
 
-The `match`, `convert`, `sync`, and `detect-encoding` commands support `-i`
-for multiple inputs and `--recursive` for subdirectory scanning. See the
-[Command Reference](docs/command-reference.md) for full options, examples,
-and workflows.
+The `match`, `convert`, `sync`, `detect-encoding`, and `translate` commands
+support `-i` for multiple inputs and `--recursive` for subdirectory
+scanning. See the [Command Reference](docs/command-reference.md) for full
+options, examples, and workflows.
 
 | Command | Purpose | Example |
 |---------|---------|---------|
@@ -77,6 +79,7 @@ and workflows.
 | `convert` | Convert between subtitle formats | `subx-cli convert --format srt ./subs/` |
 | `sync` | Correct timing via VAD or manual offset | `subx-cli sync video.mp4 subtitle.srt` |
 | `detect-encoding` | Identify subtitle file encodings | `subx-cli detect-encoding *.srt` |
+| `translate` | AI-translate subtitle text into another language | `subx-cli translate movie.srt --target-language zh-TW` |
 | `config` | View and modify settings | `subx-cli config set ai.provider openai` |
 | `cache` | Manage dry-run result cache | `subx-cli cache clear` |
 

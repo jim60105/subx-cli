@@ -119,6 +119,7 @@ Config Layer (src/config/)    → DI-based configuration system
 | `src/core/formats/` | Subtitle parsing/conversion | `SubtitleFormat` trait, `FormatManager`, `FormatConverter` |
 | `src/core/matcher/` | AI-powered file matching | `MatchEngine`, `FileDiscovery`, `MatchConfig` |
 | `src/core/sync/` | Subtitle synchronization | `SyncEngine`, `SyncMethod` |
+| `src/core/translation/` | AI-assisted subtitle translation (two-pass terminology + cue translation, UUIDv7 cue IDs) | `TranslationEngine`, `TerminologyMap`, `CueIdGenerator` |
 | `src/core/parallel/` | Task scheduling | `TaskScheduler`, `Task`, `WorkerPool` |
 | `src/core/file_manager.rs` | File operations with backup | `FileManager` |
 | `src/services/ai/` | AI provider clients | `AIProvider` trait, `OpenAIClient`, `OpenRouterClient`, `AzureOpenAIClient` |
@@ -136,6 +137,7 @@ Config Layer (src/config/)    → DI-based configuration system
 | Add/change config keys | `src/config/mod.rs`, `service.rs`, `field_validator.rs`, `validator.rs` |
 | Add AI provider | `src/services/ai/`, `src/core/factory.rs`, `src/config/` |
 | Add subtitle format | `src/core/formats/`, register in `FormatManager::new()` |
+| Add/change translation behavior | `src/cli/translate_args.rs`, `src/commands/translate_command.rs`, `src/core/translation/`, AI prompt helpers in `src/services/ai/` |
 
 ## File Organization
 

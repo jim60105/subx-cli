@@ -76,6 +76,9 @@ pub async fn dispatch_command(
         Commands::Cache(args) => {
             crate::commands::cache_command::execute_with_config(args, config_service).await
         }
+        Commands::Translate(args) => {
+            crate::commands::translate_command::execute_with_config(args, config_service).await
+        }
         Commands::DetectEncoding(args) => {
             crate::commands::detect_encoding_command::detect_encoding_command_with_config(
                 args,
@@ -115,6 +118,9 @@ pub async fn dispatch_command_with_ref(
             Ok(())
         }
         Commands::Cache(args) => crate::commands::cache_command::execute(args).await,
+        Commands::Translate(args) => {
+            crate::commands::translate_command::execute(args, config_service).await
+        }
         Commands::DetectEncoding(args) => {
             crate::commands::detect_encoding_command::detect_encoding_command_with_config(
                 args,

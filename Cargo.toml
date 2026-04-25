@@ -99,7 +99,7 @@ futures = "0.3"
 
 # Async trait support
 async-trait = "0.1"
-uuid = { version = "1.3", features = ["v4"] }
+uuid = { version = "1.3", features = ["v4", "v7"] }
 
 # Logging
 log = "0.4"

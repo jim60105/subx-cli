@@ -143,6 +143,22 @@ impl ComponentFactory {
     pub fn create_audio_processor(&self) -> Result<VadAudioProcessor> {
         VadAudioProcessor::new()
     }
+
+    /// Create a translation engine using the configured AI provider and
+    /// translation settings.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when AI provider creation fails or the configured
+    /// translation batch size is invalid.
+    pub fn create_translation_engine(&self) -> Result<crate::core::translation::TranslationEngine> {
+        let ai_provider: std::sync::Arc<dyn AIProvider> =
+            std::sync::Arc::from(self.create_ai_provider()?);
+        crate::core::translation::TranslationEngine::new(
+            ai_provider,
+            self.config.translation.batch_size,
+        )
+    }
 }
 
 /// Create an AI provider from AI configuration.

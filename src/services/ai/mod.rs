@@ -175,6 +175,36 @@ pub trait AIProvider: Send + Sync {
         &self,
         verification: VerificationRequest,
     ) -> crate::Result<ConfidenceScore>;
+
+    /// Send a raw chat completion request to the provider.
+    ///
+    /// This provides a provider-neutral entry point for callers (such as the
+    /// translation engine) that need to issue prompts that do not fit the
+    /// matching/verification request shape. Each provider implementation is
+    /// responsible for handling authentication, retries, response size limits,
+    /// and error sanitization, mirroring its specialized methods.
+    ///
+    /// # Arguments
+    ///
+    /// * `messages` - OpenAI-compatible chat messages, e.g.
+    ///   `[{"role":"system","content":"..."},{"role":"user","content":"..."}]`.
+    ///
+    /// # Returns
+    ///
+    /// The assistant message text from the first choice in the response.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`crate::error::SubXError::AiService`] for HTTP, parsing, or
+    /// upstream provider errors. The default implementation returns
+    /// [`crate::error::SubXError::AiService`] indicating the provider does not
+    /// support raw chat completion; only providers that override this method
+    /// support translation prompts.
+    async fn chat_completion(&self, _messages: Vec<serde_json::Value>) -> crate::Result<String> {
+        Err(crate::error::SubXError::ai_service(
+            "AI provider does not support chat_completion",
+        ))
+    }
 }
 
 /// Analysis request structure for AI content analysis.
@@ -296,6 +326,9 @@ pub mod azure_openai;
 
 /// AI prompt templates and management
 pub mod prompts;
+
+/// Prompt and response helpers for AI-driven subtitle translation.
+pub mod translation_prompts;
 
 /// Retry logic and backoff strategies for AI services
 pub mod retry;

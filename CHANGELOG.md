@@ -8,6 +8,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- `subx translate` command for AI-assisted subtitle translation. Preserves cue timing, ordering, and format metadata while rewriting cue text into a target language. Supports single-file, multi-file, directory, recursive, and archive-expanded inputs via the shared input path handling.
+- Two-pass terminology consistency: a terminology extraction pass builds a source-to-target term map for recurring proper nouns (people and place names) before per-cue translation, so recurring names stay consistent across batches. Extraction prefers established conventional translations and falls back to phonetic transliteration before semantic translation when coining new terms. User-provided glossary entries override AI-generated terminology.
+- Stable per-request cue IDs using UUIDv7 generated in cue order with at least 1 ms spacing between adjacent IDs, so each cue ID's `unix_time_ts` strictly increases. Translation responses are validated against the requested cue IDs: duplicate or unknown IDs discard the batch (unknown IDs trigger a single batch retry, then fail the file), while missing IDs are retried once after all initial batches and then filled with empty strings if still absent.
+- `--target-language` (required), `--source-language`, `--glossary <PATH>`, `--context <TEXT>`, `--output`, `--overwrite`, `--replace`, `--recursive`, and `--no-extract` flags for the `translate` command. `--context` is always treated as inline text; `--glossary` always references a UTF-8 file.
+- Safe output behavior for translation: defaults to writing `<stem>.<target-language>.<ext>` next to the source without modifying the original. Existing translated outputs are not overwritten unless `--overwrite` is set. Batch invocations require `--output` to be a directory; a file path is rejected. Archive inputs default to writing under the archive's parent directory rather than the temporary extraction directory. `--replace` honors `general.backup_enabled` for source backups.
+- `[translation]` configuration section with `batch_size` and `default_target_language` fields.
+- Per-file error isolation during batch translation so one failing file does not block the rest.
+
+### Documentation
+- Documented the `translate` command, terminology consistency behavior, output naming rules, and safety flags in `docs/command-reference.md`.
+- Added the `[translation]` configuration section and `SUBX_TRANSLATION_*` environment overrides to `docs/configuration-guide.md`.
+- Updated `README.md` and `README.zh-TW.md` to include translation in the supported workflow.
+
 ## [1.6.0] - 2026-04-25
 
 ### Added

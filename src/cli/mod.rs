@@ -38,6 +38,7 @@ mod input_handler;
 mod match_args;
 pub mod sync_args;
 pub mod table;
+mod translate_args;
 pub mod ui;
 
 pub use cache_args::{
@@ -51,6 +52,7 @@ pub use generate_completion_args::GenerateCompletionArgs;
 pub use input_handler::{CollectedFiles, InputPathHandler};
 pub use match_args::MatchArgs;
 pub use sync_args::{SyncArgs, SyncMethod, SyncMethodArg, SyncMode};
+pub use translate_args::TranslateArgs;
 pub use ui::{
     create_progress_bar, display_ai_usage, display_match_results, print_error, print_success,
     print_warning,
@@ -90,6 +92,10 @@ pub enum Commands {
 
     /// Manage cache and inspect dry-run results
     Cache(CacheArgs),
+
+    /// Translate subtitle cue text into a target language using the
+    /// configured AI provider.
+    Translate(TranslateArgs),
 }
 
 /// Executes the SubX CLI application with parsed arguments.

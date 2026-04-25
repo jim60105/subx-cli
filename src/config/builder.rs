@@ -303,6 +303,26 @@ impl TestConfigBuilder {
         self
     }
 
+    // Translation Configuration Methods
+
+    /// Set the translation batch size used for AI translation requests.
+    pub fn with_translation_batch_size(mut self, batch_size: usize) -> Self {
+        self.config.translation.batch_size = batch_size;
+        self
+    }
+
+    /// Set the default target language for the `translate` command.
+    pub fn with_translation_default_target_language(mut self, language: &str) -> Self {
+        self.config.translation.default_target_language = Some(language.to_string());
+        self
+    }
+
+    /// Clear the default target language for the `translate` command.
+    pub fn without_translation_default_target_language(mut self) -> Self {
+        self.config.translation.default_target_language = None;
+        self
+    }
+
     // Builder Methods
 
     /// Build a test configuration service with the configured settings.

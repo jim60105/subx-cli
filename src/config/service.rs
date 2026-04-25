@@ -510,6 +510,17 @@ impl ProductionConfigService {
                     _ => unreachable!(), // Validation already done
                 };
             }
+            ["translation", "batch_size"] => {
+                let v = value.parse().unwrap(); // Validation already done
+                config.translation.batch_size = v;
+            }
+            ["translation", "default_target_language"] => {
+                if value.is_empty() {
+                    config.translation.default_target_language = None;
+                } else {
+                    config.translation.default_target_language = Some(value.to_string());
+                }
+            }
             _ => {
                 return Err(SubXError::config(format!(
                     "Unknown configuration key: {key}"
@@ -664,6 +675,13 @@ impl ConfigService for ProductionConfigService {
             ["parallel", "overflow_strategy"] => {
                 Ok(format!("{:?}", config.parallel.overflow_strategy))
             }
+
+            ["translation", "batch_size"] => Ok(config.translation.batch_size.to_string()),
+            ["translation", "default_target_language"] => Ok(config
+                .translation
+                .default_target_language
+                .clone()
+                .unwrap_or_default()),
 
             _ => Err(SubXError::config(format!(
                 "Unknown configuration key: {}",

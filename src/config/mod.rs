@@ -122,6 +122,9 @@ pub struct Config {
     pub general: GeneralConfig,
     /// Parallel processing parameters.
     pub parallel: ParallelConfig,
+    /// Subtitle translation configuration parameters.
+    #[serde(default)]
+    pub translation: TranslationConfig,
     /// Optional file path from which the configuration was loaded.
     pub loaded_from: Option<PathBuf>,
 }
@@ -500,6 +503,44 @@ pub enum OverflowStrategy {
     ///
     /// Similar to Drop but may provide error feedback to the caller.
     Reject,
+}
+
+/// Subtitle translation configuration parameters.
+///
+/// Controls translation behavior shared by the `translate` command, the
+/// translation engine, and AI prompt builders. Validation rules ensure
+/// translation requests do not silently degrade to nonsensical values.
+///
+/// # Examples
+///
+/// ```rust
+/// use subx_cli::config::TranslationConfig;
+///
+/// let cfg = TranslationConfig::default();
+/// assert!(cfg.batch_size > 0);
+/// assert!(cfg.default_target_language.is_none());
+/// ```
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct TranslationConfig {
+    /// Maximum number of subtitle cues per AI translation request.
+    ///
+    /// Larger batches reduce the number of round-trips but risk hitting
+    /// per-request token limits. Must be greater than zero.
+    pub batch_size: usize,
+
+    /// Optional default target language used when the user omits
+    /// `--target-language` on the CLI.
+    #[serde(default)]
+    pub default_target_language: Option<String>,
+}
+
+impl Default for TranslationConfig {
+    fn default() -> Self {
+        Self {
+            batch_size: 40,
+            default_target_language: None,
+        }
+    }
 }
 
 // ============================================================================

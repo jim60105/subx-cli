@@ -135,6 +135,32 @@ enable_progress_bar = true                    # Show progress indicators
 worker_idle_timeout_seconds = 60              # Worker thread idle timeout in seconds
 ```
 
+## Translation Configuration (`[translation]`)
+
+This section controls defaults for the `translate` command. Translation
+reuses the configured AI provider in `[ai]` — there is no separate
+translation service.
+
+```toml
+[translation]
+batch_size = 40                               # Cues per AI translation request (1–1000)
+default_target_language = ""                  # Optional default for --target-language (e.g., "zh-TW")
+```
+
+`batch_size` controls how many subtitle cues are sent to the AI provider in
+a single translation request. Smaller batches are more resilient to
+malformed responses (a failed batch only invalidates that batch's cues),
+while larger batches reduce request count and cost. Configuration validation
+rejects `0` and values that exceed the documented ceiling.
+
+When `default_target_language` is set, the `translate` command may use it as
+the default for `--target-language`; an explicit CLI flag always wins. Leave
+the value empty to require `--target-language` on every invocation.
+
+The terminology extraction pass and the per-cue translation pass both run
+through the configured AI provider and inherit the `[ai]` retry, timeout,
+and security settings.
+
 ## Parallel Processing Configuration (`[parallel]`)
 
 This section controls the worker pool and task scheduling. The default
@@ -200,6 +226,10 @@ export SUBX_FORMATS_DEFAULT_OUTPUT=vtt
 
 # Sync VAD settings
 export SUBX_SYNC_VAD_SENSITIVITY=0.8
+
+# Translation settings
+export SUBX_TRANSLATION_BATCH_SIZE=40
+export SUBX_TRANSLATION_DEFAULT_TARGET_LANGUAGE=zh-TW
 
 # Custom config file path
 export SUBX_CONFIG_PATH="/custom/path/to/config.toml"
@@ -335,4 +365,8 @@ overflow_strategy = "Block"
 task_queue_size = 1000
 enable_task_priorities = false
 auto_balance_workers = true
+
+[translation]
+batch_size = 40
+default_target_language = ""
 ```

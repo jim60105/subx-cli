@@ -1,17 +1,17 @@
 # Command Reference
 
-SubX-CLI provides seven subcommands. The `match`, `convert`, `sync`, and
-`detect-encoding` commands accept `-i <PATH>` for specifying multiple input
-sources and `--recursive` for subdirectory scanning. Positional path
-arguments and `-i` inputs are combined (except in `detect-encoding`, where
-they are mutually exclusive). The `config`, `cache`, and
+SubX-CLI provides eight subcommands. The `match`, `convert`, `sync`,
+`detect-encoding`, and `translate` commands accept `-i <PATH>` for specifying
+multiple input sources and `--recursive` for subdirectory scanning. Positional
+path arguments and `-i` inputs are combined (except in `detect-encoding`,
+where they are mutually exclusive). The `config`, `cache`, and
 `generate-completion` commands have their own argument structures.
 
 ### Archive Input Support
 
-The `match`, `convert`, `sync`, and `detect-encoding` commands accept
-archive files as direct inputs (positional path or via `-i`). Supported
-formats:
+The `match`, `convert`, `sync`, `detect-encoding`, and `translate` commands
+accept archive files as direct inputs (positional path or via `-i`).
+Supported formats:
 
 | Format | Extension(s) | Notes |
 |---|---|---|
@@ -256,6 +256,114 @@ subx-cli detect-encoding *.srt
 subx-cli detect-encoding -i ./subtitles1 -i ./subtitles2 --recursive --verbose
 ```
 
+## `translate` — AI Subtitle Translation
+
+Translates subtitle cue text into a target language while preserving cue
+timing, ordering, and the format metadata that the existing parser/writer
+pipeline supports. Translation runs in two passes: a terminology extraction
+pass first builds a source-to-target term map for recurring proper nouns
+(people and place names), then per-cue translation batches are sent with
+that map so recurring names stay consistent across the file.
+
+The default behavior is non-destructive: translated output is written beside
+the source using a target-language suffix (for example `movie.zh-TW.srt`),
+and the original subtitle file is left untouched unless an explicit
+overwrite or replace flag is set.
+
+```
+subx-cli translate [OPTIONS] [PATH]...
+```
+
+### Options
+
+| Flag | Description |
+|------|-------------|
+| `[PATH]...` | Positional subtitle file or directory paths |
+| `-i`, `--input <PATH>` | Additional input path (repeatable) |
+| `-t`, `--target-language <LANG>` | **Required.** Target language code (e.g., `zh-TW`, `ja`, `en`, `fr`) |
+| `-s`, `--source-language <LANG>` | Optional source language hint; omit to let the model detect |
+| `--glossary <PATH>` | UTF-8 text file with terminology guidance; entries override AI-generated terms |
+| `--context <TEXT>` | Inline context/tone guidance (e.g., `"Use formal business tone"`) |
+| `-o`, `--output <PATH>` | Output file (single input) or output directory (multiple inputs) |
+| `--overwrite` | Overwrite an existing translated output file |
+| `--replace` | Replace the source subtitle with the translated content (uses `general.backup_enabled` for backup) |
+| `-r`, `--recursive` | Recurse into subdirectories |
+| `--no-extract` | Skip automatic extraction of archive files (`.zip`, `.7z`, `.tar.gz`, `.tgz`, `.rar`). When set, archive files are treated as regular files and subject to the normal extension filter. |
+
+`--target-language` is required. `--overwrite` and `--replace` are mutually
+exclusive — `--overwrite` only affects the translated output file, while
+`--replace` rewrites the source. `--context` is always treated as inline
+text and is never interpreted as a filesystem path; use `--glossary` for
+file-based terminology.
+
+### Output Naming Rules
+
+| Input mode | Default output |
+|---|---|
+| Single file (no `--output`) | `<stem>.<target-language>.<ext>` next to the source |
+| Single file (`--output FILE`) | Written to `FILE` |
+| Multiple files / directory (no `--output`) | Each translation written next to its source with target-language suffix |
+| Multiple files / directory (`--output DIR/`) | Each translation written under `DIR/` with target-language suffix |
+| Multiple files (`--output FILE`) | **Rejected** — batch output requires a directory |
+| Archive input (no `--output`) | Translated file written under the archive's parent directory, not the temporary extraction directory |
+
+If the target output already exists, the file is reported as failed unless
+`--overwrite` is set. Errors are isolated per input file: one failed file
+does not block the remaining files in a batch.
+
+During translation, each accepted translation response logs cue progress as
+`Processed cues: <processed>/<total>` so long-running files show how much of
+the subtitle has completed.
+
+### Terminology and Context
+
+The terminology extraction pass instructs the AI provider to:
+
+1. Prefer established conventional translations when they exist in the
+   target language.
+2. When coining a new translation, prefer phonetic transliteration over
+   semantic translation.
+
+User-provided glossary entries always override AI-generated terminology.
+When the AI response omits a requested cue ID, the command finishes the initial
+translation pass, retries the missing cue once, and writes an empty cue text if
+the retry still omits it. When a response contains an unknown cue ID, the
+command treats that batch as hallucinated, discards the entire batch response,
+and retries the same batch once; if the retry still contains an unknown cue ID,
+the file fails without writing partial output. Malformed responses and duplicate
+cue IDs also fail the file.
+
+Translation requests use UUIDv7 cue IDs generated in cue order with at least
+1 ms spacing between adjacent IDs, so each cue ID's `unix_time_ts` is
+strictly greater than the previous one. The IDs are request-local and never
+appear in the translated subtitle output.
+
+### Examples
+
+```bash
+# Translate a single file to Traditional Chinese (writes movie.zh-TW.srt)
+subx-cli translate movie.srt --target-language zh-TW
+
+# Specify both source and target language with inline tone guidance
+subx-cli translate movie.srt -s en -t ja --context "Use anime fansub conventions"
+
+# Use a glossary file to lock in proper-noun translations
+subx-cli translate movie.srt --target-language zh-TW --glossary ./terms.txt
+
+# Batch translate a directory recursively into a separate output folder
+subx-cli translate -i ./subs --recursive --target-language fr --output ./subs.fr/
+
+# Translate the contents of an archive (output written under the archive's parent)
+subx-cli translate archives/subs.zip --target-language en
+
+# Replace the source file in-place with the translated content (uses backups
+# when general.backup_enabled = true)
+subx-cli translate movie.srt --target-language ko --replace
+
+# Overwrite an existing translated output
+subx-cli translate movie.srt --target-language zh-TW --overwrite
+```
+
 ## `config` — Configuration Management
 
 Reads and writes SubX configuration values. Settings persist to the config
@@ -385,6 +493,9 @@ subx-cli convert --format srt .
 
 # 5. Fix timing drift
 subx-cli sync --batch .
+
+# 6. (Optional) Translate to another language
+subx-cli translate -i . --recursive --target-language zh-TW
 ```
 
 ### Multi-Source Workflow
