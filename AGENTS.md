@@ -115,12 +115,14 @@ Config Layer (src/config/)    → DI-based configuration system
 | `src/commands/` | Command implementations | `dispatcher`, `execute()` functions |
 | `src/config/` | Configuration with DI | `ConfigService`, `Config`, `TestConfigService`, `TestConfigBuilder` |
 | `src/core/factory.rs` | Component wiring | `ComponentFactory` |
+| `src/core/archive/` | Archive extraction (`.zip`, `.7z`, `.tar.gz`, optional `.rar`) | `ArchiveFormat`, `extract_archive()` |
 | `src/core/formats/` | Subtitle parsing/conversion | `SubtitleFormat` trait, `FormatManager`, `FormatConverter` |
 | `src/core/matcher/` | AI-powered file matching | `MatchEngine`, `FileDiscovery`, `MatchConfig` |
 | `src/core/sync/` | Subtitle synchronization | `SyncEngine`, `SyncMethod` |
 | `src/core/parallel/` | Task scheduling | `TaskScheduler`, `Task`, `WorkerPool` |
 | `src/core/file_manager.rs` | File operations with backup | `FileManager` |
 | `src/services/ai/` | AI provider clients | `AIProvider` trait, `OpenAIClient`, `OpenRouterClient`, `AzureOpenAIClient` |
+| `src/services/audio/` | Audio analysis data structures and helpers | `AudioData`, `AudioEnvelope`, `DialogueSegment` |
 | `src/services/vad/` | Voice Activity Detection | `LocalVadDetector`, `VadSyncDetector` |
 | `src/error.rs` | Error definitions | `SubXError`, `SubXResult<T>` |
 
@@ -128,7 +130,7 @@ Config Layer (src/config/)    → DI-based configuration system
 
 | Task | Files to Edit |
 |---|---|
-| Add/change CLI arguments | `src/cli/*_args.rs` |
+| Add/change CLI arguments | `src/cli/*_args.rs`, `src/cli/input_handler.rs`, `src/cli/validation.rs` |
 | Add/change command logic | `src/commands/*_command.rs` |
 | Change command routing | `src/commands/dispatcher.rs` |
 | Add/change config keys | `src/config/mod.rs`, `service.rs`, `field_validator.rs`, `validator.rs` |
@@ -138,14 +140,16 @@ Config Layer (src/config/)    → DI-based configuration system
 ## File Organization
 
 ```
-.github/            GitHub Actions workflows
+.github/            GitHub Actions workflows and project-scoped skills
 assets/             Project logo, media samples, test assets
 benches/            Criterion performance benchmarks
 docs/               Technical documentation
   ├── ai-provider-integration-guide.md   AI provider integration guide
+  ├── command-reference.md                CLI command reference
   ├── config-usage-analysis.md           Configuration usage analysis
   ├── configuration-guide.md             Configuration reference
   └── tech-architecture.md               Technical architecture overview
+openspec/           OpenSpec changes, specs, and workflow config
 scripts/            Build, quality, and CI shell scripts
   ├── quality_check.sh                   Full QA (lint, format, tests)
   ├── check_coverage.sh                  Coverage report (threshold 75%)
@@ -162,8 +166,20 @@ src/                Rust source code
   ├── lib.rs        Library entry point
   └── main.rs       Binary entry point
 tests/              Integration tests organized by feature
+  ├── cli/          CLI-focused test modules
+  ├── commands/     Command-focused test modules
+  ├── parallel/     Parallel execution test modules
+  ├── sync/         Synchronization test modules
   └── common/       Shared test infrastructure (helpers, mocks, generators)
 ```
+
+### Cargo Features
+
+- `default = []` — no optional features are enabled by default.
+- `slow-tests` — enables intentionally slower tests; CI uses this through
+  `scripts/quality_check.sh -v -p ci --full`.
+- `archive-rar` — enables `.rar` extraction via the optional `unrar`
+  dependency.
 
 ## Coding Conventions
 
@@ -214,7 +230,11 @@ tests/              Integration tests organized by feature
 | `TestEnvironmentProvider` | `src/config/environment.rs` | In-memory env vars for isolated testing |
 | `CLITestHelper` | `tests/common/cli_helpers.rs` | TempDir + config; auto-cleanup via `Drop` |
 | `MockOpenAITestHelper` | `tests/common/mock_openai_helper.rs` | Wiremock-based AI mock server |
+| `MockAzureOpenAITestHelper` | `tests/common/mock_azure_openai_helper.rs` | Wiremock-based Azure OpenAI mock server |
 | `MatchResponseGenerator` | `tests/common/test_data_generators.rs` | AI response fixture generator |
+
+See `tests/common/mod.rs` for the complete shared helper list, including
+command, sync, parallel, file-manager, validator, and mock-generator helpers.
 
 ### Test Patterns
 
@@ -250,9 +270,15 @@ async fn test_with_mock_ai() {
 - **Unit tests:** Inline `#[cfg(test)] mod tests` in source files.
 - **Integration tests:** `tests/*.rs`, one file per feature area. Import
   shared helpers via `mod common;` at the top.
+- **Nested test modules:** directories under `tests/cli/`, `tests/commands/`,
+  `tests/parallel/`, and `tests/sync/` are not automatically discovered by
+  Cargo as standalone integration tests. Wire new nested tests through an
+  existing top-level test harness or add an explicit top-level `tests/*.rs`
+  entry so `cargo nextest` runs them.
 - **Shared helpers:** `tests/common/` — mocks, generators, CLI helpers.
 - **Benchmarks:** `benches/` using Criterion with `criterion_group!` and
-  `criterion_main!`.
+  `criterion_main!`; registered benches are `retry_performance` and
+  `file_id_generation_bench`.
 
 ## Documentation Conventions
 
@@ -327,6 +353,18 @@ in `src/services/ai/`, register in `src/core/factory.rs` →
 `create_ai_provider()`, add validation in `src/config/field_validator.rs`
 and `src/config/validator.rs`, and update both README files plus
 `docs/configuration-guide.md`.
+
+AI-provider changes should also review supporting modules in
+`src/services/ai/`: `cache.rs`, `error_sanitizer.rs`, `prompts.rs`,
+`retry.rs`, and `security.rs`.
+
+## OpenSpec and Project Skills
+
+This repository includes OpenSpec artifacts under `openspec/` and
+project-scoped skills under `.github/skills/`. Use the OpenSpec skills for
+proposal/change workflows when the user asks to propose, apply, verify, sync,
+or archive changes. Use the `update-config-document` skill when configuration
+items or configuration documentation need to be audited or refreshed.
 
 ## CI/CD Pipeline
 
