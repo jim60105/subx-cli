@@ -47,8 +47,12 @@ pub fn validate_config(config: &Config) -> Result<()> {
 pub fn validate_ai_config(ai_config: &AIConfig) -> Result<()> {
     validate_non_empty_string(&ai_config.provider, "AI provider")?;
 
+    // Validation arms key off the canonical provider value so callers may
+    // pass either `local` or the alias `ollama` without divergence.
+    let canonical = crate::config::field_validator::normalize_ai_provider(&ai_config.provider);
+
     // Validate provider-specific settings
-    match ai_config.provider.as_str() {
+    match canonical.as_str() {
         "openai" => {
             if let Some(api_key) = &ai_config.api_key {
                 if !api_key.is_empty() {
@@ -64,6 +68,7 @@ pub fn validate_ai_config(ai_config: &AIConfig) -> Result<()> {
 
             if !ai_config.base_url.is_empty() {
                 validate_url_format(&ai_config.base_url)?;
+                require_https_for_hosted_provider(&ai_config.base_url, "openai")?;
             }
         }
         "openrouter" => {
@@ -79,6 +84,7 @@ pub fn validate_ai_config(ai_config: &AIConfig) -> Result<()> {
 
             if !ai_config.base_url.is_empty() {
                 validate_url_format(&ai_config.base_url)?;
+                require_https_for_hosted_provider(&ai_config.base_url, "openrouter")?;
             }
         }
         "anthropic" => {
@@ -108,11 +114,39 @@ pub fn validate_ai_config(ai_config: &AIConfig) -> Result<()> {
             }
             if !ai_config.base_url.is_empty() {
                 validate_url_format(&ai_config.base_url)?;
+                require_https_for_hosted_provider(&ai_config.base_url, "azure-openai")?;
             }
+        }
+        "local" => {
+            // `api_key` is optional for the local provider. When supplied,
+            // it is run through the same permissive `validate_api_key`
+            // helper used by other providers (no prefix requirement).
+            if let Some(api_key) = &ai_config.api_key {
+                if !api_key.is_empty() {
+                    validate_api_key(api_key)?;
+                }
+            }
+            // `base_url` is required for the local provider — there is no
+            // safe default because every runtime listens on a different
+            // port. Both http:// and https:// are accepted; the local
+            // provider is endpoint-agnostic and may target loopback, LAN,
+            // VPN, or public hosts.
+            if ai_config.base_url.trim().is_empty() {
+                return Err(SubXError::config(
+                    "ai.base_url is required when ai.provider is `local` \
+                     (e.g. http://localhost:11434/v1 for Ollama, \
+                     http://localhost:1234/v1 for LM Studio, \
+                     http://localhost:8080/v1 for llama.cpp's llama-server)",
+                ));
+            }
+            validate_url_format(&ai_config.base_url)?;
+            validate_ai_model(&ai_config.model)?;
+            validate_temperature(ai_config.temperature)?;
+            validate_positive_number(ai_config.max_tokens as f64)?;
         }
         _ => {
             return Err(SubXError::config(format!(
-                "Unsupported AI provider: {}. Supported providers: openai, openrouter, anthropic, azure-openai",
+                "Unsupported AI provider: {}. Supported providers: openai, openrouter, anthropic, azure-openai, local",
                 ai_config.provider
             )));
         }
@@ -128,6 +162,27 @@ pub fn validate_ai_config(ai_config: &AIConfig) -> Result<()> {
     validate_range(ai_config.request_timeout_seconds as f64, 10.0, 600.0)
         .map_err(|_| SubXError::config("Request timeout must be between 10 and 600 seconds"))?;
 
+    Ok(())
+}
+
+/// Reject any user-set `ai.base_url` whose scheme is not `https://` for
+/// hosted providers (`openai`, `openrouter`, `azure-openai`).
+///
+/// The error message names the field, the unsupported scheme, states that
+/// HTTPS is required for hosted providers, and appends the canonical
+/// `local_provider_hint()` so users who actually wanted to call an
+/// OpenAI-compatible local or LAN endpoint get a one-line fix.
+fn require_https_for_hosted_provider(base_url: &str, provider: &str) -> Result<()> {
+    let parsed = url::Url::parse(base_url)
+        .map_err(|_| SubXError::config(format!("Invalid URL format: {base_url}")))?;
+    let scheme = parsed.scheme();
+    if scheme != "https" {
+        return Err(SubXError::config(format!(
+            "ai.base_url uses unsupported scheme `{scheme}://` for hosted provider `{provider}`; \
+             hosted providers require HTTPS. {}",
+            crate::services::ai::local_provider_hint(),
+        )));
+    }
     Ok(())
 }
 
@@ -387,8 +442,203 @@ mod tests {
         };
         let err = validate_ai_config(&ai_config).unwrap_err();
         assert!(err.to_string().contains(
-            "Unsupported AI provider: invalid. Supported providers: openai, openrouter, anthropic, azure-openai"
+            "Unsupported AI provider: invalid. Supported providers: openai, openrouter, anthropic, azure-openai, local"
         ));
+    }
+
+    // ── local provider arm ───────────────────────────────────────────────────
+
+    #[test]
+    fn test_validate_ai_config_local_without_api_key() {
+        let ai_config = AIConfig {
+            provider: "local".to_string(),
+            api_key: None,
+            base_url: "http://localhost:11434/v1".to_string(),
+            model: "llama3.1:8b-instruct".to_string(),
+            ..Default::default()
+        };
+        assert!(validate_ai_config(&ai_config).is_ok());
+    }
+
+    #[test]
+    fn test_validate_ai_config_local_with_empty_api_key() {
+        let ai_config = AIConfig {
+            provider: "local".to_string(),
+            api_key: Some("".to_string()),
+            base_url: "http://localhost:11434/v1".to_string(),
+            model: "llama3.1:8b-instruct".to_string(),
+            ..Default::default()
+        };
+        assert!(validate_ai_config(&ai_config).is_ok());
+    }
+
+    #[test]
+    fn test_validate_ai_config_local_rejects_empty_base_url() {
+        let ai_config = AIConfig {
+            provider: "local".to_string(),
+            api_key: None,
+            base_url: "".to_string(),
+            model: "llama3.1".to_string(),
+            ..Default::default()
+        };
+        let err = validate_ai_config(&ai_config).unwrap_err();
+        let msg = err.to_string();
+        assert!(
+            msg.contains("ai.base_url"),
+            "error must name ai.base_url field, got: {msg}"
+        );
+        assert!(
+            msg.contains("local"),
+            "error must mention `local` provider, got: {msg}"
+        );
+    }
+
+    #[test]
+    fn test_validate_ai_config_local_accepts_lan_http_base_url() {
+        let ai_config = AIConfig {
+            provider: "local".to_string(),
+            api_key: None,
+            base_url: "http://192.168.50.50:11434/v1".to_string(),
+            model: "llama3.1".to_string(),
+            ..Default::default()
+        };
+        assert!(validate_ai_config(&ai_config).is_ok());
+    }
+
+    #[test]
+    fn test_validate_ai_config_local_accepts_https_tailnet_base_url() {
+        let ai_config = AIConfig {
+            provider: "local".to_string(),
+            api_key: None,
+            base_url: "https://ollama.tailnet.ts.net/v1".to_string(),
+            model: "qwen2.5:7b".to_string(),
+            ..Default::default()
+        };
+        assert!(validate_ai_config(&ai_config).is_ok());
+    }
+
+    #[test]
+    fn test_validate_ai_config_local_accepts_ollama_alias_via_normalize() {
+        // The validation arm keys off the canonical value, so an `ollama`
+        // alias (as it would arrive from `SUBX_AI_PROVIDER=ollama` before
+        // service.rs canonicalizes it) is treated identically to `local`.
+        let ai_config = AIConfig {
+            provider: "ollama".to_string(),
+            api_key: None,
+            base_url: "http://localhost:11434/v1".to_string(),
+            model: "llama3.1".to_string(),
+            ..Default::default()
+        };
+        assert!(validate_ai_config(&ai_config).is_ok());
+    }
+
+    // ── §1.9: hosted providers require HTTPS for user-set base_url ───────────
+
+    #[test]
+    fn test_validate_ai_config_openai_rejects_http_base_url() {
+        let ai_config = AIConfig {
+            provider: "openai".to_string(),
+            api_key: Some("sk-test1234567890".to_string()),
+            base_url: "http://localhost:11434/v1".to_string(),
+            ..Default::default()
+        };
+        let err = validate_ai_config(&ai_config).unwrap_err();
+        let msg = err.to_string();
+        assert!(msg.contains("ai.base_url"), "msg={msg}");
+        assert!(msg.contains("http"), "msg={msg}");
+        assert!(msg.contains("HTTPS"), "msg={msg}");
+        // Hint mentions both `local` and `ollama`.
+        assert!(msg.contains("local"), "msg={msg}");
+        assert!(msg.contains("ollama"), "msg={msg}");
+    }
+
+    #[test]
+    fn test_validate_ai_config_openrouter_rejects_http_base_url() {
+        let ai_config = AIConfig {
+            provider: "openrouter".to_string(),
+            api_key: Some("test-openrouter-key".to_string()),
+            base_url: "http://x.example.com/v1".to_string(),
+            model: "deepseek/deepseek-r1-0528:free".to_string(),
+            ..Default::default()
+        };
+        let err = validate_ai_config(&ai_config).unwrap_err();
+        let msg = err.to_string();
+        assert!(msg.contains("ai.base_url"), "msg={msg}");
+        assert!(msg.contains("HTTPS"), "msg={msg}");
+        assert!(msg.contains("local") && msg.contains("ollama"), "msg={msg}");
+    }
+
+    #[test]
+    fn test_validate_ai_config_azure_openai_rejects_http_base_url() {
+        let ai_config = AIConfig {
+            provider: "azure-openai".to_string(),
+            api_key: Some("azure-key-123".to_string()),
+            model: "dep123".to_string(),
+            api_version: Some("2025-04-01-preview".to_string()),
+            base_url: "http://example.openai.azure.com".to_string(),
+            ..Default::default()
+        };
+        let err = validate_ai_config(&ai_config).unwrap_err();
+        let msg = err.to_string();
+        assert!(msg.contains("ai.base_url"), "msg={msg}");
+        assert!(msg.contains("HTTPS"), "msg={msg}");
+        assert!(msg.contains("local") && msg.contains("ollama"), "msg={msg}");
+    }
+
+    #[test]
+    fn test_validate_ai_config_hosted_https_base_url_accepted() {
+        for provider in &["openai", "openrouter", "azure-openai"] {
+            let ai_config = AIConfig {
+                provider: provider.to_string(),
+                api_key: Some(if *provider == "openai" {
+                    "sk-test-key-12345".to_string()
+                } else {
+                    "any-key-12345".to_string()
+                }),
+                base_url: "https://example.com/v1".to_string(),
+                api_version: if *provider == "azure-openai" {
+                    Some("2025-04-01-preview".to_string())
+                } else {
+                    None
+                },
+                ..Default::default()
+            };
+            assert!(
+                validate_ai_config(&ai_config).is_ok(),
+                "provider={provider} should accept https base_url"
+            );
+        }
+    }
+
+    #[test]
+    fn test_validate_ai_config_hosted_default_base_url_unaffected() {
+        // The default `https://api.openai.com/v1` SHALL still pass for
+        // hosted providers without the user explicitly setting base_url.
+        let ai_config = AIConfig {
+            provider: "openai".to_string(),
+            api_key: Some("sk-test-key".to_string()),
+            ..Default::default()
+        };
+        assert!(validate_ai_config(&ai_config).is_ok());
+    }
+
+    #[test]
+    fn test_validate_ai_config_local_unaffected_by_https_rule() {
+        // Regression: the HTTPS-required rule must not bleed into local.
+        let http = AIConfig {
+            provider: "local".to_string(),
+            base_url: "http://10.0.0.5:11434/v1".to_string(),
+            model: "llama3.1".to_string(),
+            ..Default::default()
+        };
+        let https = AIConfig {
+            provider: "local".to_string(),
+            base_url: "https://internal.example.com/v1".to_string(),
+            model: "llama3.1".to_string(),
+            ..Default::default()
+        };
+        assert!(validate_ai_config(&http).is_ok());
+        assert!(validate_ai_config(&https).is_ok());
     }
 
     #[test]

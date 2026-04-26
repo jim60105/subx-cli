@@ -247,8 +247,18 @@ impl TestConfigService {
         let parts: Vec<&str> = key.split('.').collect();
         match parts.as_slice() {
             ["ai", "provider"] => {
-                validate_enum(value, &["openai", "anthropic", "local"])?;
-                config.ai.provider = value.to_string();
+                validate_enum(
+                    value,
+                    &[
+                        "openai",
+                        "anthropic",
+                        "local",
+                        "ollama",
+                        "openrouter",
+                        "azure-openai",
+                    ],
+                )?;
+                config.ai.provider = crate::config::field_validator::normalize_ai_provider(value);
             }
             ["ai", "api_key"] => {
                 if !value.is_empty() {

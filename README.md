@@ -66,6 +66,31 @@ For OpenAI, set `OPENAI_API_KEY` instead. For Azure OpenAI, set
 [Configuration Guide](docs/configuration-guide.md) for all provider options
 and environment variables.
 
+### Run with a local LLM (Ollama, LM Studio, llama.cpp, vLLM)
+
+Prefer to keep subtitles on-device? Point SubX at any OpenAI-compatible
+local runtime — Ollama, LM Studio, llama.cpp's `llama-server`, vLLM, or
+any other server that speaks the `POST /chat/completions` protocol — by
+selecting the `local` provider. `ollama` is accepted as an alias and is
+normalized to `local` at config write time. No API key is required for
+typical local setups; SubX contacts only the configured `base_url` and
+ignores hosted-provider env vars (`OPENAI_API_KEY`, `OPENROUTER_API_KEY`,
+`AZURE_OPENAI_*`) when `local` is selected.
+
+```bash
+# Ollama running on the default port
+subx-cli config set ai.provider local
+subx-cli config set ai.base_url "http://localhost:11434/v1"
+subx-cli config set ai.model "llama3.1:8b-instruct"
+```
+
+The endpoint can be loopback, a LAN host (`http://192.168.x.x:port/v1`), a
+tailnet (`https://host.tailnet.ts.net/v1`), or any reachable
+OpenAI-compatible URL. Both `http://` and `https://` schemes are valid for
+`local`. See the
+[Local / Offline LLM Provider](docs/configuration-guide.md#local--offline-llm-provider)
+section for per-runtime examples and known compatibility limits.
+
 ## Commands
 
 The `match`, `convert`, `sync`, `detect-encoding`, and `translate` commands

@@ -11,6 +11,19 @@ use serde_json::Value;
 use std::fs;
 use tempfile::TempDir;
 
+/// Build an `assert_cmd::Command` for `subx-cli` with HOME/XDG_CONFIG_HOME
+/// pointed at the supplied tempdir so the developer's real
+/// `~/.config/subx/config.toml` cannot leak into the test.
+fn isolated_subx_cli(workdir: &std::path::Path) -> Command {
+    let xdg = workdir.join(".xdg");
+    fs::create_dir_all(&xdg).unwrap();
+    let mut cmd = Command::cargo_bin("subx-cli").unwrap();
+    cmd.env("HOME", workdir)
+        .env("XDG_CONFIG_HOME", &xdg)
+        .env("SUBX_GENERAL_ENABLE_PROGRESS_BAR", "false");
+    cmd
+}
+
 const SAMPLE_SRT: &str = "1\n00:00:01,000 --> 00:00:02,000\nHello world\n\n\
                           2\n00:00:02,500 --> 00:00:03,500\nSecond cue\n\n";
 const SAMPLE_VTT: &str = "WEBVTT\n\n\
@@ -51,8 +64,7 @@ fn convert_srt_to_ass_single_file_emits_ok_envelope() {
     let output = dir.path().join("a.ass");
     fs::write(&input, SAMPLE_SRT).unwrap();
 
-    let assert = Command::cargo_bin("subx-cli")
-        .unwrap()
+    let assert = isolated_subx_cli(dir.path())
         .args([
             "--output",
             "json",
@@ -93,8 +105,7 @@ fn convert_vtt_to_srt_single_file_emits_ok_envelope() {
     let output = dir.path().join("clip.srt");
     fs::write(&input, SAMPLE_VTT).unwrap();
 
-    let assert = Command::cargo_bin("subx-cli")
-        .unwrap()
+    let assert = isolated_subx_cli(dir.path())
         .args([
             "--output",
             "json",
@@ -131,8 +142,7 @@ fn convert_batch_mixed_success_and_failure_keeps_top_level_ok() {
     let out_dir = dir.path().join("out");
     fs::create_dir(&out_dir).unwrap();
 
-    let assert = Command::cargo_bin("subx-cli")
-        .unwrap()
+    let assert = isolated_subx_cli(dir.path())
         .args([
             "--output",
             "json",
@@ -178,8 +188,7 @@ fn convert_with_encoding_override_reports_encoding() {
     let output = dir.path().join("a.vtt");
     fs::write(&input, SAMPLE_SRT).unwrap();
 
-    let assert = Command::cargo_bin("subx-cli")
-        .unwrap()
+    let assert = isolated_subx_cli(dir.path())
         .args([
             "--output",
             "json",

@@ -17,9 +17,10 @@ SubX's match and translate flows already abstract over the trait, so a new clien
 ## Goals / Non-Goals
 
 **Goals:**
-- Provide a first-class `local` AI provider that targets any OpenAI-compatible local endpoint with no provider-specific request/response divergence visible to upstream code.
+- Provide a first-class `local` AI provider that targets any OpenAI-compatible local, LAN, VPN, or remote endpoint with no provider-specific request/response divergence visible to upstream code. The `local` provider SHALL be **endpoint-agnostic**: `http://localhost:11434/v1`, `http://192.168.1.50:11434/v1`, `https://ollama.tailnet.ts.net/v1`, and `https://my-vllm.example.com/v1` are all valid configurations.
 - Allow `ai.api_key` to be **absent** without breaking validation when `ai.provider = "local"`.
-- Require `ai.base_url` for `local` (no implicit default; ambiguity here would silently route traffic to the wrong server or hosted provider).
+- Require `ai.base_url` for `local` (no implicit default; ambiguity here would silently route traffic to the wrong server or hosted provider). Both `http://` and `https://` are accepted; SubX SHALL NOT force a scheme upgrade for `local`.
+- For hosted providers (`openai`, `openrouter`, `azure-openai`), require `https://` for any user-set `base_url` and reject `http://` at validation time. The error message SHALL direct the user toward `ai.provider = "local"` (or alias `"ollama"`) when they likely intended an OpenAI-compatible local endpoint.
 - Preserve the privacy guarantee: when `local` is selected, no hosted provider is contacted, no telemetry is sent, and hosted-provider env vars (`OPENAI_API_KEY`, `OPENROUTER_API_KEY`, `AZURE_OPENAI_*`) MUST NOT silently switch the active provider away from `local`.
 - Surface clear, actionable error messages distinct from generic AI errors: connection refused, DNS failure, model not found, server returned non-OpenAI JSON, server timed out.
 - Reuse `HttpRetryClient`, `PromptBuilder`, `ResponseParser`, and `cache.rs` so that retry, JSON-schema parsing, and caching behavior match the hosted providers.
@@ -64,14 +65,17 @@ The factory therefore has a single `"local"` arm, never an `"ollama"` arm. `SUBX
 - `openai-compatible`: rejected as too generic; it would invite confusion with hosted OpenAI.
 - Per-call-site normalization without a shared helper: rejected — high risk of one site forgetting to normalize, leaving the canonical/alias divergence the original critique flagged.
 
-### Decision 3: `ai.api_key` is optional for `local`; `ai.base_url` is required
+### Decision 3: `ai.api_key` is optional for `local`; `ai.base_url` is required; scheme is unrestricted for `local` and HTTPS-only for hosted providers
 
 **Choice:** `validate_ai_config` introduces a `local` arm that:
 - Accepts `api_key` as `None` or any non-empty string passing `validate_api_key` (which is permissive).
 - Requires `base_url` to be a non-empty, syntactically valid URL.
+- Accepts BOTH `http://` and `https://` schemes — the `local` provider is endpoint-agnostic and may target loopback, LAN, VPN, or any reachable host.
 - Validates `model`, `temperature`, `max_tokens` with the same helpers as hosted providers.
 
-**Rationale:** Local runtimes typically have no auth. Forcing a placeholder key would be a usability regression. A missing `base_url` cannot be defaulted safely (different runtimes use different ports), so we fail fast with an actionable message.
+For hosted providers (`openai`, `openrouter`, `azure-openai`), the same validator SHALL require any user-set `base_url` to use the `https://` scheme. A non-`https` URL configured for a hosted provider SHALL fail validation with a message that names the offending field, the unsupported scheme, and explicitly directs the user to `ai.provider = "local"` (or alias `"ollama"`) when they intended an OpenAI-compatible local/LAN endpoint. Default base URLs for hosted providers (e.g. `https://api.openai.com/v1`) are unaffected.
+
+**Rationale:** Local runtimes typically have no auth and frequently sit on plain HTTP within a trusted network segment (loopback, home LAN, container network, Tailscale tailnet). Forcing HTTPS for `local` would block legitimate setups. Conversely, hosted providers always speak HTTPS in production; a plain-HTTP `base_url` for `openai` is almost certainly either a misconfigured local endpoint or a security mistake — failing fast with a hint toward the `local` provider helps both cases. A missing `base_url` on `local` cannot be defaulted safely (different runtimes use different ports), so we fail fast with an actionable message.
 
 ### Decision 4: Privacy posture — no cross-provider env-var leakage
 
@@ -98,6 +102,27 @@ The factory therefore has a single `"local"` arm, never an `"ollama"` arm. `SUBX
 
 **Rationale:** Users can act on these distinctions: start the server, load the model, fix the URL. They also enable scenario-based tests against wiremock. Sanitizing the base URL prevents accidental leakage when a user has embedded a token in the URL (some self-hosted runtimes accept `?api_key=` query auth, and our spec must not echo that back in errors or logs).
 
+### Decision 5b: Hosted-provider errors hint toward the `local` provider when the failure pattern suggests a local-endpoint misconfiguration
+
+**Choice:** Hosted-provider clients (`OpenAIClient`, `OpenRouterClient`, `AzureOpenAIClient`) SHALL classify their failures and append the following one-line advisory to the error message when ANY of these patterns matches:
+
+1. **Configuration-time HTTPS mismatch** — `validate_ai_config` rejected the configured `base_url` because it was not `https://`. (Surfaced by the validator itself; no client roundtrip required.)
+2. **Connection refused / DNS failure to a non-public host** — `reqwest::Error::is_connect()` succeeded against a hostname that resolves to a loopback or RFC1918 / RFC4193 / link-local address (i.e. a clearly private network), implying the user pointed a hosted provider at a local server.
+3. **HTTP 200 with non-OpenAI-canonical body** — the response parsed as JSON but lacked the `choices[0].message.content` shape that all four target runtimes also produce; this rarely happens against the genuine hosted endpoints but is common against misconfigured local servers.
+
+The appended hint reads (single line, English, suffix to the existing message):
+
+> *"If you intended to call an OpenAI-compatible local or LAN endpoint, set `ai.provider = "local"` (or `ollama`) and configure `ai.base_url` to your endpoint."*
+
+The hint SHALL be appended via the same `error_sanitizer` pipeline so credentials in the offending URL are not echoed. The hint is **advisory only** — it SHALL NOT auto-switch the provider, SHALL NOT retry against `local`, and SHALL NOT be emitted for genuine upstream failures (HTTP 401 / 429 / 5xx from the real hosted endpoint, where the user clearly does intend to use the hosted provider).
+
+**Rationale:** A common failure mode for new users is to leave `ai.provider = "openai"` (the default) while pointing `ai.base_url` at `http://localhost:11434/v1`. Today this produces an opaque "connection refused" or "AI response parsing failed" error. Surfacing the `local` provider in the error gives the user a one-line fix instead of a documentation hunt.
+
+**Alternatives considered:**
+- Auto-switch the hosted provider to `local` on these failures: rejected — silent provider switching violates the privacy posture (Decision 4) symmetrically and surprises users who really did mean to call the hosted endpoint.
+- Emit the hint in a separate log channel rather than the error message: rejected — JSON-mode users (per `machine-readable-output`) would lose it; the error envelope is the right surface.
+- Limit the hint to validation-time only: rejected — runtime connection-refused against private addresses is the most common path users hit.
+
 ### Decision 6: Caching and retry parity
 
 **Choice:** Reuse the existing `cache.rs` and `HttpRetryClient` as-is. The cache key already includes provider, model, and prompt, so `local` entries cannot collide with hosted entries.
@@ -112,7 +137,7 @@ The factory therefore has a single `"local"` arm, never an `"ollama"` arm. `SUBX
 
 - [Risk] **Small local models fail to produce valid JSON** for `analyze_content` / `verify_match`, causing cascading parse errors. → **Mitigation:** Document recommended models (≥7B instruct-tuned), surface the existing `AI response parsing failed` error verbatim, and recommend `subx match --confidence 0.0 --dry-run` as a smoke test.
 - [Risk] **OpenAI-compat layer drift across runtimes** (e.g. Ollama dropping fields, vLLM rejecting unknown parameters). → **Mitigation:** Send only the OpenAI-canonical fields (`model`, `messages`, `temperature`, `max_tokens`); avoid provider-specific knobs; integration tests use a strict wiremock that mirrors the canonical OpenAI schema.
-- [Risk] **Insecure HTTP warning false positives** for users running local servers on a non-loopback LAN address. → **Mitigation:** The existing `warn_on_insecure_http_str` already exempts loopback; LAN HTTP with a key still warns, which is correct.
+- [Risk] **Insecure HTTP warning false positives** for users running local servers on a non-loopback LAN address. → **Mitigation:** The existing `warn_on_insecure_http_str` already exempts loopback; LAN HTTP for `local` still warns (which is correct — operators on an untrusted network should know), but the warning is informational and SHALL NOT block the request. For hosted providers, plain HTTP is rejected at validation time with a hint toward `local`.
 - [Risk] **User misconfiguration silently routes to hosted OpenAI** because of a stray `OPENAI_API_KEY`. → **Mitigation:** Privacy posture (Decision 4) eliminates this for `provider=local`.
 - [Risk] **Performance** — local models are often 10–100× slower than hosted APIs, and the default `request_timeout_seconds=120` may be too low for large prompts. → **Mitigation:** Document recommended timeouts; `request_timeout_seconds` already supports up to 600.
 - [Risk] **No streaming** means very large translation jobs hold a full response in memory. → **Mitigation:** Existing `max_tokens` cap and `max_sample_length` truncation already bound memory; revisit if user reports surface.

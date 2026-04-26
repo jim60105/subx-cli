@@ -57,6 +57,19 @@ subx-cli match --copy /path/to/media/
 
 使用 OpenAI 時改設 `OPENAI_API_KEY`。使用 Azure OpenAI 時需設定 `AZURE_OPENAI_API_KEY` 和 `AZURE_OPENAI_ENDPOINT`。所有供應商選項與環境變數請參閱[配置指南](docs/configuration-guide.md)。
 
+### 使用本地 LLM 執行（Ollama、LM Studio、llama.cpp、vLLM）
+
+想讓字幕完全留在本機？只要選擇 `local` 供應商，就能將 SubX 指向任何相容 OpenAI 介面的本地執行環境——包含 Ollama、LM Studio、llama.cpp 的 `llama-server`、vLLM，或任何支援 `POST /chat/completions` 協定的伺服器。`ollama` 為合法的別名，會在寫入設定時自動正規化為 `local`。一般本地佈署毋須提供 API 金鑰；當選用 `local` 時，SubX 只會連線至設定中的 `base_url`，並忽略所有託管供應商的環境變數（`OPENAI_API_KEY`、`OPENROUTER_API_KEY`、`AZURE_OPENAI_*`）。
+
+```bash
+# 以預設連接埠執行 Ollama
+subx-cli config set ai.provider local
+subx-cli config set ai.base_url "http://localhost:11434/v1"
+subx-cli config set ai.model "llama3.1:8b-instruct"
+```
+
+端點可以是 loopback、區域網路主機（`http://192.168.x.x:port/v1`）、Tailscale／VPN 主機（`https://host.tailnet.ts.net/v1`），或任何可連線的相容 OpenAI 介面 URL。`local` 同時接受 `http://` 與 `https://`。各執行環境的範例與已知相容性限制請見[本地 / 離線 LLM 供應商](docs/configuration-guide.md#local--offline-llm-provider)章節。
+
 ## 命令一覽
 
 `match`、`convert`、`sync`、`detect-encoding` 與 `translate` 命令支援 `-i` 指定多個輸入來源，以及 `--recursive` 遞迴掃描子目錄。完整選項、範例與工作流程請參閱[命令參考](docs/command-reference.md)。

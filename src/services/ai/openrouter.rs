@@ -11,6 +11,7 @@ use serde_json::{Value, json};
 use std::time::Duration;
 use tokio::time;
 
+use crate::services::ai::hosted_hint::{append_local_hint, maybe_attach_local_hint};
 use crate::services::ai::prompts::{PromptBuilder, ResponseParser};
 use crate::services::ai::retry::HttpRetryClient;
 
@@ -165,7 +166,10 @@ impl OpenRouterClient {
             .header("X-Title", "Subx")
             .json(&request_body);
 
-        let mut response = self.make_request_with_retry(request).await?;
+        let mut response = match self.make_request_with_retry(request).await {
+            Ok(r) => r,
+            Err(e) => return Err(maybe_attach_local_hint(e, &self.base_url)),
+        };
 
         const MAX_AI_RESPONSE_BYTES: u64 = 10 * 1024 * 1024; // 10 MiB
         if let Some(len) = response.content_length() {
@@ -209,7 +213,9 @@ impl OpenRouterClient {
             .map_err(|e| SubXError::AiService(format!("Failed to parse AI response: {}", e)))?;
         let content = response_json["choices"][0]["message"]["content"]
             .as_str()
-            .ok_or_else(|| SubXError::AiService("Invalid API response format".to_string()))?;
+            .ok_or_else(|| {
+                SubXError::AiService(append_local_hint("Invalid API response format"))
+            })?;
 
         // Parse usage statistics and display
         if let Some(usage_obj) = response_json.get("usage") {
@@ -591,5 +597,89 @@ mod tests {
         let match_result = client.parse_match_result(json_response).unwrap();
         assert_eq!(match_result.confidence, 0.9);
         assert_eq!(match_result.reasoning, "test reason");
+    }
+
+    /// §3.6 — connection refused against `127.0.0.1` on a port with no
+    /// listener results in a hint-bearing error.
+    #[tokio::test]
+    async fn test_hosted_hint_connection_refused_loopback() {
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let port = listener.local_addr().unwrap().port();
+        drop(listener);
+        let client = OpenRouterClient::new_with_base_url_and_timeout(
+            "k".into(),
+            "deepseek/deepseek-r1-0528:free".into(),
+            0.0,
+            16,
+            0,
+            0,
+            format!("http://127.0.0.1:{}", port),
+            1,
+        );
+        let err = client
+            .chat_completion(vec![json!({"role":"user","content":"x"})])
+            .await
+            .unwrap_err();
+        let msg = err.to_string();
+        assert!(
+            msg.contains("ollama") && msg.contains("ai.provider"),
+            "expected local-provider hint: {msg}"
+        );
+    }
+
+    /// §3.6 — HTTP 200 with a non-OpenAI body MUST surface the hint.
+    #[tokio::test]
+    async fn test_hosted_hint_http_200_non_openai_body() {
+        let server = MockServer::start().await;
+        Mock::given(method("POST"))
+            .and(path("/chat/completions"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({ "hello": "world" })))
+            .mount(&server)
+            .await;
+        let mut client = OpenRouterClient::new(
+            "k".into(),
+            "deepseek/deepseek-r1-0528:free".into(),
+            0.0,
+            16,
+            0,
+            0,
+        );
+        client.base_url = server.uri();
+        let err = client
+            .chat_completion(vec![json!({"role":"user","content":"x"})])
+            .await
+            .unwrap_err();
+        let msg = err.to_string();
+        assert!(
+            msg.contains("Invalid API response format")
+                && msg.contains("ollama")
+                && msg.contains("ai.provider"),
+            "expected hint-bearing parse-shape error: {msg}"
+        );
+    }
+
+    /// §3.6 negative — a failure against a public host MUST NOT surface
+    /// the hint. Uses TEST-NET-1 (RFC 5737) so the test is hermetic.
+    #[tokio::test]
+    async fn test_hosted_hint_not_emitted_for_public_host() {
+        let client = OpenRouterClient::new_with_base_url_and_timeout(
+            "k".into(),
+            "deepseek/deepseek-r1-0528:free".into(),
+            0.0,
+            16,
+            0,
+            0,
+            "https://192.0.2.1/api/v1".to_string(),
+            1,
+        );
+        let err = client
+            .chat_completion(vec![json!({"role":"user","content":"x"})])
+            .await
+            .unwrap_err();
+        let msg = err.to_string();
+        assert!(
+            !msg.contains("ollama"),
+            "public-host failure must NOT carry the hint: {msg}"
+        );
     }
 }

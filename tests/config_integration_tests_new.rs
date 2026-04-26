@@ -47,8 +47,14 @@ fn test_config_service_interface() {
 
 #[test]
 fn test_production_config_service() {
-    // Test production config service
-    match ProductionConfigService::new() {
+    use subx_cli::config::TestEnvironmentProvider;
+    let dir = tempfile::tempdir().unwrap();
+    let mut env = TestEnvironmentProvider::new();
+    env.set_var(
+        "SUBX_CONFIG_PATH",
+        dir.path().join("nonexistent.toml").to_str().unwrap(),
+    );
+    match ProductionConfigService::with_env_provider(std::sync::Arc::new(env)) {
         Ok(service) => {
             let config = service.get_config().unwrap();
             // Verify default config is loaded

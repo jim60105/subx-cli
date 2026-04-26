@@ -39,6 +39,42 @@ pub fn warn_on_insecure_http_str(url_str: &str, api_key: &str) {
     }
 }
 
+/// Canonical advisory string surfaced when a hosted-provider failure pattern
+/// (HTTPS validation rejection, connection refused / DNS failure to a private
+/// host, or HTTP 200 with a non-OpenAI-canonical body) suggests the user
+/// intended to call an OpenAI-compatible local or LAN endpoint.
+///
+/// The wording is reused verbatim by:
+/// - [`crate::config::validator::validate_ai_config`] when rejecting a
+///   non-`https` `ai.base_url` for a hosted provider.
+/// - The hosted-provider AI clients (`openai`, `openrouter`, `azure-openai`)
+///   when wrapping connection / parse errors that match the local-endpoint
+///   misconfiguration pattern.
+///
+/// Keeping the string in a single helper guarantees the advisory text stays
+/// in lockstep across every emission site.
+pub fn local_provider_hint() -> &'static str {
+    "If you intended to call an OpenAI-compatible local or LAN endpoint, \
+     set `ai.provider = \"local\"` (or `ollama`) and configure `ai.base_url` \
+     to your endpoint."
+}
+
+#[cfg(test)]
+mod local_provider_hint_tests {
+    use super::local_provider_hint;
+
+    #[test]
+    fn hint_is_non_empty_and_mentions_local_and_ollama() {
+        let hint = local_provider_hint();
+        assert!(!hint.is_empty(), "hint must not be empty");
+        assert!(hint.contains("local"), "hint must mention `local`: {hint}");
+        assert!(
+            hint.contains("ollama"),
+            "hint must mention `ollama`: {hint}"
+        );
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

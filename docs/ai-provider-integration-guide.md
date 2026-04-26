@@ -171,15 +171,23 @@ Update the fallthrough error message to list all supported providers. Add a
 test that constructs an `AIConfig` with the new provider and verifies
 `validate_ai_config` succeeds.
 
-> **Note on HTTP vs HTTPS endpoints.** SubX accepts both `http://` and
-> `https://` base URLs — this is intentional, because many users point SubX
-> at self-hosted AI proxies (LiteLLM, OpenRouter proxies, local gateways)
-> inside a trusted network without TLS. When the configured `base_url` uses
-> plaintext HTTP against a non-loopback host and an API key is set, SubX
-> logs an advisory warning that the key will be transmitted unencrypted
-> (see `src/services/ai/security.rs`). The warning is informational only;
-> SubX never blocks HTTP connections, so new providers do not need to add
-> extra scheme enforcement beyond the shared `http`/`https` check.
+> **Note on HTTP vs HTTPS endpoints.** SubX treats hosted providers
+> (`openai`, `openrouter`, `azure-openai`) and the `local` provider
+> differently:
+>
+> - **Hosted providers** require an `https://` `base_url` if the user
+>   overrides the default. `validate_ai_config` rejects an `http://`
+>   `base_url` for these providers and points the user at
+>   `ai.provider = "local"`.
+> - **The `local` provider** accepts either `http://` or `https://` and any
+>   reachable host (loopback, RFC1918 LAN, VPN/tailnet, public). Plaintext
+>   HTTP against a non-loopback host with an API key set logs an advisory
+>   warning (see `src/services/ai/security.rs`) but does not block the
+>   request.
+>
+> A new hosted provider added by following this guide should reuse the
+> shared HTTPS-required validator branch; a new local-style endpoint-agnostic
+> provider should opt out of it explicitly.
 
 ### Step 5. Handle Environment Variables
 
@@ -362,6 +370,122 @@ Azure loads five environment variables in `src/config/service.rs`:
 `AZURE_OPENAI_API_VERSION`, and `AZURE_OPENAI_DEPLOYMENT_ID` (which
 overrides `ai.model`). If your provider has similar multi-field
 configuration, follow the same pattern of dedicated env var blocks.
+
+## Local / OpenAI-Compatible Runtimes
+
+The `local` provider (alias `ollama`, normalized at config write time)
+targets any OpenAI-compatible chat-completions endpoint. It is implemented
+by `LocalLLMClient` in `src/services/ai/local.rs` and registered in
+`ComponentFactory::create_ai_provider` via the canonical value `local`.
+
+### Wire protocol
+
+`LocalLLMClient` issues `POST {base_url}/chat/completions` with the
+OpenAI-canonical body fields only:
+
+```json
+{
+  "model": "<ai.model>",
+  "messages": [...],
+  "temperature": <ai.temperature>,
+  "max_tokens": <ai.max_tokens>
+}
+```
+
+`Authorization: Bearer <api_key>` is sent only when `ai.api_key` is
+`Some(non_empty)`. The URL is joined so exactly one `/` separates
+`base_url` from `chat/completions` whether or not `base_url` carries a
+trailing slash.
+
+### Shared infrastructure reuse
+
+`LocalLLMClient` reuses the same shared traits as `OpenAIClient` and
+`OpenRouterClient`:
+
+- `PromptBuilder` from `src/services/ai/prompts.rs` for `analyze_content`
+  and `verify_match` prompt construction.
+- `ResponseParser` (same module) for parsing the OpenAI-canonical response
+  envelope into `MatchResult` / `ConfidenceScore`.
+- `HttpRetryClient` from `src/services/ai/retry.rs` for exponential-backoff
+  retries driven by `ai.retry_attempts` and `ai.retry_delay_ms`.
+
+This means the local provider participates in the same retry, prompt, and
+response contracts as hosted providers without bespoke logic.
+
+### Privacy posture
+
+When the canonical `ai.provider` is `local`, the configuration layer
+deliberately skips all hosted-provider environment variables
+(`OPENAI_API_KEY`, `OPENAI_BASE_URL`, `OPENROUTER_API_KEY`, all
+`AZURE_OPENAI_*`). `LocalLLMClient` issues requests only to the configured
+`base_url` and never falls back to a hosted endpoint. There is no
+telemetry. The optional `LOCAL_LLM_BASE_URL` and `LOCAL_LLM_API_KEY` env
+vars are honored only when `ai.provider = "local"`.
+
+The provider is endpoint-agnostic: loopback (`http://localhost:11434/v1`),
+LAN (`http://192.168.x.x:port/v1`), VPN / tailnet
+(`https://host.tailnet.ts.net/v1`), and remote OpenAI-compatible servers
+are all valid. Both `http://` and `https://` schemes are accepted; SubX
+emits an advisory (non-blocking) warning when an API key would be sent
+over plain HTTP to a non-loopback host.
+
+### Known compatibility limits
+
+- **Strict-JSON parsing.** `analyze_content` and `verify_match` require
+  the model to emit a strict JSON envelope. Smaller models (≤7B
+  parameters, low-quantization GGUFs) sometimes drift into prose or wrap
+  the JSON in code fences and trigger a parse failure. Prefer
+  instruction-tuned models or raise the model size if you see repeated
+  parse errors.
+- **Sampling parameters.** Some runtimes silently ignore `temperature` or
+  `max_tokens` (or apply server-side caps). The request still succeeds
+  but the parameters in `[ai]` may not have the expected effect.
+- **`verify_match` accuracy.** Verification quality is bounded by the
+  underlying model. Weaker local models may approve weak matches.
+- **Per-runtime quirks.** A few self-hosted gateways return HTTP 200 with a
+  non-OpenAI-canonical body on error paths; `LocalLLMClient` surfaces this
+  as `local LLM response was not OpenAI-compatible JSON` rather than a
+  generic transport error.
+
+### Error-message reference
+
+`LocalLLMClient` maps low-level failures into `SubXError::AiService`
+messages with stable, greppable prefixes. Sanitized variants of the body
+and `base_url` (userinfo, query strings, and fragments stripped) are
+embedded for diagnostics:
+
+| Prefix | Trigger |
+|---|---|
+| `local LLM endpoint unreachable` | Connection refused / DNS failure / network unreachable |
+| `local LLM endpoint timed out after Ns` | Request exceeded `ai.request_timeout_seconds` |
+| `local LLM endpoint returned HTTP {status}` | Non-2xx response (body sanitized via `error_sanitizer`) |
+| `local LLM model not found` | HTTP 404 / runtime-specific "model not loaded" body |
+| `local LLM response was not OpenAI-compatible JSON` | HTTP 200 with body that does not parse into the canonical envelope |
+
+### Hosted-provider hint
+
+The hosted-provider clients (`openai`, `openrouter`, `azure-openai`) detect
+three failure patterns that strongly suggest the user pointed them at a
+local/LAN OpenAI-compatible endpoint:
+
+1. Configuration rejected because `ai.base_url` is not `https://`.
+2. Connection refused / DNS failure to a private host (loopback,
+   RFC1918, RFC4193, link-local).
+3. HTTP 200 with a body that parses but is missing OpenAI-canonical
+   fields.
+
+In those cases the clients append the canonical advisory string returned
+by `local_provider_hint()` (in `src/services/ai/security.rs`) to the
+emitted `SubXError::AiService` message via the existing `error_sanitizer`
+pipeline:
+
+> If you intended to call an OpenAI-compatible local or LAN endpoint, set
+> `ai.provider = "local"` (or `ollama`) and configure `ai.base_url` to your
+> endpoint.
+
+The hint is **advisory only** — it never auto-switches the provider — and
+the same wording is reused by `validate_ai_config` so the advice stays in
+lockstep across validation and runtime emission sites.
 
 ## File Change Summary
 

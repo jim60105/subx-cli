@@ -11,8 +11,17 @@ use subx_cli::config::{
 
 #[test]
 fn test_production_config_service_creation() {
-    let service =
-        ProductionConfigService::new().expect("Failed to create production config service");
+    use subx_cli::config::TestEnvironmentProvider;
+    // Isolate from the developer's real `~/.config/subx/config.toml`
+    // (which may set a non-HTTPS `ai.base_url`).
+    let dir = tempfile::tempdir().unwrap();
+    let mut env = TestEnvironmentProvider::new();
+    env.set_var(
+        "SUBX_CONFIG_PATH",
+        dir.path().join("nonexistent.toml").to_str().unwrap(),
+    );
+    let service = ProductionConfigService::with_env_provider(Arc::new(env))
+        .expect("Failed to create production config service");
     let config = service.get_config().expect("Failed to get config");
 
     // Verify that production config loads successfully with non-empty values
@@ -76,7 +85,15 @@ fn test_config_builder_comprehensive() {
 
 #[test]
 fn test_config_service_reload() {
-    let service = ProductionConfigService::new().expect("Failed to create service");
+    use subx_cli::config::TestEnvironmentProvider;
+    let dir = tempfile::tempdir().unwrap();
+    let mut env = TestEnvironmentProvider::new();
+    env.set_var(
+        "SUBX_CONFIG_PATH",
+        dir.path().join("nonexistent.toml").to_str().unwrap(),
+    );
+    let service = ProductionConfigService::with_env_provider(Arc::new(env))
+        .expect("Failed to create service");
 
     // First load
     let config1 = service.get_config().expect("Failed to get initial config");
@@ -109,8 +126,20 @@ fn test_app_creation_with_config_service() {
 
 #[test]
 fn test_app_creation_with_production_config() {
-    let app =
-        App::new_with_production_config().expect("Failed to create app with production config");
+    use subx_cli::config::TestEnvironmentProvider;
+    // Build the App with a production config service that is isolated
+    // from the developer's real `~/.config/subx/config.toml`.
+    let dir = tempfile::tempdir().unwrap();
+    let mut env = TestEnvironmentProvider::new();
+    env.set_var(
+        "SUBX_CONFIG_PATH",
+        dir.path().join("nonexistent.toml").to_str().unwrap(),
+    );
+    let service = Arc::new(
+        ProductionConfigService::with_env_provider(Arc::new(env))
+            .expect("Failed to create production config service"),
+    );
+    let app = App::new(service);
     let config = app.get_config().expect("Failed to get config");
 
     // Verify production config loads valid, non-empty values

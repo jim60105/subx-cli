@@ -33,7 +33,7 @@ This section controls AI provider selection and request behavior.
 
 ```toml
 [ai]
-provider = "openai"                            # openai, openrouter, or azure-openai
+provider = "openai"                            # openai, openrouter, azure-openai, or local
 api_key = "<YOUR_API_KEY>"                    # API key (Option<String>)
 model = "gpt-4.1-mini"                        # Model identifier
 base_url = "https://api.openai.com/v1"        # API endpoint URL
@@ -74,6 +74,94 @@ model = "your-deployment-id"
 base_url = "https://your-resource.openai.azure.com"
 api_version = "2025-04-01-preview"
 ```
+
+### Local / Offline LLM Provider
+
+Set `ai.provider = "local"` to drive subtitle matching and translation
+through any OpenAI-compatible HTTP endpoint — including local runtimes such
+as **Ollama**, **LM Studio**, **llama.cpp `llama-server`**, **vLLM**, and
+text-generation-webui. The string `ollama` is accepted as an alias and is
+normalized to `local` at config write time, so the on-disk value is always
+canonical.
+
+For the `local` provider:
+
+- `ai.api_key` is **optional** — most local runtimes accept anonymous
+  requests. Set it only if your runtime gates access (e.g., a self-hosted
+  vLLM behind a shared bearer token).
+- `ai.base_url` is **required** and has no default. Point it at the
+  runtime's OpenAI-compatible chat-completions root (the path that, with
+  `/chat/completions` appended, accepts an OpenAI-style POST).
+- `ai.model` is **required** and treated as the local model identifier
+  (e.g. `llama3.1:8b-instruct`, `qwen2.5:7b`,
+  `Meta-Llama-3.1-8B-Instruct.Q4_K_M.gguf`).
+
+```bash
+# Ollama (default port 11434)
+subx-cli config set ai.provider local
+subx-cli config set ai.base_url "http://localhost:11434/v1"
+subx-cli config set ai.model "llama3.1:8b-instruct"
+
+# LM Studio
+subx-cli config set ai.provider local
+subx-cli config set ai.base_url "http://localhost:1234/v1"
+subx-cli config set ai.model "Meta-Llama-3.1-8B-Instruct.Q4_K_M.gguf"
+
+# llama.cpp `llama-server`
+subx-cli config set ai.provider local
+subx-cli config set ai.base_url "http://localhost:8080/v1"
+subx-cli config set ai.model "qwen2.5-7b-instruct"
+
+# vLLM (with optional shared token)
+subx-cli config set ai.provider local
+subx-cli config set ai.base_url "http://localhost:8000/v1"
+subx-cli config set ai.model "Qwen/Qwen2.5-7B-Instruct"
+subx-cli config set ai.api_key "<SHARED_TOKEN>"
+
+# Alias: persisted as `local`
+subx-cli config set ai.provider ollama
+```
+
+The `local` provider is **endpoint-agnostic**. It accepts any reachable URL,
+including:
+
+- Loopback: `http://localhost:11434/v1` or `http://127.0.0.1:11434/v1`
+- LAN hosts: `http://192.168.1.50:11434/v1`
+- VPN / tailnet hosts: `https://ollama.tailnet.ts.net/v1`
+- Any other OpenAI-compatible endpoint reachable over HTTP or HTTPS
+
+Both `http://` and `https://` schemes are valid for `local`. SubX still
+emits an advisory warning when an API key would be transmitted over plain
+HTTP to a non-loopback host (it never blocks the request).
+
+#### Hosted-provider HTTPS rule
+
+The hosted providers (`openai`, `openrouter`, `azure-openai`) **require
+`https://`** for `ai.base_url`. Pointing them at `http://localhost:11434/v1`
+or any non-HTTPS URL is rejected by configuration validation with an error
+that names the offending field, the unsupported scheme, and recommends:
+
+> If you intended to call an OpenAI-compatible local or LAN endpoint, set
+> `ai.provider = "local"` (or `ollama`) and configure `ai.base_url` to your
+> endpoint.
+
+Default base URLs (`https://api.openai.com/v1`, etc.) are unaffected. The
+same hint is appended at runtime if a hosted-provider request fails in a
+way that suggests it was misdirected at a local endpoint.
+
+#### Privacy posture
+
+When `ai.provider = "local"`, SubX contacts **only** the configured
+`base_url`. The hosted-provider environment variables `OPENAI_API_KEY`,
+`OPENAI_BASE_URL`, `OPENROUTER_API_KEY`, and the `AZURE_OPENAI_*` family
+are ignored entirely — they cannot silently switch the provider or inject
+credentials. There is no telemetry, no analytics, and no fallback to hosted
+endpoints.
+
+The dedicated env vars `LOCAL_LLM_BASE_URL` and `LOCAL_LLM_API_KEY` are
+honored only when the canonical `ai.provider` is `local`, with lower
+precedence than `SUBX_AI_BASE_URL` / `SUBX_AI_APIKEY`. See
+[Environment Variables](#environment-variables) below.
 
 ## Format Configuration (`[formats]`)
 
@@ -200,7 +288,17 @@ export AZURE_OPENAI_API_KEY="<YOUR_API_KEY>"
 export AZURE_OPENAI_ENDPOINT="https://your-resource.openai.azure.com"
 export AZURE_OPENAI_DEPLOYMENT_ID="your-deployment-id"
 export AZURE_OPENAI_API_VERSION="2025-04-01-preview"
+
+# Local / OpenAI-compatible runtime (only honored when ai.provider = "local")
+export LOCAL_LLM_BASE_URL="http://localhost:11434/v1"
+export LOCAL_LLM_API_KEY="<OPTIONAL_SHARED_TOKEN>"
 ```
+
+When the canonical `ai.provider` is `local`, SubX skips every hosted-provider
+env var (`OPENAI_*`, `OPENROUTER_*`, `AZURE_OPENAI_*`) so they cannot
+silently override your privacy choice. `LOCAL_LLM_*` env vars are likewise
+ignored unless the canonical provider is `local`. `SUBX_AI_BASE_URL` and
+`SUBX_AI_APIKEY` outrank `LOCAL_LLM_*` when both are set.
 
 ### General Overrides with `SUBX_` Prefix
 

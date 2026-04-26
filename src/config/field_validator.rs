@@ -13,6 +13,51 @@
 use super::validation::*;
 use crate::{Result, error::SubXError};
 
+/// Normalize an `ai.provider` value to its canonical form.
+///
+/// This is the **single** alias-resolution point in the codebase. It
+/// lowercases and trims its input and maps the alias `"ollama"` to the
+/// canonical identifier `"local"`. All other recognized providers
+/// (`openai`, `openrouter`, `azure-openai`, `local`) pass through after
+/// trimming and lowercasing. Unknown values pass through unchanged so
+/// downstream allow-list validation still rejects them.
+///
+/// Every component that reads or writes `ai.provider` SHALL invoke this
+/// helper before using the value:
+///
+/// 1. `subx config set ai.provider <value>` — the persisted on-disk value
+///    is the canonical form.
+/// 2. `subx config get ai.provider` — returns the canonical form.
+/// 3. `ProductionConfigService` env-var loading — `SUBX_AI_PROVIDER=ollama`
+///    is normalized before any precedence or scoping decision (including
+///    the hosted-provider env-var carve-out for `local`).
+/// 4. `validate_ai_config` — validation arms key off the canonical value.
+/// 5. `ComponentFactory::create_ai_provider` — the dispatch match arm
+///    uses the canonical value.
+///
+/// # Examples
+///
+/// ```
+/// use subx_cli::config::field_validator::normalize_ai_provider;
+///
+/// assert_eq!(normalize_ai_provider("ollama"), "local");
+/// assert_eq!(normalize_ai_provider("OLLAMA"), "local");
+/// assert_eq!(normalize_ai_provider(" ollama "), "local");
+/// assert_eq!(normalize_ai_provider("openai"), "openai");
+/// assert_eq!(normalize_ai_provider("Azure-OpenAI"), "azure-openai");
+/// // Unknown values are returned trimmed+lowercased so the allow-list
+/// // can still reject them with the existing error.
+/// assert_eq!(normalize_ai_provider("grok"), "grok");
+/// ```
+pub fn normalize_ai_provider(value: &str) -> String {
+    let trimmed = value.trim().to_ascii_lowercase();
+    if trimmed == "ollama" {
+        "local".to_string()
+    } else {
+        trimmed
+    }
+}
+
 /// Validate and parse a configuration field based on its key.
 ///
 /// This function handles the validation logic that was previously
@@ -31,7 +76,14 @@ pub fn validate_field(key: &str, value: &str) -> Result<()> {
             validate_non_empty_string(value, "AI provider")?;
             validate_enum(
                 value,
-                &["openai", "anthropic", "local", "openrouter", "azure-openai"],
+                &[
+                    "openai",
+                    "anthropic",
+                    "local",
+                    "ollama",
+                    "openrouter",
+                    "azure-openai",
+                ],
             )?;
         }
         "ai.model" => validate_ai_model(value)?,
@@ -219,7 +271,9 @@ pub fn validate_field(key: &str, value: &str) -> Result<()> {
 /// Get a user-friendly description for a configuration field.
 pub fn get_field_description(key: &str) -> &'static str {
     match key {
-        "ai.provider" => "AI service provider (e.g., 'openai', 'azure-openai')",
+        "ai.provider" => {
+            "AI service provider ('openai', 'openrouter', 'azure-openai', or 'local'; 'ollama' is accepted as an alias for 'local')"
+        }
         "ai.model" => "AI model name (e.g., 'gpt-4.1-mini')",
         "ai.api_key" => "API key for the AI service",
         "ai.base_url" => "Custom API endpoint URL (optional)",
@@ -276,9 +330,45 @@ mod tests {
 
     #[test]
     fn test_ai_provider_valid_all_enum_values() {
-        for v in &["openai", "anthropic", "local", "openrouter", "azure-openai"] {
+        for v in &[
+            "openai",
+            "anthropic",
+            "local",
+            "ollama",
+            "openrouter",
+            "azure-openai",
+        ] {
             assert!(validate_field("ai.provider", v).is_ok(), "provider={v}");
         }
+    }
+
+    // ── normalize_ai_provider ────────────────────────────────────────────────
+
+    #[test]
+    fn test_normalize_ai_provider_ollama_alias() {
+        assert_eq!(normalize_ai_provider("ollama"), "local");
+        assert_eq!(normalize_ai_provider("OLLAMA"), "local");
+        assert_eq!(normalize_ai_provider(" ollama "), "local");
+        assert_eq!(normalize_ai_provider("\tOllama\n"), "local");
+    }
+
+    #[test]
+    fn test_normalize_ai_provider_canonical_pass_through() {
+        for v in &["openai", "openrouter", "azure-openai", "local"] {
+            assert_eq!(normalize_ai_provider(v), *v, "canonical input {v}");
+        }
+    }
+
+    #[test]
+    fn test_normalize_ai_provider_unknown_pass_through_lowercased() {
+        // Unknown values are returned (trimmed + lowercased) so the
+        // downstream allow-list still rejects them with the existing error.
+        assert_eq!(normalize_ai_provider("grok"), "grok");
+        assert_eq!(normalize_ai_provider("GROK"), "grok");
+        assert_eq!(
+            normalize_ai_provider("  unknown-provider  "),
+            "unknown-provider"
+        );
     }
 
     #[test]

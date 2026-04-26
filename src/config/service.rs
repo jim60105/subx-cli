@@ -294,48 +294,116 @@ impl ProductionConfigService {
             }
         }
 
-        // Special handling for OPENROUTER_API_KEY environment variable
-        if let Some(api_key) = self.env_provider.get_var("OPENROUTER_API_KEY") {
-            debug!("ProductionConfigService: Found OPENROUTER_API_KEY environment variable");
-            app_config.ai.provider = "openrouter".to_string();
+        // Apply SUBX_AI_* overrides directly through the injected
+        // EnvironmentProvider so tests using `TestEnvironmentProvider` can
+        // exercise the precedence rules below without touching real
+        // `std::env`. These mirror what the `config` crate's
+        // `Environment::with_prefix("SUBX")` source produces in production
+        // (the production path is preserved above) but go through the
+        // injectable provider so the carve-out below sees them too.
+        if let Some(provider) = self.env_provider.get_var("SUBX_AI_PROVIDER") {
+            app_config.ai.provider = provider;
+        }
+        if let Some(api_key) = self.env_provider.get_var("SUBX_AI_APIKEY") {
             app_config.ai.api_key = Some(api_key);
         }
-
-        // Special handling for OPENAI_API_KEY environment variable
-        // This provides backward compatibility with direct OPENAI_API_KEY usage
-        if app_config.ai.api_key.is_none() {
-            if let Some(api_key) = self.env_provider.get_var("OPENAI_API_KEY") {
-                debug!("ProductionConfigService: Found OPENAI_API_KEY environment variable");
-                app_config.ai.api_key = Some(api_key);
-            }
-        }
-
-        // Special handling for OPENAI_BASE_URL environment variable
-        if let Some(base_url) = self.env_provider.get_var("OPENAI_BASE_URL") {
-            debug!("ProductionConfigService: Found OPENAI_BASE_URL environment variable");
+        if let Some(base_url) = self.env_provider.get_var("SUBX_AI_BASE_URL") {
             app_config.ai.base_url = base_url;
         }
+        if let Some(model) = self.env_provider.get_var("SUBX_AI_MODEL") {
+            app_config.ai.model = model;
+        }
 
-        // Special handling for Azure OpenAI environment variables
-        if let Some(api_key) = self.env_provider.get_var("AZURE_OPENAI_API_KEY") {
-            debug!("ProductionConfigService: Found AZURE_OPENAI_API_KEY environment variable");
-            app_config.ai.provider = "azure-openai".to_string();
-            app_config.ai.api_key = Some(api_key);
-        }
-        if let Some(endpoint) = self.env_provider.get_var("AZURE_OPENAI_ENDPOINT") {
-            debug!("ProductionConfigService: Found AZURE_OPENAI_ENDPOINT environment variable");
-            app_config.ai.base_url = endpoint;
-        }
-        if let Some(version) = self.env_provider.get_var("AZURE_OPENAI_API_VERSION") {
-            debug!("ProductionConfigService: Found AZURE_OPENAI_API_VERSION environment variable");
-            app_config.ai.api_version = Some(version);
-        }
-        // Special handling for Azure OpenAI deployment ID environment variable
-        if let Some(deployment) = self.env_provider.get_var("AZURE_OPENAI_DEPLOYMENT_ID") {
+        // Canonicalize the resolved provider BEFORE any precedence or
+        // scoping decision (including the hosted-provider env-var carve-out
+        // below). `SUBX_AI_PROVIDER=ollama` therefore reaches the carve-out
+        // as `"local"` and the factory dispatch as `"local"`.
+        app_config.ai.provider =
+            crate::config::field_validator::normalize_ai_provider(&app_config.ai.provider);
+        let is_local = app_config.ai.provider == "local";
+
+        if is_local {
+            // Privacy posture (Decision 4): when the user has explicitly
+            // selected the local provider, hosted-provider env vars MUST
+            // NOT switch the provider away from `local` and MUST NOT
+            // populate any `ai.*` field. Skip the entire hosted env-var
+            // application path.
             debug!(
-                "ProductionConfigService: Found AZURE_OPENAI_DEPLOYMENT_ID environment variable"
+                "ProductionConfigService: ai.provider=local; skipping hosted-provider env vars \
+                 (OPENAI_API_KEY, OPENAI_BASE_URL, OPENROUTER_API_KEY, AZURE_OPENAI_*)"
             );
-            app_config.ai.model = deployment;
+
+            // LOCAL_LLM_* overrides are honored only when provider is
+            // local, with LOWER precedence than SUBX_AI_BASE_URL /
+            // SUBX_AI_APIKEY (which were already applied above by the
+            // config crate's `Environment::with_prefix("SUBX")` source).
+            if self.env_provider.get_var("SUBX_AI_BASE_URL").is_none() {
+                if let Some(base_url) = self.env_provider.get_var("LOCAL_LLM_BASE_URL") {
+                    debug!(
+                        "ProductionConfigService: Found LOCAL_LLM_BASE_URL environment variable"
+                    );
+                    app_config.ai.base_url = base_url;
+                }
+            }
+            if self.env_provider.get_var("SUBX_AI_APIKEY").is_none() {
+                if let Some(api_key) = self.env_provider.get_var("LOCAL_LLM_API_KEY") {
+                    debug!("ProductionConfigService: Found LOCAL_LLM_API_KEY environment variable");
+                    app_config.ai.api_key = Some(api_key);
+                }
+            }
+        } else {
+            // Special handling for OPENROUTER_API_KEY environment variable
+            if let Some(api_key) = self.env_provider.get_var("OPENROUTER_API_KEY") {
+                debug!("ProductionConfigService: Found OPENROUTER_API_KEY environment variable");
+                app_config.ai.provider = "openrouter".to_string();
+                app_config.ai.api_key = Some(api_key);
+            }
+
+            // Special handling for OPENAI_API_KEY environment variable
+            // This provides backward compatibility with direct OPENAI_API_KEY usage
+            if app_config.ai.api_key.is_none() {
+                if let Some(api_key) = self.env_provider.get_var("OPENAI_API_KEY") {
+                    debug!("ProductionConfigService: Found OPENAI_API_KEY environment variable");
+                    app_config.ai.api_key = Some(api_key);
+                }
+            }
+
+            // Special handling for OPENAI_BASE_URL environment variable
+            if let Some(base_url) = self.env_provider.get_var("OPENAI_BASE_URL") {
+                debug!("ProductionConfigService: Found OPENAI_BASE_URL environment variable");
+                app_config.ai.base_url = base_url;
+            }
+
+            // Special handling for Azure OpenAI environment variables
+            if let Some(api_key) = self.env_provider.get_var("AZURE_OPENAI_API_KEY") {
+                debug!("ProductionConfigService: Found AZURE_OPENAI_API_KEY environment variable");
+                app_config.ai.provider = "azure-openai".to_string();
+                app_config.ai.api_key = Some(api_key);
+            }
+            if let Some(endpoint) = self.env_provider.get_var("AZURE_OPENAI_ENDPOINT") {
+                debug!("ProductionConfigService: Found AZURE_OPENAI_ENDPOINT environment variable");
+                app_config.ai.base_url = endpoint;
+            }
+            if let Some(version) = self.env_provider.get_var("AZURE_OPENAI_API_VERSION") {
+                debug!(
+                    "ProductionConfigService: Found AZURE_OPENAI_API_VERSION environment variable"
+                );
+                app_config.ai.api_version = Some(version);
+            }
+            // Special handling for Azure OpenAI deployment ID environment variable
+            if let Some(deployment) = self.env_provider.get_var("AZURE_OPENAI_DEPLOYMENT_ID") {
+                debug!(
+                    "ProductionConfigService: Found AZURE_OPENAI_DEPLOYMENT_ID environment variable"
+                );
+                app_config.ai.model = deployment;
+            }
+
+            // Re-canonicalize after hosted env-var application in case
+            // OPENROUTER_API_KEY or AZURE_OPENAI_API_KEY switched the
+            // provider above (those values are already canonical, but
+            // running the helper keeps every read site uniform).
+            app_config.ai.provider =
+                crate::config::field_validator::normalize_ai_provider(&app_config.ai.provider);
         }
 
         // Validate the configuration
@@ -353,6 +421,18 @@ impl ProductionConfigService {
     /// This method now delegates validation to the field_validator module.
     fn validate_and_set_value(&self, config: &mut Config, key: &str, value: &str) -> Result<()> {
         use crate::config::field_validator;
+
+        // Canonicalize on the write path so the persisted on-disk value is
+        // always the canonical form (e.g. `ollama` → `local`, `OPENAI` →
+        // `openai`). This must happen before validation so the alias passes
+        // the enum check.
+        let normalized;
+        let value: &str = if key == "ai.provider" {
+            normalized = field_validator::normalize_ai_provider(value);
+            normalized.as_str()
+        } else {
+            value
+        };
 
         // Use the dedicated field validator
         field_validator::validate_field(key, value)?;
@@ -375,7 +455,7 @@ impl ProductionConfigService {
         let parts: Vec<&str> = key.split('.').collect();
         match parts.as_slice() {
             ["ai", "provider"] => {
-                config.ai.provider = value.to_string();
+                config.ai.provider = crate::config::field_validator::normalize_ai_provider(value);
             }
             ["ai", "api_key"] => {
                 if !value.is_empty() {
@@ -765,7 +845,12 @@ mod tests {
 
     #[test]
     fn test_production_service_implements_config_service_trait() {
-        let service = ProductionConfigService::new().unwrap();
+        // Use an isolated environment so the test does not depend on the
+        // developer's real `~/.config/subx/config.toml` (which may set
+        // `ai.base_url` to a non-HTTPS internal URL — a configuration that
+        // is now rejected by the hosted-provider HTTPS rule).
+        let dir = tempfile::tempdir().unwrap();
+        let service = make_service_with_tmp_config(&dir);
 
         // Test trait methods
         let config1 = service.get_config();
@@ -1069,6 +1154,12 @@ mod tests {
         env_provider.set_var("OPENAI_API_KEY", "sk-env-key");
         // Simulate API key loaded from other sources (e.g., configuration file)
         env_provider.set_var("SUBX_AI_APIKEY", "sk-config-key");
+        // Isolate from the developer's real `~/.config/subx/config.toml`
+        // (which may set a non-HTTPS `ai.base_url` that the new
+        // hosted-provider HTTPS rule rejects).
+        let dir = tempfile::tempdir().expect("tempdir");
+        let cfg_path = dir.path().join("nonexistent.toml");
+        env_provider.set_var("SUBX_CONFIG_PATH", cfg_path.to_str().unwrap());
 
         let service = ProductionConfigService::with_env_provider(Arc::new(env_provider))
             .expect("Failed to create config service");
@@ -1437,6 +1528,41 @@ mod tests {
             service.get_config_value("ai.provider").unwrap(),
             "openrouter"
         );
+    }
+
+    /// Regression: `subx config set ai.provider <value>` MUST canonicalize
+    /// the input via `normalize_ai_provider` BEFORE the allow-list check, so
+    /// case variants and the `ollama` alias are all accepted and the
+    /// persisted on-disk value is the canonical form.
+    #[test]
+    fn test_set_config_value_ai_provider_canonicalizes_alias_and_case() {
+        let cases = [
+            ("OLLAMA", "local"),
+            ("ollama", "local"),
+            (" ollama ", "local"),
+            ("OPENAI", "openai"),
+            (" Azure-OpenAI ", "azure-openai"),
+        ];
+        for (input, expected) in cases {
+            let dir = tempfile::tempdir().unwrap();
+            let service = make_service_with_tmp_config(&dir);
+            service
+                .set_config_value("ai.provider", input)
+                .unwrap_or_else(|e| panic!("input {input:?} should be accepted: {e}"));
+            assert_eq!(
+                service.get_config_value("ai.provider").unwrap(),
+                expected,
+                "input {input:?} should canonicalize to {expected:?}"
+            );
+        }
+    }
+
+    /// Unknown providers must still be rejected after normalization.
+    #[test]
+    fn test_set_config_value_ai_provider_rejects_unknown_after_normalization() {
+        let dir = tempfile::tempdir().unwrap();
+        let service = make_service_with_tmp_config(&dir);
+        assert!(service.set_config_value("ai.provider", "GROK").is_err());
     }
 
     #[test]
@@ -1897,7 +2023,12 @@ mod tests {
 
     #[test]
     fn test_production_config_service_default_trait_impl() {
-        let service = ProductionConfigService::default();
+        // Use an isolated environment so the test does not depend on the
+        // developer's real `~/.config/subx/config.toml`. The intent of the
+        // test is to verify the `Default` trait wiring, not to exercise
+        // whatever the developer happens to have on disk.
+        let dir = tempfile::tempdir().unwrap();
+        let service = make_service_with_tmp_config(&dir);
         let config = service.get_config().unwrap();
         assert_eq!(config.ai.provider, "openai");
     }
@@ -2005,5 +2136,181 @@ mod tests {
         let mode = std::fs::metadata(&path).unwrap().permissions().mode() & 0o777;
         assert_eq!(mode, 0o600);
         assert_eq!(std::fs::read_to_string(&path).unwrap(), "key = \"value\"\n");
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // §1.8: env-var carve-out + LOCAL_LLM_* tests
+    // ─────────────────────────────────────────────────────────────────────────
+
+    /// Build an env provider with `SUBX_CONFIG_PATH` pointing at a unique
+    /// non-existent file inside a fresh `TempDir`, so the loader skips the
+    /// real on-disk config file and only sees the explicitly seeded env
+    /// variables.
+    fn env_with_isolated_config() -> (TestEnvironmentProvider, tempfile::TempDir) {
+        let dir = tempfile::tempdir().expect("create tempdir");
+        let mut env = TestEnvironmentProvider::new();
+        let p = dir.path().join("nonexistent_config.toml");
+        env.set_var("SUBX_CONFIG_PATH", p.to_str().unwrap());
+        (env, dir)
+    }
+
+    #[test]
+    fn test_local_llm_base_url_honored_when_provider_is_local() {
+        let (mut env, _dir) = env_with_isolated_config();
+        env.set_var("SUBX_AI_PROVIDER", "local");
+        env.set_var("LOCAL_LLM_BASE_URL", "http://localhost:8080/v1");
+
+        let service = ProductionConfigService::with_env_provider(Arc::new(env)).unwrap();
+        let config = service.get_config().expect("get_config");
+
+        assert_eq!(config.ai.provider, "local");
+        assert_eq!(config.ai.base_url, "http://localhost:8080/v1");
+    }
+
+    #[test]
+    fn test_local_llm_api_key_honored_when_provider_is_local() {
+        let (mut env, _dir) = env_with_isolated_config();
+        env.set_var("SUBX_AI_PROVIDER", "local");
+        env.set_var("LOCAL_LLM_BASE_URL", "http://localhost:11434/v1");
+        env.set_var("LOCAL_LLM_API_KEY", "local-secret-token");
+
+        let service = ProductionConfigService::with_env_provider(Arc::new(env)).unwrap();
+        let config = service.get_config().expect("get_config");
+
+        assert_eq!(config.ai.provider, "local");
+        assert_eq!(config.ai.api_key.as_deref(), Some("local-secret-token"));
+    }
+
+    #[test]
+    fn test_local_llm_env_vars_ignored_for_non_local_provider() {
+        let (mut env, _dir) = env_with_isolated_config();
+        // Default provider is "openai"; do not set SUBX_AI_PROVIDER.
+        env.set_var("LOCAL_LLM_BASE_URL", "http://localhost:11434/v1");
+        env.set_var("LOCAL_LLM_API_KEY", "leak-me");
+
+        let service = ProductionConfigService::with_env_provider(Arc::new(env)).unwrap();
+        let config = service.get_config().expect("get_config");
+
+        assert_eq!(config.ai.provider, "openai");
+        // Default base_url stands; LOCAL_LLM_BASE_URL did not leak.
+        assert_eq!(config.ai.base_url, "https://api.openai.com/v1");
+        // LOCAL_LLM_API_KEY did not populate the api_key field.
+        assert_ne!(config.ai.api_key.as_deref(), Some("leak-me"));
+    }
+
+    #[test]
+    fn test_subx_ai_base_url_outranks_local_llm_base_url() {
+        let (mut env, _dir) = env_with_isolated_config();
+        env.set_var("SUBX_AI_PROVIDER", "local");
+        env.set_var("LOCAL_LLM_BASE_URL", "http://localhost:11434/v1");
+        env.set_var("SUBX_AI_BASE_URL", "http://localhost:8080/v1");
+
+        let service = ProductionConfigService::with_env_provider(Arc::new(env)).unwrap();
+        let config = service.get_config().expect("get_config");
+
+        assert_eq!(config.ai.provider, "local");
+        assert_eq!(config.ai.base_url, "http://localhost:8080/v1");
+    }
+
+    #[test]
+    fn test_subx_ai_apikey_outranks_local_llm_api_key() {
+        let (mut env, _dir) = env_with_isolated_config();
+        env.set_var("SUBX_AI_PROVIDER", "local");
+        env.set_var("SUBX_AI_BASE_URL", "http://localhost:8080/v1");
+        env.set_var("LOCAL_LLM_API_KEY", "local-loser");
+        env.set_var("SUBX_AI_APIKEY", "subx-winner");
+
+        let service = ProductionConfigService::with_env_provider(Arc::new(env)).unwrap();
+        let config = service.get_config().expect("get_config");
+
+        assert_eq!(config.ai.provider, "local");
+        assert_eq!(config.ai.api_key.as_deref(), Some("subx-winner"));
+    }
+
+    #[test]
+    fn test_openai_api_key_does_not_populate_api_key_when_provider_is_local() {
+        let (mut env, _dir) = env_with_isolated_config();
+        env.set_var("SUBX_AI_PROVIDER", "local");
+        env.set_var("SUBX_AI_BASE_URL", "http://localhost:11434/v1");
+        env.set_var("OPENAI_API_KEY", "sk-leak-into-local");
+
+        let service = ProductionConfigService::with_env_provider(Arc::new(env)).unwrap();
+        let config = service.get_config().expect("get_config");
+
+        assert_eq!(config.ai.provider, "local");
+        assert_eq!(config.ai.api_key, None);
+    }
+
+    #[test]
+    fn test_openrouter_api_key_does_not_switch_provider_away_from_local() {
+        let (mut env, _dir) = env_with_isolated_config();
+        env.set_var("SUBX_AI_PROVIDER", "local");
+        env.set_var("SUBX_AI_BASE_URL", "http://localhost:11434/v1");
+        env.set_var("OPENROUTER_API_KEY", "or-leak-into-local");
+
+        let service = ProductionConfigService::with_env_provider(Arc::new(env)).unwrap();
+        let config = service.get_config().expect("get_config");
+
+        assert_eq!(config.ai.provider, "local");
+        assert_eq!(config.ai.api_key, None);
+    }
+
+    #[test]
+    fn test_azure_openai_env_vars_do_not_populate_when_provider_is_local() {
+        let (mut env, _dir) = env_with_isolated_config();
+        env.set_var("SUBX_AI_PROVIDER", "local");
+        env.set_var("SUBX_AI_BASE_URL", "http://localhost:11434/v1");
+        env.set_var("AZURE_OPENAI_API_KEY", "azure-leak");
+        env.set_var("AZURE_OPENAI_ENDPOINT", "https://leak.openai.azure.com/");
+        env.set_var("AZURE_OPENAI_DEPLOYMENT_ID", "leaked-deployment");
+
+        let service = ProductionConfigService::with_env_provider(Arc::new(env)).unwrap();
+        let config = service.get_config().expect("get_config");
+
+        assert_eq!(config.ai.provider, "local");
+        assert_eq!(config.ai.api_key, None);
+        assert_eq!(config.ai.base_url, "http://localhost:11434/v1");
+        assert_ne!(config.ai.model, "leaked-deployment");
+    }
+
+    #[test]
+    fn test_subx_ai_provider_ollama_triggers_local_carve_out() {
+        // SUBX_AI_PROVIDER=ollama MUST be normalized to `local` BEFORE the
+        // hosted env-var carve-out is evaluated. Stray OPENAI_API_KEY /
+        // OPENROUTER_API_KEY in the environment must NOT leak into the
+        // resolved config.
+        let (mut env, _dir) = env_with_isolated_config();
+        env.set_var("SUBX_AI_PROVIDER", "ollama");
+        env.set_var("SUBX_AI_BASE_URL", "http://localhost:11434/v1");
+        env.set_var("OPENAI_API_KEY", "sk-should-not-leak");
+        env.set_var("OPENROUTER_API_KEY", "or-should-not-leak");
+
+        let service = ProductionConfigService::with_env_provider(Arc::new(env)).unwrap();
+        let config = service.get_config().expect("get_config");
+
+        assert_eq!(config.ai.provider, "local");
+        assert_eq!(config.ai.api_key, None);
+        assert_eq!(config.ai.base_url, "http://localhost:11434/v1");
+    }
+
+    #[test]
+    fn test_set_config_value_normalizes_ollama_to_local() {
+        // `subx config set ai.provider ollama` SHALL persist `local`.
+        let dir = tempfile::tempdir().expect("tempdir");
+        let service = make_service_with_tmp_config(&dir);
+        service
+            .set_config_value("ai.provider", "ollama")
+            .expect("set ai.provider=ollama");
+        // Set a base_url too so the post-write validation succeeds for the
+        // local provider.
+        service
+            .set_config_value("ai.base_url", "http://localhost:11434/v1")
+            .expect("set base_url");
+
+        assert_eq!(
+            service.get_config_value("ai.provider").unwrap(),
+            "local",
+            "persisted ai.provider must be the canonical form"
+        );
     }
 }

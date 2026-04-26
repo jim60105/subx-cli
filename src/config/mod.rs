@@ -37,7 +37,7 @@
 //!
 //! # Examples
 //!
-//! ```rust
+//! ```rust,no_run
 //! use subx_cli::config::{Config, ConfigService, ProductionConfigService};
 //!
 //! # fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -147,7 +147,19 @@ pub struct Config {
 /// ```
 #[derive(Serialize, Deserialize, Clone)]
 pub struct AIConfig {
-    /// AI provider name (e.g. "openai", "anthropic").
+    /// AI provider name.
+    ///
+    /// Supported canonical values:
+    /// - `"openai"` — hosted OpenAI API
+    /// - `"openrouter"` — hosted OpenRouter API
+    /// - `"azure-openai"` — hosted Azure OpenAI deployments
+    /// - `"local"` — any OpenAI-compatible local, LAN, or VPN endpoint
+    ///   (Ollama, LM Studio, llama.cpp `llama-server`, vLLM, etc.)
+    ///
+    /// The string `"ollama"` is accepted as an input alias and is
+    /// normalized to `"local"` by
+    /// [`crate::config::field_validator::normalize_ai_provider`]; the
+    /// persisted on-disk value is always the canonical form.
     pub provider: String,
     /// API key for authentication.
     pub api_key: Option<String>,

@@ -1,4 +1,10 @@
-## ADDED Requirements
+# Local LLM Provider
+
+## Purpose
+
+Provide a first-class local / OpenAI-compatible AI provider (`local`, with `ollama` accepted as an alias) so that SubX-CLI can match and translate subtitles entirely against a user-controlled endpoint (e.g. Ollama, vLLM, llama.cpp, LM Studio, or a self-hosted gateway) without contacting any hosted AI service. Implemented in `src/services/ai/local.rs` and wired through `ComponentFactory::create_ai_provider`, with shared HTTP retry, prompt construction, response parsing, and error sanitization.
+
+## Requirements
 
 ### Requirement: Local LLM Provider Identifier
 
@@ -37,6 +43,10 @@ The system SHALL recognize the AI provider identifier `local` (with `ollama` acc
 
 When `ai.provider = "local"`, the system SHALL treat `ai.api_key` as optional (a missing or empty key is valid) and SHALL require `ai.base_url` to be a non-empty, syntactically valid URL. If `ai.api_key` is non-empty, `LocalLLMClient` SHALL include it as a `Bearer` token in the `Authorization` header; otherwise the header SHALL be omitted.
 
+The `local` provider is **endpoint-agnostic**: the configured `ai.base_url` MAY use either the `http://` or `https://` scheme, and MAY point at any reachable host — `localhost`, a loopback IP (`127.0.0.1`, `::1`), an RFC1918 LAN address (e.g. `http://192.168.1.50:11434/v1`), a VPN/tailnet host (e.g. `https://ollama.tailnet.ts.net/v1`), or a public OpenAI-compatible server. `validate_ai_config` SHALL NOT reject `http://` or non-loopback hosts for the `local` provider, and `LocalLLMClient::from_config` SHALL NOT upgrade or rewrite the scheme.
+
+The existing `warn_on_insecure_http_str` advisory MAY still log a warning for non-loopback HTTP under `ai.provider = "local"` (this preserves the operator-awareness behavior on untrusted networks), but the warning SHALL be informational only and SHALL NOT cause configuration loading or request dispatch to fail.
+
 #### Scenario: Empty API key is accepted
 - **GIVEN** `ai.provider = "local"`, `ai.base_url = "http://localhost:11434/v1"`, `ai.model = "llama3.1"`, and `ai.api_key` is `None`
 - **WHEN** `validate_ai_config` runs
@@ -51,6 +61,16 @@ When `ai.provider = "local"`, the system SHALL treat `ai.api_key` as optional (a
 - **GIVEN** `ai.provider = "local"`, `ai.base_url = "http://localhost:8000/v1"`, and `ai.api_key = Some("vllm-shared-token")`
 - **WHEN** `LocalLLMClient` issues a chat-completions request
 - **THEN** the request SHALL include the header `Authorization: Bearer vllm-shared-token`
+
+#### Scenario: LAN HTTP base URL is accepted for local provider
+- **GIVEN** `ai.provider = "local"`, `ai.base_url = "http://192.168.1.50:11434/v1"`, and `ai.model = "llama3.1:8b-instruct"`
+- **WHEN** `validate_ai_config` runs
+- **THEN** it SHALL return `Ok(())` and `LocalLLMClient::from_config` SHALL construct a client targeting that LAN address; an insecure-HTTP warning MAY be logged but configuration loading SHALL succeed
+
+#### Scenario: HTTPS LAN/VPN base URL is accepted for local provider
+- **GIVEN** `ai.provider = "local"`, `ai.base_url = "https://ollama.tailnet.ts.net/v1"`, and `ai.model = "qwen2.5:7b"`
+- **WHEN** `validate_ai_config` runs
+- **THEN** it SHALL return `Ok(())` with no insecure-HTTP warning
 
 ### Requirement: Privacy and Offline Network Policy
 

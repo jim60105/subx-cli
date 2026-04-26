@@ -324,6 +324,9 @@ pub mod openrouter;
 /// Azure OpenAI service provider client implementation
 pub mod azure_openai;
 
+/// Local / OpenAI-compatible LLM provider client implementation
+pub mod local;
+
 /// AI prompt templates and management
 pub mod prompts;
 
@@ -339,6 +342,11 @@ pub mod error_sanitizer;
 /// Shared security helpers for AI client implementations.
 pub mod security;
 
+/// Hint-emission helpers shared by hosted-provider clients (`openai`,
+/// `openrouter`, `azure-openai`).
+pub mod hosted_hint;
+
 pub use cache::AICache;
 pub use openai::OpenAIClient;
 pub use retry::{RetryConfig, retry_with_backoff};
+pub use security::local_provider_hint;

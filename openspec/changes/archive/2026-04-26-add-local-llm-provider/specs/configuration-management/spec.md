@@ -33,6 +33,7 @@ When the canonicalized `ai.provider` (after `normalize_ai_provider`) equals `"lo
 - Treats `ai.api_key` as optional: a missing or empty value SHALL be accepted; a non-empty value SHALL be validated through the same `validate_api_key` helper used by other providers (no provider-specific prefix is required).
 - Requires `ai.base_url` to be a non-empty string and SHALL run it through `validate_url_format`.
 - Validates `ai.model` (non-empty), `ai.temperature`, and `ai.max_tokens` using the same helpers as the hosted providers.
+- Accepts BOTH `http://` and `https://` schemes for `ai.base_url`. The `local` provider is endpoint-agnostic and may target any reachable host (loopback, LAN, VPN, public). The HTTPS-required rule documented for hosted providers in the `ai-provider-integration` capability SHALL NOT apply to `local`.
 
 `field_validator.rs` SHALL list both `local` and `ollama` in the allow-list for the `ai.provider` key (so that `subx config set` accepts either), and SHALL document that `ai.api_key` is optional and `ai.base_url` is required when the canonicalized provider is `local`. The persisted value after `subx config set` SHALL always be the canonical form produced by `normalize_ai_provider`.
 
@@ -50,6 +51,16 @@ When the canonicalized `ai.provider` (after `normalize_ai_provider`) equals `"lo
 - **GIVEN** the user runs `subx config set ai.provider ollama`
 - **WHEN** the field validator runs
 - **THEN** the persisted `ai.provider` value SHALL be `"local"` (produced by `normalize_ai_provider`)
+
+#### Scenario: Local provider accepts HTTP base URL
+- **GIVEN** `ai.provider = "local"`, `ai.base_url = "http://192.168.1.50:11434/v1"`, and `ai.model = "llama3.1"`
+- **WHEN** `validate_ai_config` runs
+- **THEN** it SHALL return `Ok(())`
+
+#### Scenario: Local provider accepts HTTPS base URL on a non-loopback host
+- **GIVEN** `ai.provider = "local"`, `ai.base_url = "https://ollama.tailnet.ts.net/v1"`, and `ai.model = "qwen2.5:7b"`
+- **WHEN** `validate_ai_config` runs
+- **THEN** it SHALL return `Ok(())`
 
 ### Requirement: Local Provider Environment Variables
 

@@ -175,7 +175,14 @@ impl ComponentFactory {
 /// Returns an error if the provider type is unsupported or creation fails.
 /// Validate AI configuration parameters.
 fn validate_ai_config(ai_config: &crate::config::AIConfig) -> Result<()> {
-    if ai_config.api_key.as_deref().unwrap_or("").trim().is_empty() {
+    let canonical = crate::config::field_validator::normalize_ai_provider(&ai_config.provider);
+    let is_local = canonical == "local";
+
+    // The `local` provider treats `api_key` as optional because most local
+    // OpenAI-compatible runtimes (Ollama, LM Studio, llama.cpp `llama-server`)
+    // accept unauthenticated requests. All hosted providers still require
+    // an api_key.
+    if !is_local && ai_config.api_key.as_deref().unwrap_or("").trim().is_empty() {
         return Err(SubXError::config(
             "AI API key is required. Set ai.api_key in configuration or use environment variable."
                 .to_string(),
@@ -204,7 +211,8 @@ fn validate_ai_config(ai_config: &crate::config::AIConfig) -> Result<()> {
 /// This function creates the appropriate AI provider based on the
 /// provider type specified in the configuration.
 pub fn create_ai_provider(ai_config: &crate::config::AIConfig) -> Result<Box<dyn AIProvider>> {
-    match ai_config.provider.as_str() {
+    let canonical = crate::config::field_validator::normalize_ai_provider(&ai_config.provider);
+    match canonical.as_str() {
         "openai" => {
             validate_ai_config(ai_config)?;
             let client = OpenAIClient::from_config(ai_config)?;
@@ -221,8 +229,13 @@ pub fn create_ai_provider(ai_config: &crate::config::AIConfig) -> Result<Box<dyn
                 crate::services::ai::azure_openai::AzureOpenAIClient::from_config(ai_config)?;
             Ok(Box::new(client))
         }
+        "local" => {
+            validate_ai_config(ai_config)?;
+            let client = crate::services::ai::local::LocalLLMClient::from_config(ai_config)?;
+            Ok(Box::new(client))
+        }
         other => Err(SubXError::config(format!(
-            "Unsupported AI provider: {}. Supported providers: openai, openrouter, anthropic, azure-openai",
+            "Unsupported AI provider: {}. Supported providers: openai, openrouter, anthropic, azure-openai, local",
             other
         ))),
     }
@@ -269,6 +282,19 @@ mod tests {
             Err(e) => {
                 let error_msg = e.to_string();
                 assert!(error_msg.contains("Unsupported AI provider"));
+                // The error message must enumerate all supported providers,
+                // including the new `local` provider added by the
+                // add-local-llm-provider change.
+                assert!(error_msg.contains("openai"), "missing openai: {error_msg}");
+                assert!(
+                    error_msg.contains("openrouter"),
+                    "missing openrouter: {error_msg}"
+                );
+                assert!(
+                    error_msg.contains("azure-openai"),
+                    "missing azure-openai: {error_msg}"
+                );
+                assert!(error_msg.contains("local"), "missing local: {error_msg}");
             }
             Ok(_) => panic!("Expected error for unsupported provider"),
         }
@@ -362,5 +388,40 @@ mod tests {
         config.ai.base_url = "https://example.openai.azure.com".to_string();
         let result = create_ai_provider(&config.ai);
         assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_create_ai_provider_local_success() {
+        // Mirror `test_create_ai_provider_openai_success`: build a
+        // `TestConfigService` via `TestConfigBuilder` configured for the
+        // local provider, with NO api_key (intentionally absent) and an
+        // OpenAI-compatible Ollama-style base URL. The factory must accept
+        // this and return a working AI provider.
+        use crate::config::builder::TestConfigBuilder;
+        let config_service = TestConfigBuilder::new()
+            .with_ai_provider("local")
+            .with_ai_model("llama3.1")
+            .with_ai_base_url("http://localhost:11434/v1")
+            .build_service();
+        let factory = ComponentFactory::new(&config_service).unwrap();
+        let result = factory.create_ai_provider();
+        assert!(
+            result.is_ok(),
+            "local provider must construct without api_key: {:?}",
+            result.err()
+        );
+
+        // The `ollama` alias normalizes to `local` and must take the same
+        // factory path.
+        let alias_service = TestConfigBuilder::new()
+            .with_ai_provider("ollama")
+            .with_ai_model("llama3.1")
+            .with_ai_base_url("http://localhost:11434/v1")
+            .build_service();
+        let alias_factory = ComponentFactory::new(&alias_service).unwrap();
+        assert!(
+            alias_factory.create_ai_provider().is_ok(),
+            "`ollama` alias must reach the local arm"
+        );
     }
 }

@@ -90,8 +90,9 @@ fn run_translate(
     let xdg = workdir.join(".xdg");
     fs::create_dir_all(&xdg).unwrap();
     let mut cmd = Command::cargo_bin("subx-cli").unwrap();
-    cmd.env("OPENAI_API_KEY", "sk-mock-test-key")
-        .env("OPENAI_BASE_URL", base_url)
+    cmd.env("SUBX_AI_PROVIDER", "local")
+        .env("LOCAL_LLM_API_KEY", "sk-mock-test-key")
+        .env("LOCAL_LLM_BASE_URL", base_url)
         .env("XDG_CONFIG_HOME", &xdg)
         .env("HOME", workdir)
         .env_remove("SUBX_OUTPUT")

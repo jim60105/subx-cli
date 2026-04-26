@@ -231,8 +231,9 @@ async fn match_dry_run_json_mode_is_clean_and_well_formed() {
         .await;
 
     let assert = isolated_cmd(dir.path())
-        .env("OPENAI_API_KEY", "sk-mock-test-key")
-        .env("OPENAI_BASE_URL", mock_server.uri())
+        .env("SUBX_AI_PROVIDER", "local")
+        .env("LOCAL_LLM_API_KEY", "sk-mock-test-key")
+        .env("LOCAL_LLM_BASE_URL", mock_server.uri())
         .args([
             "--output",
             "json",

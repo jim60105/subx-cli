@@ -11,6 +11,7 @@ use serde_json::Value;
 use serde_json::json;
 use std::time::Duration;
 
+use crate::services::ai::hosted_hint::{append_local_hint, maybe_attach_local_hint};
 use crate::services::ai::prompts::{PromptBuilder, ResponseParser};
 use crate::services::ai::retry::HttpRetryClient;
 
@@ -201,6 +202,119 @@ mod tests {
                 .contains("Base URL must use http or https protocol")
         );
     }
+
+    /// §3.6 — connection refused against `127.0.0.1` on a port with no
+    /// listener results in a hint-bearing error.
+    #[tokio::test]
+    async fn test_hosted_hint_connection_refused_loopback() {
+        let port = pick_unused_port().await;
+        let mut client = OpenAIClient::new("k".into(), "gpt-4.1-mini".into(), 0.0, 16, 0, 0);
+        client.base_url = format!("http://127.0.0.1:{}", port);
+        let err = client
+            .chat_completion(vec![json!({"role":"user","content":"x"})])
+            .await
+            .unwrap_err();
+        let msg = err.to_string();
+        assert!(
+            msg.contains("ollama") && msg.contains("ai.provider"),
+            "expected local-provider hint, got: {msg}"
+        );
+    }
+
+    /// §3.6 — connection refused against an RFC1918 address surfaces the hint.
+    #[tokio::test]
+    async fn test_hosted_hint_connection_refused_rfc1918() {
+        // 192.168.0.1 with a low port is unlikely to listen and produces a
+        // transport failure (connect refused / unreachable / timeout)
+        // within the configured request timeout. The hint must be appended
+        // regardless of which transport sub-kind reqwest reports.
+        let client = OpenAIClient::new_with_base_url_and_timeout(
+            "k".into(),
+            "gpt-4.1-mini".into(),
+            0.0,
+            16,
+            0,
+            0,
+            "http://192.168.0.1:1".to_string(),
+            1,
+        );
+        let err = client
+            .chat_completion(vec![json!({"role":"user","content":"x"})])
+            .await
+            .unwrap_err();
+        let msg = err.to_string();
+        assert!(
+            msg.contains("ollama") && msg.contains("ai.provider"),
+            "expected local-provider hint, got: {msg}"
+        );
+    }
+
+    /// §3.6 — HTTP 200 with a non-OpenAI body (`{"hello":"world"}`) MUST
+    /// surface the local-provider hint via the parse-shape branch.
+    #[tokio::test]
+    async fn test_hosted_hint_http_200_non_openai_body() {
+        let server = MockServer::start().await;
+        Mock::given(method("POST"))
+            .and(path("/chat/completions"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({ "hello": "world" })))
+            .mount(&server)
+            .await;
+        let mut client = OpenAIClient::new("k".into(), "gpt-4.1-mini".into(), 0.0, 16, 0, 0);
+        client.base_url = server.uri();
+        let err = client
+            .chat_completion(vec![json!({"role":"user","content":"x"})])
+            .await
+            .unwrap_err();
+        let msg = err.to_string();
+        assert!(
+            msg.contains("Invalid API response format"),
+            "expected base parse-shape message: {msg}"
+        );
+        assert!(
+            msg.contains("ollama") && msg.contains("ai.provider"),
+            "expected local-provider hint: {msg}"
+        );
+    }
+
+    /// §3.6 negative — a genuine failure against a public host MUST NOT
+    /// surface the local-provider hint. We use TEST-NET-1 (`192.0.2.0/24`,
+    /// RFC 5737), which is reserved for documentation and never routable,
+    /// so the call fails deterministically without external dependencies.
+    /// `192.0.2.x` is not in any private range, so the predicate must
+    /// classify the host as public and suppress the hint.
+    #[tokio::test]
+    async fn test_hosted_hint_not_emitted_for_public_host() {
+        let client = OpenAIClient::new_with_base_url_and_timeout(
+            "k".into(),
+            "gpt-4.1-mini".into(),
+            0.0,
+            16,
+            0,
+            0,
+            "https://192.0.2.1/v1".to_string(),
+            1,
+        );
+        let err = client
+            .chat_completion(vec![json!({"role":"user","content":"x"})])
+            .await
+            .unwrap_err();
+        let msg = err.to_string();
+        assert!(
+            !msg.contains("ollama"),
+            "public-host failure must NOT carry the local-provider hint: {msg}"
+        );
+    }
+
+    /// Helper: bind a TCP listener on `127.0.0.1:0` to obtain a port the
+    /// kernel allocated, then drop the listener so the port is free
+    /// (race-prone in theory but reliable in tests because no sibling test
+    /// rebinds it within microseconds).
+    async fn pick_unused_port() -> u16 {
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let port = listener.local_addr().unwrap().port();
+        drop(listener);
+        port
+    }
 }
 
 impl OpenAIClient {
@@ -334,7 +448,10 @@ impl OpenAIClient {
             .header("Authorization", format!("Bearer {}", self.api_key))
             .header("Content-Type", "application/json")
             .json(&request_body);
-        let mut response = self.make_request_with_retry(request).await?;
+        let mut response = match self.make_request_with_retry(request).await {
+            Ok(r) => r,
+            Err(e) => return Err(maybe_attach_local_hint(e, &self.base_url)),
+        };
 
         const MAX_AI_RESPONSE_BYTES: u64 = 10 * 1024 * 1024; // 10 MiB
         if let Some(len) = response.content_length() {
@@ -378,7 +495,14 @@ impl OpenAIClient {
             .map_err(|e| SubXError::AiService(format!("Failed to parse AI response: {}", e)))?;
         let content = response_json["choices"][0]["message"]["content"]
             .as_str()
-            .ok_or_else(|| SubXError::AiService("Invalid API response format".to_string()))?;
+            .ok_or_else(|| {
+                // Body parsed as JSON but the canonical OpenAI shape is
+                // missing — almost always a hosted client pointed at a
+                // non-OpenAI endpoint. Append the local-provider hint
+                // unconditionally here (no host predicate): the parse-shape
+                // failure is itself a strong signal.
+                SubXError::AiService(append_local_hint("Invalid API response format"))
+            })?;
 
         // Parse usage statistics and display
         if let Some(usage_obj) = response_json.get("usage") {

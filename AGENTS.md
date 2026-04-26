@@ -122,7 +122,7 @@ Config Layer (src/config/)    → DI-based configuration system
 | `src/core/translation/` | AI-assisted subtitle translation (two-pass terminology + cue translation, UUIDv7 cue IDs) | `TranslationEngine`, `TerminologyMap`, `CueIdGenerator` |
 | `src/core/parallel/` | Task scheduling | `TaskScheduler`, `Task`, `WorkerPool` |
 | `src/core/file_manager.rs` | File operations with backup | `FileManager` |
-| `src/services/ai/` | AI provider clients | `AIProvider` trait, `OpenAIClient`, `OpenRouterClient`, `AzureOpenAIClient` |
+| `src/services/ai/` | AI provider clients | `AIProvider` trait, `OpenAIClient`, `OpenRouterClient`, `AzureOpenAIClient`, `LocalLLMClient` |
 | `src/services/audio/` | Audio analysis data structures and helpers | `AudioData`, `AudioEnvelope`, `DialogueSegment` |
 | `src/services/vad/` | Voice Activity Detection | `LocalVadDetector`, `VadSyncDetector` |
 | `src/error.rs` | Error definitions | `SubXError`, `SubXResult<T>` |
@@ -312,6 +312,8 @@ Provider-specific variables (checked first):
 - `OPENROUTER_API_KEY` — OpenRouter provider
 - `AZURE_OPENAI_API_KEY`, `AZURE_OPENAI_ENDPOINT`,
   `AZURE_OPENAI_API_VERSION` — Azure OpenAI provider
+- `LOCAL_LLM_API_KEY`, `LOCAL_LLM_BASE_URL` — Local LLM provider (only
+  honored when `ai.provider = "local"`).
 
 General overrides with `SUBX_` prefix (e.g., `SUBX_AI_MODEL`,
 `SUBX_GENERAL_WORKSPACE`). Note that env-var handling has special cases
@@ -345,9 +347,18 @@ New configuration keys must be added to all of the following:
 
 ## AI Provider System
 
-Three providers are supported: `openai`, `openrouter`, `azure-openai`. All
-implement the `AIProvider` trait (defined in `src/services/ai/mod.rs`) with
-two async methods: `analyze_content()` and `verify_match()`.
+Four providers are supported: `openai`, `openrouter`, `azure-openai`, and
+`local`. The string `ollama` is accepted as an alias for `local` and is
+normalized to the canonical value at config write time. All implement the
+`AIProvider` trait (defined in `src/services/ai/mod.rs`) with two async
+methods: `analyze_content()` and `verify_match()`.
+
+Hosted providers (`openai`, `openrouter`, `azure-openai`) require
+`https://` for any user-set `ai.base_url`; non-HTTPS values are rejected
+by `validate_ai_config` with a hint pointing to `ai.provider = "local"`.
+The `local` provider is endpoint-agnostic — it accepts loopback, LAN,
+VPN/tailnet, and remote OpenAI-compatible endpoints over either `http://`
+or `https://`.
 
 To add a new provider, follow the step-by-step guide in
 `docs/ai-provider-integration-guide.md`. Key touchpoints: create the client

@@ -5,7 +5,9 @@
 //! configurations and supports parallel test execution.
 
 use std::sync::Arc;
-use subx_cli::config::{ConfigService, ProductionConfigService, TestConfigService};
+use subx_cli::config::{
+    ConfigService, ProductionConfigService, TestConfigService, TestEnvironmentProvider,
+};
 use subx_cli::{App, Result};
 use tokio::fs;
 
@@ -14,8 +16,15 @@ use common::cli_helpers::{CLITestHelper, OutputValidator};
 
 #[tokio::test]
 async fn test_app_with_production_config_service() -> Result<()> {
-    // Test creating an app with production config service
-    let app = App::new_with_production_config()?;
+    // Isolate from the developer's real `~/.config/subx/config.toml`.
+    let dir = tempfile::tempdir().unwrap();
+    let mut env = TestEnvironmentProvider::new();
+    env.set_var(
+        "SUBX_CONFIG_PATH",
+        dir.path().join("nonexistent.toml").to_str().unwrap(),
+    );
+    let service = Arc::new(ProductionConfigService::with_env_provider(Arc::new(env))?);
+    let app = App::new(service);
     let config = app.get_config()?;
 
     // Verify basic configuration structure
@@ -142,8 +151,14 @@ async fn test_config_service_reload() -> Result<()> {
 
 #[tokio::test]
 async fn test_production_config_service_creation() -> Result<()> {
-    // Test production config service creation
-    let config_service = ProductionConfigService::new()?;
+    // Isolate from the developer's real `~/.config/subx/config.toml`.
+    let dir = tempfile::tempdir().unwrap();
+    let mut env = TestEnvironmentProvider::new();
+    env.set_var(
+        "SUBX_CONFIG_PATH",
+        dir.path().join("nonexistent.toml").to_str().unwrap(),
+    );
+    let config_service = ProductionConfigService::with_env_provider(Arc::new(env))?;
 
     // Verify it can load configuration
     let config = config_service.get_config()?;

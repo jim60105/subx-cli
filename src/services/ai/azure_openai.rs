@@ -1,5 +1,6 @@
 use crate::cli::display_ai_usage;
 use crate::error::SubXError;
+use crate::services::ai::hosted_hint::{append_local_hint, maybe_attach_local_hint};
 use crate::services::ai::prompts::{PromptBuilder, ResponseParser};
 use crate::services::ai::retry::HttpRetryClient;
 use crate::services::ai::{
@@ -208,7 +209,10 @@ impl AzureOpenAIClient {
             "stream": false
         });
         let request = req.json(&body);
-        let mut response = self.make_request_with_retry(request).await?;
+        let mut response = match self.make_request_with_retry(request).await {
+            Ok(r) => r,
+            Err(e) => return Err(maybe_attach_local_hint(e, &self.base_url)),
+        };
 
         const MAX_AI_RESPONSE_BYTES: u64 = 10 * 1024 * 1024; // 10 MiB
         if let Some(len) = response.content_length() {
@@ -272,7 +276,9 @@ impl AzureOpenAIClient {
         }
         let content = resp_json["choices"][0]["message"]["content"]
             .as_str()
-            .ok_or_else(|| SubXError::AiService("Invalid API response format".to_string()))?;
+            .ok_or_else(|| {
+                SubXError::AiService(append_local_hint("Invalid API response format"))
+            })?;
         Ok(content.to_string())
     }
 }
@@ -485,6 +491,98 @@ mod tests {
             .unwrap_err()
             .to_string();
         assert!(err.contains("Missing Azure OpenAI API Key"));
+    }
+
+    /// §3.6 — connection refused against `127.0.0.1` MUST surface the hint.
+    #[tokio::test]
+    async fn test_hosted_hint_connection_refused_loopback() {
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let port = listener.local_addr().unwrap().port();
+        drop(listener);
+        let client = AzureOpenAIClient::new_with_all(
+            "k".into(),
+            "dep".into(),
+            format!("http://127.0.0.1:{}", port),
+            "2025-04-01-preview".into(),
+            0.0,
+            16,
+            0,
+            0,
+            1,
+        );
+        let err = client
+            .chat_completion(vec![json!({"role":"user","content":"x"})])
+            .await
+            .unwrap_err();
+        let msg = err.to_string();
+        assert!(
+            msg.contains("ollama") && msg.contains("ai.provider"),
+            "expected local-provider hint: {msg}"
+        );
+    }
+
+    /// §3.6 — HTTP 200 with non-OpenAI body must surface the hint via the
+    /// parse-shape branch.
+    #[tokio::test]
+    async fn test_hosted_hint_http_200_non_openai_body() {
+        use wiremock::matchers::{method, path};
+        use wiremock::{Mock, MockServer, ResponseTemplate};
+        let server = MockServer::start().await;
+        Mock::given(method("POST"))
+            // Azure URL shape:
+            // {base}/openai/deployments/{model}/chat/completions
+            .and(path("/openai/deployments/dep/chat/completions"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({ "hello": "world" })))
+            .mount(&server)
+            .await;
+        let client = AzureOpenAIClient::new_with_all(
+            "k".into(),
+            "dep".into(),
+            server.uri(),
+            "2025-04-01-preview".into(),
+            0.0,
+            16,
+            0,
+            0,
+            5,
+        );
+        let err = client
+            .chat_completion(vec![json!({"role":"user","content":"x"})])
+            .await
+            .unwrap_err();
+        let msg = err.to_string();
+        assert!(
+            msg.contains("Invalid API response format")
+                && msg.contains("ollama")
+                && msg.contains("ai.provider"),
+            "expected hint-bearing parse-shape error: {msg}"
+        );
+    }
+
+    /// §3.6 negative — a public host MUST NOT surface the hint. We use
+    /// TEST-NET-1 (RFC 5737) so the test is hermetic.
+    #[tokio::test]
+    async fn test_hosted_hint_not_emitted_for_public_host() {
+        let client = AzureOpenAIClient::new_with_all(
+            "k".into(),
+            "dep".into(),
+            "https://192.0.2.1".into(),
+            "2025-04-01-preview".into(),
+            0.0,
+            16,
+            0,
+            0,
+            1,
+        );
+        let err = client
+            .chat_completion(vec![json!({"role":"user","content":"x"})])
+            .await
+            .unwrap_err();
+        let msg = err.to_string();
+        assert!(
+            !msg.contains("ollama"),
+            "public-host failure must NOT carry the hint: {msg}"
+        );
     }
 }
 
