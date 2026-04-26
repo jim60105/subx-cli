@@ -5,7 +5,6 @@
 //! predictable configuration states.
 
 use crate::config::service::ConfigService;
-use crate::error::SubXError;
 use crate::{Result, config::Config};
 use std::path::{Path, PathBuf};
 use std::sync::Mutex;
@@ -157,65 +156,8 @@ impl ConfigService for TestConfigService {
     }
 
     fn get_config_value(&self, key: &str) -> Result<String> {
-        // Delegate to current configuration
-        // Note: unwrap_or_default to handle Option fields
         let config = self.config.lock().unwrap();
-        let parts: Vec<&str> = key.split('.').collect();
-        match parts.as_slice() {
-            ["ai", "provider"] => Ok(config.ai.provider.clone()),
-            ["ai", "model"] => Ok(config.ai.model.clone()),
-            ["ai", "api_key"] => Ok(config.ai.api_key.clone().unwrap_or_default()),
-            ["ai", "base_url"] => Ok(config.ai.base_url.clone()),
-            ["ai", "temperature"] => Ok(config.ai.temperature.to_string()),
-            ["ai", "max_sample_length"] => Ok(config.ai.max_sample_length.to_string()),
-            ["ai", "max_tokens"] => Ok(config.ai.max_tokens.to_string()),
-            ["ai", "retry_attempts"] => Ok(config.ai.retry_attempts.to_string()),
-            ["ai", "retry_delay_ms"] => Ok(config.ai.retry_delay_ms.to_string()),
-            ["ai", "request_timeout_seconds"] => Ok(config.ai.request_timeout_seconds.to_string()),
-            ["formats", "default_output"] => Ok(config.formats.default_output.clone()),
-            ["formats", "default_encoding"] => Ok(config.formats.default_encoding.clone()),
-            ["formats", "preserve_styling"] => Ok(config.formats.preserve_styling.to_string()),
-            ["formats", "encoding_detection_confidence"] => {
-                Ok(config.formats.encoding_detection_confidence.to_string())
-            }
-            ["sync", "max_offset_seconds"] => Ok(config.sync.max_offset_seconds.to_string()),
-            ["sync", "default_method"] => Ok(config.sync.default_method.clone()),
-            ["sync", "vad", "enabled"] => Ok(config.sync.vad.enabled.to_string()),
-            ["sync", "vad", "sensitivity"] => Ok(config.sync.vad.sensitivity.to_string()),
-            ["sync", "vad", "padding_chunks"] => Ok(config.sync.vad.padding_chunks.to_string()),
-            ["sync", "vad", "min_speech_duration_ms"] => {
-                Ok(config.sync.vad.min_speech_duration_ms.to_string())
-            }
-            ["general", "backup_enabled"] => Ok(config.general.backup_enabled.to_string()),
-            ["general", "task_timeout_seconds"] => {
-                Ok(config.general.task_timeout_seconds.to_string())
-            }
-            ["general", "enable_progress_bar"] => {
-                Ok(config.general.enable_progress_bar.to_string())
-            }
-            ["general", "worker_idle_timeout_seconds"] => {
-                Ok(config.general.worker_idle_timeout_seconds.to_string())
-            }
-            ["general", "max_subtitle_bytes"] => Ok(config.general.max_subtitle_bytes.to_string()),
-            ["general", "max_audio_bytes"] => Ok(config.general.max_audio_bytes.to_string()),
-            ["general", "max_concurrent_jobs"] => {
-                Ok(config.general.max_concurrent_jobs.to_string())
-            }
-            ["parallel", "max_workers"] => Ok(config.parallel.max_workers.to_string()),
-            ["parallel", "task_queue_size"] => Ok(config.parallel.task_queue_size.to_string()),
-            ["parallel", "enable_task_priorities"] => {
-                Ok(config.parallel.enable_task_priorities.to_string())
-            }
-            ["parallel", "auto_balance_workers"] => {
-                Ok(config.parallel.auto_balance_workers.to_string())
-            }
-            ["parallel", "overflow_strategy"] => {
-                Ok(format!("{:?}", config.parallel.overflow_strategy))
-            }
-            _ => Err(SubXError::config(format!(
-                "Unknown configuration key: {key}"
-            ))),
-        }
+        crate::config::service::read_config_value_from(&config, key)
     }
 
     fn reset_to_defaults(&self) -> Result<()> {
@@ -225,15 +167,24 @@ impl ConfigService for TestConfigService {
     }
 
     fn set_config_value(&self, key: &str, value: &str) -> Result<()> {
-        // Load current configuration
-        let mut cfg = self.get_config()?;
-        // Validate and set the value using the same logic as ProductionConfigService
+        // Load current configuration via the tolerant path (which for
+        // tests is equivalent to the strict path because in-memory
+        // test configs are validated by construction).
+        let mut cfg = self.load_for_repair()?;
+        // Validate and set the value using the same logic as
+        // ProductionConfigService. `validate_and_set_value` already
+        // runs cross-section validation on the post-mutation config,
+        // so we MUST NOT duplicate that call here.
         self.validate_and_set_value(&mut cfg, key, value)?;
-        // Validate the entire configuration
-        crate::config::validator::validate_config(&cfg)?;
         // Update the internal configuration
         *self.config.lock().unwrap() = cfg;
         Ok(())
+    }
+
+    fn load_for_repair(&self) -> Result<Config> {
+        // Test configurations live in memory and are validated by
+        // construction; tolerant load is equivalent to strict load.
+        Ok(self.config.lock().unwrap().clone())
     }
 }
 

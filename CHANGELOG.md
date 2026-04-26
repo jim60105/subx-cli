@@ -8,6 +8,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- `subx-cli config set/get/list/reset` no longer abort when the persisted `config.toml` fails strict cross-section validation (e.g. `ai.provider = "openai"` paired with an `http://` `ai.base_url`). Configuration commands now load the file through a tolerant path that performs only TOML parsing and provider-name canonicalization, so users can repair an invalid configuration in place via a follow-up `config set` instead of being forced to hand-edit the file. Strict validation still runs after every mutation, so writes that leave the file invalid are rejected and the original bytes are preserved. `config get` and `config list` surface the underlying validation error as an advisory: a `warning:` line on stderr in text mode, and a populated top-level `warnings: ["..."]` field in the JSON envelope. All non-`config` subcommands continue to refuse to run against an invalid configuration. The repair path also no longer reads environment-only secrets (e.g. `OPENAI_API_KEY`) into the file, so `config set` cannot accidentally bake an env-only credential into the persisted config.
+
 ### Added
 - Linux ARM64 release artifacts (`subx-linux-aarch64`) so `scripts/install.sh` succeeds out-of-the-box on Raspberry Pi 4/5, AWS Graviton, Oracle Ampere, and ARM64 containers.
 - Optional musl-static Linux artifacts (`subx-linux-x86_64-musl`, `subx-linux-aarch64-musl`) for Alpine and other glibc-incompatible distros. Opt in with `SUBX_LIBC=musl` or the `--musl` installer flag.

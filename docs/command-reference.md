@@ -563,7 +563,10 @@ subx-cli config reset
 ```
 
 For all configuration keys and environment variables, see the
-[Configuration Guide](configuration-guide.md).
+[Configuration Guide](configuration-guide.md). For recovering from a
+strict-invalid `config.toml` (e.g. `ai.provider = "openai"` with an
+`http://` `ai.base_url`), see
+[Repairing a strict-invalid configuration](configuration-guide.md#repairing-a-strict-invalid-configuration).
 
 ### JSON output
 
@@ -575,8 +578,12 @@ subx-cli --output json config set ai.provider openrouter
 
 `get`, `list`, and `reset` emit `data: { "config": <object> }` (with
 sensitive values like `ai.api_key` masked). `set` emits
-`data: { "key": "<key>", "value": "<masked-value>" }`. Errors use the
-uniform error envelope. Full schema in
+`data: { "key": "<key>", "value": "<masked-value>" }`. When the persisted
+configuration fails strict validation, `get` and `list` additionally
+populate the top-level `warnings: ["..."]` field with the underlying
+validation error so callers can surface it without parsing stderr; in
+text mode the same advisory is emitted as a `warning:` line on stderr.
+Errors use the uniform error envelope. Full schema in
 [Machine-Readable Output](machine-readable-output.md).
 
 ## `cache` — Cache Management

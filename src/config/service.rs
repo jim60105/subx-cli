@@ -157,6 +157,31 @@ pub trait ConfigService: Send + Sync {
     /// - Type conversion or validation error
     /// - Failure to persist configuration
     fn set_config_value(&self, key: &str, value: &str) -> Result<()>;
+
+    /// Load the configuration *from the file only* without applying
+    /// environment-variable overlays and without invoking the
+    /// cross-section validator.
+    ///
+    /// This is the "tolerant load" path used exclusively by the `config`
+    /// subcommand handlers (`set`, `get`, `list`) so that users can
+    /// inspect and repair an on-disk configuration that fails strict
+    /// cross-section validation. The pre-existing strict load
+    /// ([`ConfigService::get_config`]) is unchanged and continues to
+    /// drive every other code path.
+    ///
+    /// The returned [`Config`] reflects the file's view of the
+    /// configuration. Successful invocations of this method MUST NOT
+    /// populate the strict-config cache: only configurations that have
+    /// passed cross-section validation may enter the cache.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - The file cannot be read.
+    /// - The file is not valid TOML.
+    /// - The file's contents cannot be deserialized into a [`Config`]
+    ///   (i.e. an individual field has the wrong type).
+    fn load_for_repair(&self) -> Result<Config>;
 }
 
 /// Production configuration service implementation.
@@ -630,6 +655,77 @@ impl ProductionConfigService {
     }
 }
 
+/// Read a single dot-notation configuration value from a [`Config`]
+/// snapshot.
+///
+/// This is the shared key-lookup table used by both the strict and the
+/// tolerant `config get` paths. Returns the value as a string (numerics
+/// are stringified, missing optional values are returned as the empty
+/// string), or `Err` for an unknown key.
+pub(crate) fn read_config_value_from(config: &Config, key: &str) -> Result<String> {
+    let parts: Vec<&str> = key.split('.').collect();
+    match parts.as_slice() {
+        ["ai", "provider"] => Ok(config.ai.provider.clone()),
+        ["ai", "model"] => Ok(config.ai.model.clone()),
+        ["ai", "api_key"] => Ok(config.ai.api_key.clone().unwrap_or_default()),
+        ["ai", "base_url"] => Ok(config.ai.base_url.clone()),
+        ["ai", "max_sample_length"] => Ok(config.ai.max_sample_length.to_string()),
+        ["ai", "temperature"] => Ok(config.ai.temperature.to_string()),
+        ["ai", "max_tokens"] => Ok(config.ai.max_tokens.to_string()),
+        ["ai", "retry_attempts"] => Ok(config.ai.retry_attempts.to_string()),
+        ["ai", "retry_delay_ms"] => Ok(config.ai.retry_delay_ms.to_string()),
+        ["ai", "request_timeout_seconds"] => Ok(config.ai.request_timeout_seconds.to_string()),
+
+        ["formats", "default_output"] => Ok(config.formats.default_output.clone()),
+        ["formats", "default_encoding"] => Ok(config.formats.default_encoding.clone()),
+        ["formats", "preserve_styling"] => Ok(config.formats.preserve_styling.to_string()),
+        ["formats", "encoding_detection_confidence"] => {
+            Ok(config.formats.encoding_detection_confidence.to_string())
+        }
+
+        ["sync", "default_method"] => Ok(config.sync.default_method.clone()),
+        ["sync", "max_offset_seconds"] => Ok(config.sync.max_offset_seconds.to_string()),
+        ["sync", "vad", "enabled"] => Ok(config.sync.vad.enabled.to_string()),
+        ["sync", "vad", "sensitivity"] => Ok(config.sync.vad.sensitivity.to_string()),
+        ["sync", "vad", "padding_chunks"] => Ok(config.sync.vad.padding_chunks.to_string()),
+        ["sync", "vad", "min_speech_duration_ms"] => {
+            Ok(config.sync.vad.min_speech_duration_ms.to_string())
+        }
+
+        ["general", "backup_enabled"] => Ok(config.general.backup_enabled.to_string()),
+        ["general", "max_concurrent_jobs"] => Ok(config.general.max_concurrent_jobs.to_string()),
+        ["general", "task_timeout_seconds"] => Ok(config.general.task_timeout_seconds.to_string()),
+        ["general", "enable_progress_bar"] => Ok(config.general.enable_progress_bar.to_string()),
+        ["general", "worker_idle_timeout_seconds"] => {
+            Ok(config.general.worker_idle_timeout_seconds.to_string())
+        }
+        ["general", "max_subtitle_bytes"] => Ok(config.general.max_subtitle_bytes.to_string()),
+        ["general", "max_audio_bytes"] => Ok(config.general.max_audio_bytes.to_string()),
+
+        ["parallel", "max_workers"] => Ok(config.parallel.max_workers.to_string()),
+        ["parallel", "task_queue_size"] => Ok(config.parallel.task_queue_size.to_string()),
+        ["parallel", "enable_task_priorities"] => {
+            Ok(config.parallel.enable_task_priorities.to_string())
+        }
+        ["parallel", "auto_balance_workers"] => {
+            Ok(config.parallel.auto_balance_workers.to_string())
+        }
+        ["parallel", "overflow_strategy"] => Ok(format!("{:?}", config.parallel.overflow_strategy)),
+
+        ["translation", "batch_size"] => Ok(config.translation.batch_size.to_string()),
+        ["translation", "default_target_language"] => Ok(config
+            .translation
+            .default_target_language
+            .clone()
+            .unwrap_or_default()),
+
+        _ => Err(SubXError::config(format!(
+            "Unknown configuration key: {}",
+            key
+        ))),
+    }
+}
+
 impl ConfigService for ProductionConfigService {
     fn get_config(&self) -> Result<Config> {
         // Check cache first
@@ -699,92 +795,33 @@ impl ConfigService for ProductionConfigService {
 
     fn get_config_value(&self, key: &str) -> Result<String> {
         let config = self.get_config()?;
-        let parts: Vec<&str> = key.split('.').collect();
-        match parts.as_slice() {
-            ["ai", "provider"] => Ok(config.ai.provider.clone()),
-            ["ai", "model"] => Ok(config.ai.model.clone()),
-            ["ai", "api_key"] => Ok(config.ai.api_key.clone().unwrap_or_default()),
-            ["ai", "base_url"] => Ok(config.ai.base_url.clone()),
-            ["ai", "max_sample_length"] => Ok(config.ai.max_sample_length.to_string()),
-            ["ai", "temperature"] => Ok(config.ai.temperature.to_string()),
-            ["ai", "max_tokens"] => Ok(config.ai.max_tokens.to_string()),
-            ["ai", "retry_attempts"] => Ok(config.ai.retry_attempts.to_string()),
-            ["ai", "retry_delay_ms"] => Ok(config.ai.retry_delay_ms.to_string()),
-            ["ai", "request_timeout_seconds"] => Ok(config.ai.request_timeout_seconds.to_string()),
-
-            ["formats", "default_output"] => Ok(config.formats.default_output.clone()),
-            ["formats", "default_encoding"] => Ok(config.formats.default_encoding.clone()),
-            ["formats", "preserve_styling"] => Ok(config.formats.preserve_styling.to_string()),
-            ["formats", "encoding_detection_confidence"] => {
-                Ok(config.formats.encoding_detection_confidence.to_string())
-            }
-
-            ["sync", "default_method"] => Ok(config.sync.default_method.clone()),
-            ["sync", "max_offset_seconds"] => Ok(config.sync.max_offset_seconds.to_string()),
-            ["sync", "vad", "enabled"] => Ok(config.sync.vad.enabled.to_string()),
-            ["sync", "vad", "sensitivity"] => Ok(config.sync.vad.sensitivity.to_string()),
-            ["sync", "vad", "padding_chunks"] => Ok(config.sync.vad.padding_chunks.to_string()),
-            ["sync", "vad", "min_speech_duration_ms"] => {
-                Ok(config.sync.vad.min_speech_duration_ms.to_string())
-            }
-
-            ["general", "backup_enabled"] => Ok(config.general.backup_enabled.to_string()),
-            ["general", "max_concurrent_jobs"] => {
-                Ok(config.general.max_concurrent_jobs.to_string())
-            }
-            ["general", "task_timeout_seconds"] => {
-                Ok(config.general.task_timeout_seconds.to_string())
-            }
-            ["general", "enable_progress_bar"] => {
-                Ok(config.general.enable_progress_bar.to_string())
-            }
-            ["general", "worker_idle_timeout_seconds"] => {
-                Ok(config.general.worker_idle_timeout_seconds.to_string())
-            }
-            ["general", "max_subtitle_bytes"] => Ok(config.general.max_subtitle_bytes.to_string()),
-            ["general", "max_audio_bytes"] => Ok(config.general.max_audio_bytes.to_string()),
-
-            ["parallel", "max_workers"] => Ok(config.parallel.max_workers.to_string()),
-            ["parallel", "task_queue_size"] => Ok(config.parallel.task_queue_size.to_string()),
-            ["parallel", "enable_task_priorities"] => {
-                Ok(config.parallel.enable_task_priorities.to_string())
-            }
-            ["parallel", "auto_balance_workers"] => {
-                Ok(config.parallel.auto_balance_workers.to_string())
-            }
-            ["parallel", "overflow_strategy"] => {
-                Ok(format!("{:?}", config.parallel.overflow_strategy))
-            }
-
-            ["translation", "batch_size"] => Ok(config.translation.batch_size.to_string()),
-            ["translation", "default_target_language"] => Ok(config
-                .translation
-                .default_target_language
-                .clone()
-                .unwrap_or_default()),
-
-            _ => Err(SubXError::config(format!(
-                "Unknown configuration key: {}",
-                key
-            ))),
-        }
+        read_config_value_from(&config, key)
     }
 
     fn set_config_value(&self, key: &str, value: &str) -> Result<()> {
-        // 1. Load current configuration
-        let mut config = self.get_config()?;
+        // 1. Load current configuration *from the file only* (tolerant
+        //    load) so that an existing strict-invalid file does not
+        //    prevent the user from repairing it. Env-variable overlays
+        //    are deliberately omitted: `config set` writes file-derived
+        //    values back to disk and must not bake env-only secrets
+        //    (e.g. `OPENAI_API_KEY`) into the persisted file.
+        let mut config = self.load_for_repair()?;
 
-        // 2. Validate and set the value
+        // 2. Field-validate the new value, mutate `config`, and run
+        //    cross-section validation on the *post-mutation* config.
+        //    Both the field-level check and the cross-section check
+        //    happen inside `validate_and_set_value`; we MUST NOT
+        //    duplicate the cross-section call at this level.
         self.validate_and_set_value(&mut config, key, value)?;
 
-        // 3. Validate the entire configuration
-        crate::config::validator::validate_config(&config)?;
-
-        // 4. Save to file
+        // 3. Save to file (only reached when step 2 succeeded, which
+        //    guarantees the on-disk file we are about to write passes
+        //    strict cross-section validation).
         let path = self.get_config_file_path()?;
         self.save_config_to_file_with_config(&path, &config)?;
 
-        // 5. Update cache
+        // 4. Update cache. Only strict-valid configurations are allowed
+        //    to enter the cache, so this assignment is sound.
         {
             let mut cache = self.cached_config.write().unwrap();
             *cache = Some(config);
@@ -804,6 +841,60 @@ impl ConfigService for ProductionConfigService {
             .map_err(|e| SubXError::config(format!("Failed to write config file: {}", e)))?;
 
         self.reload()
+    }
+
+    fn load_for_repair(&self) -> Result<Config> {
+        // Tolerant load: read only the file (no env overlay), parse as
+        // TOML directly without falling back to defaults, canonicalize
+        // the AI provider, and return. Cross-section validation is
+        // deliberately skipped so users can repair an on-disk file that
+        // currently fails strict validation. This method MUST NOT
+        // populate the strict-config cache.
+        let path = self.get_config_file_path()?;
+
+        // A missing file means "the user has never written one"; in
+        // that case there is no on-disk state to repair, so fall back
+        // to defaults. (This matches the strict-load path's behavior
+        // when the file does not exist.)
+        if !path.exists() {
+            debug!(
+                "ProductionConfigService::load_for_repair: file {} does not exist, using defaults",
+                path.display()
+            );
+            return Ok(Config::default());
+        }
+
+        let content = std::fs::read_to_string(&path).map_err(|e| {
+            SubXError::config(format!(
+                "Failed to read configuration file {}: {}",
+                path.display(),
+                e
+            ))
+        })?;
+
+        let mut config = toml::from_str::<Config>(&content).map_err(|e| {
+            SubXError::config(format!(
+                "Failed to parse configuration file {}: {}",
+                path.display(),
+                e
+            ))
+        })?;
+
+        // Canonicalize the provider so downstream consumers see the
+        // canonical form (`ollama` → `local`, etc.).
+        config.ai.provider =
+            crate::config::field_validator::normalize_ai_provider(&config.ai.provider);
+
+        // Run per-field validation across every configuration section
+        // so that malformed individual values (out-of-range numbers,
+        // unknown enum variants, malformed URLs, etc.) are rejected
+        // here even though cross-section validation is skipped. This
+        // keeps `load_for_repair` strictly stronger than TOML parsing
+        // alone and prevents `config set/get/list` from silently
+        // accepting field-level garbage.
+        crate::config::field_validator::validate_all_fields(&config)?;
+
+        Ok(config)
     }
 }
 

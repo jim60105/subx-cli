@@ -107,7 +107,7 @@
 //! config_command::execute(get_args).await?;
 //! ```
 
-use crate::cli::output::{active_mode, emit_success};
+use crate::cli::output::{active_mode, emit_success, emit_success_with_warnings};
 use crate::cli::{ConfigAction, ConfigArgs};
 use crate::config::{ConfigService, mask_sensitive_value};
 use crate::error::{SubXError, SubXResult};
@@ -140,6 +140,43 @@ fn build_config_value(config_service: &dyn ConfigService) -> SubXResult<Value> {
         .map_err(|e| SubXError::config(format!("JSON serialization error: {e}")))
 }
 
+/// Build a JSON-friendly view of the configuration using the *tolerant*
+/// load path so that an existing strict-invalid `config.toml` does not
+/// prevent `config get`/`list` from inspecting it.
+///
+/// The returned vector contains zero or more advisory warnings: it is
+/// non-empty iff the on-disk configuration fails cross-section
+/// validation. Callers MUST surface these warnings either via
+/// [`emit_success_with_warnings`] (JSON mode) or as stderr lines (text
+/// mode) so the user can see *why* the on-disk file is currently
+/// invalid before issuing the repair `config set` mutation.
+fn build_config_value_for_repair(
+    config_service: &dyn ConfigService,
+) -> SubXResult<(Value, Vec<String>)> {
+    let mut config = config_service.load_for_repair()?;
+    let warnings = collect_strict_validation_warnings(&config);
+    if let Some(key) = config.ai.api_key.as_ref() {
+        config.ai.api_key = Some(mask_sensitive_value("ai.api_key", key));
+    }
+    let value = serde_json::to_value(&config)
+        .map_err(|e| SubXError::config(format!("JSON serialization error: {e}")))?;
+    Ok((value, warnings))
+}
+
+/// Run cross-section validation on `config` purely for diagnostic
+/// purposes. Returns one user-friendly warning string per validation
+/// failure; for the typical "single validator error" case the vector
+/// has length 1. The returned vector is empty when `config` is
+/// strict-valid.
+fn collect_strict_validation_warnings(config: &crate::config::Config) -> Vec<String> {
+    match crate::config::validator::validate_config(config) {
+        Ok(()) => Vec::new(),
+        Err(err) => {
+            vec![format!("configuration is currently invalid: {err}")]
+        }
+    }
+}
+
 async fn run_config_action(args: ConfigArgs, config_service: &dyn ConfigService) -> SubXResult<()> {
     let mode = active_mode();
     let json_mode = mode.is_json();
@@ -169,30 +206,40 @@ async fn run_config_action(args: ConfigArgs, config_service: &dyn ConfigService)
             }
         }
         ConfigAction::Get { key } => {
-            let value = config_service.get_config_value(&key)?;
+            // Tolerant read: load the file directly so users can
+            // inspect a strict-invalid configuration.
+            let config = config_service.load_for_repair()?;
+            let warnings = collect_strict_validation_warnings(&config);
+            let value = crate::config::service::read_config_value_from(&config, &key)?;
             let masked = mask_sensitive_value(&key, &value);
             if json_mode {
                 let mut obj = Map::new();
                 obj.insert(key.clone(), Value::String(masked));
-                emit_success(
+                emit_success_with_warnings(
                     mode,
                     "config",
                     ConfigPayload {
                         config: Value::Object(obj),
                     },
+                    warnings,
                 );
             } else {
                 println!("{masked}");
+                for warning in &warnings {
+                    eprintln!("warning: {warning}");
+                }
             }
         }
         ConfigAction::List => {
             if json_mode {
+                let (config_value, warnings) = build_config_value_for_repair(config_service)?;
                 let payload = ConfigPayload {
-                    config: build_config_value(config_service)?,
+                    config: config_value,
                 };
-                emit_success(mode, "config", payload);
+                emit_success_with_warnings(mode, "config", payload, warnings);
             } else {
-                let mut config = config_service.get_config()?;
+                let mut config = config_service.load_for_repair()?;
+                let warnings = collect_strict_validation_warnings(&config);
                 if let Ok(path) = config_service.get_config_file_path() {
                     println!("# Configuration file path: {}\n", path.display());
                 }
@@ -204,6 +251,9 @@ async fn run_config_action(args: ConfigArgs, config_service: &dyn ConfigService)
                     toml::to_string_pretty(&config)
                         .map_err(|e| SubXError::config(format!("TOML serialization error: {e}")))?
                 );
+                for warning in &warnings {
+                    eprintln!("warning: {warning}");
+                }
             }
         }
         ConfigAction::Reset => {

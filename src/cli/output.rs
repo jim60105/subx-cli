@@ -282,6 +282,41 @@ pub fn emit_success<T: Serialize>(mode: OutputMode, command: &str, data: T) {
     }
 }
 
+/// Emit a success envelope with optional non-fatal warnings attached.
+///
+/// Behaves like [`emit_success`] in [`OutputMode::Text`] (no-op) and in
+/// [`OutputMode::Json`] writes a JSON envelope whose `warnings` field is
+/// set to `Some(warnings)` when the supplied vector is non-empty, or
+/// `None` (omitted via `skip_serializing_if`) when the vector is empty.
+/// This keeps the JSON document byte-equivalent to the no-warnings shape
+/// for callers that pass in an empty list.
+pub fn emit_success_with_warnings<T: Serialize>(
+    mode: OutputMode,
+    command: &str,
+    data: T,
+    warnings: Vec<String>,
+) {
+    match mode {
+        OutputMode::Text => {}
+        OutputMode::Json => {
+            let warnings = if warnings.is_empty() {
+                None
+            } else {
+                Some(warnings)
+            };
+            let envelope = Envelope::<T> {
+                schema_version: SCHEMA_VERSION,
+                command,
+                status: "ok",
+                data: Some(data),
+                error: None,
+                warnings,
+            };
+            let _ = JsonRenderer::stdout().write_envelope(&envelope);
+        }
+    }
+}
+
 /// Emit an error envelope through the appropriate renderer.
 ///
 /// In [`OutputMode::Text`] this is a no-op (the existing `print_error`

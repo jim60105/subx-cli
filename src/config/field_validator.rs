@@ -268,6 +268,109 @@ pub fn validate_field(key: &str, value: &str) -> Result<()> {
     Ok(())
 }
 
+/// Validate every field of a fully-deserialized
+/// [`Config`](crate::config::Config) using the
+/// same per-key rules as [`validate_field`]. This is used by
+/// `ConfigService::load_for_repair` so that a TOML-parsed but
+/// strict-invalid config still has its individual field invariants
+/// enforced before being handed to the `config set/get/list` handlers.
+///
+/// Cross-section validation (e.g. provider/scheme pairings) is **not**
+/// performed here — that lives in [`crate::config::validator::validate_config`].
+///
+/// # Errors
+///
+/// Returns the first per-field validation error encountered.
+pub fn validate_all_fields(config: &crate::config::Config) -> Result<()> {
+    let ai = &config.ai;
+    validate_field("ai.provider", &ai.provider)?;
+    validate_field("ai.model", &ai.model)?;
+    if let Some(ref key) = ai.api_key {
+        validate_field("ai.api_key", key)?;
+    }
+    validate_field("ai.base_url", &ai.base_url)?;
+    validate_field("ai.temperature", &ai.temperature.to_string())?;
+    validate_field("ai.max_tokens", &ai.max_tokens.to_string())?;
+    validate_field("ai.max_sample_length", &ai.max_sample_length.to_string())?;
+    validate_field("ai.retry_attempts", &ai.retry_attempts.to_string())?;
+    validate_field("ai.retry_delay_ms", &ai.retry_delay_ms.to_string())?;
+    validate_field(
+        "ai.request_timeout_seconds",
+        &ai.request_timeout_seconds.to_string(),
+    )?;
+    if let Some(ref v) = ai.api_version {
+        validate_field("ai.api_version", v)?;
+    }
+
+    let s = &config.sync;
+    validate_field("sync.default_method", &s.default_method)?;
+    validate_field("sync.max_offset_seconds", &s.max_offset_seconds.to_string())?;
+    validate_field("sync.vad.enabled", &s.vad.enabled.to_string())?;
+    validate_field("sync.vad.sensitivity", &s.vad.sensitivity.to_string())?;
+    validate_field("sync.vad.padding_chunks", &s.vad.padding_chunks.to_string())?;
+    validate_field(
+        "sync.vad.min_speech_duration_ms",
+        &s.vad.min_speech_duration_ms.to_string(),
+    )?;
+
+    let f = &config.formats;
+    validate_field("formats.default_output", &f.default_output)?;
+    validate_field("formats.preserve_styling", &f.preserve_styling.to_string())?;
+    validate_field("formats.default_encoding", &f.default_encoding)?;
+    validate_field(
+        "formats.encoding_detection_confidence",
+        &f.encoding_detection_confidence.to_string(),
+    )?;
+
+    let g = &config.general;
+    validate_field("general.backup_enabled", &g.backup_enabled.to_string())?;
+    validate_field(
+        "general.max_concurrent_jobs",
+        &g.max_concurrent_jobs.to_string(),
+    )?;
+    validate_field(
+        "general.task_timeout_seconds",
+        &g.task_timeout_seconds.to_string(),
+    )?;
+    validate_field(
+        "general.enable_progress_bar",
+        &g.enable_progress_bar.to_string(),
+    )?;
+    validate_field(
+        "general.worker_idle_timeout_seconds",
+        &g.worker_idle_timeout_seconds.to_string(),
+    )?;
+    validate_field(
+        "general.max_subtitle_bytes",
+        &g.max_subtitle_bytes.to_string(),
+    )?;
+    validate_field("general.max_audio_bytes", &g.max_audio_bytes.to_string())?;
+
+    let p = &config.parallel;
+    validate_field("parallel.max_workers", &p.max_workers.to_string())?;
+    validate_field("parallel.task_queue_size", &p.task_queue_size.to_string())?;
+    validate_field(
+        "parallel.enable_task_priorities",
+        &p.enable_task_priorities.to_string(),
+    )?;
+    validate_field(
+        "parallel.auto_balance_workers",
+        &p.auto_balance_workers.to_string(),
+    )?;
+    validate_field(
+        "parallel.overflow_strategy",
+        &format!("{:?}", p.overflow_strategy),
+    )?;
+
+    let t = &config.translation;
+    validate_field("translation.batch_size", &t.batch_size.to_string())?;
+    if let Some(ref lang) = t.default_target_language {
+        validate_field("translation.default_target_language", lang)?;
+    }
+
+    Ok(())
+}
+
 /// Get a user-friendly description for a configuration field.
 pub fn get_field_description(key: &str) -> &'static str {
     match key {
@@ -1024,5 +1127,41 @@ mod tests {
             "Configuration field"
         );
         assert_eq!(get_field_description(""), "Configuration field");
+    }
+
+    // ── validate_all_fields ──────────────────────────────────────────────────
+
+    #[test]
+    fn validate_all_fields_accepts_default_config() {
+        let cfg = crate::config::Config::default();
+        assert!(validate_all_fields(&cfg).is_ok());
+    }
+
+    #[test]
+    fn validate_all_fields_rejects_out_of_range_max_sample_length() {
+        let mut cfg = crate::config::Config::default();
+        cfg.ai.max_sample_length = 10;
+        assert!(validate_all_fields(&cfg).is_err());
+    }
+
+    #[test]
+    fn validate_all_fields_rejects_out_of_range_retry_delay_ms() {
+        let mut cfg = crate::config::Config::default();
+        cfg.ai.retry_delay_ms = 50;
+        assert!(validate_all_fields(&cfg).is_err());
+    }
+
+    #[test]
+    fn validate_all_fields_rejects_out_of_range_max_subtitle_bytes() {
+        let mut cfg = crate::config::Config::default();
+        cfg.general.max_subtitle_bytes = 10;
+        assert!(validate_all_fields(&cfg).is_err());
+    }
+
+    #[test]
+    fn validate_all_fields_rejects_oversized_task_queue_size() {
+        let mut cfg = crate::config::Config::default();
+        cfg.parallel.task_queue_size = 999_999;
+        assert!(validate_all_fields(&cfg).is_err());
     }
 }

@@ -408,6 +408,32 @@ restore defaults.
 If the config file cannot be written, verify write permissions on the
 configuration directory and check available disk space.
 
+### Repairing a strict-invalid configuration
+
+A persisted `config.toml` can become *strict-invalid* if a cross-section
+constraint is violated — for example, `ai.provider = "openai"` paired with
+an `http://` `ai.base_url` (hosted providers require `https://`), or an
+incompatible combination produced by hand-editing the file.
+
+In that state, `subx-cli config set`, `config get`, `config list`, and
+`config reset` continue to work: they load the file through a tolerant
+path that performs only TOML parsing and provider-name canonicalization,
+so you can repair the configuration in place. For example, to flip a
+hosted-provider/`http://` mismatch to the local provider:
+
+```bash
+subx-cli config set ai.provider local
+```
+
+`config get` and `config list` still emit the underlying validation error
+as an advisory: a `warning:` line on stderr in text mode, and a top-level
+`warnings: ["..."]` field in the JSON envelope. Strict validation runs
+after every mutation, so writes that would leave the file invalid are
+rejected and the original bytes are preserved on disk.
+
+All non-`config` subcommands (`match`, `sync`, `convert`, `translate`,
+`cache`, etc.) continue to refuse to run against a strict-invalid file.
+
 Common error messages and their causes:
 
 - **"Configuration validation failed"** — A value is outside its allowed
