@@ -172,6 +172,135 @@ fn test_no_trailing_blank_line_at_eof() {
     assert_eq!(subtitle.entries[0].text, "Final cue");
 }
 
+// ── CRLF / line-ending tolerance regression tests ───────────────────────────
+
+const SAMPLE_LF_3CUE_VTT: &str = concat!(
+    "WEBVTT\n\n",
+    "1\n00:00:01.000 --> 00:00:02.000\nHello\n\n",
+    "2\n00:00:02.000 --> 00:00:03.000\nWorld\n\n",
+    "3\n00:00:03.000 --> 00:00:04.000\nThree\n",
+);
+
+#[test]
+fn vtt_crlf_only_input_parses_all_cues() {
+    let crlf = SAMPLE_LF_3CUE_VTT.replace('\n', "\r\n");
+    let lf = VttFormat.parse(SAMPLE_LF_3CUE_VTT).unwrap();
+    let parsed = VttFormat.parse(&crlf).unwrap();
+    assert_eq!(parsed.entries.len(), 3);
+    assert_eq!(parsed.entries.len(), lf.entries.len());
+    for (a, b) in parsed.entries.iter().zip(lf.entries.iter()) {
+        assert_eq!(a.start_time, b.start_time);
+        assert_eq!(a.end_time, b.end_time);
+        assert_eq!(a.text, b.text);
+    }
+}
+
+#[test]
+fn vtt_mixed_lf_and_crlf_parses_correctly() {
+    // CRLF header + LF body + one `\r\n\n` separator inside the body.
+    let mixed = concat!(
+        "WEBVTT\r\n\r\n",
+        "1\n00:00:01.000 --> 00:00:02.000\nHello\r\n\n",
+        "2\n00:00:02.000 --> 00:00:03.000\nWorld\n\n",
+        "3\r\n00:00:03.000 --> 00:00:04.000\r\nThree\r\n",
+    );
+    let parsed = VttFormat.parse(mixed).unwrap();
+    let lf = VttFormat.parse(SAMPLE_LF_3CUE_VTT).unwrap();
+    assert_eq!(parsed.entries.len(), lf.entries.len());
+    for (a, b) in parsed.entries.iter().zip(lf.entries.iter()) {
+        assert_eq!(a.text, b.text);
+    }
+}
+
+#[test]
+fn vtt_bare_cr_blank_line_separates_blocks() {
+    let bare = SAMPLE_LF_3CUE_VTT.replace('\n', "\r");
+    let parsed = VttFormat.parse(&bare).unwrap();
+    let lf = VttFormat.parse(SAMPLE_LF_3CUE_VTT).unwrap();
+    assert_eq!(parsed.entries.len(), 3);
+    for (a, b) in parsed.entries.iter().zip(lf.entries.iter()) {
+        assert_eq!(a.text, b.text);
+    }
+}
+
+#[test]
+fn vtt_multi_line_cue_text_with_crlf_preserves_text() {
+    let crlf = "WEBVTT\r\n\r\n1\r\n00:00:01.000 --> 00:00:02.000\r\nLine1\r\nLine2\r\n";
+    let lf = "WEBVTT\n\n1\n00:00:01.000 --> 00:00:02.000\nLine1\nLine2\n";
+    let parsed_crlf = VttFormat.parse(crlf).unwrap();
+    let parsed_lf = VttFormat.parse(lf).unwrap();
+    assert_eq!(parsed_crlf.entries.len(), 1);
+    assert_eq!(parsed_crlf.entries[0].text, parsed_lf.entries[0].text);
+    assert_eq!(parsed_crlf.entries[0].text, "Line1\nLine2");
+}
+
+#[test]
+fn vtt_crlf_input_does_not_yield_zero_entries() {
+    // Regression guard for the original bug: a 2-cue CRLF VTT used to
+    // parse to zero entries because the cue marker line's trailing
+    // `\r` defeated the timing regex.
+    let crlf = concat!(
+        "WEBVTT\r\n\r\n",
+        "1\r\n00:00:01.000 --> 00:00:02.000\r\nFirst\r\n\r\n",
+        "2\r\n00:00:02.000 --> 00:00:03.000\r\nSecond\r\n",
+    );
+    let parsed = VttFormat.parse(crlf).unwrap();
+    assert_eq!(parsed.entries.len(), 2);
+}
+
+#[test]
+fn vtt_crlf_oversized_cue_caps_on_raw_bytes() {
+    let header = "WEBVTT\r\n\r\n1\r\n00:00:01.000 --> 00:00:02.000\r\n";
+    let line_count: usize = 400_000;
+    let mut payload = String::with_capacity(line_count * 3);
+    for _ in 0..line_count {
+        payload.push_str("x\r\n");
+    }
+    let oversized = format!("{header}{payload}");
+    assert!(
+        oversized.len() > MAX_CUE_BYTES,
+        "test setup: raw must exceed cap"
+    );
+    // Lock Decision 7: normalized length must be under the cap, so the
+    // only way the parser can reject this input is by checking the raw
+    // pre-normalization bytes.
+    let normalized_len = oversized.replace("\r\n", "\n").replace('\r', "\n").len();
+    assert!(
+        normalized_len <= MAX_CUE_BYTES,
+        "test setup: normalized must fit under cap to prove raw-byte enforcement"
+    );
+    let err = VttFormat.parse(&oversized).unwrap_err();
+    assert!(
+        matches!(err, SubXError::SubtitleFormat { .. }),
+        "expected SubtitleFormat error for raw-oversized CRLF cue, got: {err:?}"
+    );
+}
+
+#[test]
+fn vtt_oversized_note_block_is_skipped_not_rejected() {
+    // A `NOTE` block whose raw byte length exceeds the per-cue cap
+    // must still be skipped silently — the cap applies only to cue
+    // blocks. Constructed via `NOTE\r\n` followed by many short lines
+    // so the block stays a single block (no blank-line separators
+    // inside it).
+    let line_count: usize = 400_000;
+    let mut note = String::with_capacity(8 + line_count * 3);
+    note.push_str("NOTE\r\n");
+    for _ in 0..line_count {
+        note.push_str("x\r\n");
+    }
+    let input = format!("WEBVTT\r\n\r\n{note}\r\n1\r\n00:00:01.000 --> 00:00:02.000\r\nHello\r\n");
+    assert!(
+        input.len() > MAX_CUE_BYTES,
+        "test setup: NOTE must exceed cap"
+    );
+    let parsed = VttFormat
+        .parse(&input)
+        .expect("oversized NOTE block must be skipped, not rejected");
+    assert_eq!(parsed.entries.len(), 1);
+    assert_eq!(parsed.entries[0].text, "Hello");
+}
+
 #[cfg(feature = "slow-tests")]
 mod proptests {
     //! Property-style mutation harness gated behind the `slow-tests`

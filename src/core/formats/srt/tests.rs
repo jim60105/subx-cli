@@ -220,6 +220,140 @@ fn test_srt_cue_over_cap_is_rejected() {
     );
 }
 
+// ── CRLF / line-ending tolerance regression tests ───────────────────────────
+
+const SAMPLE_LF_3CUE: &str = concat!(
+    "1\n00:00:01,000 --> 00:00:02,000\nHello\n\n",
+    "2\n00:00:02,000 --> 00:00:03,000\nWorld\n\n",
+    "3\n00:00:03,000 --> 00:00:04,000\nThree\n",
+);
+
+#[test]
+fn srt_crlf_only_input_parses_all_cues() {
+    let crlf = SAMPLE_LF_3CUE.replace('\n', "\r\n");
+    let lf = SrtFormat.parse(SAMPLE_LF_3CUE).unwrap();
+    let parsed = SrtFormat.parse(&crlf).unwrap();
+    assert_eq!(parsed.entries.len(), lf.entries.len());
+    assert_eq!(parsed.entries.len(), 3);
+    for (a, b) in parsed.entries.iter().zip(lf.entries.iter()) {
+        assert_eq!(a.index, b.index);
+        assert_eq!(a.start_time, b.start_time);
+        assert_eq!(a.end_time, b.end_time);
+        assert_eq!(a.text, b.text);
+    }
+}
+
+#[test]
+fn srt_mixed_lf_and_crlf_parses_correctly() {
+    // First cue uses CRLF, second uses LF, with one CRLF+LF (`\r\n\n`)
+    // separator between the second and third blocks.
+    let mixed = concat!(
+        "1\r\n00:00:01,000 --> 00:00:02,000\r\nHello\r\n\r\n",
+        "2\n00:00:02,000 --> 00:00:03,000\nWorld\r\n\n",
+        "3\n00:00:03,000 --> 00:00:04,000\nThree\n",
+    );
+    let parsed = SrtFormat.parse(mixed).unwrap();
+    let lf = SrtFormat.parse(SAMPLE_LF_3CUE).unwrap();
+    assert_eq!(parsed.entries.len(), lf.entries.len());
+    for (a, b) in parsed.entries.iter().zip(lf.entries.iter()) {
+        assert_eq!(a.text, b.text);
+    }
+}
+
+#[test]
+fn srt_bare_cr_blank_line_separates_blocks() {
+    // Old-Mac convention: bare `\r` line terminator with `\r\r`
+    // separating cue blocks.
+    let bare = SAMPLE_LF_3CUE.replace('\n', "\r");
+    let parsed = SrtFormat.parse(&bare).unwrap();
+    let lf = SrtFormat.parse(SAMPLE_LF_3CUE).unwrap();
+    assert_eq!(parsed.entries.len(), 3);
+    for (a, b) in parsed.entries.iter().zip(lf.entries.iter()) {
+        assert_eq!(a.text, b.text);
+    }
+}
+
+#[test]
+fn srt_multi_line_cue_text_with_crlf_preserves_text() {
+    let crlf = "1\r\n00:00:01,000 --> 00:00:02,000\r\nLine1\r\nLine2\r\n";
+    let lf = "1\n00:00:01,000 --> 00:00:02,000\nLine1\nLine2\n";
+    let parsed_crlf = SrtFormat.parse(crlf).unwrap();
+    let parsed_lf = SrtFormat.parse(lf).unwrap();
+    assert_eq!(parsed_crlf.entries.len(), 1);
+    assert_eq!(parsed_crlf.entries[0].text, parsed_lf.entries[0].text);
+    assert_eq!(parsed_crlf.entries[0].text, "Line1\nLine2");
+}
+
+#[test]
+fn srt_crlf_input_does_not_collapse_into_single_cue() {
+    // Regression guard for the original bug: a 2-cue CRLF SRT used to
+    // parse to a single entry whose text payload absorbed the rest of
+    // the file (including the `-->` arrow).
+    let crlf = concat!(
+        "1\r\n00:00:01,000 --> 00:00:02,000\r\nFirst\r\n\r\n",
+        "2\r\n00:00:02,000 --> 00:00:03,000\r\nSecond\r\n",
+    );
+    let parsed = SrtFormat.parse(crlf).unwrap();
+    assert!(
+        parsed.entries.len() > 1,
+        "CRLF input collapsed into one cue"
+    );
+    assert!(
+        !parsed.entries[0].text.contains("-->"),
+        "first cue's text payload absorbed a timing line: {:?}",
+        parsed.entries[0].text
+    );
+}
+
+#[test]
+fn srt_crlf_oversized_cue_caps_on_raw_bytes() {
+    // Build a single cue whose RAW byte length exceeds 1 MiB but whose
+    // NORMALIZED length stays under 1 MiB by using `\r\n` line
+    // terminators (each `\r\n` collapses to `\n`, shrinking the
+    // payload by 1 byte per line).
+    let header = "1\r\n00:00:01,000 --> 00:00:02,000\r\n";
+    // Each payload line is `x\r\n` (3 raw bytes, 2 normalized bytes).
+    // Choose N so raw > 1 MiB but normalized < 1 MiB.
+    let line_count: usize = 400_000;
+    let mut payload = String::with_capacity(line_count * 3);
+    for _ in 0..line_count {
+        payload.push_str("x\r\n");
+    }
+    let oversized = format!("{header}{payload}");
+    assert!(
+        oversized.len() > MAX_CUE_BYTES_FOR_TESTS,
+        "test setup: raw must exceed cap"
+    );
+    // Lock Decision 7: normalized length must be under the cap, so the
+    // only way the parser can reject this input is by checking the raw
+    // pre-normalization bytes.
+    let normalized_len = oversized.replace("\r\n", "\n").replace('\r', "\n").len();
+    assert!(
+        normalized_len <= MAX_CUE_BYTES_FOR_TESTS,
+        "test setup: normalized must fit under cap to prove raw-byte enforcement"
+    );
+    let err = SrtFormat.parse(&oversized).unwrap_err();
+    assert!(
+        matches!(err, SubXError::SubtitleFormat { .. }),
+        "expected SubtitleFormat error for raw-oversized CRLF cue, got: {err:?}"
+    );
+}
+
+#[test]
+fn srt_crlf_with_malformed_block_skips_and_continues() {
+    // Middle block has a non-numeric index — should be skipped while
+    // the surrounding cues parse normally.
+    let crlf = concat!(
+        "1\r\n00:00:01,000 --> 00:00:02,000\r\nFirst\r\n\r\n",
+        "notanumber\r\n00:00:02,000 --> 00:00:03,000\r\nSkipped\r\n\r\n",
+        "3\r\n00:00:03,000 --> 00:00:04,000\r\nThird\r\n",
+    );
+    let parsed = SrtFormat.parse(crlf).unwrap();
+    assert_eq!(parsed.entries.len(), 2);
+    assert_eq!(parsed.entries[0].text, "First");
+    assert_eq!(parsed.entries[1].text, "Third");
+}
+
 #[cfg(feature = "slow-tests")]
 mod proptests {
     //! Property-style mutation harness gated behind the `slow-tests`

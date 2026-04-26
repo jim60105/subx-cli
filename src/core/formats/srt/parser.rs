@@ -5,6 +5,7 @@
 
 use super::time::parse_time;
 use crate::Result;
+use crate::core::formats::line_endings::{normalize_line_endings, raw_blocks};
 use crate::core::formats::{Subtitle, SubtitleEntry, SubtitleFormatType, SubtitleMetadata};
 use crate::error::SubXError;
 use regex::Regex;
@@ -44,6 +45,32 @@ pub(super) fn parse(content: &str) -> Result<Subtitle> {
             "Input is empty after BOM stripping",
         ));
     }
+
+    // Enforce the per-cue size cap on the *raw* (pre-normalization)
+    // byte length of every block. This guards against an attacker
+    // padding a multi-MiB cue with `\r` characters that would
+    // disappear after `\r\n` → `\n` collapsing and otherwise sneak
+    // past the post-normalization check below.
+    for raw_block in raw_blocks(content) {
+        if raw_block.len() > MAX_CUE_BYTES {
+            return Err(SubXError::subtitle_format(
+                "SRT",
+                format!(
+                    "Single cue block exceeds {}-byte cap (got {} bytes)",
+                    MAX_CUE_BYTES,
+                    raw_block.len()
+                ),
+            ));
+        }
+    }
+
+    // Normalize CR / CRLF terminators to LF so the existing
+    // `split("\n\n")` block-splitter, the per-block `block.lines()`
+    // walk, and the timing regex all see a single canonical form.
+    // LF-only inputs take the zero-allocation `Cow::Borrowed` fast
+    // path.
+    let normalized = normalize_line_endings(content);
+    let content: &str = &normalized;
 
     let time_regex =
         Regex::new(r"(\d{2}):(\d{2}):(\d{2}),(\d{3}) --> (\d{2}):(\d{2}):(\d{2}),(\d{3})")

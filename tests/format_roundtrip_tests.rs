@@ -100,20 +100,17 @@ fn parse_fixture(path: &Path) -> Subtitle {
 fn expected_entry_count(fixture: &Path) -> Option<usize> {
     let name = fixture.file_name()?.to_str()?;
     Some(match name {
-        // SRT — 2 cue blocks for the LF/BOM corpus; 1 for CRLF because the
-        // `"\n\n"` splitter does not split `"\r\n\r\n"` and the second cue
-        // is absorbed into the first entry's text payload (intentional
-        // freeze of pre-existing behavior).
-        "basic.srt" | "bom.srt" => 2,
-        "basic.crlf.srt" => 1,
+        // SRT — 2 cue blocks for both LF/BOM and CRLF after the
+        // line-ending-tolerant block splitter landed; CRLF inputs
+        // now parse to the same entry count as their LF counterpart.
+        "basic.srt" | "bom.srt" | "basic.crlf.srt" => 2,
 
         // ASS — line-based parser, CRLF and LF parse identically.
         "basic.ass" | "basic.crlf.ass" | "bom.ass" => 2,
 
-        // VTT — 2 cues for LF/BOM; 0 for CRLF because the cue-marker line's
-        // trailing `\r` defeats the time regex (intentional freeze).
-        "basic.vtt" | "bom.vtt" => 2,
-        "basic.crlf.vtt" => 0,
+        // VTT — 2 cues for LF/BOM and (after the line-ending-tolerant
+        // splitter landed) for CRLF as well.
+        "basic.vtt" | "bom.vtt" | "basic.crlf.vtt" => 2,
 
         // SUB — line-based, CRLF and LF parse identically.
         "basic.sub" | "basic.crlf.sub" => 2,

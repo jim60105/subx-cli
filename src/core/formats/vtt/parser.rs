@@ -24,6 +24,7 @@
 //! encoding layer) still receive BOM tolerance.
 
 use crate::Result;
+use crate::core::formats::line_endings::{normalize_line_endings, raw_blocks};
 use crate::core::formats::{Subtitle, SubtitleEntry, SubtitleFormatType, SubtitleMetadata};
 use crate::error::SubXError;
 use regex::Regex;
@@ -65,6 +66,43 @@ pub(super) fn parse(content: &str) -> Result<Subtitle> {
             "missing WEBVTT signature",
         ));
     }
+
+    // Enforce the per-cue size cap on the *raw* (pre-normalization)
+    // byte length of every cue block, BEFORE collapsing CR / CRLF to
+    // LF. This prevents an attacker from padding a multi-MiB cue with
+    // `\r` bytes that would disappear after normalization. Non-cue
+    // blocks (the `WEBVTT` header, `NOTE`, `STYLE`) are exempt to
+    // preserve the pre-existing skip behavior — only blocks that the
+    // post-normalization loop would treat as cues are size-checked
+    // here.
+    for raw_block in raw_blocks(content) {
+        let trimmed = raw_block.trim();
+        if trimmed.is_empty()
+            || trimmed.starts_with("WEBVTT")
+            || trimmed.starts_with("NOTE")
+            || trimmed.starts_with("STYLE")
+        {
+            continue;
+        }
+        if raw_block.len() > MAX_CUE_BYTES {
+            return Err(SubXError::subtitle_format(
+                FORMAT_NAME,
+                format!(
+                    "cue block of {} bytes exceeds per-cue cap of {} bytes",
+                    raw_block.len(),
+                    MAX_CUE_BYTES
+                ),
+            ));
+        }
+    }
+
+    // Normalize CR / CRLF terminators to LF so the existing
+    // `split("\n\n")` block-splitter, the per-block `block.lines()`
+    // walk, and the timing regex all see a single canonical form.
+    // LF-only inputs take the zero-allocation `Cow::Borrowed` fast
+    // path.
+    let normalized = normalize_line_endings(content);
+    let content: &str = &normalized;
 
     let time_re =
         Regex::new(r"(?m)^(\d{2}):(\d{2}):(\d{2})\.(\d{3}) --> (\d{2}):(\d{2}):(\d{2})\.(\d{3})")

@@ -134,6 +134,7 @@
 pub mod ass;
 pub mod converter;
 pub mod encoding;
+pub(crate) mod line_endings;
 pub mod manager;
 /// SubRip Text (.srt) subtitle format support
 pub mod srt;

@@ -55,7 +55,13 @@ impl SubtitleFormat for VttFormat {
     ///   skipped, a `debug!` log records the skip, and parsing
     ///   continues.
     /// - Cue body exceeding the per-cue cap (1 MiB) → returns
-    ///   [`crate::error::SubXError::SubtitleFormat`].
+    ///   [`crate::error::SubXError::SubtitleFormat`]. The cap is enforced
+    ///   on raw pre-normalization bytes, so `\r\n` padding cannot bypass
+    ///   the limit by shrinking under line-ending normalization.
+    /// - CRLF (`\r\n`), bare-CR (`\r`), or mixed line endings → input is
+    ///   normalized to LF after the `WEBVTT` header check and before
+    ///   block splitting; CRLF and mixed inputs parse to the same entry
+    ///   count and text content as their LF counterpart.
     /// - Final cue not followed by a trailing blank line → still
     ///   recognized; the file parses successfully.
     fn parse(&self, content: &str) -> Result<Subtitle> {

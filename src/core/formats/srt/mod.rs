@@ -38,7 +38,13 @@ impl SubtitleFormat for SrtFormat {
     ///   `formats::encoding::converter::skip_bom`); BOM-only content reduces
     ///   to empty input and is rejected.
     /// - **Per-cue body exceeding `MAX_CUE_BYTES` (1 MiB)** → returns
-    ///   [`crate::error::SubXError::SubtitleFormat`].
+    ///   [`crate::error::SubXError::SubtitleFormat`]. The cap is enforced on
+    ///   raw pre-normalization bytes, so `\r\n` padding cannot bypass the
+    ///   limit by shrinking under line-ending normalization.
+    /// - **CRLF (`\r\n`), bare-CR (`\r`), or mixed line endings** → input is
+    ///   normalized to LF before block splitting; CRLF and mixed inputs
+    ///   parse to the same entry count and text content as their LF
+    ///   counterpart.
     /// - **Block with non-numeric sequence index** → skip-and-continue with
     ///   `debug!` log.
     /// - **Block with negative timestamp on the timing line** →
