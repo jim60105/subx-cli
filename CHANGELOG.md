@@ -17,10 +17,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `[translation]` configuration section with `batch_size` and `default_target_language` fields.
 - Per-file error isolation during batch translation so one failing file does not block the rest.
 
+### Changed
+- Refactored `src/core/formats/` from monolithic per-format files into directory modules (`srt/`, `ass/`, `vtt/`, `sub/`), each split into `mod.rs`, `parser.rs`, `serializer.rs`, `time.rs`, and `tests.rs`. Public API and module paths are preserved.
+- Extracted shared subtitle types and the `SubtitleFormat` trait from `formats/mod.rs` into a private `formats/types.rs` module, re-exported from `formats::*`. The `formats/mod.rs` facade is now ~150 lines.
+- Hardened all subtitle parsers with consistent defensive behavior: empty input is rejected with a typed error, BOMs are stripped at the parser layer, per-cue payloads are capped at 1 MiB, out-of-order cues are preserved (SRT/VTT), and negative timestamps are skipped without aborting the parse. VTT validates the `WEBVTT` header, ASS validates the `[Events]` section and rejects `Dialogue:` rows with fewer columns than the `Format:` line declares, and SUB rejects non-numeric frame ranges.
+
+### Known limitations
+- CRLF-only SRT and VTT inputs continue to use the pre-existing literal `"\n\n"` block splitter from before this refactor. As a result, CRLF SRT files parse to a single cue whose text payload absorbs the remaining cues (the round-trip happens to be byte-stable through the serializer), and CRLF VTT files parse to zero cue entries. ASS and SUB CRLF inputs are unaffected because their parsers are line-based. Switching the SRT/VTT splitters to a CRLF-aware regex is intentionally deferred to a separate change so this refactor remains strictly behavior-preserving.
+
+### Added
+- Round-trip golden-file regression harness (`tests/format_roundtrip_tests.rs`) with byte-for-byte fixtures under `tests/fixtures/formats/{srt,ass,vtt,sub}/`, including CRLF and BOM variants. Fixture bytes are pinned via `.gitattributes`.
+- Opt-in property-based parser fuzzing under `cargo test --features slow-tests`, using a hand-rolled xorshift64* PRNG and six mutation operators (`flip_byte`, `truncate`, `duplicate_random_line`, `inject_bom`, `oversize_cue`, `random_bytes`) in `src/core/formats/tests_support.rs`. No new runtime or dev dependencies were introduced for fuzzing.
+- `pretty_assertions` dev-dependency for diff-friendly round-trip assertions.
+
 ### Documentation
 - Documented the `translate` command, terminology consistency behavior, output naming rules, and safety flags in `docs/command-reference.md`.
 - Added the `[translation]` configuration section and `SUBX_TRANSLATION_*` environment overrides to `docs/configuration-guide.md`.
 - Updated `README.md` and `README.zh-TW.md` to include translation in the supported workflow.
+- Added a per-format hardening disposition matrix in the rustdoc of each `SubtitleFormat` implementation describing how empty input, BOMs, oversize cues, out-of-order cues, and negative timestamps are handled.
 
 ## [1.6.0] - 2026-04-25
 

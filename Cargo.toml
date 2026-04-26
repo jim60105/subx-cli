@@ -165,6 +165,9 @@ regex = "1.10"    # For test output validation
 wiremock = "0.6"
 criterion = { version = "0.6.0", features = ["html_reports"] }
 
+# diff-friendly assertions for fixture round-trip harness
+pretty_assertions = "1.4"
+
 [[bin]]
 name = "subx-cli"
 path = "src/main.rs"

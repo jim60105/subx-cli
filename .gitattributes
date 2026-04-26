@@ -1,0 +1,3 @@
+# Preserve raw byte content for parser regression fixtures.
+# These files intentionally embed CRLF / BOM bytes that must not be normalized.
+tests/fixtures/formats/** -text
