@@ -21,6 +21,7 @@
 //! All mutating operations acquire an exclusive file lock before proceeding.
 
 use crate::Result;
+use crate::cli::output::{OutputMode, active_mode, emit_success};
 use crate::cli::{ApplyArgs, CacheArgs, ClearArgs, ClearType, RollbackArgs, StatusArgs};
 use crate::config::ConfigService;
 use crate::core::lock::acquire_subx_lock;
@@ -30,10 +31,180 @@ use crate::core::matcher::journal::{
     JournalData, JournalEntry, JournalEntryStatus, JournalOperationType,
 };
 use crate::error::SubXError;
-use serde_json::json;
+use serde::Serialize;
 use std::io::IsTerminal;
 use std::path::{Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};
+
+// ─── JSON payload types (machine-readable-output / cache-management) ─────
+
+/// Per-item error embedded in cache JSON payloads.
+///
+/// Mirrors the top-level error envelope's `error` field minus
+/// `exit_code`, matching the per-file-isolation contract documented in
+/// `openspec/changes/add-machine-readable-output/specs/machine-readable-output/spec.md`.
+#[derive(Debug, Serialize)]
+pub struct CacheItemError {
+    /// Stable snake_case category from
+    /// [`crate::error::SubXError::category`].
+    pub category: String,
+    /// Stable upper-snake-case machine code from
+    /// [`crate::error::SubXError::machine_code`].
+    pub code: String,
+    /// Human-readable English message.
+    pub message: String,
+}
+
+impl CacheItemError {
+    fn from_error(err: &SubXError) -> Self {
+        Self {
+            category: err.category().to_string(),
+            code: err.machine_code().to_string(),
+            message: err.user_friendly_message(),
+        }
+    }
+}
+
+/// Stale-file entry used inside [`CacheStatusPayload::stale_files`].
+#[derive(Debug, Serialize)]
+pub struct StaleFileInfo {
+    /// Absolute path of the file as recorded in the snapshot.
+    pub path: String,
+    /// Human-readable explanation of why the entry is stale.
+    pub reason: String,
+}
+
+/// `data` payload for `cache status` JSON envelope.
+///
+/// The required spec fields are `total`, `pending`, and `applied`
+/// (non-negative integer counters). All other fields are additive
+/// enrichments preserving information already exposed by the text path.
+#[derive(Debug, Serialize)]
+pub struct CacheStatusPayload {
+    /// Resolved path to the match cache file.
+    pub path: String,
+    /// Whether the cache file exists on disk.
+    pub exists: bool,
+    /// Whether the operation journal file exists on disk.
+    pub journal_present: bool,
+    /// Total number of cached match operations (`0` when no cache).
+    pub total: u64,
+    /// Number of journal entries still pending (`0` when no journal).
+    pub pending: u64,
+    /// Number of journal entries already applied (`0` when no journal).
+    pub applied: u64,
+    /// Cache file size in bytes (omitted when no cache).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub size_bytes: Option<u64>,
+    /// Cache creation timestamp (Unix epoch seconds).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub created_at: Option<u64>,
+    /// Cache age in seconds.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub age_seconds: Option<u64>,
+    /// Cache schema version recorded in the file.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub cache_version: Option<String>,
+    /// AI model name recorded in the cache.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub ai_model: Option<String>,
+    /// Number of cached match operations (mirrors `total`).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub operation_count: Option<usize>,
+    /// Configuration hash recorded inside the cache.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub config_hash: Option<String>,
+    /// Configuration hash recomputed from the active config service.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub current_config_hash: Option<String>,
+    /// Whether `config_hash` matches `current_config_hash`.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub config_hash_match: Option<bool>,
+    /// `"valid"`, `"stale"`, or `"empty"`.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub snapshot_status: Option<&'static str>,
+    /// Per-file staleness diagnostics (only when `snapshot_status == "stale"`).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub stale_files: Option<Vec<StaleFileInfo>>,
+}
+
+/// `data` payload for `cache clear` JSON envelope.
+///
+/// Per the `cache-management` spec the only required field is
+/// `removed`; the additional fields are additive enrichments mirroring
+/// what the text path already exposes.
+#[derive(Debug, Serialize)]
+pub struct CacheClearPayload {
+    /// Number of cache files removed (0–2: cache and/or journal).
+    pub removed: u64,
+    /// Selector echoed from `--type` (`cache`, `journal`, or `all`).
+    pub kind: &'static str,
+    /// Resolved cache file path that was inspected for removal.
+    pub cache_path: String,
+    /// Whether the cache file was removed in this invocation.
+    pub cache_removed: bool,
+    /// Resolved journal file path that was inspected for removal.
+    pub journal_path: String,
+    /// Whether the journal file was removed in this invocation.
+    pub journal_removed: bool,
+}
+
+/// `data` payload for `cache rollback` JSON envelope.
+#[derive(Debug, Serialize)]
+pub struct CacheRollbackPayload {
+    /// Number of journal entries successfully rolled back.
+    pub rolled_back: u64,
+}
+
+/// Per-operation entry inside [`CacheApplyPayload::items`].
+#[derive(Debug, Serialize)]
+pub struct CacheApplyItem {
+    /// Stable identifier for the operation. Currently the cached
+    /// subtitle source path (the most stable handle the cache exposes).
+    pub id: String,
+    /// `"ok"` or `"error"`.
+    pub status: &'static str,
+    /// Populated only when `status == "error"`.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub error: Option<CacheItemError>,
+}
+
+/// `data` payload for `cache apply` JSON envelope.
+///
+/// Per the `cache-management` spec, `applied + failed == items.len()` and
+/// each entry in `items` carries per-operation `status` (`"ok"` or
+/// `"error"`) plus an optional [`CacheItemError`] when the entry failed.
+#[derive(Debug, Serialize)]
+pub struct CacheApplyPayload {
+    /// Number of cached operations applied successfully.
+    pub applied: u64,
+    /// Number of cached operations that failed to apply.
+    pub failed: u64,
+    /// Per-item status for every entry processed.
+    pub items: Vec<CacheApplyItem>,
+}
+
+/// Compute `(pending, applied)` counters from the journal at `path`,
+/// returning `(0, 0)` when the journal is missing or unreadable.
+async fn journal_counters(path: &Path) -> (u64, u64) {
+    if !path.exists() {
+        return (0, 0);
+    }
+    match JournalData::load(path).await {
+        Ok(j) => {
+            let mut pending = 0u64;
+            let mut applied = 0u64;
+            for entry in &j.entries {
+                match entry.status {
+                    JournalEntryStatus::Pending => pending += 1,
+                    JournalEntryStatus::Completed => applied += 1,
+                }
+            }
+            (pending, applied)
+        }
+        Err(_) => (0, 0),
+    }
+}
 
 /// Resolve the configuration directory, preferring `XDG_CONFIG_HOME` when set.
 ///
@@ -58,44 +229,73 @@ fn journal_path() -> Result<PathBuf> {
     Ok(get_config_dir()?.join("subx").join("match_journal.json"))
 }
 
-/// Delete `path` if it exists, printing a per-file confirmation message.
+/// Delete `path` if it exists.
 ///
 /// Returns `Ok(true)` when a file was removed, `Ok(false)` when no file was
-/// present, and propagates any I/O error encountered during deletion.
+/// present. In text mode a per-file confirmation is printed; in JSON mode
+/// stdout is silenced.
 fn clear_file(path: &Path, label: &str) -> Result<bool> {
+    let json_mode = active_mode().is_json();
     if path.exists() {
         std::fs::remove_file(path)?;
-        println!("{} cleared: {}", label, path.display());
+        if !json_mode {
+            println!("{} cleared: {}", label, path.display());
+        }
         Ok(true)
     } else {
-        println!("{} not found: {}", label, path.display());
+        if !json_mode {
+            println!("{} not found: {}", label, path.display());
+        }
         Ok(false)
     }
 }
 
 /// Handle the `cache clear` subcommand, honoring the `--type` selector.
+///
+/// In JSON mode emits a single envelope of shape
+/// `{ "removed": N, ... }` per the `cache-management` spec; in text mode
+/// preserves the original confirmation messages.
 async fn execute_clear(args: &ClearArgs) -> Result<()> {
     let _lock = acquire_subx_lock().await?;
     let config_dir = get_config_dir()?;
     let cache_file = config_dir.join("subx").join("match_cache.json");
     let journal_file = config_dir.join("subx").join("match_journal.json");
 
-    let mut cleared_any = false;
+    let json_mode = active_mode().is_json();
+    let mut cache_removed = false;
+    let mut journal_removed = false;
 
     match args.r#type {
         ClearType::Cache => {
-            cleared_any |= clear_file(&cache_file, "Cache")?;
+            cache_removed = clear_file(&cache_file, "Cache")?;
         }
         ClearType::Journal => {
-            cleared_any |= clear_file(&journal_file, "Journal")?;
+            journal_removed = clear_file(&journal_file, "Journal")?;
         }
         ClearType::All => {
-            cleared_any |= clear_file(&cache_file, "Cache")?;
-            cleared_any |= clear_file(&journal_file, "Journal")?;
+            cache_removed = clear_file(&cache_file, "Cache")?;
+            journal_removed = clear_file(&journal_file, "Journal")?;
         }
     }
 
-    if !cleared_any {
+    let removed = u64::from(cache_removed) + u64::from(journal_removed);
+
+    if json_mode {
+        let kind = match args.r#type {
+            ClearType::Cache => "cache",
+            ClearType::Journal => "journal",
+            ClearType::All => "all",
+        };
+        let payload = CacheClearPayload {
+            removed,
+            kind,
+            cache_path: cache_file.to_string_lossy().into_owned(),
+            cache_removed,
+            journal_path: journal_file.to_string_lossy().into_owned(),
+            journal_removed,
+        };
+        emit_success(OutputMode::Json, "cache", payload);
+    } else if removed == 0 {
         println!("No cache files found to clear.");
     }
     Ok(())
@@ -179,11 +379,20 @@ fn describe_snapshot(cache: &CacheData) -> (String, &'static str) {
 ///
 /// Loads cache metadata from disk and prints a summary of its location,
 /// size, age, AI model, operation count, configuration fingerprint,
-/// snapshot freshness, and whether a journal exists. Supports a
-/// machine-readable `--json` output mode for scripting.
+/// snapshot freshness, and whether a journal exists.
 ///
-/// When no cache file is present, a friendly message is printed and the
-/// function returns `Ok(())` without error.
+/// # JSON output
+///
+/// JSON mode is activated when *either* the global `--output json` flag
+/// is set *or* the legacy subcommand-local `--json` flag is supplied
+/// (the latter is preserved as a backward-compatible alias per the
+/// `cache-management` spec). Both invocations route through
+/// [`emit_success`] with the same [`CacheStatusPayload`] type and emit
+/// byte-identical output.
+///
+/// When no cache file is present, a friendly message is printed (text
+/// mode) or a payload with `total = 0`, `pending = 0`, `applied = 0` is
+/// emitted (JSON mode) and the function returns `Ok(())` without error.
 ///
 /// # Arguments
 ///
@@ -193,15 +402,35 @@ fn describe_snapshot(cache: &CacheData) -> (String, &'static str) {
 pub async fn execute_status(args: &StatusArgs, config_service: &dyn ConfigService) -> Result<()> {
     let cache_file = cache_path()?;
     let journal_file = journal_path()?;
+    // Legacy `--json` is a thin alias for the global `--output json`.
+    // When either is set, the same JSON envelope is emitted via the
+    // shared renderer so both invocations produce byte-identical output.
+    let json_mode = active_mode().is_json() || args.json;
 
     if !cache_file.exists() {
-        if args.json {
-            let payload = json!({
-                "path": cache_file.to_string_lossy(),
-                "exists": false,
-                "journal_present": journal_file.exists(),
-            });
-            println!("{}", serde_json::to_string_pretty(&payload)?);
+        let journal_present = journal_file.exists();
+        let (pending, applied) = journal_counters(&journal_file).await;
+        if json_mode {
+            let payload = CacheStatusPayload {
+                path: cache_file.to_string_lossy().into_owned(),
+                exists: false,
+                journal_present,
+                total: 0,
+                pending,
+                applied,
+                size_bytes: None,
+                created_at: None,
+                age_seconds: None,
+                cache_version: None,
+                ai_model: None,
+                operation_count: None,
+                config_hash: None,
+                current_config_hash: None,
+                config_hash_match: None,
+                snapshot_status: None,
+                stale_files: None,
+            };
+            emit_success(OutputMode::Json, "cache", payload);
         } else {
             println!("No cache found at {}", cache_file.display());
         }
@@ -235,29 +464,37 @@ pub async fn execute_status(args: &StatusArgs, config_service: &dyn ConfigServic
         Vec::new()
     };
     let journal_present = journal_file.exists();
+    let (pending, applied) = journal_counters(&journal_file).await;
+    let total = cache.match_operations.len() as u64;
 
-    if args.json {
-        let stale_files: Vec<serde_json::Value> = stale_entries
+    if json_mode {
+        let stale_files: Vec<StaleFileInfo> = stale_entries
             .iter()
-            .map(|s| json!({ "path": s.path, "reason": s.reason }))
+            .map(|s| StaleFileInfo {
+                path: s.path.clone(),
+                reason: s.reason.clone(),
+            })
             .collect();
-        let payload = json!({
-            "path": cache_file.to_string_lossy(),
-            "exists": true,
-            "size_bytes": size_bytes,
-            "created_at": cache.created_at,
-            "age_seconds": age_secs,
-            "cache_version": cache.cache_version,
-            "ai_model": cache.ai_model_used,
-            "operation_count": cache.match_operations.len(),
-            "config_hash": cache.config_hash,
-            "config_hash_match": hash_match,
-            "current_config_hash": current_hash,
-            "snapshot_status": snapshot_status,
-            "stale_files": stale_files,
-            "journal_present": journal_present,
-        });
-        println!("{}", serde_json::to_string_pretty(&payload)?);
+        let payload = CacheStatusPayload {
+            path: cache_file.to_string_lossy().into_owned(),
+            exists: true,
+            journal_present,
+            total,
+            pending,
+            applied,
+            size_bytes: Some(size_bytes),
+            created_at: Some(cache.created_at),
+            age_seconds: Some(age_secs),
+            cache_version: Some(cache.cache_version.clone()),
+            ai_model: Some(cache.ai_model_used.clone()),
+            operation_count: Some(cache.match_operations.len()),
+            config_hash: Some(cache.config_hash.clone()),
+            current_config_hash: Some(current_hash),
+            config_hash_match: Some(hash_match),
+            snapshot_status: Some(snapshot_status),
+            stale_files: Some(stale_files),
+        };
+        emit_success(OutputMode::Json, "cache", payload);
     } else {
         let config_line = if hash_match {
             "✓ (matches current)".to_string()
@@ -294,6 +531,20 @@ pub async fn execute_status(args: &StatusArgs, config_service: &dyn ConfigServic
 /// before proceeding, prompts for confirmation unless `--yes` is supplied,
 /// and aborts on non-TTY stdin without `--yes`.
 ///
+/// # JSON output
+///
+/// In JSON mode (`--output json`):
+/// - All informational `println!` chatter on stdout is suppressed so the
+///   final envelope is the only document on the stream.
+/// - The interactive confirmation prompt is skipped: callers SHALL pass
+///   `--yes`, otherwise an error envelope is emitted (prompting on
+///   stdout would corrupt the JSON document).
+/// - Each cache operation is applied individually so the per-file
+///   isolation contract from the `machine-readable-output` spec can be
+///   honored: failures are recorded as `items[i].status = "error"` with
+///   an [`CacheItemError`] populated from
+///   [`SubXError::category`]/[`SubXError::machine_code`]/[`SubXError::user_friendly_message`].
+///
 /// # Arguments
 ///
 /// * `args` - Parsed `cache apply` arguments controlling validation bypass,
@@ -302,13 +553,27 @@ pub async fn execute_status(args: &StatusArgs, config_service: &dyn ConfigServic
 ///   `MatchConfig` needed by the engine replay path.
 pub async fn execute_apply(args: &ApplyArgs, config_service: &dyn ConfigService) -> Result<()> {
     let _lock = acquire_subx_lock().await?;
+    let json_mode = active_mode().is_json();
 
     let cache_file = cache_path()?;
     if !cache_file.exists() {
-        println!(
-            "No cache found at {}. Run a dry-run match first.",
-            cache_file.display()
-        );
+        if json_mode {
+            // Empty cache → empty success envelope (`applied + failed == 0`).
+            emit_success(
+                OutputMode::Json,
+                "cache",
+                CacheApplyPayload {
+                    applied: 0,
+                    failed: 0,
+                    items: Vec::new(),
+                },
+            );
+        } else {
+            println!(
+                "No cache found at {}. Run a dry-run match first.",
+                cache_file.display()
+            );
+        }
         return Ok(());
     }
 
@@ -382,7 +647,7 @@ pub async fn execute_apply(args: &ApplyArgs, config_service: &dyn ConfigService)
             .match_operations
             .retain(|op| op.confidence >= threshold);
         let after = cache.match_operations.len();
-        if before != after {
+        if before != after && !json_mode {
             println!(
                 "Filtered {} operation(s) below {}% confidence.",
                 before - after,
@@ -392,30 +657,53 @@ pub async fn execute_apply(args: &ApplyArgs, config_service: &dyn ConfigService)
     }
 
     if cache.match_operations.is_empty() {
-        println!("No operations to apply.");
+        if json_mode {
+            emit_success(
+                OutputMode::Json,
+                "cache",
+                CacheApplyPayload {
+                    applied: 0,
+                    failed: 0,
+                    items: Vec::new(),
+                },
+            );
+        } else {
+            println!("No operations to apply.");
+        }
         return Ok(());
     }
 
-    // Display summary
-    println!("Cache Apply Summary");
-    println!("===================");
-    println!("Operations:       {}", cache.match_operations.len());
-    println!("AI model:         {}", cache.ai_model_used);
-    println!("Relocation mode:  {}", cache.original_relocation_mode);
-    println!();
-    for (i, op) in cache.match_operations.iter().enumerate() {
-        println!(
-            "  {}. {} → {} (confidence: {:.0}%)",
-            i + 1,
-            op.subtitle_file,
-            op.new_subtitle_name,
-            op.confidence * 100.0
-        );
+    if !json_mode {
+        // Display summary (text mode only)
+        println!("Cache Apply Summary");
+        println!("===================");
+        println!("Operations:       {}", cache.match_operations.len());
+        println!("AI model:         {}", cache.ai_model_used);
+        println!("Relocation mode:  {}", cache.original_relocation_mode);
+        println!();
+        for (i, op) in cache.match_operations.iter().enumerate() {
+            println!(
+                "  {}. {} → {} (confidence: {:.0}%)",
+                i + 1,
+                op.subtitle_file,
+                op.new_subtitle_name,
+                op.confidence * 100.0
+            );
+        }
+        println!();
     }
-    println!();
 
-    // Non-TTY check and interactive confirmation
+    // Non-TTY check and interactive confirmation. JSON mode forbids the
+    // interactive prompt because it would write to stdout and corrupt
+    // the single JSON document contract.
     if !args.yes {
+        if json_mode {
+            return Err(SubXError::CommandExecution(
+                "cache apply in JSON output mode requires --yes (interactive confirmation \
+                 would write to stdout and corrupt the JSON envelope)."
+                    .to_string(),
+            ));
+        }
         if !std::io::stdin().is_terminal() {
             return Err(SubXError::config(
                 "Non-interactive terminal detected. Use --yes to skip confirmation.".to_string(),
@@ -446,8 +734,69 @@ pub async fn execute_apply(args: &ApplyArgs, config_service: &dyn ConfigService)
         max_subtitle_bytes: config.general.max_subtitle_bytes,
     };
 
-    apply_cached_operations(&cache, &match_config).await?;
-    println!("Apply complete.");
+    if json_mode {
+        // Per-item application: each cache entry is replayed individually
+        // so a single failure does not abort the whole batch and so each
+        // item's outcome can be reported independently.
+        let mut items: Vec<CacheApplyItem> = Vec::with_capacity(cache.match_operations.len());
+        let mut applied = 0u64;
+        let mut failed = 0u64;
+
+        for op in &cache.match_operations {
+            let id = op.subtitle_file.clone();
+            let video_exists = std::path::Path::new(&op.video_file).exists();
+            let sub_exists = std::path::Path::new(&op.subtitle_file).exists();
+            if !video_exists || !sub_exists {
+                let missing = if !sub_exists {
+                    op.subtitle_file.clone()
+                } else {
+                    op.video_file.clone()
+                };
+                let err = SubXError::FileNotFound(missing);
+                items.push(CacheApplyItem {
+                    id,
+                    status: "error",
+                    error: Some(CacheItemError::from_error(&err)),
+                });
+                failed += 1;
+                continue;
+            }
+
+            let mut single = cache.clone();
+            single.match_operations = vec![op.clone()];
+            match apply_cached_operations(&single, &match_config).await {
+                Ok(()) => {
+                    applied += 1;
+                    items.push(CacheApplyItem {
+                        id,
+                        status: "ok",
+                        error: None,
+                    });
+                }
+                Err(e) => {
+                    failed += 1;
+                    items.push(CacheApplyItem {
+                        id,
+                        status: "error",
+                        error: Some(CacheItemError::from_error(&e)),
+                    });
+                }
+            }
+        }
+
+        emit_success(
+            OutputMode::Json,
+            "cache",
+            CacheApplyPayload {
+                applied,
+                failed,
+                items,
+            },
+        );
+    } else {
+        apply_cached_operations(&cache, &match_config).await?;
+        println!("Apply complete.");
+    }
     Ok(())
 }
 
@@ -520,10 +869,13 @@ fn verify_destination_integrity(entry: &JournalEntry) -> Result<()> {
 /// source path is vacant before renaming back. If the source already exists
 /// and `force` is false, an error is returned.
 fn rollback_entry(entry: &JournalEntry, force: bool) -> Result<()> {
+    let json_mode = active_mode().is_json();
     match entry.operation_type {
         JournalOperationType::Copied => {
             std::fs::remove_file(&entry.destination)?;
-            println!("Removed copy: {}", entry.destination.display());
+            if !json_mode {
+                println!("Removed copy: {}", entry.destination.display());
+            }
         }
         JournalOperationType::Moved | JournalOperationType::Renamed => {
             if entry.source.exists() && !force {
@@ -539,18 +891,22 @@ fn rollback_entry(entry: &JournalEntry, force: bool) -> Result<()> {
                 }
             }
             std::fs::rename(&entry.destination, &entry.source)?;
-            println!(
-                "Rolled back: {} \u{2190} {}",
-                entry.source.display(),
-                entry.destination.display()
-            );
+            if !json_mode {
+                println!(
+                    "Rolled back: {} \u{2190} {}",
+                    entry.source.display(),
+                    entry.destination.display()
+                );
+            }
         }
     }
 
     if let Some(backup) = &entry.backup_path {
         if backup.exists() {
             std::fs::remove_file(backup)?;
-            println!("Removed backup: {}", backup.display());
+            if !json_mode {
+                println!("Removed backup: {}", backup.display());
+            }
         }
     }
 
@@ -570,10 +926,19 @@ fn rollback_entry(entry: &JournalEntry, force: bool) -> Result<()> {
 /// longer matches the journal record.
 pub async fn execute_rollback(args: &RollbackArgs) -> Result<()> {
     let _lock = acquire_subx_lock().await?;
+    let json_mode = active_mode().is_json();
 
     let journal_file = journal_path()?;
     if !journal_file.exists() {
-        println!("No operation journal found. Nothing to rollback.");
+        if json_mode {
+            emit_success(
+                OutputMode::Json,
+                "cache",
+                CacheRollbackPayload { rolled_back: 0 },
+            );
+        } else {
+            println!("No operation journal found. Nothing to rollback.");
+        }
         return Ok(());
     }
 
@@ -587,25 +952,46 @@ pub async fn execute_rollback(args: &RollbackArgs) -> Result<()> {
         .collect();
 
     if reversed.is_empty() {
-        println!("Journal has no completed operations to rollback.");
+        if json_mode {
+            emit_success(
+                OutputMode::Json,
+                "cache",
+                CacheRollbackPayload { rolled_back: 0 },
+            );
+        } else {
+            println!("Journal has no completed operations to rollback.");
+        }
         return Ok(());
     }
 
-    println!(
-        "Rolling back {} operations from batch {}...",
-        reversed.len(),
-        journal.batch_id
-    );
+    if !json_mode {
+        println!(
+            "Rolling back {} operations from batch {}...",
+            reversed.len(),
+            journal.batch_id
+        );
+    }
 
+    let mut rolled_back: u64 = 0;
     for entry in &reversed {
         if !args.force {
             verify_destination_integrity(entry)?;
         }
         rollback_entry(entry, args.force)?;
+        rolled_back += 1;
     }
 
     std::fs::remove_file(&journal_file)?;
-    println!("Rollback complete. Journal deleted.");
+
+    if json_mode {
+        emit_success(
+            OutputMode::Json,
+            "cache",
+            CacheRollbackPayload { rolled_back },
+        );
+    } else {
+        println!("Rollback complete. Journal deleted.");
+    }
     Ok(())
 }
 

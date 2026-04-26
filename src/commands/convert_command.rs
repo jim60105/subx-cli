@@ -71,13 +71,93 @@
 //! convert_command::execute(batch_args).await?;
 //! ```
 
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
+use serde::Serialize;
+
+use crate::cli::output::{active_mode, emit_success};
 use crate::cli::{ConvertArgs, OutputSubtitleFormat};
 use crate::config::ConfigService;
 use crate::core::file_manager::FileManager;
 use crate::core::formats::converter::{ConversionConfig, FormatConverter};
 use crate::error::SubXError;
+
+// ─── JSON payload types (machine-readable-output capability) ─────────────
+
+/// Per-item error embedded in [`ConvertItem::error`].
+///
+/// Mirrors the top-level error envelope's `error` field minus
+/// `exit_code` (per the `machine-readable-output` spec's "Per-Item
+/// Status Semantics" requirement).
+#[derive(Debug, Serialize)]
+pub struct ConvertItemError {
+    /// Stable snake_case category from [`crate::error::SubXError::category`].
+    pub category: String,
+    /// Stable upper-snake-case machine code from
+    /// [`crate::error::SubXError::machine_code`].
+    pub code: String,
+    /// Human-readable message (English).
+    pub message: String,
+}
+
+impl ConvertItemError {
+    fn from_error(err: &SubXError) -> Self {
+        Self {
+            category: err.category().to_string(),
+            code: err.machine_code().to_string(),
+            message: err.user_friendly_message(),
+        }
+    }
+
+    fn synthetic(category: &str, code: &str, message: String) -> Self {
+        Self {
+            category: category.to_string(),
+            code: code.to_string(),
+            message,
+        }
+    }
+}
+
+/// Per-file conversion record emitted in the `data.conversions` array
+/// of the JSON envelope.
+///
+/// Field naming follows
+/// `openspec/changes/add-machine-readable-output/specs/format-conversion/spec.md`.
+/// `entry_count` is an additive enrichment (subtitle entries serialized
+/// to the output) that consumers MAY ignore on older schema versions.
+#[derive(Debug, Serialize)]
+pub struct ConvertItem {
+    /// Source file path as provided to the converter.
+    pub input: String,
+    /// Resolved output file path.
+    pub output: String,
+    /// Lowercase source format identifier (e.g. `"srt"`, `"ass"`,
+    /// `"vtt"`, `"sub"`). `null` when the file failed before parsing.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub source_format: Option<String>,
+    /// Lowercase target format identifier.
+    pub target_format: String,
+    /// Output encoding label (e.g. `"UTF-8"`).
+    pub encoding: String,
+    /// Whether the conversion was applied to disk.
+    pub applied: bool,
+    /// Number of subtitle entries successfully converted, when known.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub entry_count: Option<usize>,
+    /// `"ok"` or `"error"`.
+    pub status: &'static str,
+    /// Populated only when `status == "error"`.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub error: Option<ConvertItemError>,
+}
+
+/// Top-level `data` payload for `convert` in JSON mode.
+#[derive(Debug, Serialize)]
+pub struct ConvertPayload {
+    /// One entry per processed file (single-input invocations produce a
+    /// single-element array).
+    pub conversions: Vec<ConvertItem>,
+}
 
 /// Execute subtitle format conversion with comprehensive validation and error handling.
 ///
@@ -237,12 +317,36 @@ pub async fn execute(args: ConvertArgs, config_service: &dyn ConfigService) -> c
         .collect_files()
         .map_err(|e| SubXError::CommandExecution(e.to_string()))?;
     if collected.is_empty() {
+        // Nothing to do — emit an empty success envelope in JSON mode so
+        // callers always receive a valid document.
+        let mode = active_mode();
+        if mode.is_json() {
+            emit_success(
+                mode,
+                "convert",
+                ConvertPayload {
+                    conversions: Vec::new(),
+                },
+            );
+        }
         return Ok(());
     }
+
+    let mode = active_mode();
+    let json_mode = mode.is_json();
+    let single_input = collected.len() == 1;
+
+    // Accumulate per-file results for the JSON payload.
+    let mut items: Vec<ConvertItem> = Vec::with_capacity(collected.len());
+    // Captures the first fatal error in single-input mode so we can
+    // bubble it up as a top-level error envelope (per the
+    // format-conversion spec's "single-input fatal error" scenario).
+    let mut single_input_fatal: Option<SubXError> = None;
+
     // Process each file
     for input_path in collected.iter() {
         let fmt = output_format.to_string();
-        let output_path = if let Some(ref o) = args.output {
+        let output_path: PathBuf = if let Some(ref o) = args.output {
             let mut p = o.clone();
             // Append per-file name when output is a directory and there are
             // multiple files (either from multiple inputs or archive expansion)
@@ -266,28 +370,96 @@ pub async fn execute(args: ConvertArgs, config_service: &dyn ConfigService) -> c
         } else {
             input_path.with_extension(fmt.clone())
         };
+
         match converter.convert_file(input_path, &output_path, &fmt).await {
             Ok(result) => {
                 if result.success {
-                    println!(
-                        "✓ Conversion completed: {} -> {}",
-                        input_path.display(),
-                        output_path.display()
-                    );
+                    if !json_mode {
+                        println!(
+                            "✓ Conversion completed: {} -> {}",
+                            input_path.display(),
+                            output_path.display()
+                        );
+                    }
                     if !args.keep_original {
                         let _ = FileManager::new().remove_file(input_path);
                     }
+                    items.push(ConvertItem {
+                        input: input_path.display().to_string(),
+                        output: output_path.display().to_string(),
+                        source_format: Some(result.input_format.to_lowercase()),
+                        target_format: result.output_format.to_lowercase(),
+                        encoding: args.encoding.clone(),
+                        applied: true,
+                        entry_count: Some(result.converted_entries),
+                        status: "ok",
+                        error: None,
+                    });
                 } else {
-                    eprintln!("✗ Conversion failed for {}", input_path.display());
-                    for err in result.errors {
-                        eprintln!("  Error: {err}");
+                    if !json_mode {
+                        eprintln!("✗ Conversion failed for {}", input_path.display());
+                        for err in &result.errors {
+                            eprintln!("  Error: {err}");
+                        }
                     }
+                    let message = if result.errors.is_empty() {
+                        "Conversion produced an unsuccessful result".to_string()
+                    } else {
+                        result.errors.join("; ")
+                    };
+                    items.push(ConvertItem {
+                        input: input_path.display().to_string(),
+                        output: output_path.display().to_string(),
+                        source_format: Some(result.input_format.to_lowercase()),
+                        target_format: result.output_format.to_lowercase(),
+                        encoding: args.encoding.clone(),
+                        applied: false,
+                        entry_count: None,
+                        status: "error",
+                        error: Some(ConvertItemError::synthetic(
+                            "subtitle_format",
+                            "E_SUBTITLE_FORMAT",
+                            message,
+                        )),
+                    });
                 }
             }
             Err(e) => {
-                eprintln!("✗ Conversion error for {}: {}", input_path.display(), e);
+                if !json_mode {
+                    eprintln!("✗ Conversion error for {}: {}", input_path.display(), e);
+                }
+                let item_err = ConvertItemError::from_error(&e);
+                items.push(ConvertItem {
+                    input: input_path.display().to_string(),
+                    output: output_path.display().to_string(),
+                    source_format: None,
+                    target_format: fmt.clone(),
+                    encoding: args.encoding.clone(),
+                    applied: false,
+                    entry_count: None,
+                    status: "error",
+                    error: Some(item_err),
+                });
+                if single_input && single_input_fatal.is_none() {
+                    single_input_fatal = Some(e);
+                }
             }
         }
+    }
+
+    // Single-input fatal: per spec's "Single-input fatal error produces
+    // top-level error envelope" scenario, propagate the error so
+    // `main.rs` renders the top-level error envelope and exits with the
+    // matching exit code.
+    if let Some(err) = single_input_fatal {
+        return Err(err);
+    }
+
+    // Batch / multi-input: top-level envelope SHALL be `status == "ok"`
+    // whenever the loop completed (per the "Per-File Error Isolation"
+    // requirement). Per-file failures live inside `items`.
+    if json_mode {
+        emit_success(mode, "convert", ConvertPayload { conversions: items });
     }
     Ok(())
 }

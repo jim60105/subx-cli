@@ -7,6 +7,22 @@ path arguments and `-i` inputs are combined (except in `detect-encoding`,
 where they are mutually exclusive). The `config`, `cache`, and
 `generate-completion` commands have their own argument structures.
 
+### Machine-readable output
+
+Every covered subcommand below additionally supports a stable JSON
+output mode for scripting. Pass `--output json` **before** the
+subcommand token, or set `SUBX_OUTPUT=json` in the environment:
+
+```bash
+subx-cli --output json match ./media
+SUBX_OUTPUT=json subx-cli convert --format vtt ./subs/
+```
+
+In JSON mode, stdout receives exactly one JSON envelope; progress bars
+and status symbols are suppressed. See
+[Machine-Readable Output](machine-readable-output.md) for the full
+contract, schema-version policy, and per-command payload schemas.
+
 ### Archive Input Support
 
 The `match`, `convert`, `sync`, `detect-encoding`, and `translate` commands
@@ -133,6 +149,33 @@ media/
 With `--move` instead of `--copy`, the original subtitle files are removed
 after relocation.
 
+### JSON output
+
+```bash
+subx-cli --output json match --dry-run ./media
+```
+
+Emits the standard envelope with `command: "match"` and a `data` payload
+shaped as:
+
+```json
+{
+  "data": {
+    "dry_run": false,
+    "confidence_threshold": 80,
+    "candidates": [{ "video": "...", "subtitle": "...", "confidence": 92, "accepted": true }],
+    "operations": [{ "kind": "rename", "source": "...", "target": "...", "applied": true, "status": "ok" }],
+    "summary": { "total_candidates": 1, "accepted": 1, "applied": 1, "skipped": 0, "failed": 0 }
+  }
+}
+```
+
+Each `operations[i]` carries its own `status` (`"ok"` or `"error"`) plus
+an optional `error { code, category, message }`; per-item failures keep
+the top-level `status == "ok"`. See
+[Machine-Readable Output](machine-readable-output.md) for the full
+schema.
+
 ## `convert` — Format Conversion
 
 Converts subtitle files between SRT, ASS, VTT, and SUB formats. Supports
@@ -170,6 +213,33 @@ subx-cli convert -i ./srt_files -i ./more_subtitles --format vtt --recursive --k
 # Specify encoding explicitly
 subx-cli convert -i movie.srt --format srt --encoding utf-8
 ```
+
+### JSON output
+
+```bash
+subx-cli --output json convert --format srt ./subs/
+```
+
+Emits `command: "convert"` with `data.conversions[]`:
+
+```json
+{
+  "data": {
+    "conversions": [
+      { "input": "...", "output": "...", "source_format": "srt",
+        "target_format": "vtt", "encoding": "UTF-8", "applied": true,
+        "entry_count": 412, "status": "ok" }
+    ]
+  }
+}
+```
+
+Each conversion entry carries `status` (`"ok"` or `"error"`) plus an
+optional `error { code, category, message }` for per-file isolation.
+Batch invocations keep top-level `status == "ok"` whenever at least one
+file converts. A single-input fatal failure produces a top-level error
+envelope (`E_SUBTITLE_FORMAT`, exit code 4). Full schema in
+[Machine-Readable Output](machine-readable-output.md).
 
 ## `sync` — Timeline Correction
 
@@ -224,6 +294,25 @@ subx-cli sync -i ./movies -i ./tv_shows --batch --recursive --method vad
 subx-cli sync -i ./media --batch --recursive --dry-run --verbose
 ```
 
+### JSON output
+
+```bash
+subx-cli --output json sync video.mp4 subtitle.srt
+```
+
+Single-pair invocations emit `data` as a flat object with `method`
+(`"vad"` / `"manual"` / `"auto"`), `subtitle_path`, optional
+`audio_path`, `offset_ms`, optional `confidence`, `applied`, `dry_run`,
+optional `output_path`, and optional `vad { sensitivity, padding_ms,
+segments }`.
+
+Batch invocations emit `data: { "items": [...] }` where each entry
+inlines those fields and adds per-item `status` plus an optional
+`error { code, category, message }`. Whole-command failures (e.g.,
+`InvalidSyncConfiguration`) produce a top-level error envelope
+instead. Full schema in
+[Machine-Readable Output](machine-readable-output.md).
+
 ## `detect-encoding` — Character Encoding Detection
 
 Identifies the character encoding of subtitle files. Useful for diagnosing
@@ -255,6 +344,31 @@ subx-cli detect-encoding *.srt
 # Scan directories recursively with verbose output
 subx-cli detect-encoding -i ./subtitles1 -i ./subtitles2 --recursive --verbose
 ```
+
+### JSON output
+
+```bash
+subx-cli --output json detect-encoding *.srt
+```
+
+Emits `command: "detect-encoding"` with `data.files[]`:
+
+```json
+{
+  "data": {
+    "files": [
+      { "path": "...", "status": "ok", "encoding": "UTF-8",
+        "confidence": 1.0, "has_bom": true, "bytes_sampled": 8192 }
+    ]
+  }
+}
+```
+
+`encoding`, `confidence`, `has_bom`, and `bytes_sampled` are omitted on
+failed entries, which carry an `error { code, category, message }`. A
+single-input invocation against a missing file produces the top-level
+error envelope. Full schema in
+[Machine-Readable Output](machine-readable-output.md).
 
 ## `translate` — AI Subtitle Translation
 
@@ -364,6 +478,30 @@ subx-cli translate movie.srt --target-language ko --replace
 subx-cli translate movie.srt --target-language zh-TW --overwrite
 ```
 
+### JSON output
+
+```bash
+subx-cli --output json translate movie.srt --target-language zh-TW
+```
+
+Emits the minimum `translate` envelope:
+
+```json
+{
+  "data": {
+    "translated_files": [
+      { "input": "movie.srt", "output": "movie.zh-TW.srt", "applied": true }
+    ]
+  }
+}
+```
+
+A fully successful batch returns top-level `status == "ok"`; if any file
+fails, the command finishes the batch and then returns a top-level
+`E_COMMAND_EXECUTION` error envelope. Rich per-cue payloads are deferred
+to a future schema bump. Full schema in
+[Machine-Readable Output](machine-readable-output.md).
+
 ## `config` — Configuration Management
 
 Reads and writes SubX configuration values. Settings persist to the config
@@ -393,6 +531,20 @@ subx-cli config reset
 
 For all configuration keys and environment variables, see the
 [Configuration Guide](configuration-guide.md).
+
+### JSON output
+
+```bash
+subx-cli --output json config list
+subx-cli --output json config get ai.provider
+subx-cli --output json config set ai.provider openrouter
+```
+
+`get`, `list`, and `reset` emit `data: { "config": <object> }` (with
+sensitive values like `ai.api_key` masked). `set` emits
+`data: { "key": "<key>", "value": "<masked-value>" }`. Errors use the
+uniform error envelope. Full schema in
+[Machine-Readable Output](machine-readable-output.md).
 
 ## `cache` — Cache Management
 
@@ -453,6 +605,31 @@ subx-cli cache clear [--type <cache|journal|all>]
 |------|---------|-------------|
 | `--type` | `all` | Type of data to clear |
 
+### JSON output
+
+```bash
+subx-cli --output json cache status
+subx-cli --output json cache clear
+subx-cli --output json cache rollback
+subx-cli --output json cache apply
+```
+
+The `command` field is always `"cache"`; the `data` shape varies by
+subcommand:
+
+- `cache status` → `{ path, exists, journal_present, total, pending,
+  applied, … }` (required: `total`, `pending`, `applied`).
+- `cache clear` → `{ removed, kind, cache_path, cache_removed,
+  journal_path, journal_removed }`.
+- `cache rollback` → `{ rolled_back }`.
+- `cache apply` → `{ applied, failed, items: [{ id, status,
+  error? }] }`. Per-item failures keep the top-level
+  `status == "ok"`.
+
+The legacy `cache status --json` flag is preserved as a thin alias for
+`--output json cache status` and emits byte-identical output. Full
+schema in [Machine-Readable Output](machine-readable-output.md).
+
 ## `generate-completion` — Shell Completions
 
 Generates shell completion scripts for tab-completion support.
@@ -473,6 +650,18 @@ subx-cli generate-completion zsh > ~/.zfunc/_subx-cli
 # Fish
 subx-cli generate-completion fish > ~/.config/fish/completions/subx-cli.fish
 ```
+
+### JSON output
+
+`generate-completion` **rejects** JSON mode because its stdout is, by
+design, a shell-completion script that is incompatible with the JSON
+envelope contract. When invoked with `--output json` (or
+`SUBX_OUTPUT=json`), it writes a top-level error envelope to stdout
+with `error.code == "E_OUTPUT_MODE_UNSUPPORTED"` and
+`error.category == "command_execution"`, exits with the
+`SubXError::CommandExecution(_)` exit code (currently `1`), and
+emits **no** completion-script bytes. See
+[Machine-Readable Output](machine-readable-output.md#generate-completion-rejection).
 
 ## Workflows
 

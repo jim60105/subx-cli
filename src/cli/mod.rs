@@ -36,6 +36,7 @@ mod detect_encoding_args;
 mod generate_completion_args;
 mod input_handler;
 mod match_args;
+pub mod output;
 pub mod sync_args;
 pub mod table;
 mod translate_args;
@@ -51,6 +52,7 @@ pub use detect_encoding_args::DetectEncodingArgs;
 pub use generate_completion_args::GenerateCompletionArgs;
 pub use input_handler::{CollectedFiles, InputPathHandler};
 pub use match_args::MatchArgs;
+pub use output::{OutputMode, SCHEMA_VERSION};
 pub use sync_args::{SyncArgs, SyncMethod, SyncMethodArg, SyncMode};
 pub use translate_args::TranslateArgs;
 pub use ui::{
@@ -64,6 +66,27 @@ pub use ui::{
 #[command(about = "Intelligent subtitle processing CLI tool")]
 #[command(version = env!("CARGO_PKG_VERSION"))]
 pub struct Cli {
+    /// Output mode for the entire invocation.
+    ///
+    /// Defaults to `text` (the existing human-friendly UI). Set to
+    /// `json` to receive a versioned, machine-readable envelope on
+    /// stdout. The flag is intentionally NOT `global(true)` so that it
+    /// must precede the subcommand token; this avoids colliding with
+    /// the per-subcommand `--output <PATH>` arguments on `convert`,
+    /// `sync`, and `translate`.
+    #[arg(long, value_enum, value_name = "MODE", global = false)]
+    pub output: Option<OutputMode>,
+
+    /// Suppress non-fatal status chatter.
+    ///
+    /// In text mode this silences `print_success`/`print_warning` and
+    /// progress bars; in JSON mode it additionally suppresses the
+    /// free-form stderr tracing/diagnostic logs that JSON mode otherwise
+    /// allows. Like `--output`, this flag must precede the subcommand
+    /// token.
+    #[arg(long, global = false)]
+    pub quiet: bool,
+
     /// The subcommand to execute
     #[command(subcommand)]
     pub command: Commands,
@@ -98,90 +121,149 @@ pub enum Commands {
     Translate(TranslateArgs),
 }
 
-/// Executes the SubX CLI application with parsed arguments.
+/// Outcome of a CLI invocation, surfaced to `main.rs` so it can render
+/// the final envelope without re-parsing argv.
 ///
-/// This is the main entry point for CLI execution, routing parsed
-/// command-line arguments to their respective command handlers.
+/// The active [`OutputMode`] is resolved from `--output`, the
+/// `SUBX_OUTPUT` environment variable, and the built-in default in that
+/// order; `command` is the kebab-cased subcommand name (`"match"`,
+/// `"sync"`, …); `result` carries any [`crate::error::SubXError`]
+/// produced during dispatch.
+#[derive(Debug)]
+pub struct RunOutcome {
+    /// Active output mode for the invocation.
+    pub output_mode: OutputMode,
+    /// `--quiet` was set on the command line.
+    pub quiet: bool,
+    /// Stable subcommand identifier used as `envelope.command`.
+    pub command: &'static str,
+    /// Result of the dispatched subcommand.
+    pub result: crate::Result<()>,
+}
+
+/// Resolve the active output mode from a parsed [`Cli`] plus the
+/// `SUBX_OUTPUT` environment variable.
 ///
-/// # Arguments Processing
+/// `--output` always wins over the environment fallback.
+pub fn resolve_output_mode(cli_flag: Option<OutputMode>) -> OutputMode {
+    if let Some(mode) = cli_flag {
+        return mode;
+    }
+    if let Ok(value) = std::env::var("SUBX_OUTPUT") {
+        if let Some(mode) = OutputMode::from_token(&value) {
+            return mode;
+        }
+    }
+    OutputMode::Text
+}
+
+/// Return the stable kebab-cased command name for a parsed subcommand.
+pub fn command_name(cmd: &Commands) -> &'static str {
+    match cmd {
+        Commands::Match(_) => "match",
+        Commands::Convert(_) => "convert",
+        Commands::DetectEncoding(_) => "detect-encoding",
+        Commands::Sync(_) => "sync",
+        Commands::Config(_) => "config",
+        Commands::GenerateCompletion(_) => "generate-completion",
+        Commands::Cache(_) => "cache",
+        Commands::Translate(_) => "translate",
+    }
+}
+
+/// Executes the SubX CLI application with the production configuration.
 ///
-/// The function takes ownership of parsed CLI arguments and dispatches
-/// them to the appropriate command implementation based on the selected
-/// subcommand.
-///
-/// # Error Handling
-///
-/// Returns a [`crate::Result<()>`] that wraps any errors encountered
-/// during command execution. Errors are propagated up to the main
-/// function for proper exit code handling.
-///
-/// # Examples
-///
-/// ```rust
-/// use subx_cli::cli::run;
-///
-/// # tokio_test::block_on(async {
-/// // This would typically be called from main()
-/// // run().await?;
-/// # Ok::<(), Box<dyn std::error::Error>>(())
-/// # });
-/// ```
-///
-/// # Async Context
-///
-/// This function is async because several subcommands perform I/O
-/// operations that benefit from async execution, particularly:
-/// - AI service API calls
-/// - Large file processing operations
-/// - Network-based configuration loading
+/// Backward-compatible shim returning `crate::Result<()>`. Prefer
+/// [`run_with_config`] (which returns a [`RunOutcome`]) for new
+/// integrations that need the resolved [`OutputMode`].
 pub async fn run() -> crate::Result<()> {
-    // Create production configuration service
     let config_service = std::sync::Arc::new(crate::config::ProductionConfigService::new()?);
-    run_with_config(config_service.as_ref()).await
+    run_with_config(config_service.as_ref()).await.result
 }
 
 /// Run the CLI with a provided configuration service.
 ///
-/// This function enables dependency injection of configuration services,
-/// making it easier to test and providing better control over configuration
-/// management.
+/// Returns a structured [`RunOutcome`] so the caller (typically
+/// `main.rs`) can render the final JSON envelope without re-parsing
+/// argv. The output mode and `--quiet` flag are installed into the
+/// process-wide UI state via [`output::install_active_mode`] before
+/// dispatch, so all UI helpers and progress-bar construction sites
+/// observe the resolved mode.
 ///
 /// # Arguments
 ///
 /// * `config_service` - The configuration service to use
-///
-/// # Errors
-///
-/// Returns an error if command execution fails.
-pub async fn run_with_config(
-    config_service: &dyn crate::config::ConfigService,
-) -> crate::Result<()> {
-    let cli = Cli::parse();
+pub async fn run_with_config(config_service: &dyn crate::config::ConfigService) -> RunOutcome {
+    let cli = match Cli::try_parse() {
+        Ok(cli) => cli,
+        Err(err) => {
+            // `main.rs` is responsible for rendering clap errors with
+            // mode-aware envelopes. When this function is invoked
+            // directly (tests, library callers), surface a generic
+            // CommandExecution error so the caller still gets a
+            // RunOutcome.
+            let mode = resolve_output_mode(None);
+            return RunOutcome {
+                output_mode: mode,
+                quiet: false,
+                command: "",
+                result: Err(crate::error::SubXError::CommandExecution(format!(
+                    "argument parsing failed: {err}"
+                ))),
+            };
+        }
+    };
+
+    let output_mode = resolve_output_mode(cli.output);
+    let quiet = cli.quiet;
+    output::install_active_mode(output_mode, quiet);
+    let command = command_name(&cli.command);
 
     // Switch to workspace directory for file operations if specified via env or config
     if let Some(ws_env) = std::env::var_os("SUBX_WORKSPACE") {
-        std::env::set_current_dir(&ws_env).map_err(|e| {
-            crate::error::SubXError::CommandExecution(format!(
-                "Failed to set workspace directory to {}: {}",
-                std::path::PathBuf::from(&ws_env).display(),
-                e
-            ))
-        })?;
+        if let Err(e) = std::env::set_current_dir(&ws_env) {
+            return RunOutcome {
+                output_mode,
+                quiet,
+                command,
+                result: Err(crate::error::SubXError::CommandExecution(format!(
+                    "Failed to set workspace directory to {}: {}",
+                    std::path::PathBuf::from(&ws_env).display(),
+                    e
+                ))),
+            };
+        }
     } else if let Ok(config) = config_service.get_config() {
         let ws_dir = &config.general.workspace;
         if !ws_dir.as_os_str().is_empty() {
-            std::env::set_current_dir(ws_dir).map_err(|e| {
-                crate::error::SubXError::CommandExecution(format!(
-                    "Failed to set workspace directory to {}: {}",
-                    ws_dir.display(),
-                    e
-                ))
-            })?;
+            if let Err(e) = std::env::set_current_dir(ws_dir) {
+                return RunOutcome {
+                    output_mode,
+                    quiet,
+                    command,
+                    result: Err(crate::error::SubXError::CommandExecution(format!(
+                        "Failed to set workspace directory to {}: {}",
+                        ws_dir.display(),
+                        e
+                    ))),
+                };
+            }
         }
     }
 
-    // Use the centralized dispatcher to avoid code duplication
-    crate::commands::dispatcher::dispatch_command_with_ref(cli.command, config_service).await
+    let result = crate::commands::dispatcher::dispatch_command_with_ref(
+        cli.command,
+        config_service,
+        output_mode,
+    )
+    .await;
+
+    RunOutcome {
+        output_mode,
+        quiet,
+        command,
+        result,
+    }
 }
 
 #[cfg(test)]
@@ -531,6 +613,104 @@ mod tests {
         let cli = Cli::try_parse_from(["subx-cli", "match", "."]).unwrap();
         let debug_str = format!("{cli:?}");
         assert!(debug_str.contains("Cli"));
+    }
+
+    // ─── Top-level --output / --quiet placement ──────────────────────────────
+
+    #[test]
+    fn test_output_flag_before_subcommand_parses() {
+        // `subx --output json convert ...` must parse and set the
+        // top-level `Cli.output` to `Json` while leaving the
+        // subcommand-local `convert --output PATH` untouched.
+        let cli = Cli::try_parse_from([
+            "subx-cli", "--output", "json", "convert", "file.srt", "--output", "out.ass",
+            "--format", "ass",
+        ])
+        .expect("parses");
+        assert_eq!(cli.output, Some(OutputMode::Json));
+        if let Commands::Convert(args) = cli.command {
+            assert_eq!(
+                args.output.as_deref(),
+                Some(std::path::Path::new("out.ass"))
+            );
+        } else {
+            panic!("expected Convert");
+        }
+    }
+
+    #[test]
+    fn test_convert_local_output_path_does_not_set_output_mode() {
+        // `subx-cli convert --output a.ass --format ass` must parse
+        // (the convert-local --output is the file path), and
+        // `Cli.output` must default to None (i.e., text mode).
+        let cli = Cli::try_parse_from([
+            "subx-cli", "convert", "file.srt", "--output", "a.ass", "--format", "ass",
+        ])
+        .expect("parses");
+        assert_eq!(cli.output, None);
+    }
+
+    #[test]
+    fn test_output_flag_after_subcommand_does_not_apply_globally() {
+        // `subx-cli convert --output json --format ass` is the convert
+        // command's local file-path argument; clap routes the value
+        // `json` to ConvertArgs.output rather than the top-level mode.
+        // (We assert the local field captured the value; this guards
+        // against accidentally making the top-level flag global.)
+        let cli = Cli::try_parse_from([
+            "subx-cli", "convert", "file.srt", "--output", "json", "--format", "ass",
+        ])
+        .expect("parses");
+        assert_eq!(cli.output, None, "top-level mode must not flip");
+        if let Commands::Convert(args) = cli.command {
+            assert_eq!(args.output.as_deref(), Some(std::path::Path::new("json")));
+        } else {
+            panic!("expected Convert");
+        }
+    }
+
+    #[test]
+    fn test_quiet_flag_before_subcommand_parses() {
+        let cli = Cli::try_parse_from(["subx-cli", "--quiet", "match", "."]).expect("parses");
+        assert!(cli.quiet);
+    }
+
+    #[test]
+    fn test_quiet_flag_after_subcommand_is_rejected() {
+        // No subcommand currently defines a local `--quiet`; this
+        // guards against accidentally making the flag global.
+        let result = Cli::try_parse_from(["subx-cli", "match", ".", "--quiet"]);
+        assert!(
+            result.is_err(),
+            "--quiet must appear before the subcommand, got: {:?}",
+            result.map(|_| "unexpected ok")
+        );
+    }
+
+    #[test]
+    fn test_resolve_output_mode_prefers_flag_over_env() {
+        unsafe {
+            std::env::set_var("SUBX_OUTPUT", "json");
+        }
+        // Explicit flag wins.
+        assert_eq!(
+            super::resolve_output_mode(Some(OutputMode::Text)),
+            OutputMode::Text
+        );
+        // Env fallback.
+        assert_eq!(super::resolve_output_mode(None), OutputMode::Json);
+        unsafe {
+            std::env::remove_var("SUBX_OUTPUT");
+        }
+        assert_eq!(super::resolve_output_mode(None), OutputMode::Text);
+    }
+
+    #[test]
+    fn test_command_name_returns_kebab_case() {
+        let cli = Cli::try_parse_from(["subx-cli", "detect-encoding", "f.srt"]).unwrap();
+        assert_eq!(super::command_name(&cli.command), "detect-encoding");
+        let cli = Cli::try_parse_from(["subx-cli", "match", "."]).unwrap();
+        assert_eq!(super::command_name(&cli.command), "match");
     }
 
     #[test]

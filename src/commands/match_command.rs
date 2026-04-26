@@ -64,8 +64,10 @@
 use crate::Result;
 use crate::cli::MatchArgs;
 use crate::cli::display_match_results;
+use crate::cli::output::{active_mode, emit_success};
 use crate::config::ConfigService;
 use crate::core::ComponentFactory;
+use crate::core::matcher::engine::{FileRelocationMode, MatchOperation};
 use crate::core::matcher::{FileDiscovery, MatchConfig, MatchEngine, MediaFileType};
 use crate::core::parallel::{
     FileProcessingTask, ProcessingOperation, Task, TaskResult, TaskScheduler,
@@ -73,6 +75,111 @@ use crate::core::parallel::{
 use crate::error::SubXError;
 use crate::services::ai::AIProvider;
 use indicatif::ProgressDrawTarget;
+use serde::Serialize;
+
+// ─── JSON payload types (machine-readable-output capability) ─────────────
+
+/// Per-item error embedded in [`MatchOpItem::error`] when its `status` is `"error"`.
+///
+/// Mirrors the top-level error envelope's `error` field minus `exit_code`.
+#[derive(Debug, Serialize)]
+pub struct MatchItemError {
+    /// Stable snake_case category from [`SubXError::category`].
+    pub category: String,
+    /// Stable upper-snake-case machine code from [`SubXError::machine_code`].
+    pub code: String,
+    /// Human-readable message (English).
+    pub message: String,
+}
+
+/// AI-suggested match candidate emitted in `data.candidates`.
+#[derive(Debug, Serialize)]
+pub struct MatchCandidate {
+    /// Path to the candidate video file.
+    pub video: String,
+    /// Path to the candidate subtitle file.
+    pub subtitle: String,
+    /// Confidence score, expressed as an integer percentage (0–100).
+    pub confidence: u8,
+    /// `true` when the candidate met the threshold and resolved to real files.
+    pub accepted: bool,
+    /// Stable rejection code (`"below_threshold"` or `"id_not_found"`),
+    /// only present when `accepted == false`.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub reason: Option<String>,
+}
+
+/// Planned (and possibly executed) match operation emitted in `data.operations`.
+#[derive(Debug, Serialize)]
+pub struct MatchOpItem {
+    /// One of `"rename"`, `"copy"`, or `"move"`.
+    pub kind: &'static str,
+    /// Source path before the operation.
+    pub source: String,
+    /// Resolved destination path after the operation would be applied.
+    pub target: String,
+    /// `true` only when the operation was actually applied to the filesystem.
+    pub applied: bool,
+    /// `"ok"` or `"error"`.
+    pub status: &'static str,
+    /// Populated only when `status == "error"`.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub error: Option<MatchItemError>,
+}
+
+/// Aggregate counters emitted in `data.summary`.
+#[derive(Debug, Serialize)]
+pub struct MatchSummary {
+    /// Total candidates considered (accepted + rejected).
+    pub total_candidates: usize,
+    /// Candidates that satisfied the confidence threshold.
+    pub accepted: usize,
+    /// Operations that were successfully applied.
+    pub applied: usize,
+    /// Candidates rejected by the planner (sub-threshold or unresolved IDs).
+    pub skipped: usize,
+    /// Operations whose execution failed (per-item `status == "error"`).
+    pub failed: usize,
+}
+
+/// Top-level `data` payload for `match` in JSON mode.
+#[derive(Debug, Serialize)]
+pub struct MatchPayload {
+    /// `true` when the user passed `--dry-run`.
+    pub dry_run: bool,
+    /// Effective minimum confidence threshold (0–100 integer).
+    pub confidence_threshold: u8,
+    /// Per-candidate decisions (accepted and rejected).
+    pub candidates: Vec<MatchCandidate>,
+    /// Per-operation outcomes.
+    pub operations: Vec<MatchOpItem>,
+    /// Aggregate counters.
+    pub summary: MatchSummary,
+}
+
+fn op_kind(op: &MatchOperation) -> &'static str {
+    if op.requires_relocation {
+        match op.relocation_mode {
+            FileRelocationMode::Copy => "copy",
+            FileRelocationMode::Move => "move",
+            FileRelocationMode::None => "rename",
+        }
+    } else {
+        "rename"
+    }
+}
+
+fn op_target(op: &MatchOperation) -> String {
+    match op.relocation_target_path.as_ref() {
+        Some(p) => p.display().to_string(),
+        None => op
+            .subtitle_file
+            .path
+            .with_file_name(&op.new_subtitle_name)
+            .display()
+            .to_string(),
+    }
+}
 
 /// Execute the AI-powered subtitle matching operation with full workflow.
 ///
@@ -340,8 +447,11 @@ pub async fn execute_with_client(
         ));
     }
 
-    // Perform matching using unified file-list based approach
-    let mut operations = engine.match_file_list(&files).await?;
+    // Perform matching using auditable approach so JSON output can surface
+    // rejected candidates alongside accepted operations.
+    let audit = engine.match_file_list_with_audit(&files).await?;
+    let mut operations = audit.operations;
+    let rejected = audit.rejected;
 
     // For subtitles extracted from archives, force copy to the video's
     // parent directory so output never lands in the temp directory.
@@ -355,6 +465,107 @@ pub async fn execute_with_client(
         }
     }
 
+    let json_mode = active_mode().is_json();
+
+    if json_mode {
+        // ─── JSON output path ───────────────────────────────────────────
+        // Acquire the process-wide lock for live runs to mirror text-mode behavior.
+        let _lock_guard = if !args.dry_run {
+            Some(crate::core::lock::acquire_subx_lock().await?)
+        } else {
+            None
+        };
+
+        let outcomes = engine
+            .execute_operations_audit(&operations, args.dry_run)
+            .await?;
+
+        let mut candidates: Vec<MatchCandidate> =
+            Vec::with_capacity(operations.len() + rejected.len());
+        for op in &operations {
+            candidates.push(MatchCandidate {
+                video: op.video_file.path.display().to_string(),
+                subtitle: op.subtitle_file.path.display().to_string(),
+                confidence: ((op.confidence * 100.0).round().clamp(0.0, 100.0)) as u8,
+                accepted: true,
+                reason: None,
+            });
+        }
+        for r in &rejected {
+            candidates.push(MatchCandidate {
+                video: r.video_path.clone(),
+                subtitle: r.subtitle_path.clone(),
+                confidence: ((r.confidence * 100.0).round().clamp(0.0, 100.0)) as u8,
+                accepted: false,
+                reason: Some(r.reason.to_string()),
+            });
+        }
+
+        let mut op_items: Vec<MatchOpItem> = Vec::with_capacity(operations.len());
+        let mut applied_count: usize = 0;
+        let mut failed_count: usize = 0;
+        for (op, outcome) in operations.iter().zip(outcomes.iter()) {
+            let (status, error) = match &outcome.error {
+                Some(err) => {
+                    failed_count += 1;
+                    (
+                        "error",
+                        Some(MatchItemError {
+                            category: err.category.to_string(),
+                            code: err.code.to_string(),
+                            message: err.message.clone(),
+                        }),
+                    )
+                }
+                None => ("ok", None),
+            };
+            if outcome.applied {
+                applied_count += 1;
+            }
+            op_items.push(MatchOpItem {
+                kind: op_kind(op),
+                source: op.subtitle_file.path.display().to_string(),
+                target: op_target(op),
+                applied: outcome.applied,
+                status,
+                error,
+            });
+        }
+
+        // If every operation failed (and there was at least one), surface this
+        // as a top-level error envelope rather than a success envelope full of
+        // errors. This matches the user-facing semantics: top-level `ok` means
+        // "the command made forward progress".
+        if !op_items.is_empty() && applied_count == 0 && failed_count == op_items.len() {
+            let first_msg = op_items
+                .iter()
+                .filter_map(|o| o.error.as_ref().map(|e| e.message.clone()))
+                .next()
+                .unwrap_or_else(|| "All match operations failed".to_string());
+            return Err(SubXError::FileOperationFailed(first_msg));
+        }
+
+        let summary = MatchSummary {
+            total_candidates: candidates.len(),
+            accepted: operations.len(),
+            applied: applied_count,
+            skipped: rejected.len(),
+            failed: failed_count,
+        };
+
+        let payload = MatchPayload {
+            dry_run: args.dry_run,
+            confidence_threshold: args.confidence,
+            candidates,
+            operations: op_items,
+            summary,
+        };
+
+        emit_success(active_mode(), "match", payload);
+        return Ok(());
+    }
+
+    // ─── Text output path (unchanged) ───────────────────────────────────
     // Display formatted results table to user
     display_match_results(&operations, args.dry_run);
 
@@ -497,14 +708,20 @@ pub async fn execute_parallel_match(
     }
 
     // Validate that we have files to process
+    let json_mode = active_mode().is_json();
     if tasks.is_empty() {
-        println!("No video files found to process");
+        if !json_mode {
+            println!("No video files found to process");
+        }
         return Ok(());
     }
 
-    // Display processing information
-    println!("Preparing to process {} files in parallel", tasks.len());
-    println!("Max concurrency: {}", scheduler.get_active_workers());
+    // Display processing information (text mode only — JSON mode reserves
+    // stdout for the final envelope written by callers).
+    if !json_mode {
+        println!("Preparing to process {} files in parallel", tasks.len());
+        println!("Max concurrency: {}", scheduler.get_active_workers());
+    }
     let progress_bar = {
         let pb = create_progress_bar(tasks.len());
         // Show or hide progress bar based on configuration
@@ -523,16 +740,18 @@ pub async fn execute_parallel_match(
             TaskResult::PartialSuccess(_, _) => partial += 1,
         }
     }
-    println!("\nProcessing results:");
-    println!("  ✓ Success: {ok} files");
-    if partial > 0 {
-        println!("  ⚠ Partial success: {partial} files");
-    }
-    if failed > 0 {
-        println!("  ✗ Failed: {failed} files");
-        for (i, r) in results.iter().enumerate() {
-            if matches!(r, TaskResult::Failed(_)) {
-                println!("  Failure details {}: {}", i + 1, r);
+    if !json_mode {
+        println!("\nProcessing results:");
+        println!("  ✓ Success: {ok} files");
+        if partial > 0 {
+            println!("  ⚠ Partial success: {partial} files");
+        }
+        if failed > 0 {
+            println!("  ✗ Failed: {failed} files");
+            for (i, r) in results.iter().enumerate() {
+                if matches!(r, TaskResult::Failed(_)) {
+                    println!("  Failure details {}: {}", i + 1, r);
+                }
             }
         }
     }

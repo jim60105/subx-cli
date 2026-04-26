@@ -146,6 +146,20 @@ pub enum SubXError {
     #[error("Unsupported file type: {0}")]
     UnsupportedFileType(String),
 
+    /// The active output mode (e.g. `--output json`) is incompatible
+    /// with the requested subcommand.
+    ///
+    /// Currently emitted by `generate-completion`, whose stdout is by
+    /// design a shell-completion script and cannot be wrapped in the
+    /// JSON envelope contract.
+    #[error(
+        "The '{command}' command does not support --output json; its stdout is a shell-completion script"
+    )]
+    OutputModeUnsupported {
+        /// The subcommand that rejected the output mode (e.g. `"generate-completion"`).
+        command: String,
+    },
+
     /// Catch-all error variant wrapping any other failure.
     #[error("Unknown error: {0}")]
     Other(#[from] anyhow::Error),
@@ -385,6 +399,9 @@ mod tests {
             },
             SubXError::InvalidSyncConfiguration,
             SubXError::UnsupportedFileType("xyz".to_string()),
+            SubXError::OutputModeUnsupported {
+                command: "generate-completion".to_string(),
+            },
             SubXError::Other(anyhow::anyhow!("wrapped")),
         ];
 
@@ -474,6 +491,164 @@ mod tests {
             1
         );
         assert_eq!(SubXError::Other(anyhow::anyhow!("other")).exit_code(), 1);
+    }
+
+    // ── category / machine_code / exit_code contract ────────────────────────
+
+    /// Exhaustive contract test for the closed `SubXError` mapping locked
+    /// by `specs/error-handling/spec.md`. If a new variant is added, this
+    /// test (and the exhaustive matches in `category()`/`machine_code()`)
+    /// SHALL be updated; the compiler-enforced exhaustive match guards
+    /// the source of truth.
+    #[test]
+    fn test_category_and_machine_code_contract() {
+        let cases: Vec<(SubXError, &'static str, &'static str, i32)> = vec![
+            (SubXError::Io(io::Error::other("x")), "io", "E_IO", 1),
+            (
+                SubXError::Config {
+                    message: "x".into(),
+                },
+                "config",
+                "E_CONFIG",
+                2,
+            ),
+            (
+                SubXError::SubtitleFormat {
+                    format: "SRT".into(),
+                    message: "x".into(),
+                },
+                "subtitle_format",
+                "E_SUBTITLE_FORMAT",
+                4,
+            ),
+            (
+                SubXError::AiService("x".into()),
+                "ai_service",
+                "E_AI_SERVICE",
+                3,
+            ),
+            (
+                SubXError::Api {
+                    message: "x".into(),
+                    source: ApiErrorSource::OpenAI,
+                },
+                "api",
+                "E_API",
+                3,
+            ),
+            (
+                SubXError::AudioProcessing {
+                    message: "x".into(),
+                },
+                "audio_processing",
+                "E_AUDIO_PROCESSING",
+                5,
+            ),
+            (
+                SubXError::FileMatching {
+                    message: "x".into(),
+                },
+                "file_matching",
+                "E_FILE_MATCHING",
+                6,
+            ),
+            (
+                SubXError::FileAlreadyExists("x".into()),
+                "file_already_exists",
+                "E_FILE_ALREADY_EXISTS",
+                1,
+            ),
+            (
+                SubXError::FileNotFound("x".into()),
+                "file_not_found",
+                "E_FILE_NOT_FOUND",
+                1,
+            ),
+            (
+                SubXError::InvalidFileName("x".into()),
+                "invalid_file_name",
+                "E_INVALID_FILE_NAME",
+                1,
+            ),
+            (
+                SubXError::FileOperationFailed("x".into()),
+                "file_operation_failed",
+                "E_FILE_OPERATION_FAILED",
+                1,
+            ),
+            (
+                SubXError::CommandExecution("x".into()),
+                "command_execution",
+                "E_COMMAND_EXECUTION",
+                1,
+            ),
+            (
+                SubXError::NoInputSpecified,
+                "no_input_specified",
+                "E_NO_INPUT_SPECIFIED",
+                1,
+            ),
+            (
+                SubXError::InvalidPath(PathBuf::from("/x")),
+                "invalid_path",
+                "E_INVALID_PATH",
+                1,
+            ),
+            (
+                SubXError::PathNotFound(PathBuf::from("/x")),
+                "path_not_found",
+                "E_PATH_NOT_FOUND",
+                1,
+            ),
+            (
+                SubXError::DirectoryReadError {
+                    path: PathBuf::from("/x"),
+                    source: io::Error::other("denied"),
+                },
+                "directory_read_error",
+                "E_DIRECTORY_READ_ERROR",
+                1,
+            ),
+            (
+                SubXError::InvalidSyncConfiguration,
+                "invalid_sync_configuration",
+                "E_INVALID_SYNC_CONFIGURATION",
+                1,
+            ),
+            (
+                SubXError::UnsupportedFileType("xyz".into()),
+                "unsupported_file_type",
+                "E_UNSUPPORTED_FILE_TYPE",
+                1,
+            ),
+            (
+                SubXError::OutputModeUnsupported {
+                    command: "generate-completion".into(),
+                },
+                "command_execution",
+                "E_OUTPUT_MODE_UNSUPPORTED",
+                1,
+            ),
+            (
+                SubXError::Other(anyhow::anyhow!("x")),
+                "other",
+                "E_OTHER",
+                1,
+            ),
+        ];
+
+        for (err, cat, code, exit) in &cases {
+            assert_eq!(err.category(), *cat, "category mismatch for {:?}", err);
+            assert_eq!(
+                err.machine_code(),
+                *code,
+                "machine_code mismatch for {:?}",
+                err
+            );
+            assert_eq!(err.exit_code(), *exit, "exit_code mismatch for {:?}", err);
+            assert!(!err.category().is_empty());
+            assert!(err.machine_code().starts_with("E_"));
+        }
     }
 
     // ── user_friendly_message – all variants ─────────────────────────────────
@@ -965,6 +1140,102 @@ impl SubXError {
         }
     }
 
+    /// Stable snake_case machine-readable category for the JSON error
+    /// envelope. The mapping is closed and exhaustive (no wildcard arm)
+    /// so the compiler enforces updates whenever a new variant is added.
+    ///
+    /// This mapping is locked by the `error-handling` capability spec.
+    pub fn category(&self) -> &'static str {
+        match self {
+            // Mapped 1:1 from the closed set defined in the spec.
+            SubXError::Io(_) => "io",
+            SubXError::Config { .. } => "config",
+            SubXError::SubtitleFormat { .. } => "subtitle_format",
+            SubXError::AiService(_) => "ai_service",
+            SubXError::Api { .. } => "api",
+            SubXError::AudioProcessing { .. } => "audio_processing",
+            SubXError::FileMatching { .. } => "file_matching",
+            SubXError::FileAlreadyExists(_) => "file_already_exists",
+            SubXError::FileNotFound(_) => "file_not_found",
+            SubXError::InvalidFileName(_) => "invalid_file_name",
+            SubXError::FileOperationFailed(_) => "file_operation_failed",
+            SubXError::CommandExecution(_) => "command_execution",
+            // Spec locks `category == "command_execution"` for this variant
+            // even though the machine_code is the more specific
+            // `E_OUTPUT_MODE_UNSUPPORTED`.
+            SubXError::OutputModeUnsupported { .. } => "command_execution",
+            SubXError::NoInputSpecified => "no_input_specified",
+            SubXError::InvalidPath(_) => "invalid_path",
+            SubXError::PathNotFound(_) => "path_not_found",
+            SubXError::DirectoryReadError { .. } => "directory_read_error",
+            SubXError::InvalidSyncConfiguration => "invalid_sync_configuration",
+            SubXError::UnsupportedFileType(_) => "unsupported_file_type",
+            SubXError::Other(_) => "other",
+        }
+    }
+
+    /// Stable upper-snake-case machine code prefixed with `E_`.
+    /// Mirrors [`Self::category`] one-to-one and is similarly closed
+    /// against the addition of new variants.
+    pub fn machine_code(&self) -> &'static str {
+        match self {
+            SubXError::Io(_) => "E_IO",
+            SubXError::Config { .. } => "E_CONFIG",
+            SubXError::SubtitleFormat { .. } => "E_SUBTITLE_FORMAT",
+            SubXError::AiService(_) => "E_AI_SERVICE",
+            SubXError::Api { .. } => "E_API",
+            SubXError::AudioProcessing { .. } => "E_AUDIO_PROCESSING",
+            SubXError::FileMatching { .. } => "E_FILE_MATCHING",
+            SubXError::FileAlreadyExists(_) => "E_FILE_ALREADY_EXISTS",
+            SubXError::FileNotFound(_) => "E_FILE_NOT_FOUND",
+            SubXError::InvalidFileName(_) => "E_INVALID_FILE_NAME",
+            SubXError::FileOperationFailed(_) => "E_FILE_OPERATION_FAILED",
+            SubXError::CommandExecution(_) => "E_COMMAND_EXECUTION",
+            SubXError::OutputModeUnsupported { .. } => "E_OUTPUT_MODE_UNSUPPORTED",
+            SubXError::NoInputSpecified => "E_NO_INPUT_SPECIFIED",
+            SubXError::InvalidPath(_) => "E_INVALID_PATH",
+            SubXError::PathNotFound(_) => "E_PATH_NOT_FOUND",
+            SubXError::DirectoryReadError { .. } => "E_DIRECTORY_READ_ERROR",
+            SubXError::InvalidSyncConfiguration => "E_INVALID_SYNC_CONFIGURATION",
+            SubXError::UnsupportedFileType(_) => "E_UNSUPPORTED_FILE_TYPE",
+            SubXError::Other(_) => "E_OTHER",
+        }
+    }
+
+    /// Short user-facing remediation hint, or `None` when none applies.
+    ///
+    /// This is a separate, structured surface from the prose hints
+    /// already baked into [`Self::user_friendly_message`]; JSON callers
+    /// receive it under `error.hint`.
+    pub fn hint(&self) -> Option<&'static str> {
+        match self {
+            SubXError::Config { .. } => {
+                Some("Run 'subx-cli config --help' for configuration details.")
+            }
+            SubXError::Api { .. } | SubXError::AiService(_) => {
+                Some("Check network connectivity and the configured API key.")
+            }
+            SubXError::SubtitleFormat { .. } => {
+                Some("Check the subtitle file's format and encoding.")
+            }
+            SubXError::AudioProcessing { .. } => {
+                Some("Verify the media file's integrity and supported codecs.")
+            }
+            SubXError::FileMatching { .. } => Some("Verify file paths and patterns."),
+            SubXError::NoInputSpecified => Some("Pass an input path or use the -i/--input flag."),
+            SubXError::InvalidSyncConfiguration => {
+                Some("Specify both video and subtitle files, or use -i for batch processing.")
+            }
+            SubXError::PathNotFound(_) | SubXError::FileNotFound(_) => {
+                Some("Verify the path exists and is accessible.")
+            }
+            SubXError::OutputModeUnsupported { .. } => Some(
+                "Run the command without `--output json` (and without SUBX_OUTPUT=json) to receive the shell-completion script.",
+            ),
+            _ => None,
+        }
+    }
+
     /// Return a user-friendly error message with suggested remedies.
     ///
     /// # Examples
@@ -1006,6 +1277,10 @@ impl SubXError {
             SubXError::InvalidFileName(name) => format!("Invalid file name: {}", name),
             SubXError::FileOperationFailed(msg) => format!("File operation failed: {}", msg),
             SubXError::CommandExecution(msg) => msg.clone(),
+            SubXError::OutputModeUnsupported { command } => format!(
+                "The '{}' command does not support --output json; its stdout is a shell-completion script.\nHint: rerun without --output json (and ensure SUBX_OUTPUT is unset)",
+                command
+            ),
             SubXError::Other(err) => {
                 format!("Unknown error: {}\nHint: please report this issue", err)
             }

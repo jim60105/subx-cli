@@ -107,9 +107,122 @@
 //! config_command::execute(get_args).await?;
 //! ```
 
+use crate::cli::output::{active_mode, emit_success};
 use crate::cli::{ConfigAction, ConfigArgs};
 use crate::config::{ConfigService, mask_sensitive_value};
 use crate::error::{SubXError, SubXResult};
+use serde::Serialize;
+use serde_json::{Map, Value};
+
+/// JSON payload for `config set` — the key/value that was just persisted.
+#[derive(Debug, Serialize)]
+pub struct ConfigSetPayload<'a> {
+    /// Configuration key that was modified.
+    pub key: &'a str,
+    /// New value (sensitive values are masked).
+    pub value: String,
+}
+
+/// JSON payload for `config get`/`list`/`reset` — the resolved
+/// configuration object (or a single-key projection for `get`).
+#[derive(Debug, Serialize)]
+pub struct ConfigPayload {
+    /// Resolved configuration map.
+    pub config: Value,
+}
+
+fn build_config_value(config_service: &dyn ConfigService) -> SubXResult<Value> {
+    let mut config = config_service.get_config()?;
+    if let Some(key) = config.ai.api_key.as_ref() {
+        config.ai.api_key = Some(mask_sensitive_value("ai.api_key", key));
+    }
+    serde_json::to_value(&config)
+        .map_err(|e| SubXError::config(format!("JSON serialization error: {e}")))
+}
+
+async fn run_config_action(args: ConfigArgs, config_service: &dyn ConfigService) -> SubXResult<()> {
+    let mode = active_mode();
+    let json_mode = mode.is_json();
+
+    match args.action {
+        ConfigAction::Set { key, value } => {
+            config_service.set_config_value(&key, &value)?;
+            let masked = mask_sensitive_value(&key, &value);
+            if json_mode {
+                emit_success(
+                    mode,
+                    "config",
+                    ConfigSetPayload {
+                        key: &key,
+                        value: masked,
+                    },
+                );
+            } else {
+                println!("✓ Configuration '{key}' set to '{masked}'");
+                if let Ok(current) = config_service.get_config_value(&key) {
+                    let masked_current = mask_sensitive_value(&key, &current);
+                    println!("  Current value: {masked_current}");
+                }
+                if let Ok(path) = config_service.get_config_file_path() {
+                    println!("  Saved to: {}", path.display());
+                }
+            }
+        }
+        ConfigAction::Get { key } => {
+            let value = config_service.get_config_value(&key)?;
+            let masked = mask_sensitive_value(&key, &value);
+            if json_mode {
+                let mut obj = Map::new();
+                obj.insert(key.clone(), Value::String(masked));
+                emit_success(
+                    mode,
+                    "config",
+                    ConfigPayload {
+                        config: Value::Object(obj),
+                    },
+                );
+            } else {
+                println!("{masked}");
+            }
+        }
+        ConfigAction::List => {
+            if json_mode {
+                let payload = ConfigPayload {
+                    config: build_config_value(config_service)?,
+                };
+                emit_success(mode, "config", payload);
+            } else {
+                let mut config = config_service.get_config()?;
+                if let Ok(path) = config_service.get_config_file_path() {
+                    println!("# Configuration file path: {}\n", path.display());
+                }
+                if let Some(key) = config.ai.api_key.as_ref() {
+                    config.ai.api_key = Some(mask_sensitive_value("ai.api_key", key));
+                }
+                println!(
+                    "{}",
+                    toml::to_string_pretty(&config)
+                        .map_err(|e| SubXError::config(format!("TOML serialization error: {e}")))?
+                );
+            }
+        }
+        ConfigAction::Reset => {
+            config_service.reset_to_defaults()?;
+            if json_mode {
+                let payload = ConfigPayload {
+                    config: build_config_value(config_service)?,
+                };
+                emit_success(mode, "config", payload);
+            } else {
+                println!("Configuration reset to default values");
+                if let Ok(path) = config_service.get_config_file_path() {
+                    println!("Default configuration saved to: {}", path.display());
+                }
+            }
+        }
+    }
+    Ok(())
+}
 
 /// Execute configuration management operations with validation and type safety.
 ///
@@ -246,50 +359,7 @@ use crate::error::{SubXError, SubXResult};
 /// config_command::execute(reset_config).await?;
 /// ```
 pub async fn execute(args: ConfigArgs, config_service: &dyn ConfigService) -> SubXResult<()> {
-    match args.action {
-        ConfigAction::Set { key, value } => {
-            config_service.set_config_value(&key, &value)?;
-            let masked = mask_sensitive_value(&key, &value);
-            println!("✓ Configuration '{key}' set to '{masked}'");
-            // Display the updated value to confirm
-            if let Ok(current) = config_service.get_config_value(&key) {
-                let masked_current = mask_sensitive_value(&key, &current);
-                println!("  Current value: {masked_current}");
-            }
-            if let Ok(path) = config_service.get_config_file_path() {
-                println!("  Saved to: {}", path.display());
-            }
-        }
-        ConfigAction::Get { key } => {
-            let value = config_service.get_config_value(&key)?;
-            let masked = mask_sensitive_value(&key, &value);
-            println!("{masked}");
-        }
-        ConfigAction::List => {
-            let mut config = config_service.get_config()?;
-            if let Ok(path) = config_service.get_config_file_path() {
-                println!("# Configuration file path: {}\n", path.display());
-            }
-            // Redact sensitive values prior to serialization so the printed
-            // TOML never contains the real API key.
-            if let Some(key) = config.ai.api_key.as_ref() {
-                config.ai.api_key = Some(mask_sensitive_value("ai.api_key", key));
-            }
-            println!(
-                "{}",
-                toml::to_string_pretty(&config)
-                    .map_err(|e| SubXError::config(format!("TOML serialization error: {e}")))?
-            );
-        }
-        ConfigAction::Reset => {
-            config_service.reset_to_defaults()?;
-            println!("Configuration reset to default values");
-            if let Ok(path) = config_service.get_config_file_path() {
-                println!("Default configuration saved to: {}", path.display());
-            }
-        }
-    }
-    Ok(())
+    run_config_action(args, config_service).await
 }
 
 /// Execute configuration management command with injected configuration service.
@@ -309,48 +379,5 @@ pub async fn execute_with_config(
     args: ConfigArgs,
     config_service: std::sync::Arc<dyn ConfigService>,
 ) -> SubXResult<()> {
-    match args.action {
-        ConfigAction::Set { key, value } => {
-            config_service.set_config_value(&key, &value)?;
-            let masked = mask_sensitive_value(&key, &value);
-            println!("✓ Configuration '{key}' set to '{masked}'");
-            // Display the updated value to confirm
-            if let Ok(current) = config_service.get_config_value(&key) {
-                let masked_current = mask_sensitive_value(&key, &current);
-                println!("  Current value: {masked_current}");
-            }
-            if let Ok(path) = config_service.get_config_file_path() {
-                println!("  Saved to: {}", path.display());
-            }
-        }
-        ConfigAction::Get { key } => {
-            let value = config_service.get_config_value(&key)?;
-            let masked = mask_sensitive_value(&key, &value);
-            println!("{masked}");
-        }
-        ConfigAction::List => {
-            let mut config = config_service.get_config()?;
-            if let Ok(path) = config_service.get_config_file_path() {
-                println!("# Configuration file path: {}\n", path.display());
-            }
-            // Redact sensitive values prior to serialization so the printed
-            // TOML never contains the real API key.
-            if let Some(key) = config.ai.api_key.as_ref() {
-                config.ai.api_key = Some(mask_sensitive_value("ai.api_key", key));
-            }
-            println!(
-                "{}",
-                toml::to_string_pretty(&config)
-                    .map_err(|e| SubXError::config(format!("TOML serialization error: {e}")))?
-            );
-        }
-        ConfigAction::Reset => {
-            config_service.reset_to_defaults()?;
-            println!("Configuration reset to default values");
-            if let Ok(path) = config_service.get_config_file_path() {
-                println!("Default configuration saved to: {}", path.display());
-            }
-        }
-    }
-    Ok(())
+    run_config_action(args, config_service.as_ref()).await
 }

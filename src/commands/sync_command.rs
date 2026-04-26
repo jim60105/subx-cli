@@ -6,27 +6,249 @@
 
 use crate::cli::SyncArgs;
 use crate::cli::SyncMode;
+use crate::cli::output::{OutputMode, active_mode, emit_success};
 use crate::cli::sync_args::create_default_output_path;
 use crate::config::Config;
 use crate::config::ConfigService;
 use crate::core::formats::manager::FormatManager;
 use crate::core::sync::{SyncEngine, SyncMethod, SyncResult};
 use crate::{Result, error::SubXError};
+use serde::Serialize;
+
+/// Approximate VAD chunk duration in milliseconds.
+///
+/// Silero VAD operates on 512 samples at 16 kHz (≈32 ms) and 256 samples
+/// at 8 kHz (≈32 ms). The exact chunk duration depends on the audio
+/// sample rate; 32 ms is the value used for both supported rates.
+const VAD_CHUNK_MS: u32 = 32;
+
+/// JSON payload emitted under `data` of the top-level envelope by
+/// `subx-cli --output json sync`.
+///
+/// The shape is uniform across single-pair and batch invocations: an
+/// `inputs` array describing each subtitle that was analyzed, an
+/// `operations` array describing each file that was written or
+/// planned, and a top-level `method` string identifying the active
+/// synchronization strategy.
+#[derive(Debug, Serialize)]
+pub struct SyncPayload {
+    /// Active sync method: `"vad"`, `"manual"`, or `"auto"`.
+    pub method: String,
+    /// Per-subtitle analysis results, one entry per processed input.
+    pub inputs: Vec<SyncInput>,
+    /// Per-subtitle write operations, one entry per planned/applied write.
+    pub operations: Vec<SyncOperation>,
+}
+
+/// One entry in [`SyncPayload::inputs`] — describes the analysis stage
+/// for a single subtitle file.
+#[derive(Debug, Serialize)]
+pub struct SyncInput {
+    /// Subtitle file path that was analyzed.
+    pub subtitle_path: String,
+    /// Audio/video source used for analysis (absent for manual offsets
+    /// and skipped items).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub audio_path: Option<String>,
+    /// Detected offset in milliseconds (positive = subtitles delayed).
+    /// For manual sync this equals the user-supplied offset.
+    pub detected_offset_ms: i64,
+    /// Detection confidence (0.0–1.0); absent for manual and skipped.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub confidence: Option<f32>,
+    /// VAD-specific metadata (only populated when `method == "vad"`).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub vad: Option<VadInfoPayload>,
+    /// Either `"ok"` or `"error"`.
+    pub status: &'static str,
+    /// Error metadata when `status == "error"`.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub error: Option<SyncItemError>,
+}
+
+/// One entry in [`SyncPayload::operations`] — describes a planned or
+/// applied write to disk.
+#[derive(Debug, Serialize)]
+pub struct SyncOperation {
+    /// Subtitle source path the operation derives from.
+    pub subtitle_path: String,
+    /// Path the synchronized subtitle was (or would have been) written to.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub output_path: Option<String>,
+    /// True when the synchronized subtitle was actually written to disk.
+    pub applied: bool,
+    /// True when `--dry-run` was supplied.
+    pub dry_run: bool,
+    /// Either `"ok"` or `"error"`.
+    pub status: &'static str,
+    /// Error metadata when `status == "error"`.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub error: Option<SyncItemError>,
+}
+
+/// VAD-specific metadata included in [`SyncInput::vad`].
+#[derive(Debug, Serialize)]
+pub struct VadInfoPayload {
+    /// VAD sensitivity threshold in effect (0.0–1.0).
+    pub sensitivity: f32,
+    /// Padding around detected speech, expressed in milliseconds.
+    pub padding_ms: u32,
+    /// Detected speech segments (`{start,end,duration}` objects).
+    pub segments: Vec<serde_json::Value>,
+}
+
+/// Stable per-item error payload (mirrors the top-level error envelope
+/// minus `exit_code`).
+#[derive(Debug, Serialize, Clone)]
+pub struct SyncItemError {
+    /// Stable machine code (e.g. `E_SUBTITLE_FORMAT`).
+    pub code: String,
+    /// Stable category (e.g. `subtitle_format`).
+    pub category: String,
+    /// Human-readable message.
+    pub message: String,
+}
+
+/// Internal aggregate produced by [`run_single`] — pairs the input
+/// analysis record with its companion write operation.
+struct SyncSingleResult {
+    input: SyncInput,
+    operation: SyncOperation,
+}
+
+fn method_to_str(m: &SyncMethod) -> &'static str {
+    match m {
+        SyncMethod::LocalVad => "vad",
+        SyncMethod::Manual => "manual",
+        SyncMethod::Auto => "auto",
+    }
+}
+
+fn build_single_result(
+    args: &SyncArgs,
+    sync_result: &SyncResult,
+    subtitle_path: &std::path::Path,
+    audio_path: Option<&std::path::Path>,
+    output_path: Option<&std::path::Path>,
+    applied: bool,
+    vad_cfg: &crate::config::VadConfig,
+) -> SyncSingleResult {
+    let offset_ms = (sync_result.offset_seconds as f64 * 1000.0).round() as i64;
+    let confidence = if matches!(sync_result.method_used, SyncMethod::Manual) {
+        None
+    } else {
+        Some(sync_result.confidence)
+    };
+    let vad = if matches!(sync_result.method_used, SyncMethod::LocalVad) {
+        let segments = sync_result
+            .additional_info
+            .as_ref()
+            .and_then(|v| v.get("detected_segments"))
+            .and_then(|v| v.as_array())
+            .cloned()
+            .unwrap_or_default();
+        Some(VadInfoPayload {
+            sensitivity: vad_cfg.sensitivity,
+            padding_ms: vad_cfg.padding_chunks.saturating_mul(VAD_CHUNK_MS),
+            segments,
+        })
+    } else {
+        None
+    };
+    let subtitle_str = subtitle_path.display().to_string();
+    let input = SyncInput {
+        subtitle_path: subtitle_str.clone(),
+        audio_path: audio_path.map(|p| p.display().to_string()),
+        detected_offset_ms: offset_ms,
+        confidence,
+        vad,
+        status: "ok",
+        error: None,
+    };
+    let operation = SyncOperation {
+        subtitle_path: subtitle_str,
+        output_path: output_path.map(|p| p.display().to_string()),
+        applied,
+        dry_run: args.dry_run,
+        status: "ok",
+        error: None,
+    };
+    SyncSingleResult { input, operation }
+}
+
+/// Resolve the active sync method as a stable string for the
+/// top-level [`SyncPayload::method`] field. Mirrors the dispatch
+/// rules in [`determine_sync_method`] but operates without an audio
+/// source so it can be evaluated even when no items succeed.
+fn resolve_method_string(args: &SyncArgs, default_method: &str) -> String {
+    if args.offset.is_some() {
+        return "manual".to_string();
+    }
+    if let Some(method_arg) = &args.method {
+        return method_to_str(&method_arg.clone().into()).to_string();
+    }
+    if args.vad_sensitivity.is_some() {
+        return "vad".to_string();
+    }
+    match default_method {
+        "vad" => "vad".to_string(),
+        "auto" => "auto".to_string(),
+        _ => "auto".to_string(),
+    }
+}
+
+fn make_skip_input_op(
+    sub_path: &std::path::Path,
+    audio_path: Option<&std::path::Path>,
+    reason: &str,
+    dry_run: bool,
+) -> (SyncInput, SyncOperation) {
+    let err = SyncItemError {
+        code: "E_FILE_MATCHING".to_string(),
+        category: "file_matching".to_string(),
+        message: format!("Skip sync: {reason}"),
+    };
+    let subtitle_str = sub_path.display().to_string();
+    let input = SyncInput {
+        subtitle_path: subtitle_str.clone(),
+        audio_path: audio_path.map(|p| p.display().to_string()),
+        detected_offset_ms: 0,
+        confidence: None,
+        vad: None,
+        status: "error",
+        error: Some(err.clone()),
+    };
+    let operation = SyncOperation {
+        subtitle_path: subtitle_str,
+        output_path: None,
+        applied: false,
+        dry_run,
+        status: "error",
+        error: Some(err),
+    };
+    (input, operation)
+}
 
 /// Internal helper to perform a single video-subtitle synchronization.
+///
+/// Returns a [`SyncSingleResult`] describing the operation. Prose stdout
+/// chatter is suppressed when JSON mode is active; the caller decides
+/// whether to wrap the pair in a single-pair [`SyncPayload`] or stitch
+/// it into a batch result.
 async fn run_single(
     args: &SyncArgs,
     config: &Config,
     sync_engine: &SyncEngine,
     format_manager: &FormatManager,
-) -> Result<()> {
+) -> Result<SyncSingleResult> {
+    let json = active_mode().is_json();
     let subtitle_path = args.subtitle.as_ref().ok_or_else(|| {
         SubXError::CommandExecution(
             "Subtitle file path is required for single file sync".to_string(),
         )
     })?;
 
-    if args.verbose {
+    if args.verbose && !json {
         println!("🎬 Loading subtitle file: {}", subtitle_path.display());
         println!("📄 Subtitle entries count: {}", {
             let s = format_manager.load_subtitle(subtitle_path).map_err(|e| {
@@ -40,8 +262,10 @@ async fn run_single(
         eprintln!("[DEBUG] Failed to load subtitle: {e}");
         e
     })?;
+    let mut effective_vad_cfg = config.sync.vad.clone();
+    let mut audio_for_payload: Option<std::path::PathBuf> = None;
     let sync_result = if let Some(offset) = args.offset {
-        if args.verbose {
+        if args.verbose && !json {
             println!("⚙️  Using manual offset: {offset:.3}s");
         }
         sync_engine
@@ -75,7 +299,7 @@ async fn run_single(
         }
 
         let method = determine_sync_method(args, &config.sync.default_method)?;
-        if args.verbose {
+        if args.verbose && !json {
             println!("🔍 Starting sync analysis...");
             println!("   Method: {method:?}");
             println!("   Analysis window: {}s", args.window);
@@ -83,6 +307,8 @@ async fn run_single(
         }
         let mut sync_cfg = config.sync.clone();
         apply_cli_overrides(&mut sync_cfg, args)?;
+        effective_vad_cfg = sync_cfg.vad.clone();
+        audio_for_payload = Some(video_path.clone());
         let result = sync_engine
             .detect_sync_offset(video_path.as_path(), &subtitle, Some(method))
             .await
@@ -90,7 +316,7 @@ async fn run_single(
                 eprintln!("[DEBUG] Failed to detect sync offset: {e}");
                 e
             })?;
-        if args.verbose {
+        if args.verbose && !json {
             println!("✅ Analysis completed:");
             println!("   Detected offset: {:.3}s", result.offset_seconds);
             println!("   Confidence: {:.1}%", result.confidence * 100.0);
@@ -106,7 +332,11 @@ async fn run_single(
         }
         result
     };
-    display_sync_result(&sync_result, args.verbose);
+    if !json {
+        display_sync_result(&sync_result, args.verbose);
+    }
+    let mut applied = false;
+    let mut output_path_used: Option<std::path::PathBuf> = None;
     if !args.dry_run {
         if let Some(out) = args.get_output_path() {
             if out.exists() && !args.force {
@@ -123,21 +353,33 @@ async fn run_single(
                 eprintln!("[DEBUG] Failed to save subtitle: {e}");
                 e
             })?;
-            if args.verbose {
-                println!("💾 Synchronized subtitle saved to: {}", out.display());
-            } else {
-                println!("Synchronized subtitle saved to: {}", out.display());
+            if !json {
+                if args.verbose {
+                    println!("💾 Synchronized subtitle saved to: {}", out.display());
+                } else {
+                    println!("Synchronized subtitle saved to: {}", out.display());
+                }
             }
+            applied = true;
+            output_path_used = Some(out);
         } else {
             eprintln!("[DEBUG] No output path specified");
             return Err(SubXError::CommandExecution(
                 "No output path specified".to_string(),
             ));
         }
-    } else {
+    } else if !json {
         println!("🔍 Dry run mode - file not saved");
     }
-    Ok(())
+    Ok(build_single_result(
+        args,
+        &sync_result,
+        subtitle_path,
+        audio_for_payload.as_deref(),
+        output_path_used.as_deref(),
+        applied,
+        &effective_vad_cfg,
+    ))
 }
 
 /// Execute the sync command with the provided arguments.
@@ -194,6 +436,8 @@ pub async fn execute(args: SyncArgs, config_service: &dyn ConfigService) -> Resu
 
     let sync_engine = SyncEngine::new(config.sync.clone())?;
     let format_manager = FormatManager::new();
+    let mode = active_mode();
+    let json = matches!(mode, OutputMode::Json);
 
     // Batch mode: multiple video-subtitle pairs
     if let Ok(SyncMode::Batch(handler)) = args.get_sync_mode() {
@@ -222,13 +466,38 @@ pub async fn execute(args: SyncArgs, config_service: &dyn ConfigService) -> Resu
             })
             .collect();
 
+        let mut inputs: Vec<SyncInput> = Vec::new();
+        let mut operations: Vec<SyncOperation> = Vec::new();
+        let method_string = resolve_method_string(&args, &config.sync.default_method);
+
         // Case 1: No video files - skip all subtitles
         if video_files.is_empty() {
             for sub_path in &subtitle_files {
-                println!(
-                    "✗ Skip sync for {}: no video files found in directory",
-                    sub_path.display()
-                );
+                if !json {
+                    println!(
+                        "✗ Skip sync for {}: no video files found in directory",
+                        sub_path.display()
+                    );
+                }
+                if json {
+                    let (input, op) = make_skip_input_op(
+                        sub_path,
+                        None,
+                        "no video files found in directory",
+                        args.dry_run,
+                    );
+                    inputs.push(input);
+                    operations.push(op);
+                }
+            }
+            if json {
+                // Forward progress is impossible without a video — emit a
+                // top-level error envelope instead of a success envelope
+                // wrapping all-error items.
+                return Err(SubXError::FileMatching {
+                    message: "No video files found in directory; cannot sync any subtitles"
+                        .to_string(),
+                });
             }
             return Ok(());
         }
@@ -252,7 +521,18 @@ pub async fn execute(args: SyncArgs, config_service: &dyn ConfigService) -> Resu
                     }
                 }
             }
-            run_single(&single_args, &config, &sync_engine, &format_manager).await?;
+            let pair = run_single(&single_args, &config, &sync_engine, &format_manager).await?;
+            if json {
+                emit_success(
+                    mode,
+                    "sync",
+                    SyncPayload {
+                        method: method_string,
+                        inputs: vec![pair.input],
+                        operations: vec![pair.operation],
+                    },
+                );
+            }
             return Ok(());
         }
 
@@ -314,7 +594,47 @@ pub async fn execute(args: SyncArgs, config_service: &dyn ConfigService) -> Resu
                         }
                     }
                 }
-                run_single(&single_args, &config, &sync_engine, &format_manager).await?;
+                // Per-file isolation: capture errors as per-item failures so
+                // the top-level batch envelope can stay `status == "ok"`
+                // when at least one item makes forward progress.
+                match run_single(&single_args, &config, &sync_engine, &format_manager).await {
+                    Ok(pair) => {
+                        if json {
+                            inputs.push(pair.input);
+                            operations.push(pair.operation);
+                        }
+                    }
+                    Err(err) => {
+                        if !json {
+                            // Preserve text-mode contract: stop on first error.
+                            return Err(err);
+                        }
+                        let item_err = SyncItemError {
+                            code: err.machine_code().to_string(),
+                            category: err.category().to_string(),
+                            message: err.user_friendly_message(),
+                        };
+                        let subtitle_str = sub_path.display().to_string();
+                        let audio_str = (*video_path).display().to_string();
+                        inputs.push(SyncInput {
+                            subtitle_path: subtitle_str.clone(),
+                            audio_path: Some(audio_str),
+                            detected_offset_ms: 0,
+                            confidence: None,
+                            vad: None,
+                            status: "error",
+                            error: Some(item_err.clone()),
+                        });
+                        operations.push(SyncOperation {
+                            subtitle_path: subtitle_str,
+                            output_path: None,
+                            applied: false,
+                            dry_run: args.dry_run,
+                            status: "error",
+                            error: Some(item_err),
+                        });
+                    }
+                }
 
                 processed_videos.insert(video_path.as_path());
                 processed_subtitles.insert(sub_path.as_path());
@@ -323,7 +643,7 @@ pub async fn execute(args: SyncArgs, config_service: &dyn ConfigService) -> Resu
 
         // Display skip messages for unmatched videos
         for video_path in &video_files {
-            if !processed_videos.contains(video_path.as_path()) {
+            if !processed_videos.contains(video_path.as_path()) && !json {
                 println!(
                     "✗ Skip sync for {}: no matching subtitle",
                     video_path.display()
@@ -334,10 +654,35 @@ pub async fn execute(args: SyncArgs, config_service: &dyn ConfigService) -> Resu
         // Display skip messages for unmatched subtitles
         for sub_path in &subtitle_files {
             if !processed_subtitles.contains(sub_path.as_path()) {
-                println!("✗ Skip sync for {}: no matching video", sub_path.display());
+                if !json {
+                    println!("✗ Skip sync for {}: no matching video", sub_path.display());
+                } else {
+                    let (input, op) =
+                        make_skip_input_op(sub_path, None, "no matching video", args.dry_run);
+                    inputs.push(input);
+                    operations.push(op);
+                }
             }
         }
 
+        if json {
+            let forward_progress =
+                inputs.iter().any(|i| i.status == "ok") || operations.iter().any(|o| o.applied);
+            if !forward_progress {
+                return Err(SubXError::FileMatching {
+                    message: "No subtitle/video pairs were synced successfully".to_string(),
+                });
+            }
+            emit_success(
+                mode,
+                "sync",
+                SyncPayload {
+                    method: method_string,
+                    inputs,
+                    operations,
+                },
+            );
+        }
         return Ok(());
     }
 
@@ -355,7 +700,19 @@ pub async fn execute(args: SyncArgs, config_service: &dyn ConfigService) -> Resu
                 resolved_args.offset = Some(0.0);
                 resolved_args.method = Some(crate::cli::SyncMethodArg::Manual);
             }
-            run_single(&resolved_args, &config, &sync_engine, &format_manager).await?;
+            let method_string = resolve_method_string(&resolved_args, &config.sync.default_method);
+            let pair = run_single(&resolved_args, &config, &sync_engine, &format_manager).await?;
+            if json {
+                emit_success(
+                    mode,
+                    "sync",
+                    SyncPayload {
+                        method: method_string,
+                        inputs: vec![pair.input],
+                        operations: vec![pair.operation],
+                    },
+                );
+            }
             Ok(())
         }
         Err(err) => Err(err),

@@ -585,6 +585,67 @@ pub struct MatchOperation {
     pub requires_relocation: bool,
 }
 
+/// AI-suggested candidate that did not become a match operation.
+///
+/// Emitted by [`MatchEngine::match_file_list_with_audit`] so machine-readable
+/// callers can surface AI suggestions that were rejected (sub-threshold or
+/// referencing unknown file IDs).
+#[derive(Debug, Clone)]
+pub struct RejectedCandidate {
+    /// Path of the candidate video file (empty string if unresolved).
+    pub video_path: String,
+    /// Path of the candidate subtitle file (empty string if unresolved).
+    pub subtitle_path: String,
+    /// AI-reported confidence score (0.0 to 1.0).
+    pub confidence: f32,
+    /// Stable reason code (`"below_threshold"` or `"id_not_found"`).
+    pub reason: &'static str,
+}
+
+/// Result of the auditable match planning pass: accepted operations plus
+/// rejected candidates.
+#[derive(Debug)]
+pub struct MatchAudit {
+    /// Operations that satisfied the confidence threshold and resolved to real files.
+    pub operations: Vec<MatchOperation>,
+    /// Candidates rejected by the planner.
+    pub rejected: Vec<RejectedCandidate>,
+}
+
+/// Per-operation outcome captured by [`MatchEngine::execute_operations_audit`].
+///
+/// Unlike [`MatchEngine::execute_operations`] which aborts on first failure,
+/// the audit variant records each operation's outcome so callers can report
+/// partial success/failure (used by JSON output mode).
+#[derive(Debug)]
+pub struct OperationOutcome {
+    /// Whether the operation was applied to the filesystem.
+    pub applied: bool,
+    /// Set when the operation failed (mutually exclusive with `applied == true`).
+    pub error: Option<OperationError>,
+}
+
+/// Self-contained per-operation error metadata for machine-readable output.
+#[derive(Debug, Clone)]
+pub struct OperationError {
+    /// Error category from [`SubXError::category`].
+    pub category: &'static str,
+    /// Stable machine code from [`SubXError::machine_code`].
+    pub code: &'static str,
+    /// User-friendly message from [`SubXError::user_friendly_message`].
+    pub message: String,
+}
+
+/// Convert a [`SubXError`] into a self-contained [`OperationError`] for
+/// audit reporting.
+fn operation_error_from(err: &SubXError) -> OperationError {
+    OperationError {
+        category: err.category(),
+        code: err.machine_code(),
+        message: err.user_friendly_message(),
+    }
+}
+
 /// Engine for matching video and subtitle files using AI analysis.
 pub struct MatchEngine {
     ai_client: Box<dyn AIProvider>,
@@ -616,6 +677,18 @@ impl MatchEngine {
     ///
     /// A list of `MatchOperation` entries that meet the confidence threshold.
     pub async fn match_file_list(&self, file_paths: &[PathBuf]) -> Result<Vec<MatchOperation>> {
+        Ok(self
+            .match_file_list_with_audit(file_paths)
+            .await?
+            .operations)
+    }
+
+    /// Auditable variant of [`MatchEngine::match_file_list`] that also returns
+    /// rejected candidates (sub-threshold or unresolvable AI suggestions).
+    ///
+    /// When operations are served from cache, `rejected` is returned empty
+    /// because cache entries do not preserve rejection metadata.
+    pub async fn match_file_list_with_audit(&self, file_paths: &[PathBuf]) -> Result<MatchAudit> {
         // 1. Process the file list to create MediaFile objects
         let files = self.discovery.scan_file_list(file_paths)?;
 
@@ -629,14 +702,19 @@ impl MatchEngine {
             .collect();
 
         if videos.is_empty() || subtitles.is_empty() {
-            return Ok(Vec::new());
+            return Ok(MatchAudit {
+                operations: Vec::new(),
+                rejected: Vec::new(),
+            });
         }
 
         // 2. Check if we can use cache for file list operations
-        // Create a stable cache key based on sorted file paths and their metadata
         let cache_key = self.calculate_file_list_cache_key(file_paths)?;
         if let Some(ops) = self.check_file_list_cache(&cache_key).await? {
-            return Ok(ops);
+            return Ok(MatchAudit {
+                operations: ops,
+                rejected: Vec::new(),
+            });
         }
 
         // 3. Content sampling
@@ -647,7 +725,6 @@ impl MatchEngine {
         };
 
         // 4. AI analysis request
-        // Generate AI analysis request: include file IDs for precise matching
         let video_files: Vec<String> = videos
             .iter()
             .map(|v| format!("ID:{} | Name:{} | Path:{}", v.id, v.name, v.relative_path))
@@ -682,59 +759,69 @@ impl MatchEngine {
 
         // 6. Assemble match operation list
         let mut operations = Vec::new();
+        let mut rejected = Vec::new();
 
         for ai_match in match_result.matches {
-            if ai_match.confidence >= self.config.confidence_threshold {
-                let video_match =
-                    Self::find_media_file_by_id_or_path(&videos, &ai_match.video_file_id, None);
-                let subtitle_match = Self::find_media_file_by_id_or_path(
-                    &subtitles,
-                    &ai_match.subtitle_file_id,
-                    None,
-                );
-                match (video_match, subtitle_match) {
-                    (Some(video), Some(subtitle)) => {
-                        let new_name = self.generate_subtitle_name(video, subtitle);
+            let video_match =
+                Self::find_media_file_by_id_or_path(&videos, &ai_match.video_file_id, None);
+            let subtitle_match =
+                Self::find_media_file_by_id_or_path(&subtitles, &ai_match.subtitle_file_id, None);
 
-                        // Determine if relocation is needed
-                        let requires_relocation = self.config.relocation_mode
-                            != FileRelocationMode::None
-                            && subtitle.path.parent() != video.path.parent();
+            if ai_match.confidence < self.config.confidence_threshold {
+                rejected.push(RejectedCandidate {
+                    video_path: video_match
+                        .map(|v| v.path.display().to_string())
+                        .unwrap_or_default(),
+                    subtitle_path: subtitle_match
+                        .map(|s| s.path.display().to_string())
+                        .unwrap_or_default(),
+                    confidence: ai_match.confidence,
+                    reason: "below_threshold",
+                });
+                continue;
+            }
 
-                        let relocation_target_path = if requires_relocation {
-                            let video_dir = video.path.parent().unwrap();
-                            Some(video_dir.join(&new_name))
-                        } else {
-                            None
-                        };
+            match (video_match, subtitle_match) {
+                (Some(video), Some(subtitle)) => {
+                    let new_name = self.generate_subtitle_name(video, subtitle);
 
-                        operations.push(MatchOperation {
-                            video_file: (*video).clone(),
-                            subtitle_file: (*subtitle).clone(),
-                            new_subtitle_name: new_name,
-                            confidence: ai_match.confidence,
-                            reasoning: ai_match.match_factors,
-                            relocation_mode: self.config.relocation_mode.clone(),
-                            relocation_target_path,
-                            requires_relocation,
-                        });
-                    }
-                    _ => {
-                        eprintln!(
-                            "⚠️  Cannot find AI-suggested file pair:\n     Video ID: '{}'\n     Subtitle ID: '{}'",
-                            ai_match.video_file_id, ai_match.subtitle_file_id
-                        );
-                        eprintln!("❌ No matching files found that meet the criteria");
-                        eprintln!("🔍 Available file statistics:");
-                        eprintln!("   Video files ({} files):", videos.len());
-                        for video in &videos {
-                            eprintln!("     - ID: {} | {}", video.id, video.name);
-                        }
-                        eprintln!("   Subtitle files ({} files):", subtitles.len());
-                        for subtitle in &subtitles {
-                            eprintln!("     - ID: {} | {}", subtitle.id, subtitle.name);
-                        }
-                    }
+                    let requires_relocation = self.config.relocation_mode
+                        != FileRelocationMode::None
+                        && subtitle.path.parent() != video.path.parent();
+
+                    let relocation_target_path = if requires_relocation {
+                        let video_dir = video.path.parent().unwrap();
+                        Some(video_dir.join(&new_name))
+                    } else {
+                        None
+                    };
+
+                    operations.push(MatchOperation {
+                        video_file: (*video).clone(),
+                        subtitle_file: (*subtitle).clone(),
+                        new_subtitle_name: new_name,
+                        confidence: ai_match.confidence,
+                        reasoning: ai_match.match_factors,
+                        relocation_mode: self.config.relocation_mode.clone(),
+                        relocation_target_path,
+                        requires_relocation,
+                    });
+                }
+                _ => {
+                    eprintln!(
+                        "⚠️  Cannot find AI-suggested file pair:\n     Video ID: '{}'\n     Subtitle ID: '{}'",
+                        ai_match.video_file_id, ai_match.subtitle_file_id
+                    );
+                    rejected.push(RejectedCandidate {
+                        video_path: video_match
+                            .map(|v| v.path.display().to_string())
+                            .unwrap_or_default(),
+                        subtitle_path: subtitle_match
+                            .map(|s| s.path.display().to_string())
+                            .unwrap_or_default(),
+                        confidence: ai_match.confidence,
+                        reason: "id_not_found",
+                    });
                 }
             }
         }
@@ -742,7 +829,10 @@ impl MatchEngine {
         // 7. Save to cache for future use
         self.save_file_list_cache(&cache_key, &operations).await?;
 
-        Ok(operations)
+        Ok(MatchAudit {
+            operations,
+            rejected,
+        })
     }
 
     async fn extract_content_samples(
@@ -819,11 +909,19 @@ impl MatchEngine {
         dry_run: bool,
     ) -> Result<()> {
         if dry_run {
+            // Text-mode dry-run preview. JSON mode never reaches this path
+            // (the match command takes the JSON branch via
+            // `execute_operations_audit` before calling this method), but
+            // gate defensively so a future caller cannot corrupt the
+            // single-envelope contract.
+            let json_mode = crate::cli::output::active_mode().is_json();
             for op in operations {
-                println!(
-                    "Preview: {} -> {}",
-                    op.subtitle_file.name, op.new_subtitle_name
-                );
+                if !json_mode {
+                    println!(
+                        "Preview: {} -> {}",
+                        op.subtitle_file.name, op.new_subtitle_name
+                    );
+                }
                 if op.requires_relocation {
                     if let Some(target_path) = &op.relocation_target_path {
                         let operation_verb = match op.relocation_mode {
@@ -831,12 +929,14 @@ impl MatchEngine {
                             FileRelocationMode::Move => "Move",
                             _ => "",
                         };
-                        println!(
-                            "Preview: {} {} to {}",
-                            operation_verb,
-                            op.subtitle_file.path.display(),
-                            target_path.display()
-                        );
+                        if !json_mode {
+                            println!(
+                                "Preview: {} {} to {}",
+                                operation_verb,
+                                op.subtitle_file.path.display(),
+                                target_path.display()
+                            );
+                        }
                     }
                 }
             }
@@ -981,6 +1081,162 @@ impl MatchEngine {
             return Err(err);
         }
         Ok(())
+    }
+
+    /// Auditable variant of [`MatchEngine::execute_operations`] that does NOT
+    /// abort on first failure. Each operation produces an [`OperationOutcome`]
+    /// describing whether it was applied or which error blocked it.
+    ///
+    /// This is the engine entry point used by JSON output mode to surface
+    /// per-item statuses in the success envelope.
+    pub async fn execute_operations_audit(
+        &self,
+        operations: &[MatchOperation],
+        dry_run: bool,
+    ) -> Result<Vec<OperationOutcome>> {
+        if dry_run {
+            return Ok(operations
+                .iter()
+                .map(|_| OperationOutcome {
+                    applied: false,
+                    error: None,
+                })
+                .collect());
+        }
+
+        let created_at = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_secs())
+            .unwrap_or(0);
+        let batch_id = {
+            use std::collections::hash_map::DefaultHasher;
+            use std::hash::{Hash, Hasher};
+            let mut hasher = DefaultHasher::new();
+            created_at.hash(&mut hasher);
+            operations.len().hash(&mut hasher);
+            for op in operations {
+                op.subtitle_file.path.hash(&mut hasher);
+                op.new_subtitle_name.hash(&mut hasher);
+            }
+            format!("{:016x}", hasher.finish())
+        };
+        let mut journal = JournalData {
+            batch_id,
+            created_at,
+            entries: Vec::new(),
+        };
+        let journal_file = journal_path().ok();
+
+        let mut outcomes = Vec::with_capacity(operations.len());
+
+        for op in operations {
+            let mut backup_path: Option<PathBuf> = None;
+
+            if op.relocation_mode == FileRelocationMode::Move && self.config.backup_enabled {
+                let backup_task =
+                    self.create_backup_task(&op.subtitle_file.path, &op.subtitle_file.extension);
+                if let ProcessingOperation::CreateBackup { backup, .. } = &backup_task.operation {
+                    backup_path = Some(backup.clone());
+                }
+                if let TaskResult::Failed(err) = backup_task.execute().await {
+                    let err = SubXError::FileOperationFailed(err);
+                    outcomes.push(OperationOutcome {
+                        applied: false,
+                        error: Some(operation_error_from(&err)),
+                    });
+                    continue;
+                }
+            }
+
+            let primary_task = if op.relocation_mode == FileRelocationMode::Copy {
+                self.create_copy_task(op)
+            } else {
+                self.create_rename_task(op)
+            };
+
+            let (journal_source, journal_destination, journal_kind) = match &primary_task.operation
+            {
+                ProcessingOperation::CopyWithRename { source, target }
+                | ProcessingOperation::CopyToVideoFolder { source, target } => {
+                    (source.clone(), target.clone(), JournalOperationType::Copied)
+                }
+                ProcessingOperation::MoveToVideoFolder { source, target } => {
+                    (source.clone(), target.clone(), JournalOperationType::Moved)
+                }
+                ProcessingOperation::RenameFile { source, target } => {
+                    let kind = match op.relocation_mode {
+                        FileRelocationMode::Move => JournalOperationType::Moved,
+                        _ => JournalOperationType::Renamed,
+                    };
+                    (source.clone(), target.clone(), kind)
+                }
+                _ => (
+                    op.subtitle_file.path.clone(),
+                    op.relocation_target_path.clone().unwrap_or_else(|| {
+                        op.subtitle_file.path.with_file_name(&op.new_subtitle_name)
+                    }),
+                    JournalOperationType::Renamed,
+                ),
+            };
+
+            let (pre_file_size, pre_file_mtime) = journal_source
+                .metadata()
+                .ok()
+                .map(|m| {
+                    let mtime = m
+                        .modified()
+                        .ok()
+                        .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
+                        .map(|d| d.as_secs())
+                        .unwrap_or(0);
+                    (m.len(), mtime)
+                })
+                .unwrap_or((0, 0));
+
+            if let TaskResult::Failed(err) = primary_task.execute().await {
+                let err = SubXError::FileOperationFailed(err);
+                outcomes.push(OperationOutcome {
+                    applied: false,
+                    error: Some(operation_error_from(&err)),
+                });
+                continue;
+            }
+
+            let (file_size, file_mtime) = journal_destination
+                .metadata()
+                .ok()
+                .map(|m| {
+                    let mtime = m
+                        .modified()
+                        .ok()
+                        .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
+                        .map(|d| d.as_secs())
+                        .unwrap_or(0);
+                    (m.len(), mtime)
+                })
+                .unwrap_or((pre_file_size, pre_file_mtime));
+
+            journal.entries.push(JournalEntry {
+                operation_type: journal_kind,
+                source: journal_source,
+                destination: journal_destination,
+                backup_path: backup_path.clone(),
+                status: JournalEntryStatus::Completed,
+                file_size,
+                file_mtime,
+            });
+
+            if let Some(path) = journal_file.as_ref() {
+                journal.save(path).await?;
+            }
+
+            outcomes.push(OperationOutcome {
+                applied: true,
+                error: None,
+            });
+        }
+
+        Ok(outcomes)
     }
 
     /// Rename subtitle file by delegating to FileProcessingTask

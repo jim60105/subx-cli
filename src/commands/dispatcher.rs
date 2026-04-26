@@ -1,4 +1,4 @@
-use crate::{Result, cli::Commands, config::ConfigService};
+use crate::{Result, cli::Commands, cli::OutputMode, config::ConfigService};
 use std::sync::Arc;
 
 /// Central command dispatcher to avoid code duplication.
@@ -53,6 +53,25 @@ pub async fn dispatch_command(
     command: Commands,
     config_service: Arc<dyn ConfigService>,
 ) -> Result<()> {
+    dispatch_command_with_mode(command, config_service, OutputMode::Text).await
+}
+
+/// Dispatch a command using an owned `Arc<dyn ConfigService>` and an
+/// explicit [`OutputMode`].
+///
+/// This is the entry point used by the CLI runtime. The `output_mode`
+/// parameter is currently used to thread the renderer through to each
+/// per-command handler (a follow-up task wires it into the per-command
+/// payload emission). Today, the dispatcher itself does not branch on
+/// the mode — the global mode installed via
+/// [`crate::cli::output::install_active_mode`] already governs UI
+/// helpers — but the parameter is plumbed for forward compatibility so
+/// per-command sub-agents have a stable contract to consume.
+pub async fn dispatch_command_with_mode(
+    command: Commands,
+    config_service: Arc<dyn ConfigService>,
+    output_mode: OutputMode,
+) -> Result<()> {
     match command {
         Commands::Match(args) => {
             crate::commands::match_command::execute_with_config(args, config_service).await
@@ -66,13 +85,7 @@ pub async fn dispatch_command(
         Commands::Config(args) => {
             crate::commands::config_command::execute_with_config(args, config_service).await
         }
-        Commands::GenerateCompletion(args) => {
-            let mut cmd = <crate::cli::Cli as clap::CommandFactory>::command();
-            let cmd_name = cmd.get_name().to_string();
-            let mut stdout = std::io::stdout();
-            clap_complete::generate(args.shell, &mut cmd, cmd_name, &mut stdout);
-            Ok(())
-        }
+        Commands::GenerateCompletion(args) => run_generate_completion(args, output_mode),
         Commands::Cache(args) => {
             crate::commands::cache_command::execute_with_config(args, config_service).await
         }
@@ -92,10 +105,13 @@ pub async fn dispatch_command(
 /// Dispatch command with borrowed config service reference.
 ///
 /// This version is used by the CLI interface where we have a borrowed reference
-/// to the configuration service rather than an owned Arc.
+/// to the configuration service rather than an owned Arc. The
+/// `output_mode` parameter is plumbed for per-command renderer
+/// integration (see [`dispatch_command_with_mode`]).
 pub async fn dispatch_command_with_ref(
     command: Commands,
     config_service: &dyn ConfigService,
+    output_mode: OutputMode,
 ) -> Result<()> {
     match command {
         Commands::Match(args) => {
@@ -110,13 +126,7 @@ pub async fn dispatch_command_with_ref(
         Commands::Config(args) => {
             crate::commands::config_command::execute(args, config_service).await
         }
-        Commands::GenerateCompletion(args) => {
-            let mut cmd = <crate::cli::Cli as clap::CommandFactory>::command();
-            let cmd_name = cmd.get_name().to_string();
-            let mut stdout = std::io::stdout();
-            clap_complete::generate(args.shell, &mut cmd, cmd_name, &mut stdout);
-            Ok(())
-        }
+        Commands::GenerateCompletion(args) => run_generate_completion(args, output_mode),
         Commands::Cache(args) => crate::commands::cache_command::execute(args).await,
         Commands::Translate(args) => {
             crate::commands::translate_command::execute(args, config_service).await
@@ -129,6 +139,30 @@ pub async fn dispatch_command_with_ref(
             Ok(())
         }
     }
+}
+
+/// Execute the `generate-completion` subcommand, rejecting JSON output
+/// mode because the produced shell-completion script cannot be wrapped
+/// in the JSON envelope contract.
+///
+/// In [`OutputMode::Text`] this prints the script to stdout and returns
+/// `Ok(())`. In [`OutputMode::Json`] it returns
+/// [`crate::error::SubXError::OutputModeUnsupported`] so `main.rs` can
+/// emit the standard error envelope and exit with code 1.
+fn run_generate_completion(
+    args: crate::cli::GenerateCompletionArgs,
+    output_mode: OutputMode,
+) -> Result<()> {
+    if output_mode.is_json() {
+        return Err(crate::error::SubXError::OutputModeUnsupported {
+            command: "generate-completion".to_string(),
+        });
+    }
+    let mut cmd = <crate::cli::Cli as clap::CommandFactory>::command();
+    let cmd_name = cmd.get_name().to_string();
+    let mut stdout = std::io::stdout();
+    clap_complete::generate(args.shell, &mut cmd, cmd_name, &mut stdout);
+    Ok(())
 }
 
 #[cfg(test)]
@@ -336,9 +370,12 @@ mod tests {
     #[tokio::test]
     async fn test_dispatch_with_ref_match_command() {
         let config_service = TestConfigService::with_ai_settings("test_provider", "test_model");
-        let result =
-            dispatch_command_with_ref(Commands::Match(make_match_args_dry_run()), &config_service)
-                .await;
+        let result = dispatch_command_with_ref(
+            Commands::Match(make_match_args_dry_run()),
+            &config_service,
+            OutputMode::Text,
+        )
+        .await;
         match result {
             Ok(_) => {}
             Err(e) => assert!(is_expected_test_error(&e), "Unexpected error: {e:?}"),
@@ -360,7 +397,9 @@ mod tests {
             move_files: true,
             no_extract: false,
         };
-        let result = dispatch_command_with_ref(Commands::Match(args), &config_service).await;
+        let result =
+            dispatch_command_with_ref(Commands::Match(args), &config_service, OutputMode::Text)
+                .await;
         assert!(result.is_err(), "Expected validation error for copy+move");
         let msg = format!("{:?}", result.unwrap_err());
         assert!(
@@ -372,16 +411,23 @@ mod tests {
     #[tokio::test]
     async fn test_dispatch_with_ref_convert_command() {
         let config_service = TestConfigService::with_defaults();
-        let _result =
-            dispatch_command_with_ref(Commands::Convert(make_convert_args()), &config_service)
-                .await;
+        let _result = dispatch_command_with_ref(
+            Commands::Convert(make_convert_args()),
+            &config_service,
+            OutputMode::Text,
+        )
+        .await;
     }
 
     #[tokio::test]
     async fn test_dispatch_with_ref_sync_command() {
         let config_service = TestConfigService::with_defaults();
-        let result =
-            dispatch_command_with_ref(Commands::Sync(make_sync_args()), &config_service).await;
+        let result = dispatch_command_with_ref(
+            Commands::Sync(make_sync_args()),
+            &config_service,
+            OutputMode::Text,
+        )
+        .await;
         match result {
             Ok(_) => {}
             Err(e) => assert!(is_expected_test_error(&e), "Unexpected error: {e:?}"),
@@ -391,9 +437,12 @@ mod tests {
     #[tokio::test]
     async fn test_dispatch_with_ref_config_list_command() {
         let config_service = TestConfigService::with_defaults();
-        let result =
-            dispatch_command_with_ref(Commands::Config(make_config_args_list()), &config_service)
-                .await;
+        let result = dispatch_command_with_ref(
+            Commands::Config(make_config_args_list()),
+            &config_service,
+            OutputMode::Text,
+        )
+        .await;
         match result {
             Ok(_) => {}
             Err(e) => assert!(is_expected_test_error(&e), "Unexpected error: {e:?}"),
@@ -406,6 +455,7 @@ mod tests {
         let result = dispatch_command_with_ref(
             Commands::GenerateCompletion(make_generate_completion_args()),
             &config_service,
+            OutputMode::Text,
         )
         .await;
         assert!(
@@ -417,17 +467,23 @@ mod tests {
     #[tokio::test]
     async fn test_dispatch_with_ref_cache_status_command() {
         let config_service = TestConfigService::with_defaults();
-        let _result =
-            dispatch_command_with_ref(Commands::Cache(make_cache_status_args()), &config_service)
-                .await;
+        let _result = dispatch_command_with_ref(
+            Commands::Cache(make_cache_status_args()),
+            &config_service,
+            OutputMode::Text,
+        )
+        .await;
     }
 
     #[tokio::test]
     async fn test_dispatch_with_ref_cache_clear_command() {
         let config_service = TestConfigService::with_defaults();
-        let _result =
-            dispatch_command_with_ref(Commands::Cache(make_cache_clear_args()), &config_service)
-                .await;
+        let _result = dispatch_command_with_ref(
+            Commands::Cache(make_cache_clear_args()),
+            &config_service,
+            OutputMode::Text,
+        )
+        .await;
     }
 
     #[tokio::test]
@@ -436,6 +492,7 @@ mod tests {
         let result = dispatch_command_with_ref(
             Commands::DetectEncoding(make_detect_encoding_args()),
             &config_service,
+            OutputMode::Text,
         )
         .await;
         match result {

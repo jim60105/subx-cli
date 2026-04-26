@@ -105,10 +105,23 @@ cargo build --release
 | VTT | ✅ | ✅ | WebVTT，網頁原生格式 |
 | SUB | ✅ | ⚠️ | 多種 SUB 變體，部分寫入支援 |
 
+## 腳本與自動化
+
+於子命令之前傳入 `--output json`，或設定 `SUBX_OUTPUT=json` 環境變數，即可讓所有支援的子命令在標準輸出上產生穩定且版本化的 JSON 封套，適合用於 Shell 腳本、CI 流水線與第三方工具。JSON 模式下會抑制進度條與狀態符號；既有的離開碼（exit code）契約於兩種模式中皆保持不變。
+
+```bash
+# 以 jq 取出第一筆比對候選的信心分數
+subx-cli --output json match --dry-run ./media \
+  | jq -r '.data.candidates[0].confidence'
+```
+
+完整的封套結構、錯誤分類、各命令的 payload 結構與腳本範例，請參閱[機器可讀輸出](docs/machine-readable-output.md)。`generate-completion` 是唯一明確拒絕 JSON 模式的子命令。
+
 ## 文件
 
 - [命令參考](docs/command-reference.md)——所有子命令的完整選項、範例與工作流程
 - [配置指南](docs/configuration-guide.md)——所有設定、環境變數與疑難排解
+- [機器可讀輸出](docs/machine-readable-output.md)——`--output json` 契約，提供腳本與自動化使用
 - [技術架構](docs/tech-architecture.md)——程式碼結構與設計決策
 - [AI 供應商整合指南](docs/ai-provider-integration-guide.md)——如何新增 AI 供應商
 

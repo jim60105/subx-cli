@@ -124,10 +124,14 @@ impl WorkerPool {
     pub async fn shutdown(&self) {
         let workers = { std::mem::take(&mut *self.workers.lock().unwrap()) };
         for (id, info) in workers {
-            println!(
-                "Waiting for worker {} to complete task {}",
-                id, info.task_id
-            );
+            // stderr diagnostic — never written to stdout, so safe in JSON
+            // mode. Suppressed when --quiet is set.
+            if !crate::cli::output::is_quiet() {
+                eprintln!(
+                    "Waiting for worker {} to complete task {}",
+                    id, info.task_id
+                );
+            }
             let _ = info.handle.await;
         }
     }

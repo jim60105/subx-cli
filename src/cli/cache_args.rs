@@ -59,7 +59,17 @@ pub enum CacheAction {
 /// Arguments for the `cache status` subcommand.
 #[derive(Args, Debug)]
 pub struct StatusArgs {
-    /// Output status in JSON format for scripting
+    /// Output status in JSON format for scripting.
+    ///
+    /// **Backward-compatible alias** for the global `--output json`
+    /// flag (see [`crate::cli::OutputMode`]). When this flag is set,
+    /// the command behaves exactly as if the user had invoked
+    /// `subx-cli --output json cache status`: the same JSON envelope
+    /// is rendered through [`crate::cli::output::emit_success`] and the
+    /// stdout bytes are guaranteed to be byte-identical between the
+    /// two invocations. Per the `cache-management` spec this alias is
+    /// limited to `cache status`; no other cache subcommand exposes a
+    /// `--json` flag.
     #[arg(long)]
     pub json: bool,
 }

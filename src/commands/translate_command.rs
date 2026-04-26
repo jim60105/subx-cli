@@ -33,10 +33,35 @@
 use crate::cli::TranslateArgs;
 use std::path::{Path, PathBuf};
 
+use crate::cli::output::{active_mode, emit_success, is_quiet};
 use crate::config::ConfigService;
 use crate::core::ComponentFactory;
 use crate::core::translation::{TranslationRequest, parse_glossary_text};
 use crate::error::SubXError;
+use serde::Serialize;
+
+/// Per-file record reported in the `translate` JSON envelope.
+///
+/// Each entry corresponds to one input subtitle file processed by the
+/// command. `applied` is `true` when the translated output was
+/// successfully written to disk.
+#[derive(Debug, Serialize)]
+pub struct TranslatedFile {
+    /// Source subtitle path as supplied to the command.
+    pub input: String,
+    /// Effective output path for the translated subtitle (may equal
+    /// `input` when `--replace` is active).
+    pub output: String,
+    /// Whether the translated content was written successfully.
+    pub applied: bool,
+}
+
+/// Top-level payload for the `translate` command JSON envelope.
+#[derive(Debug, Serialize)]
+pub struct TranslatePayload {
+    /// Per-file outcomes for every collected input.
+    pub translated_files: Vec<TranslatedFile>,
+}
 
 /// Resolved translate command inputs after CLI/config defaulting.
 ///
@@ -117,7 +142,21 @@ pub async fn execute(args: TranslateArgs, config_service: &dyn ConfigService) ->
     let collected = handler
         .collect_files()
         .map_err(|e| SubXError::CommandExecution(e.to_string()))?;
+    let mode = active_mode();
+    let json_mode = mode.is_json();
+    let quiet = is_quiet();
     if collected.is_empty() {
+        // Nothing to do — emit an empty success envelope in JSON mode so
+        // callers always receive a valid document.
+        if json_mode {
+            emit_success(
+                mode,
+                "translate",
+                TranslatePayload {
+                    translated_files: Vec::new(),
+                },
+            );
+        }
         return Ok(());
     }
 
@@ -138,6 +177,7 @@ pub async fn execute(args: TranslateArgs, config_service: &dyn ConfigService) ->
     let factory = ComponentFactory::new(config_service)?;
     let engine = factory.create_translation_engine()?;
     let mut failures = Vec::new();
+    let mut items: Vec<TranslatedFile> = Vec::with_capacity(collected.len());
 
     for input_path in collected.iter() {
         let output = match resolve_output_path(
@@ -148,12 +188,19 @@ pub async fn execute(args: TranslateArgs, config_service: &dyn ConfigService) ->
         ) {
             Ok(output) => output,
             Err(err) => {
-                eprintln!(
-                    "✗ Translation setup failed for {}: {}",
-                    input_path.display(),
-                    err
-                );
+                if !json_mode && !quiet {
+                    eprintln!(
+                        "✗ Translation setup failed for {}: {}",
+                        input_path.display(),
+                        err
+                    );
+                }
                 failures.push(format!("{}: {err}", input_path.display()));
+                items.push(TranslatedFile {
+                    input: input_path.display().to_string(),
+                    output: String::new(),
+                    applied: false,
+                });
                 continue;
             }
         };
@@ -169,18 +216,41 @@ pub async fn execute(args: TranslateArgs, config_service: &dyn ConfigService) ->
         )
         .await
         {
-            eprintln!("✗ Translation failed for {}: {}", input_path.display(), err);
+            if !json_mode && !quiet {
+                eprintln!("✗ Translation failed for {}: {}", input_path.display(), err);
+            }
             failures.push(format!("{}: {err}", input_path.display()));
+            items.push(TranslatedFile {
+                input: input_path.display().to_string(),
+                output: output.path.display().to_string(),
+                applied: false,
+            });
         } else {
-            println!(
-                "✓ Translation completed: {} -> {}",
-                input_path.display(),
-                output.path.display()
-            );
+            if !json_mode {
+                println!(
+                    "✓ Translation completed: {} -> {}",
+                    input_path.display(),
+                    output.path.display()
+                );
+            }
+            items.push(TranslatedFile {
+                input: input_path.display().to_string(),
+                output: output.path.display().to_string(),
+                applied: true,
+            });
         }
     }
 
     if failures.is_empty() {
+        if json_mode {
+            emit_success(
+                mode,
+                "translate",
+                TranslatePayload {
+                    translated_files: items,
+                },
+            );
+        }
         Ok(())
     } else {
         Err(SubXError::CommandExecution(format!(

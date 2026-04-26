@@ -117,12 +117,33 @@ cargo build --release
 | VTT | ✅ | ✅ | WebVTT — web-native format |
 | SUB | ✅ | ⚠️ | Multiple SUB variants, partial write support |
 
+## Scripting & Automation
+
+Pass `--output json` (before the subcommand) or set `SUBX_OUTPUT=json`
+to switch every covered subcommand to a stable, versioned JSON
+envelope on stdout — ideal for shell scripts, CI pipelines, and
+third-party tooling. Progress bars and status symbols are suppressed
+in JSON mode; the existing exit codes are preserved across both modes.
+
+```bash
+# Extract the first match candidate's confidence with jq
+subx-cli --output json match --dry-run ./media \
+  | jq -r '.data.candidates[0].confidence'
+```
+
+See [Machine-Readable Output](docs/machine-readable-output.md) for the
+full envelope schema, error categories, per-command payloads, and
+scripting recipes. `generate-completion` is the only subcommand that
+explicitly rejects JSON mode.
+
 ## Documentation
 
 - [Command Reference](docs/command-reference.md) — full options, examples,
   and workflows for every subcommand
 - [Configuration Guide](docs/configuration-guide.md) — all settings,
   environment variables, and troubleshooting
+- [Machine-Readable Output](docs/machine-readable-output.md) — the
+  `--output json` contract for scripting and automation
 - [Technical Architecture](docs/tech-architecture.md) — codebase structure
   and design decisions
 - [AI Provider Integration](docs/ai-provider-integration-guide.md) — how to

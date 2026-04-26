@@ -285,9 +285,13 @@ impl TranslationEngine {
         {
             Ok(map) => Ok((map, 1)),
             Err(err) if is_unknown_cue_id_error(&err) => {
-                eprintln!(
-                    "⚠ Translation response contained an unknown cue ID; discarding the batch response and retrying once."
-                );
+                // stderr diagnostic — never written to stdout, so safe in
+                // both text and JSON modes. Suppress when --quiet is set.
+                if !crate::cli::output::is_quiet() {
+                    eprintln!(
+                        "⚠ Translation response contained an unknown cue ID; discarding the batch response and retrying once."
+                    );
+                }
                 match self
                     .translate_batch_once(batch_cues, batch_ids, request, terminology)
                     .await
@@ -385,7 +389,15 @@ fn missing_translation_indices(
 }
 
 fn log_translation_progress(processed_cues: usize, total_cues: usize) {
-    println!(
+    // Diagnostic progress chatter. In JSON mode this MUST NOT touch stdout
+    // (the renderer owns stdout for the single envelope contract). In
+    // --quiet mode we suppress it entirely. Otherwise route to stderr so
+    // both text and JSON callers can observe progress without corrupting
+    // structured output.
+    if crate::cli::output::is_quiet() {
+        return;
+    }
+    eprintln!(
         "{}",
         format_translation_progress(processed_cues, total_cues)
     );

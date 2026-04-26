@@ -40,10 +40,11 @@
 //! ```
 
 // src/cli/ui.rs
+use crate::cli::output::{self, OutputMode};
 use crate::cli::table::{MatchDisplayRow, create_match_table};
 use crate::core::matcher::MatchOperation;
 use colored::*;
-use indicatif::{ProgressBar, ProgressStyle};
+use indicatif::{ProgressBar, ProgressDrawTarget, ProgressStyle};
 
 /// Display a success message with consistent formatting.
 ///
@@ -73,6 +74,12 @@ use indicatif::{ProgressBar, ProgressStyle};
 /// ✓ AI matching completed with 98% confidence
 /// ```
 pub fn print_success(message: &str) {
+    // In JSON output mode, success/warning helpers are silent — the
+    // command's structured payload conveys the same information through
+    // the envelope. `--quiet` in text mode also suppresses these lines.
+    if output::active_mode().is_json() || output::is_quiet() {
+        return;
+    }
     println!("{} {}", "✓".green().bold(), message);
 }
 
@@ -105,6 +112,17 @@ pub fn print_success(message: &str) {
 /// ✗ Invalid subtitle format detected
 /// ```
 pub fn print_error(message: &str) {
+    // In JSON mode `print_error` SHALL still write to stderr but
+    // without ANSI styling and without the `✗ ` symbol prefix so logs
+    // stay greppable. With `--quiet` in JSON mode all stderr chatter
+    // is suppressed; fatal errors are surfaced through the JSON
+    // envelope on stdout instead.
+    if output::active_mode().is_json() {
+        if !output::is_quiet() {
+            eprintln!("{}", output::strip_ansi(message));
+        }
+        return;
+    }
     eprintln!("{} {}", "✗".red().bold(), message);
 }
 
@@ -136,6 +154,9 @@ pub fn print_error(message: &str) {
 /// ⚠ Configuration file not found, using defaults
 /// ```
 pub fn print_warning(message: &str) {
+    if output::active_mode().is_json() || output::is_quiet() {
+        return;
+    }
     println!("{} {}", "⚠".yellow().bold(), message);
 }
 
@@ -204,8 +225,7 @@ pub fn print_warning(message: &str) {
 /// is problematic.
 pub fn create_progress_bar(total: u64) -> ProgressBar {
     let pb = ProgressBar::new(total);
-    // Progress bar is visible by default
-    // Configuration-based control should be handled by the caller
+    pb.set_draw_target(progress_draw_target_for(output::active_mode()));
     pb.set_style(
         ProgressStyle::default_bar()
             .template(
@@ -214,6 +234,20 @@ pub fn create_progress_bar(total: u64) -> ProgressBar {
             .unwrap(),
     );
     pb
+}
+
+/// Resolve the progress-bar draw target for the active output mode.
+///
+/// Per the `progress-reporting` spec, every `indicatif::ProgressBar`
+/// constructed by SubX SHALL obtain its `ProgressDrawTarget` from this
+/// helper so JSON mode force-hides progress frames regardless of
+/// `general.enable_progress_bar`.
+pub fn progress_draw_target_for(mode: OutputMode) -> ProgressDrawTarget {
+    if mode.is_json() {
+        ProgressDrawTarget::hidden()
+    } else {
+        ProgressDrawTarget::stderr()
+    }
 }
 
 /// Display comprehensive AI API usage statistics and cost information.
@@ -267,6 +301,9 @@ pub fn create_progress_bar(total: u64) -> ProgressBar {
 /// - **Debugging**: Verify expected model usage
 /// - **Optimization**: Identify opportunities to reduce token consumption
 pub fn display_ai_usage(usage: &crate::services::ai::AiUsageStats) {
+    if output::active_mode().is_json() {
+        return;
+    }
     println!("🤖 AI API Call Details:");
     println!("   Model: {}", usage.model);
     println!("   Prompt tokens: {}", usage.prompt_tokens);
@@ -277,6 +314,11 @@ pub fn display_ai_usage(usage: &crate::services::ai::AiUsageStats) {
 
 /// Display file matching results with support for dry-run preview mode.
 pub fn display_match_results(results: &[MatchOperation], is_dry_run: bool) {
+    // The match table is suppressed in JSON mode — the command's
+    // structured payload covers the same information.
+    if output::active_mode().is_json() {
+        return;
+    }
     if results.is_empty() {
         println!("{}", "No matching file pairs found".yellow());
         return;
