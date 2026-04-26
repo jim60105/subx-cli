@@ -113,12 +113,49 @@ options, examples, and workflows.
 ### Linux / macOS
 
 ```bash
-# One-line installer
+# One-line installer (auto-detects host OS, architecture, and libc)
 curl -fsSL https://raw.githubusercontent.com/jim60105/subx-cli/master/scripts/install.sh | bash
 
-# Or download the binary directly
+# Or download the binary directly (pick the asset matching your host)
 curl -L "https://github.com/jim60105/subx-cli/releases/latest/download/subx-linux-x86_64" -o subx-cli
 chmod +x subx-cli && sudo mv subx-cli /usr/local/bin/
+```
+
+### Supported Release Targets
+
+The installer auto-detects the host operating system and CPU architecture
+and downloads the matching pre-built binary from the latest GitHub Release.
+
+| Platform | Architecture | libc   | Asset name                  | Notes |
+|----------|--------------|--------|-----------------------------|-------|
+| Linux    | x86_64       | gnu    | `subx-linux-x86_64`         | Default for x86_64 Linux |
+| Linux    | aarch64      | gnu    | `subx-linux-aarch64`        | Default for ARM64 Linux (Raspberry Pi 4/5, AWS Graviton, Oracle Ampere, ARM64 containers) |
+| Linux    | x86_64       | musl   | `subx-linux-x86_64-musl`    | Opt-in static build for Alpine and other glibc-incompatible distros |
+| Linux    | aarch64      | musl   | `subx-linux-aarch64-musl`   | Opt-in static build for ARM64 Alpine and minimal containers |
+| macOS    | x86_64       | —      | `subx-macos-x86_64`         | Intel Macs |
+| macOS    | aarch64      | —      | `subx-macos-aarch64`        | Apple Silicon (M1/M2/M3/M4) |
+| Windows  | x86_64       | —      | `subx-windows-x86_64.exe`   | 64-bit Windows |
+
+#### Opting into musl static builds (Linux only)
+
+The installer defaults to the gnu (glibc) artifact. On Alpine and other
+glibc-incompatible distros — or any time you need a fully static
+binary — opt into the musl artifact via any of:
+
+```bash
+# 1. Environment variable (download first, then run with the env var set
+#    on the same command — `VAR=value cmd | bash` would set the variable
+#    only for `cmd`, not for `bash`).
+curl -fsSL https://raw.githubusercontent.com/jim60105/subx-cli/master/scripts/install.sh -o install.sh
+SUBX_LIBC=musl bash install.sh
+
+# 2. Installer flag
+curl -fsSL https://raw.githubusercontent.com/jim60105/subx-cli/master/scripts/install.sh -o install.sh
+bash install.sh --musl
+
+# 3. Auto-detection (best-effort, via `ldd --version`)
+# Hosts whose `ldd --version` output identifies musl will be served the
+# musl asset automatically. An explicit `SUBX_LIBC` or `--musl` always wins.
 ```
 
 ### From Source (any platform)

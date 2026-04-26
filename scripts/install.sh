@@ -17,58 +17,308 @@
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 #
 # SubX CLI installation script
-# Automatically detects platform and downloads the latest release
+# Automatically detects platform and downloads the latest release.
+#
+# Supports an optional libc selection on Linux:
+#   * Pass `--musl` on the command line, or
+#   * export `SUBX_LIBC=musl`
+# to download the statically-linked musl artifact instead of the default
+# glibc artifact. On Linux, when neither is set, the installer performs a
+# best-effort musl auto-detection via `ldd --version`. Explicit overrides
+# (env var or flag) always win over auto-detection.
 
 set -e
 
-# Detect operating system and architecture
-OS=$(uname -s | tr '[:upper:]' '[:lower:]')
-ARCH=$(uname -m)
+RELEASES_PAGE_URL="https://github.com/jim60105/subx-cli/releases"
+RELEASE_API_URL="https://api.github.com/repos/jim60105/subx-cli/releases/latest"
 
-case $ARCH in
-    x86_64) ARCH="x86_64" ;;
-    arm64|aarch64) ARCH="aarch64" ;;
-    *) echo "Error: Unsupported architecture: $ARCH"; exit 1 ;;
-esac
+# ---------------------------------------------------------------------------
+# Pure helper functions (sourced by scripts/test_install.sh for unit tests).
+# Keep these free of network calls and global side effects.
+# ---------------------------------------------------------------------------
 
-case $OS in
-    linux) PLATFORM="linux" ;;
-    darwin) PLATFORM="macos" ;;
-    *) echo "Error: Unsupported operating system: $OS"; exit 1 ;;
-esac
+# usage: print the installer usage line.
+usage() {
+    cat <<'EOF'
+Usage: install.sh [--musl] [--help]
 
-echo "Detected platform: $PLATFORM ($ARCH)"
+Options:
+  --musl       Download the musl-linked Linux artifact (Linux only).
+               Equivalent to setting SUBX_LIBC=musl.
+  --help, -h   Show this help message and exit.
 
-# Download latest release
-RELEASE_URL="https://api.github.com/repos/jim60105/subx-cli/releases/latest"
-BINARY_NAME="subx-${PLATFORM}-${ARCH}"
+Environment:
+  SUBX_LIBC    Either `gnu` (default) or `musl`. Selects the Linux libc
+               variant of the artifact to download. Overrides the
+               `--musl` flag and any auto-detection. Ignored on macOS.
 
-echo "Downloading SubX latest version..."
-DOWNLOAD_URL=$(curl -s $RELEASE_URL | grep "browser_download_url.*$BINARY_NAME" | cut -d '"' -f 4)
+Precedence (highest first): `SUBX_LIBC` env var > `--musl` flag >
+`ldd --version` auto-detection > `gnu` default.
+EOF
+}
 
-if [ -z "$DOWNLOAD_URL" ]; then
-    echo "Error: Could not find download file for $PLATFORM-$ARCH"
-    exit 1
-fi
+# compute_binary_name <platform> <arch> <libc>
+#
+# Build the release asset name following the documented contract:
+#   linux/gnu      -> subx-linux-<arch>
+#   linux/musl     -> subx-linux-<arch>-musl
+#   macos/<arch>   -> subx-macos-<arch>          (libc is ignored)
+#   windows/x86_64 -> subx-windows-x86_64.exe    (libc is ignored)
+#
+# IMPORTANT: `subx-linux-x86_64` is a substring of `subx-linux-x86_64-musl`.
+# Substring/prefix matching against asset names is FORBIDDEN — see
+# select_download_url below for the exact-match selection logic.
+compute_binary_name() {
+    local platform="$1"
+    local arch="$2"
+    local libc="$3"
 
-echo "Download URL: $DOWNLOAD_URL"
-curl -L "$DOWNLOAD_URL" -o subx-cli
+    case "$platform" in
+        linux)
+            if [ "$libc" = "musl" ]; then
+                printf 'subx-linux-%s-musl' "$arch"
+            else
+                printf 'subx-linux-%s' "$arch"
+            fi
+            ;;
+        macos)
+            printf 'subx-macos-%s' "$arch"
+            ;;
+        windows)
+            printf 'subx-windows-%s.exe' "$arch"
+            ;;
+        *)
+            return 1
+            ;;
+    esac
+}
 
-if [ ! -f "subx-cli" ]; then
-    echo "Error: Download failed"
-    exit 1
-fi
+# extract_asset_names <release_json>
+#
+# Print, one per line, the basename of every browser_download_url found in
+# the release JSON. Used both for exact-match URL selection and for the
+# fallback diagnostics output.
+extract_asset_names() {
+    local release_json="$1"
+    if command -v jq >/dev/null 2>&1; then
+        printf '%s' "$release_json" | jq -r '.assets[].name' 2>/dev/null
+    else
+        printf '%s\n' "$release_json" \
+            | grep -o '"browser_download_url":[[:space:]]*"[^"]*"' \
+            | sed -E 's/.*"([^"]*)".*/\1/' \
+            | while IFS= read -r url; do
+                [ -z "$url" ] && continue
+                printf '%s\n' "${url##*/}"
+            done
+    fi
+}
 
-chmod +x subx-cli
+# select_download_url <release_json> <binary_name>
+#
+# Select the browser_download_url for the asset whose name equals
+# <binary_name> EXACTLY. Substring matches such as
+# `grep "$BINARY_NAME"` are forbidden because `subx-linux-x86_64` is a
+# substring of `subx-linux-x86_64-musl` and a loose match would silently
+# install the wrong libc variant on a gnu host.
+#
+# Prints the URL on stdout and returns 0 if found; prints nothing and
+# returns 1 if no asset matches exactly.
+select_download_url() {
+    local release_json="$1"
+    local binary_name="$2"
+    local url=""
 
-# Install to system path
-echo "Installing to system path..."
-if [[ "$EUID" -eq 0 ]]; then
-    mv subx-cli /usr/local/bin/
+    if command -v jq >/dev/null 2>&1; then
+        url=$(printf '%s' "$release_json" \
+            | jq -r --arg name "$binary_name" \
+                '.assets[] | select(.name == $name) | .browser_download_url' \
+            2>/dev/null)
+    else
+        # Fallback: parse browser_download_url lines and string-equal
+        # compare basenames. NEVER substring-match.
+        while IFS= read -r candidate; do
+            [ -z "$candidate" ] && continue
+            local base="${candidate##*/}"
+            if [ "$base" = "$binary_name" ]; then
+                url="$candidate"
+                break
+            fi
+        done < <(printf '%s\n' "$release_json" \
+            | grep -o '"browser_download_url":[[:space:]]*"[^"]*"' \
+            | sed -E 's/.*"([^"]*)".*/\1/')
+    fi
+
+    if [ -z "$url" ] || [ "$url" = "null" ]; then
+        return 1
+    fi
+    printf '%s\n' "$url"
+    return 0
+}
+
+# print_missing_asset_diagnostics <platform> <arch> <binary_name> <release_json>
+#
+# Emit actionable diagnostics when the requested asset is not present in
+# the latest release JSON. Always returns 1 so callers can `|| exit` on it.
+print_missing_asset_diagnostics() {
+    local platform="$1"
+    local arch="$2"
+    local binary_name="$3"
+    local release_json="$4"
+
+    {
+        echo "Error: Could not find a release asset matching the requested name."
+        echo "  Detected platform : $platform"
+        echo "  Detected arch     : $arch"
+        echo "  Searched asset    : $binary_name"
+        echo "  Available assets  :"
+        local available
+        available=$(extract_asset_names "$release_json")
+        if [ -z "$available" ]; then
+            echo "    (none found in release JSON)"
+        else
+            printf '%s\n' "$available" | sed 's/^/    - /'
+        fi
+        echo "  Releases page     : $RELEASES_PAGE_URL"
+    } >&2
+    return 1
+}
+
+# detect_libc_auto: print `musl` if Linux ldd reports musl, else `gnu`.
+# Best-effort only; explicit env/flag override always wins.
+detect_libc_auto() {
+    if [ "$(uname -s | tr '[:upper:]' '[:lower:]')" != "linux" ]; then
+        printf 'gnu\n'
+        return 0
+    fi
+    if ldd --version 2>&1 | grep -qi musl; then
+        printf 'musl\n'
+    else
+        printf 'gnu\n'
+    fi
+}
+
+# ---------------------------------------------------------------------------
+# Main entry point. Skipped when this script is sourced by the test harness.
+# ---------------------------------------------------------------------------
+
+main() {
+    local libc_flag=""
+
+    # Argument parsing. Unknown arguments must NOT be silently ignored.
+    while [ $# -gt 0 ]; do
+        case "$1" in
+            --musl)
+                libc_flag="musl"
+                shift
+                ;;
+            --help|-h)
+                usage
+                exit 0
+                ;;
+            *)
+                echo "Error: Unknown argument: $1" >&2
+                usage >&2
+                exit 2
+                ;;
+        esac
+    done
+
+    # libc resolution: env var > flag > auto-detection > default (gnu).
+    local libc=""
+    if [ -n "${SUBX_LIBC:-}" ]; then
+        case "$SUBX_LIBC" in
+            gnu|musl) libc="$SUBX_LIBC" ;;
+            *)
+                echo "Error: SUBX_LIBC must be 'gnu' or 'musl' (got: '$SUBX_LIBC')" >&2
+                exit 2
+                ;;
+        esac
+    elif [ -n "$libc_flag" ]; then
+        libc="$libc_flag"
+    fi
+
+    # Detect operating system and architecture.
+    local OS ARCH PLATFORM
+    OS=$(uname -s | tr '[:upper:]' '[:lower:]')
+    ARCH=$(uname -m)
+
+    case "$ARCH" in
+        x86_64) ARCH="x86_64" ;;
+        arm64|aarch64) ARCH="aarch64" ;;
+        *) echo "Error: Unsupported architecture: $ARCH" >&2; exit 1 ;;
+    esac
+
+    case "$OS" in
+        linux) PLATFORM="linux" ;;
+        darwin) PLATFORM="macos" ;;
+        *) echo "Error: Unsupported operating system: $OS" >&2; exit 1 ;;
+    esac
+
+    # Auto-detect libc on Linux when no explicit selection was made.
+    if [ "$PLATFORM" = "linux" ] && [ -z "$libc" ]; then
+        libc=$(detect_libc_auto)
+    fi
+    # On non-Linux, libc is meaningless; force gnu so compute_binary_name
+    # doesn't append a -musl suffix.
+    if [ "$PLATFORM" != "linux" ]; then
+        libc="gnu"
+    fi
+
+    echo "Detected platform: $PLATFORM ($ARCH${libc:+, libc=$libc})"
+
+    local BINARY_NAME
+    BINARY_NAME=$(compute_binary_name "$PLATFORM" "$ARCH" "$libc")
+
+    echo "Downloading SubX latest version..."
+
+    # `curl -fsSL` makes non-2xx responses fail (network-error path).
+    local RELEASE_JSON
+    if ! RELEASE_JSON=$(curl -fsSL "$RELEASE_API_URL"); then
+        echo "Error: Failed to fetch release metadata from GitHub." >&2
+        echo "  URL: $RELEASE_API_URL" >&2
+        echo "  Check your network connection or the GitHub API status." >&2
+        exit 1
+    fi
+    if [ -z "$RELEASE_JSON" ]; then
+        echo "Error: GitHub API returned an empty response." >&2
+        echo "  URL: $RELEASE_API_URL" >&2
+        exit 1
+    fi
+
+    local DOWNLOAD_URL
+    if ! DOWNLOAD_URL=$(select_download_url "$RELEASE_JSON" "$BINARY_NAME"); then
+        print_missing_asset_diagnostics "$PLATFORM" "$ARCH" "$BINARY_NAME" "$RELEASE_JSON" || true
+        exit 1
+    fi
+
+    echo "Download URL: $DOWNLOAD_URL"
+    if ! curl -fsSL "$DOWNLOAD_URL" -o subx-cli; then
+        echo "Error: Download failed" >&2
+        exit 1
+    fi
+
+    if [ ! -f "subx-cli" ]; then
+        echo "Error: Download failed" >&2
+        exit 1
+    fi
+
+    chmod +x subx-cli
+
+    # Install to system path
+    echo "Installing to system path..."
+    if [ "${EUID:-$(id -u)}" -eq 0 ]; then
+        mv subx-cli /usr/local/bin/
+    else
+        sudo mv subx-cli /usr/local/bin/
+    fi
     echo "SubX has been installed to /usr/local/bin/subx-cli"
-else
-    sudo mv subx-cli /usr/local/bin/
-    echo "SubX has been installed to /usr/local/bin/subx-cli"
-fi
 
-echo "Installation complete! Run 'subx-cli --help' to get started"
+    echo "Installation complete! Run 'subx-cli --help' to get started"
+}
+
+# Only run main() when the script is executed directly. When sourced (e.g.
+# by scripts/test_install.sh), the helper functions above are exposed but
+# main() does not run, so no network calls happen during tests.
+if [ "${BASH_SOURCE[0]}" = "$0" ]; then
+    main "$@"
+fi

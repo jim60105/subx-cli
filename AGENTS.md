@@ -387,8 +387,13 @@ stable. It executes `scripts/quality_check.sh -v -p ci --full`, runs
 `scripts/check_coverage.sh`. Results are uploaded to Codecov.
 
 Releases are triggered by `v*` tags. The workflow extracts notes from
-`CHANGELOG.md`, cross-compiles for 4 targets (Linux/Windows/macOS x86_64,
-macOS ARM64), publishes to GitHub Releases and crates.io.
+`CHANGELOG.md`, cross-compiles for 7 targets — Linux x86_64 (gnu),
+Linux aarch64 (gnu), Linux x86_64 (musl), Linux aarch64 (musl),
+Windows x86_64, macOS x86_64, and macOS aarch64 — and publishes them
+to GitHub Releases and crates.io. The companion `scripts/install.sh`
+auto-detects the host and libc; users on Alpine or other
+glibc-incompatible distros can opt into the static musl artifacts via
+`SUBX_LIBC=musl` or the `--musl` flag.
 
 ### Changelog Convention
 

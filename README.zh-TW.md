@@ -89,12 +89,48 @@ subx-cli config set ai.model "llama3.1:8b-instruct"
 ### Linux / macOS
 
 ```bash
-# 一鍵安裝腳本
+# 一鍵安裝腳本（自動偵測主機作業系統、架構與 libc）
 curl -fsSL https://raw.githubusercontent.com/jim60105/subx-cli/master/scripts/install.sh | bash
 
-# 或直接下載執行檔
+# 或直接下載對應主機的執行檔
 curl -L "https://github.com/jim60105/subx-cli/releases/latest/download/subx-linux-x86_64" -o subx-cli
 chmod +x subx-cli && sudo mv subx-cli /usr/local/bin/
+```
+
+### 支援的發行目標
+
+安裝腳本會自動偵測主機作業系統與 CPU 架構，並從最新的 GitHub Release
+下載對應的預編譯執行檔。
+
+| 平台    | 架構     | libc   | 資產名稱                    | 說明 |
+|---------|----------|--------|-----------------------------|------|
+| Linux   | x86_64   | gnu    | `subx-linux-x86_64`         | x86_64 Linux 的預設選項 |
+| Linux   | aarch64  | gnu    | `subx-linux-aarch64`        | ARM64 Linux 的預設選項（Raspberry Pi 4/5、AWS Graviton、Oracle Ampere、ARM64 容器） |
+| Linux   | x86_64   | musl   | `subx-linux-x86_64-musl`    | 選用的靜態建置版本，適用於 Alpine 及其他與 glibc 不相容的發行版 |
+| Linux   | aarch64  | musl   | `subx-linux-aarch64-musl`   | 選用的靜態建置版本，適用於 ARM64 Alpine 及精簡容器 |
+| macOS   | x86_64   | —      | `subx-macos-x86_64`         | Intel Mac |
+| macOS   | aarch64  | —      | `subx-macos-aarch64`        | Apple Silicon（M1/M2/M3/M4） |
+| Windows | x86_64   | —      | `subx-windows-x86_64.exe`   | 64 位元 Windows |
+
+#### 改用 musl 靜態建置版（僅限 Linux）
+
+安裝腳本預設下載 gnu（glibc）版本。若您使用 Alpine 或其他與 glibc
+不相容的發行版，或需要完全靜態連結的執行檔，可透過下列任一方式
+切換為 musl 版本：
+
+```bash
+# 1. 環境變數（先下載再執行；`VAR=value cmd | bash` 只會將變數
+#    傳給 `cmd`，並不會傳給 pipe 後面的 `bash`）。
+curl -fsSL https://raw.githubusercontent.com/jim60105/subx-cli/master/scripts/install.sh -o install.sh
+SUBX_LIBC=musl bash install.sh
+
+# 2. 安裝腳本旗標
+curl -fsSL https://raw.githubusercontent.com/jim60105/subx-cli/master/scripts/install.sh -o install.sh
+bash install.sh --musl
+
+# 3. 自動偵測（盡力而為，依據 `ldd --version`）
+# 當 `ldd --version` 輸出識別為 musl 時，會自動下載 musl 版本。
+# 明確指定 `SUBX_LIBC` 或 `--musl` 永遠優先於自動偵測結果。
 ```
 
 ### 從原始碼建構（所有平台）
