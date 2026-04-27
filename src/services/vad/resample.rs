@@ -1,18 +1,26 @@
-//!
 //! Audio resampling utilities using the rubato crate.
-//! Supports i16 <-> f32 conversion and multi-channel processing.
+//!
+//! Provides i16 ↔ f32 conversion and synchronous resampling of mono PCM
+//! audio via [`rubato::Fft`] with the [`rubato::FixedSync::Input`]
+//! configuration. The rubato 2.0 API uses
+//! [`audioadapter`]-based buffers, so this module wraps the input slice
+//! with [`SequentialSlice`] and the output buffer with
+//! [`SequentialSliceOfVecs`] before delegating to
+//! [`Resampler::process_all_into_buffer`].
 
+use audioadapter_buffers::direct::{SequentialSlice, SequentialSliceOfVecs};
 use log::{debug, trace};
-use rubato::{FftFixedIn, Resampler};
+use rubato::{Fft, FixedSync, Resampler};
 use std::error::Error;
 use std::time::Instant;
 
-use once_cell::sync::Lazy;
-use std::sync::Mutex;
-
-type FftResamplerCache = Option<(u32, u32, FftFixedIn<f32>)>;
-
-static FFT_RESAMPLER_CACHE: Lazy<Mutex<FftResamplerCache>> = Lazy::new(|| Mutex::new(None));
+/// Number of input frames per processing chunk handed to the resampler.
+///
+/// Tuned to balance throughput and intermediate buffer footprint; the
+/// rubato resampler handles arbitrary input lengths through
+/// `process_all_into_buffer`, so this value only influences the FFT
+/// sub-chunking — the caller-visible behavior is unaffected.
+const CHUNK_SIZE: usize = 8192;
 
 /// Resample i16 mono audio to the target sample rate (returns `Vec<i16>`).
 pub fn resample_to_target_rate(
@@ -27,134 +35,66 @@ pub fn resample_to_target_rate(
         input_sample_rate,
         output_sample_rate
     );
+
     if input_sample_rate == output_sample_rate {
         debug!("[resample] sample rate unchanged, fast path");
         return Ok(input_samples.to_vec());
     }
+
+    if input_samples.is_empty() {
+        debug!("[resample] empty input, returning empty output");
+        return Ok(Vec::new());
+    }
+
     let t_convert = Instant::now();
-    // Convert to f32 and minimize allocation and copying
-    let input: Vec<f32> = input_samples.iter().map(|&s| s as f32 / 32768.0).collect();
+    let input_f32: Vec<f32> = input_samples.iter().map(|&s| s as f32 / 32768.0).collect();
     debug!(
         "[resample] i16->f32 conversion done in {:.3?}",
         t_convert.elapsed()
     );
-    let input_len = input.len();
-    let input_channels = 1;
-    let resample_ratio = output_sample_rate as f64 / input_sample_rate as f64;
-    let chunk_size = 8192; // Increase chunk size to reduce the number of function calls
-    let t_resampler_init = Instant::now();
-    let mut resampler = {
-        let mut cache = FFT_RESAMPLER_CACHE.lock().unwrap();
-        if let Some((in_sr, out_sr, ref mut cached)) = *cache {
-            if in_sr == input_sample_rate && out_sr == output_sample_rate {
-                debug!("[resample] using cached FftFixedIn");
-                cached.reset();
-                let mut new_resampler = FftFixedIn::<f32>::new(
-                    input_sample_rate as usize,
-                    output_sample_rate as usize,
-                    chunk_size,
-                    1, // sub_chunks
-                    input_channels,
-                )?;
-                std::mem::swap(&mut new_resampler, cached);
-                new_resampler
-            } else {
-                debug!("[resample] creating new FftFixedIn (cache miss)");
-                let new_resampler = FftFixedIn::<f32>::new(
-                    input_sample_rate as usize,
-                    output_sample_rate as usize,
-                    chunk_size,
-                    1, // sub_chunks
-                    input_channels,
-                )?;
-                *cache = Some((input_sample_rate, output_sample_rate, new_resampler));
-                let mut new_resampler = FftFixedIn::<f32>::new(
-                    input_sample_rate as usize,
-                    output_sample_rate as usize,
-                    chunk_size,
-                    1, // sub_chunks
-                    input_channels,
-                )?;
-                std::mem::swap(&mut new_resampler, &mut cache.as_mut().unwrap().2);
-                new_resampler
-            }
-        } else {
-            debug!("[resample] creating new FftFixedIn (cache empty)");
-            let new_resampler = FftFixedIn::<f32>::new(
-                input_sample_rate as usize,
-                output_sample_rate as usize,
-                chunk_size,
-                1, // sub_chunks
-                input_channels,
-            )?;
-            *cache = Some((input_sample_rate, output_sample_rate, new_resampler));
-            let mut new_resampler = FftFixedIn::<f32>::new(
-                input_sample_rate as usize,
-                output_sample_rate as usize,
-                chunk_size,
-                1, // sub_chunks
-                input_channels,
-            )?;
-            std::mem::swap(&mut new_resampler, &mut cache.as_mut().unwrap().2);
-            new_resampler
-        }
-    };
-    debug!(
-        "[resample] FftFixedIn ready in {:.3?}",
-        t_resampler_init.elapsed()
-    );
-    let mut output: Vec<f32> =
-        Vec::with_capacity((input_len as f64 * resample_ratio) as usize + 128);
-    let mut pos = 0;
+
+    let input_len = input_f32.len();
+    let channels = 1;
+
+    // Construct a fresh resampler per call. The rubato FFT plan caches
+    // its trigonometric tables internally, so re-creation cost is
+    // dominated by a few small allocations rather than transform setup.
+    let t_init = Instant::now();
+    let mut resampler = Fft::<f32>::new(
+        input_sample_rate as usize,
+        output_sample_rate as usize,
+        CHUNK_SIZE,
+        1,
+        channels,
+        FixedSync::Input,
+    )?;
+    debug!("[resample] Fft ready in {:.3?}", t_init.elapsed());
+
+    // Pre-size the output buffer using rubato's own length oracle so
+    // `process_all_into_buffer` never has to truncate.
+    let needed_out = resampler.process_all_needed_output_len(input_len);
+    let mut output_f32: Vec<Vec<f32>> = vec![vec![0.0f32; needed_out]];
+
+    let in_adapter = SequentialSlice::new(&input_f32, channels, input_len)
+        .map_err(|e| format!("input adapter construction failed: {e}"))?;
+    let mut out_adapter = SequentialSliceOfVecs::new_mut(&mut output_f32, channels, needed_out)
+        .map_err(|e| format!("output adapter construction failed: {e}"))?;
+
     let t_resample = Instant::now();
-    let mut chunk_count = 0;
-    // Correction: each chunk must be input frame of chunk_size, pad with 0 if not enough at the end
-    while pos < input_len {
-        let frames_needed = resampler.input_frames_next();
-        let end = (pos + frames_needed).min(input_len);
-        let mut chunk: Vec<f32> = Vec::with_capacity(frames_needed);
-        chunk.extend_from_slice(&input[pos..end]);
-        if end - pos < frames_needed {
-            // Pad with 0 until frames_needed is reached
-            chunk.resize(frames_needed, 0.0);
-        }
-        let chunk_ref = [&chunk[..]];
-        trace!(
-            "[resample] chunk {}: pos={} end={} frames_needed={}",
-            chunk_count, pos, end, frames_needed
-        );
-        let out_chunk = resampler.process(&chunk_ref, None)?;
-        output.extend_from_slice(&out_chunk[0]);
-        pos += frames_needed;
-        chunk_count += 1;
-    }
-    debug!(
-        "[resample] main resample loop done in {:.3?} ({} chunks)",
-        t_resample.elapsed(),
-        chunk_count
+    let (in_used, out_produced) =
+        resampler.process_all_into_buffer(&in_adapter, &mut out_adapter, input_len, None)?;
+    trace!(
+        "[resample] process_all_into_buffer consumed {} frames, produced {} frames",
+        in_used, out_produced
     );
-    // flush
-    let t_flush = Instant::now();
-    let mut flush_count = 0;
-    loop {
-        let out_chunk = resampler.process_partial::<Vec<f32>>(None, None)?;
-        if out_chunk[0].is_empty() {
-            break;
-        }
-        output.extend_from_slice(&out_chunk[0]);
-        flush_count += 1;
-    }
-    debug!(
-        "[resample] flush done in {:.3?} ({} flushes)",
-        t_flush.elapsed(),
-        flush_count
-    );
-    // f32 -> i16
+    debug!("[resample] resampling done in {:.3?}", t_resample.elapsed());
+
     let t_i16 = Instant::now();
-    // Correction: only keep samples with correct length
+    let resample_ratio = output_sample_rate as f64 / input_sample_rate as f64;
     let expected_len = ((input_samples.len() as f64) * resample_ratio).round() as usize;
-    let mut output_i16: Vec<i16> = output
+    let mut output_i16: Vec<i16> = output_f32[0]
         .iter()
+        .take(out_produced)
         .map(|&s| (s.clamp(-1.0, 1.0) * 32767.0) as i16)
         .collect();
     if output_i16.len() > expected_len {
@@ -171,4 +111,54 @@ pub fn resample_to_target_rate(
         output_i16.len()
     );
     Ok(output_i16)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Identity case: equal sample rates SHALL bypass the resampler.
+    #[test]
+    fn identical_sample_rates_returns_input_unchanged() {
+        let input: Vec<i16> = (0..16_000).map(|i| (i % 1024) as i16).collect();
+        let out = resample_to_target_rate(&input, 16_000, 16_000).expect("resample succeeds");
+        assert_eq!(out, input);
+    }
+
+    /// Empty input SHALL produce an empty output without panicking.
+    #[test]
+    fn empty_input_returns_empty() {
+        let out = resample_to_target_rate(&[], 44_100, 16_000).expect("resample succeeds");
+        assert!(out.is_empty());
+    }
+
+    /// Downsampling 1 second of audio from 44.1 kHz to 16 kHz SHALL
+    /// produce ~16 000 frames (within a tight tolerance because rubato
+    /// `process_all_into_buffer` already trims the resampler delay).
+    #[test]
+    fn downsample_44100_to_16000_length_matches_ratio() {
+        let input: Vec<i16> = (0..44_100).map(|i| (i % 1024) as i16).collect();
+        let out = resample_to_target_rate(&input, 44_100, 16_000).expect("resample succeeds");
+        let ratio = 16_000.0 / 44_100.0;
+        let expected = (input.len() as f64 * ratio).round() as usize;
+        assert!(
+            out.len().abs_diff(expected) <= 8,
+            "expected ~{expected} frames, got {}",
+            out.len()
+        );
+    }
+
+    /// Upsampling SHALL also respect the ratio.
+    #[test]
+    fn upsample_16000_to_48000_length_matches_ratio() {
+        let input: Vec<i16> = (0..16_000).map(|i| (i % 1024) as i16).collect();
+        let out = resample_to_target_rate(&input, 16_000, 48_000).expect("resample succeeds");
+        let ratio = 48_000.0 / 16_000.0;
+        let expected = (input.len() as f64 * ratio).round() as usize;
+        assert!(
+            out.len().abs_diff(expected) <= 8,
+            "expected ~{expected} frames, got {}",
+            out.len()
+        );
+    }
 }

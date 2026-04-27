@@ -30,6 +30,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Per-file error isolation during batch translation so one failing file does not block the rest.
 
 ### Changed
+- Upgraded direct dependencies: `rubato` 0.16 → 2.0 (new `audioadapter`-based API), `zip` 4 → 8, `dialoguer` 0.11 → 0.12. Removed unused `md-5` dependency. Added `audioadapter-buffers = "3"` as the companion buffer-adapter crate now required by `rubato` 2.0. Transitive bumps picked up via `cargo update` include `reqwest` 0.13.2 → 0.13.3, `rustls-platform-verifier` 0.6 → 0.7, `pbkdf2` 0.12 → 0.13, and `sha1` 0.10 → 0.11.
+- Rewrote `services::vad::resample` against the rubato 2.0 API: replaces the manual `FftFixedIn` chunk loop and the previous double-init resampler cache with a single `Fft::<f32>::new(..., FixedSync::Input)` call plus `Resampler::process_all_into_buffer`, which trims the resampler delay and processes the full input in one shot. Added direct unit tests covering the identity, empty-input, downsample (44.1 → 16 kHz), and upsample (16 → 48 kHz) paths.
 - Unified all in-process identifiers on UUIDv7 with a shared
   `crate::core::uuidv7::Uuidv7Generator` that enforces strict ≥1 ms
   spacing between adjacent IDs. The matcher's `FileDiscovery` now emits
