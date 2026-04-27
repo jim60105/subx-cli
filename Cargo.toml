@@ -5,7 +5,7 @@ slow-tests = []
 archive-rar = ["dep:unrar"]
 [package]
 name = "subx-cli"
-version = "1.6.0"
+version = "1.7.0"
 edition = "2024"
 authors = ["Jim Chen <Jim@ChenJ.im>"]
 description = "AI subtitle processing CLI tool, which automatically matches, renames, and converts subtitle files."
@@ -109,7 +109,6 @@ env_logger = "0.11"
 colored = "3.0"
 tabled = "0.20"
 indicatif = "0.18"
-dialoguer = "0.12"
 
 # Configuration management dependencies: path resolution and multi-core detection
 # Audio processing
