@@ -25,9 +25,9 @@ or produce errors.
 | Format | `cargo fmt` |
 | Lint | `cargo clippy -- -D warnings` |
 | Run tests | `cargo nextest run \|\| true` |
-| **Full quality check** | `scripts/quality_check.sh` |
-| Full QA (verbose) | `scripts/quality_check.sh -v` |
-| Coverage report | `scripts/check_coverage.sh -T` |
+| **Full quality check** | `scripts/quality_check.sh` (Linux/macOS) or `scripts/quality_check.ps1` (Windows, PowerShell) |
+| Full QA (verbose) | `scripts/quality_check.sh -v` or `scripts/quality_check.ps1 -VerboseOutput` |
+| Coverage report | `scripts/check_coverage.sh -T` (Linux/macOS) or `scripts/check_coverage.ps1 -Table` (Windows, PowerShell) |
 | Doc build | `cargo doc --all-features --no-deps --document-private-items` |
 | Doc tests | `cargo test --doc --all-features` |
 
@@ -46,7 +46,9 @@ or produce errors.
   warning before submitting code.
 - Coverage threshold is **75%** line coverage.
 - Required tooling: Rust stable, `rustfmt`, `clippy`, `cargo-nextest`.
-  For coverage: `cargo-llvm-cov`, `jq`, `bc`.
+  For coverage: `cargo-llvm-cov`, plus `jq` and `bc` on Linux/macOS (the
+  Windows port `scripts/check_coverage.ps1` parses JSON natively in
+  PowerShell and needs neither `jq` nor `bc`).
 
 ### CPU-Intensive Operations — Main Agent Only
 
@@ -154,8 +156,10 @@ docs/               Technical documentation
   └── tech-architecture.md               Technical architecture overview
 openspec/           OpenSpec changes, specs, and workflow config
 scripts/            Build, quality, and CI shell scripts
-  ├── quality_check.sh                   Full QA (lint, format, tests)
-  ├── check_coverage.sh                  Coverage report (threshold 75%)
+  ├── quality_check.sh                   Full QA (lint, format, tests; Linux/macOS)
+  ├── quality_check.ps1                  Full QA (Windows / PowerShell)
+  ├── check_coverage.sh                  Coverage report (threshold 75%, Linux/macOS)
+  ├── check_coverage.ps1                 Coverage report (threshold 75%, Windows / PowerShell)
   ├── install.sh                         End-user binary installer
   ├── test_parallel_stability.sh         Parallel test isolation check
   └── test_unified_paths.sh              Path handling tests (⚠️ uses real AI API)
@@ -385,7 +389,8 @@ items or configuration documentation need to be audited or refreshed.
 CI runs on push/PR to `master` across Ubuntu, Windows, and macOS with Rust
 stable. It executes `scripts/quality_check.sh -v -p ci --full`, runs
 `cargo audit` for security, and enforces 75% coverage via
-`scripts/check_coverage.sh`. Results are uploaded to Codecov.
+`scripts/check_coverage.sh` on Linux/macOS and the PowerShell port
+`scripts/check_coverage.ps1` on Windows. Results are uploaded to Codecov.
 
 Releases are triggered by `v*` tags. The workflow extracts notes from
 `CHANGELOG.md`, cross-compiles for 7 targets — Linux x86_64 (gnu),

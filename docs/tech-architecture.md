@@ -619,8 +619,10 @@ strip = true
 GitHub Actions runs on every push and pull request to `master`. The
 `build-test-audit-coverage` workflow tests across Ubuntu, Windows, and macOS
 with Rust stable. It runs `scripts/quality_check.sh`, `cargo audit` for
-dependency security, and `scripts/check_coverage.sh` with a 75% line
-coverage threshold. Results are uploaded to Codecov.
+dependency security, and the coverage check with a 75% line coverage
+threshold — `scripts/check_coverage.sh` on Linux/macOS and the PowerShell
+port `scripts/check_coverage.ps1` on Windows. Results are uploaded to
+Codecov.
 
 The `release` workflow triggers on `v*` tags. It cross-compiles for four
 targets (Linux x86_64, Windows x86_64, macOS x86_64, macOS ARM64), creates

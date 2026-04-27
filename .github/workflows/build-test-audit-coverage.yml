@@ -60,7 +60,9 @@ jobs:
     - name: Check clippy
       run: cargo clippy -- -D warnings
 
-    - name: Comprehensive Code Quality Check with tests
+    - name: Comprehensive Code Quality Check with tests (Linux/macOS)
+      if: runner.os != 'Windows'
+      shell: bash
       run: |
         # Make the code check script executable (if not already)
         chmod +x scripts/quality_check.sh
@@ -69,14 +71,26 @@ jobs:
       env:
         RUST_LOG: debug
 
+    - name: Comprehensive Code Quality Check with tests (Windows)
+      if: runner.os == 'Windows'
+      shell: pwsh
+      run: |
+        # Run the PowerShell port of the quality check script with verbose
+        # output, the CI nextest profile, and slow-tests enabled.
+        ./scripts/quality_check.ps1 -VerboseOutput -Profile ci -Full
+      env:
+        RUST_LOG: debug
+
     # Upload test results to Codecov
     - name: Upload test results to Codecov
       if: ${{ always() }}
-      uses: codecov/test-results-action@v1
+      uses: codecov/codecov-action@v6
       with:
         token: ${{ secrets.CODECOV_TOKEN }}
         files: target/nextest/ci/junit.xml
         flags: ${{ matrix.os }}
+        report_type: test_results
+        fail_ci_if_error: false
 
   archive-rar:
     name: Test (archive-rar feature)
@@ -134,7 +148,11 @@ jobs:
 
   coverage:
     name: Code Coverage
-    runs-on: ubuntu-latest
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
     steps:
     - uses: actions/checkout@v6
     - name: Install Rust
@@ -152,12 +170,15 @@ jobs:
       with:
         tool: cargo-nextest
 
-    - name: Install dependencies for coverage check
+    - name: Install dependencies for coverage check (Linux)
+      if: runner.os == 'Linux'
       run: |
         sudo apt-get update
         sudo apt-get install -y jq bc
 
-    - name: Generate code coverage and check threshold
+    - name: Generate code coverage and check threshold (Linux/macOS)
+      if: runner.os != 'Windows'
+      shell: bash
       run: |
         # Make the coverage check script executable
         chmod +x scripts/check_coverage.sh
@@ -166,17 +187,30 @@ jobs:
       env:
         COVERAGE_THRESHOLD: 75
 
+    - name: Generate code coverage and check threshold (Windows)
+      if: runner.os == 'Windows'
+      shell: pwsh
+      run: |
+        # Run the PowerShell port of the coverage script with LCOV output,
+        # table display, CI profile, and slow-tests enabled.
+        ./scripts/check_coverage.ps1 -Table -Profile ci -Full -Lcov lcov.info
+      env:
+        COVERAGE_THRESHOLD: 75
+
     - name: Upload to codecov.io
       uses: codecov/codecov-action@v6
       with:
         files: lcov.info
+        flags: coverage-${{ matrix.os }}
         fail_ci_if_error: false
 
     # Upload test results to Codecov
     - name: Upload test results to Codecov
       if: ${{ always() }}
-      uses: codecov/test-results-action@v1
+      uses: codecov/codecov-action@v6
       with:
         token: ${{ secrets.CODECOV_TOKEN }}
         files: target/nextest/ci/junit.xml
-        flags: coverage
+        flags: coverage-${{ matrix.os }}
+        report_type: test_results
+        fail_ci_if_error: false
