@@ -8,6 +8,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.7.1] - 2026-04-28
+
+### Added
+- Windows CI coverage and quality checks: introduced `scripts/check_coverage.ps1` and `scripts/quality_check.ps1`, PowerShell 7 ports of the matching Bash scripts, and updated the GitHub Actions workflow so the `test` job's quality check runs the `.ps1` on Windows and the `coverage` job is matrixized over `[ubuntu-latest, windows-latest]`. The PowerShell coverage script uses `ConvertFrom-Json` and native PowerShell math instead of `jq`/`bc`. Both ports mirror their Bash counterparts' CLI surface, environment variables, and exit codes. Codecov uploads now carry per-OS flags (`coverage-${{ matrix.os }}`) so the two runs don't collide.
+
+### Changed
+- CI: migrated all Codecov test-results uploads from the deprecated `codecov/test-results-action@v1` to `codecov/codecov-action@v6` with `report_type: test_results`, following the upstream deprecation notice. Coverage uploads continue to use the same action with the default report type.
+
+### Fixed
+- Release pipeline: install OpenSSL development headers in the `cross` Docker images via a new `Cross.toml` so the three cross-compiled Linux artifacts (`subx-linux-aarch64`, `subx-linux-x86_64-musl`, `subx-linux-aarch64-musl`) build successfully. The `ort-sys` build dependency reaches `openssl-sys` through `ureq` → `native-tls`, and the default cross images don't ship `libssl-dev`/`pkg-config`, which broke the v1.7.0 release run.
+- Documentation build: replaced four broken intra-doc links in `src/services/vad/resample.rs` (residue from the `rubato` 0.16 → 2.0 upgrade — `audioadapter`, `SequentialSlice`, `SequentialSliceOfVecs`, `Resampler::process_all_into_buffer`) with plain code spans so `cargo doc --all-features --no-deps --document-private-items` no longer fails under `-D rustdoc::broken-intra-doc-links`.
+- Removed an unused `args` arrange block in `cli::sync_args::tests::test_validate_auto_vad_sensitivity_with_manual_method_err` that produced an `unused_variables` warning during unit-test compilation; the `args2` block carrying the actual assertion is unchanged.
+- macOS test isolation: the `config_set_repair_invalid` integration tests now pin the user config file via `SUBX_CONFIG_PATH` instead of `XDG_CONFIG_HOME`. The `dirs::config_dir()` resolver ignores `XDG_CONFIG_HOME` on macOS and Windows, which caused all ten tests in that file to panic with `NotFound` on macOS-latest in CI.
+
 ## [1.7.0] - 2026-04-27
 
 ### Added
@@ -476,7 +490,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Initial release of SubX CLI tool
 - Rust-based intelligent subtitle processing
 
-[Unreleased]: https://github.com/jim60105/subx-cli/compare/v1.7.0...HEAD
+[Unreleased]: https://github.com/jim60105/subx-cli/compare/v1.7.1...HEAD
+[1.7.1]: https://github.com/jim60105/subx-cli/compare/v1.7.0...v1.7.1
 [1.7.0]: https://github.com/jim60105/subx-cli/compare/v1.6.0...v1.7.0
 [1.6.0]: https://github.com/jim60105/subx-cli/compare/v1.5.2...v1.6.0
 [1.5.2]: https://github.com/jim60105/subx-cli/compare/v1.5.1...v1.5.2  
