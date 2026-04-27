@@ -262,6 +262,19 @@ invalid_err=$(SUBX_LIBC=bogus bash "$INSTALL_SH" 2>&1 >/dev/null) && invalid_rc=
 assert_eq "(g.3) SUBX_LIBC=bogus exit code" "2" "$invalid_rc"
 assert_contains "(g.3) SUBX_LIBC=bogus error mentions the env var" "$invalid_err" "SUBX_LIBC"
 
+# (g.4) SUBX_LIBC=musl exits 2 with the "musl artifacts not published"
+# guidance — v1.7.2+ no longer ships musl artifacts.
+musl_env_err=$(SUBX_LIBC=musl bash "$INSTALL_SH" 2>&1 >/dev/null) && musl_env_rc=$? || musl_env_rc=$?
+assert_eq "(g.4) SUBX_LIBC=musl exit code" "2" "$musl_env_rc"
+assert_contains "(g.4) SUBX_LIBC=musl mentions 'not published'" "$musl_env_err" "not published"
+assert_contains "(g.4) SUBX_LIBC=musl points at cargo install" "$musl_env_err" "cargo install subx-cli"
+
+# (g.5) `--musl` flag exits 2 with the same guidance.
+musl_flag_err=$(bash "$INSTALL_SH" --musl 2>&1 >/dev/null) && musl_flag_rc=$? || musl_flag_rc=$?
+assert_eq "(g.5) --musl exit code" "2" "$musl_flag_rc"
+assert_contains "(g.5) --musl mentions 'not published'" "$musl_flag_err" "not published"
+assert_contains "(g.5) --musl points at cargo install" "$musl_flag_err" "cargo install subx-cli"
+
 # -----------------------------------------------------------------------
 # Summary
 # -----------------------------------------------------------------------

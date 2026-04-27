@@ -62,23 +62,17 @@ jobs:
           use_cross: false
         # ARM64 Linux gnu — cross-compiled via `cross` (Docker image ships the
         # gcc + glibc toolchain needed by the optional `unrar` C dependency).
+        # `Cross.toml` pre-stages the ONNX Runtime archive at
+        # `/opt/onnxruntime/lib`; the `Build (cross)` step exports
+        # `ORT_LIB_LOCATION` so `ort-sys` skips its broken cache-based
+        # download path. musl targets are intentionally NOT released:
+        # upstream `ort` (Pyke) does not publish ONNX Runtime prebuilts
+        # for *-unknown-linux-musl, and building ONNX Runtime from source
+        # for musl is out of scope for this release pipeline.
         - os: ubuntu-latest
           target: aarch64-unknown-linux-gnu
           binary_name: subx-cli
           asset_name: subx-linux-aarch64
-          use_cross: true
-        # x86_64 Linux musl — cross-compiled via `cross` (musl C toolchain
-        # required for `unrar`; failure here is a release blocker).
-        - os: ubuntu-latest
-          target: x86_64-unknown-linux-musl
-          binary_name: subx-cli
-          asset_name: subx-linux-x86_64-musl
-          use_cross: true
-        # ARM64 Linux musl — cross-compiled via `cross`.
-        - os: ubuntu-latest
-          target: aarch64-unknown-linux-musl
-          binary_name: subx-cli
-          asset_name: subx-linux-aarch64-musl
           use_cross: true
         - os: windows-latest
           target: x86_64-pc-windows-msvc
@@ -125,8 +119,15 @@ jobs:
     # `--features archive-rar` is required on every Linux artifact (see
     # spec: archive-rar feature parity). A failure here is a release
     # blocker — do not silently drop the feature.
+    #
+    # `ORT_LIB_LOCATION` points at the ONNX Runtime static archive that
+    # `Cross.toml`'s `pre-build` stages inside the cross container. It
+    # is harmless on non-cross builds (this step is gated on
+    # `use_cross == true`).
     - name: Build (cross)
       if: matrix.use_cross == true
+      env:
+        ORT_LIB_LOCATION: /opt/onnxruntime/lib
       run: cross build --release --features archive-rar --target ${{ matrix.target }}
 
     - name: Build (cargo)
@@ -144,9 +145,13 @@ jobs:
         fi
 
     # Smoke-test every Linux artifact before upload. x86_64 runs natively
-    # on the runner; aarch64 runs under qemu-user-static. A non-zero exit,
-    # segfault, or 30s timeout fails the workflow before Upload Release
-    # Asset runs (see spec: Smoke test of Linux artifacts).
+    # on the runner; aarch64 runs under qemu-user-static. The aarch64
+    # binary is dynamically linked against glibc/libstdc++/libgcc_s, so
+    # qemu needs an aarch64 sysroot to resolve `ld-linux-aarch64.so.1`
+    # and friends — `gcc-aarch64-linux-gnu` provides exactly that under
+    # `/usr/aarch64-linux-gnu`, and `QEMU_LD_PREFIX` points qemu at it.
+    # A non-zero exit, segfault, or 30s timeout fails the workflow before
+    # Upload Release Asset runs (see spec: Smoke test of Linux artifacts).
     - name: Smoke test
       if: matrix.os == 'ubuntu-latest'
       shell: bash
@@ -154,8 +159,9 @@ jobs:
         set -euo pipefail
         if [[ "${{ matrix.target }}" == aarch64-* ]]; then
           sudo apt-get update
-          sudo apt-get install -y qemu-user-static binfmt-support
-          timeout 30 qemu-aarch64-static ./${{ matrix.asset_name }} --version
+          sudo apt-get install -y qemu-user-static binfmt-support gcc-aarch64-linux-gnu
+          QEMU_LD_PREFIX=/usr/aarch64-linux-gnu \
+            timeout 30 qemu-aarch64-static ./${{ matrix.asset_name }} --version
         else
           timeout 30 ./${{ matrix.asset_name }} --version
         fi

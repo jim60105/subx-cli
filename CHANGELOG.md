@@ -8,6 +8,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.7.2] - 2026-04-28
+
+### Fixed
+- Release pipeline: `aarch64-unknown-linux-gnu` cross-build now succeeds. `ort-sys` 2.0.0-rc.10's binary-download path failed inside the `cross` Docker container because the cache path resolves to `/.cache/ort.pyke.io/...` (no real `$HOME` for root). When the temp-extract rename failed, the build script silently fell back to `OUT_DIR` for extraction but kept `lib_dir` pinned at the never-populated cache path, then panicked with `Failed to read contents of /.cache/ort.pyke.io/...`. `Cross.toml` now pre-stages the official Pyke ONNX Runtime archive at `/opt/onnxruntime/lib` during `pre-build` (with `curl --retry 5 --retry-all-errors` for transient CDN failures and a SHA-256 check against `dist.txt`'s `none aarch64-unknown-linux-gnu` hash so we don't ship a corrupted runtime), and the workflow's `Build (cross)` step exports `ORT_LIB_LOCATION` so `ort-sys` skips its broken cache logic entirely.
+- Release pipeline: `aarch64-unknown-linux-gnu` smoke test now resolves the dynamic loader. The cross-built binary is dynamically linked against glibc/libstdc++/libgcc_s, so `qemu-aarch64-static` needs an aarch64 sysroot to find `ld-linux-aarch64.so.1`. The smoke-test step now installs `gcc-aarch64-linux-gnu` and exports `QEMU_LD_PREFIX=/usr/aarch64-linux-gnu` so `subx-cli --version` actually loads under qemu.
+
+### Removed
+- Linux musl release artifacts (`subx-linux-x86_64-musl`, `subx-linux-aarch64-musl`) added in v1.7.0 are no longer published. The upstream ONNX Runtime distribution consumed by SubX-CLI's voice-activity-detection support does not ship precompiled musl binaries (`ort` 2.0.0-rc.10's `dist.txt` has no `*-unknown-linux-musl` entries), and source-building it for musl is out of scope for this release pipeline. The release matrix and `Cross.toml` now cover only `aarch64-unknown-linux-gnu` for cross-compilation; the README install table and zh-TW counterpart drop the musl rows and gain a note pointing Alpine / musl users at `cargo install subx-cli`. `scripts/install.sh` still parses `--musl` and `SUBX_LIBC=musl` but exits non-zero (exit code 2) with that same guidance instead of 404'ing against a non-existent asset; auto-detected musl hosts (`ldd --version` reports musl) get the same exit. `compute_binary_name` and `select_download_url` continue to handle `-musl` asset names so the helper-function unit tests in `scripts/test_install.sh` still pass unchanged. The harness gains six new cases covering the rejection contract (`SUBX_LIBC=musl`, `--musl`).
+
+### Notes
+- `openspec/specs/release-distribution/spec.md` still treats musl as mandatory — this drift is intentional for the v1.7.2 hot-fix and should be reconciled via a follow-up OpenSpec change.
+
 ## [1.7.1] - 2026-04-28
 
 ### Added
@@ -490,7 +502,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Initial release of SubX CLI tool
 - Rust-based intelligent subtitle processing
 
-[Unreleased]: https://github.com/jim60105/subx-cli/compare/v1.7.1...HEAD
+[Unreleased]: https://github.com/jim60105/subx-cli/compare/v1.7.2...HEAD
+[1.7.2]: https://github.com/jim60105/subx-cli/compare/v1.7.1...v1.7.2
 [1.7.1]: https://github.com/jim60105/subx-cli/compare/v1.7.0...v1.7.1
 [1.7.0]: https://github.com/jim60105/subx-cli/compare/v1.6.0...v1.7.0
 [1.6.0]: https://github.com/jim60105/subx-cli/compare/v1.5.2...v1.6.0

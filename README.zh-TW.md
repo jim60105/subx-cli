@@ -106,32 +106,15 @@ chmod +x subx-cli && sudo mv subx-cli /usr/local/bin/
 |---------|----------|--------|-----------------------------|------|
 | Linux   | x86_64   | gnu    | `subx-linux-x86_64`         | x86_64 Linux 的預設選項 |
 | Linux   | aarch64  | gnu    | `subx-linux-aarch64`        | ARM64 Linux 的預設選項（Raspberry Pi 4/5、AWS Graviton、Oracle Ampere、ARM64 容器） |
-| Linux   | x86_64   | musl   | `subx-linux-x86_64-musl`    | 選用的靜態建置版本，適用於 Alpine 及其他與 glibc 不相容的發行版 |
-| Linux   | aarch64  | musl   | `subx-linux-aarch64-musl`   | 選用的靜態建置版本，適用於 ARM64 Alpine 及精簡容器 |
 | macOS   | x86_64   | —      | `subx-macos-x86_64`         | Intel Mac |
 | macOS   | aarch64  | —      | `subx-macos-aarch64`        | Apple Silicon（M1/M2/M3/M4） |
 | Windows | x86_64   | —      | `subx-windows-x86_64.exe`   | 64 位元 Windows |
 
-#### 改用 musl 靜態建置版（僅限 Linux）
-
-安裝腳本預設下載 gnu（glibc）版本。若您使用 Alpine 或其他與 glibc
-不相容的發行版，或需要完全靜態連結的執行檔，可透過下列任一方式
-切換為 musl 版本：
-
-```bash
-# 1. 環境變數（先下載再執行；`VAR=value cmd | bash` 只會將變數
-#    傳給 `cmd`，並不會傳給 pipe 後面的 `bash`）。
-curl -fsSL https://raw.githubusercontent.com/jim60105/subx-cli/master/scripts/install.sh -o install.sh
-SUBX_LIBC=musl bash install.sh
-
-# 2. 安裝腳本旗標
-curl -fsSL https://raw.githubusercontent.com/jim60105/subx-cli/master/scripts/install.sh -o install.sh
-bash install.sh --musl
-
-# 3. 自動偵測（盡力而為，依據 `ldd --version`）
-# 當 `ldd --version` 輸出識別為 musl 時，會自動下載 musl 版本。
-# 明確指定 `SUBX_LIBC` 或 `--musl` 永遠優先於自動偵測結果。
-```
+> **關於 musl／Alpine：** 目前不提供靜態 musl 版本（`subx-linux-*-musl`）。
+> SubX-CLI 透過 ONNX Runtime 提供語音活動偵測功能，而上游並未提供 musl 平台的
+> 預編譯二進位，從原始碼逐次建置 ONNX Runtime 不在本發行流程的範圍內。
+> Alpine 等 musl 系統建議改用原始碼安裝（`cargo install subx-cli`），
+> 或在 glibc 相容的容器內執行 gnu 版本。
 
 ### 從原始碼建構（所有平台）
 

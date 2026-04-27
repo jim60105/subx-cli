@@ -19,13 +19,14 @@
 # SubX CLI installation script
 # Automatically detects platform and downloads the latest release.
 #
-# Supports an optional libc selection on Linux:
-#   * Pass `--musl` on the command line, or
-#   * export `SUBX_LIBC=musl`
-# to download the statically-linked musl artifact instead of the default
-# glibc artifact. On Linux, when neither is set, the installer performs a
-# best-effort musl auto-detection via `ldd --version`. Explicit overrides
-# (env var or flag) always win over auto-detection.
+# Linux musl/Alpine note:
+# As of v1.7.2 the `*-unknown-linux-musl` artifacts are NOT published.
+# Upstream ONNX Runtime (consumed via `ort`) does not ship musl prebuilts
+# and source-building it on every release is out of scope. The legacy
+# `--musl` flag and `SUBX_LIBC=musl` selector are still parsed for clear
+# error messaging, but they exit non-zero with a pointer at
+# `cargo install subx-cli`. Auto-detection on musl hosts also exits with
+# the same guidance instead of silently 404'ing.
 
 set -e
 
@@ -43,17 +44,16 @@ usage() {
 Usage: install.sh [--musl] [--help]
 
 Options:
-  --musl       Download the musl-linked Linux artifact (Linux only).
-               Equivalent to setting SUBX_LIBC=musl.
+  --musl       (Deprecated, no-op apart from a clear error.) musl
+               artifacts are no longer published; install from source
+               via `cargo install subx-cli` on Alpine and other musl
+               distros.
   --help, -h   Show this help message and exit.
 
 Environment:
-  SUBX_LIBC    Either `gnu` (default) or `musl`. Selects the Linux libc
-               variant of the artifact to download. Overrides the
-               `--musl` flag and any auto-detection. Ignored on macOS.
-
-Precedence (highest first): `SUBX_LIBC` env var > `--musl` flag >
-`ldd --version` auto-detection > `gnu` default.
+  SUBX_LIBC    Either `gnu` (default) or `musl`. `musl` is rejected
+               with a pointer at the from-source workflow because no
+               musl artifact is published. Ignored on macOS.
 EOF
 }
 
@@ -184,7 +184,9 @@ print_missing_asset_diagnostics() {
 }
 
 # detect_libc_auto: print `musl` if Linux ldd reports musl, else `gnu`.
-# Best-effort only; explicit env/flag override always wins.
+# Best-effort only; explicit env/flag override always wins. The caller
+# (main) treats a `musl` result as a fatal "unsupported" error because
+# v1.7.2+ no longer publishes musl artifacts.
 detect_libc_auto() {
     if [ "$(uname -s | tr '[:upper:]' '[:lower:]')" != "linux" ]; then
         printf 'gnu\n'
@@ -195,6 +197,24 @@ detect_libc_auto() {
     else
         printf 'gnu\n'
     fi
+}
+
+# musl_unsupported_exit: print the canonical guidance and exit non-zero.
+# Centralised so explicit env/flag overrides and auto-detection report
+# the same message when the user is on a musl host.
+musl_unsupported_exit() {
+    {
+        echo "Error: musl Linux artifacts are not published for SubX-CLI."
+        echo
+        echo "Upstream ONNX Runtime does not ship musl prebuilts, so the"
+        echo "release pipeline cannot produce statically-linked musl"
+        echo "binaries. To install on Alpine and other musl distros:"
+        echo
+        echo "    cargo install subx-cli"
+        echo
+        echo "Or run the gnu artifact inside a glibc-compatible container."
+    } >&2
+    exit 2
 }
 
 # ---------------------------------------------------------------------------
@@ -224,17 +244,21 @@ main() {
     done
 
     # libc resolution: env var > flag > auto-detection > default (gnu).
+    # `musl` is rejected up-front because v1.7.2+ no longer publishes
+    # musl artifacts; surface a helpful message instead of letting the
+    # download step 404 against GitHub Releases.
     local libc=""
     if [ -n "${SUBX_LIBC:-}" ]; then
         case "$SUBX_LIBC" in
-            gnu|musl) libc="$SUBX_LIBC" ;;
+            gnu) libc="gnu" ;;
+            musl) musl_unsupported_exit ;;
             *)
                 echo "Error: SUBX_LIBC must be 'gnu' or 'musl' (got: '$SUBX_LIBC')" >&2
                 exit 2
                 ;;
         esac
-    elif [ -n "$libc_flag" ]; then
-        libc="$libc_flag"
+    elif [ "$libc_flag" = "musl" ]; then
+        musl_unsupported_exit
     fi
 
     # Detect operating system and architecture.
@@ -255,8 +279,15 @@ main() {
     esac
 
     # Auto-detect libc on Linux when no explicit selection was made.
+    # If the host is musl, exit with the same guidance as the explicit
+    # override path — there is no published artifact to download.
     if [ "$PLATFORM" = "linux" ] && [ -z "$libc" ]; then
-        libc=$(detect_libc_auto)
+        local detected
+        detected=$(detect_libc_auto)
+        if [ "$detected" = "musl" ]; then
+            musl_unsupported_exit
+        fi
+        libc="$detected"
     fi
     # On non-Linux, libc is meaningless; force gnu so compute_binary_name
     # doesn't append a -musl suffix.
