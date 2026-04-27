@@ -2,11 +2,10 @@
 //!
 //! Provides i16 ↔ f32 conversion and synchronous resampling of mono PCM
 //! audio via [`rubato::Fft`] with the [`rubato::FixedSync::Input`]
-//! configuration. The rubato 2.0 API uses
-//! [`audioadapter`]-based buffers, so this module wraps the input slice
-//! with [`SequentialSlice`] and the output buffer with
-//! [`SequentialSliceOfVecs`] before delegating to
-//! [`Resampler::process_all_into_buffer`].
+//! configuration. The rubato 2.0 API uses `audioadapter`-based buffers,
+//! so this module wraps the input slice with `SequentialSlice` and the
+//! output buffer with `SequentialSliceOfVecs` before delegating to
+//! `Resampler::process_all_into_buffer`.
 
 use audioadapter_buffers::direct::{SequentialSlice, SequentialSliceOfVecs};
 use log::{debug, trace};

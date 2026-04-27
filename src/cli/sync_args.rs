@@ -776,16 +776,9 @@ mod tests {
 
     #[test]
     fn test_validate_auto_vad_sensitivity_with_manual_method_err() {
-        let args = SyncArgs {
-            video: Some(PathBuf::from("v.mp4")),
-            method: Some(SyncMethodArg::Manual),
-            vad_sensitivity: Some(0.5),
-            offset: Some(1.0), // needed so manual method validation passes first
-            ..default_args()
-        };
-        // manual method check fires first (offset required) - here offset is provided,
-        // but we test the vad_sensitivity path, which requires no manual method *and* has video
-        // Re-test: auto path with vad_sensitivity set and manual method
+        // manual method check fires first (offset required) - this path
+        // tests the vad_sensitivity guard, which requires the auto method
+        // *and* a video to be set.
         let args2 = SyncArgs {
             video: Some(PathBuf::from("v.mp4")),
             method: Some(SyncMethodArg::Manual),
