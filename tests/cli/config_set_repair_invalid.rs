@@ -16,12 +16,12 @@ use std::fs;
 use std::path::Path;
 use tempfile::TempDir;
 
-fn xdg_for(workdir: &Path) -> std::path::PathBuf {
-    workdir.join(".xdg")
+fn config_dir_for(workdir: &Path) -> std::path::PathBuf {
+    workdir.join(".config-home").join("subx")
 }
 
 fn config_path_for(workdir: &Path) -> std::path::PathBuf {
-    xdg_for(workdir).join("subx").join("config.toml")
+    config_dir_for(workdir).join("config.toml")
 }
 
 /// Seed a full-shape `config.toml` under `workdir/.xdg/subx/config.toml`
@@ -76,10 +76,18 @@ fn seed_strict_invalid_config(workdir: &Path) -> std::path::PathBuf {
 }
 
 fn isolated_cmd(workdir: &Path) -> Command {
-    let xdg = xdg_for(workdir);
-    fs::create_dir_all(&xdg).unwrap();
+    let cfg_dir = config_dir_for(workdir);
+    fs::create_dir_all(&cfg_dir).unwrap();
+    let cfg_path = config_path_for(workdir);
     let mut cmd = Command::cargo_bin("subx-cli").unwrap();
-    cmd.env("XDG_CONFIG_HOME", &xdg)
+    // Pin the config file via `SUBX_CONFIG_PATH` (honored by both the
+    // load and save paths in `ProductionConfigService`). This keeps the
+    // test cross-platform: `XDG_CONFIG_HOME` is ignored by the `dirs`
+    // crate on macOS (which resolves to `~/Library/Application Support`)
+    // and on Windows (which uses `%APPDATA%`), so seeding through that
+    // var leaves `config reset` writing into the real user config dir
+    // and the assertion path empty.
+    cmd.env("SUBX_CONFIG_PATH", &cfg_path)
         .env("HOME", workdir)
         .env_remove("SUBX_OUTPUT")
         // Strip every env override that might paper over the file's
