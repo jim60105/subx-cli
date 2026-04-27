@@ -11,12 +11,11 @@
 //! let files = disco.scan_directory("./path".as_ref(), true).unwrap();
 //! ```
 
-use std::collections::hash_map::DefaultHasher;
-use std::hash::{Hash, Hasher};
 use std::path::{Path, PathBuf};
 use walkdir::WalkDir;
 
 use crate::Result;
+use crate::core::uuidv7::Uuidv7Generator;
 
 /// Media file record representing a discovered file.
 ///
@@ -24,7 +23,7 @@ use crate::Result;
 /// including its path, type classification, and basic file properties.
 #[derive(Debug, Clone)]
 pub struct MediaFile {
-    /// Unique identifier for this media file (deterministic hash)
+    /// Unique identifier for this media file (`file_<uuid-v7-hyphenated>`)
     pub id: String,
     /// Full path to the media file
     pub path: PathBuf,
@@ -39,17 +38,15 @@ pub struct MediaFile {
     /// Relative path from scan root for recursive matching
     pub relative_path: String,
 }
-/// Generate a deterministic unique identifier for a media file
+/// Generate a unique UUIDv7-based identifier for a discovered media file.
 ///
-/// Uses a fast hash algorithm combining the absolute path and file size to
-/// produce a consistent ID regardless of scanning method.
-pub fn generate_file_id(path: &std::path::Path, file_size: u64) -> String {
-    let mut hasher = DefaultHasher::new();
-    // Use absolute path to ensure consistency across different scanning methods
-    let abs_path = path.canonicalize().unwrap_or_else(|_| path.to_path_buf());
-    abs_path.to_string_lossy().as_ref().hash(&mut hasher);
-    file_size.hash(&mut hasher);
-    format!("file_{:016x}", hasher.finish())
+/// The returned string has the form `file_<uuid-v7-hyphenated>` (length 41)
+/// and embeds a `unix_time_ts` strictly greater than that of every previous
+/// ID produced by the same generator instance. Callers that need monotonic
+/// ordering across an entire scan SHALL share a single
+/// [`Uuidv7Generator`] across all calls in the scan.
+pub fn generate_file_id(generator: &mut Uuidv7Generator) -> String {
+    format!("file_{}", generator.next_id().hyphenated())
 }
 
 // Unit tests: FileDiscovery file matching logic
@@ -118,13 +115,21 @@ mod tests {
         let x = temp.path().join("t.txt");
         fs::write(&x, b"").unwrap();
         let disco = FileDiscovery::new();
-        let vf = disco.classify_file(&v, temp.path()).unwrap().unwrap();
+        let vf = disco
+            .classify_file(&v, temp.path(), &mut Uuidv7Generator::new())
+            .unwrap()
+            .unwrap();
         assert!(matches!(vf.file_type, MediaFileType::Video));
         assert_eq!(vf.name, "t.mp4");
-        let sf = disco.classify_file(&s, temp.path()).unwrap().unwrap();
+        let sf = disco
+            .classify_file(&s, temp.path(), &mut Uuidv7Generator::new())
+            .unwrap()
+            .unwrap();
         assert!(matches!(sf.file_type, MediaFileType::Subtitle));
         assert_eq!(sf.name, "t.srt");
-        let none = disco.classify_file(&x, temp.path()).unwrap();
+        let none = disco
+            .classify_file(&x, temp.path(), &mut Uuidv7Generator::new())
+            .unwrap();
         assert!(none.is_none());
         assert!(disco.video_extensions.contains(&"mp4".to_string()));
         assert!(disco.subtitle_extensions.contains(&"srt".to_string()));
@@ -145,8 +150,16 @@ mod tests {
 #[cfg(test)]
 mod id_tests {
     use super::*;
+    use crate::core::uuidv7::unix_time_ms;
     use std::fs;
     use tempfile::TempDir;
+
+    fn parse_file_id(id: &str) -> uuid::Uuid {
+        let stripped = id
+            .strip_prefix("file_")
+            .expect("file id must begin with `file_`");
+        uuid::Uuid::parse_str(stripped).expect("file id must contain a valid UUID")
+    }
 
     #[test]
     fn test_media_file_structure_with_unique_id() {
@@ -164,7 +177,9 @@ mod id_tests {
 
         assert!(!video_file.id.is_empty());
         assert!(video_file.id.starts_with("file_"));
-        assert_eq!(video_file.id.len(), 21);
+        assert_eq!(video_file.id.len(), 41);
+        let parsed = parse_file_id(&video_file.id);
+        assert_eq!(parsed.get_version_num(), 7);
 
         assert_eq!(video_file.name, "[Test][01].mkv");
         assert_eq!(video_file.extension, "mkv");
@@ -172,24 +187,23 @@ mod id_tests {
     }
 
     #[test]
-    fn test_deterministic_id_generation() {
-        use std::path::Path;
-        let path1 = Path::new("test/file.mkv");
-        let path2 = Path::new("test/file.mkv");
-        let path3 = Path::new("test/file2.mkv");
-
-        let id1 = generate_file_id(path1, 1000);
-        let id2 = generate_file_id(path2, 1000);
-        assert_eq!(id1, id2);
-
-        let id3 = generate_file_id(path3, 1000);
-        assert_ne!(id1, id3);
-
-        let id4 = generate_file_id(path1, 2000);
-        assert_ne!(id1, id4);
-
+    fn test_uuidv7_id_generation() {
+        let mut gen1 = Uuidv7Generator::new();
+        let id1 = generate_file_id(&mut gen1);
         assert!(id1.starts_with("file_"));
-        assert_eq!(id1.len(), 21);
+        assert_eq!(id1.len(), 41);
+
+        let parsed1 = parse_file_id(&id1);
+        assert_eq!(parsed1.get_version_num(), 7);
+
+        let id2 = generate_file_id(&mut gen1);
+        let parsed2 = parse_file_id(&id2);
+        assert_eq!(parsed2.get_version_num(), 7);
+
+        assert!(
+            unix_time_ms(&parsed2) > unix_time_ms(&parsed1),
+            "second id's unix_time_ts must strictly exceed the first"
+        );
     }
 
     #[test]
@@ -210,17 +224,21 @@ mod id_tests {
         let sub_video = files.iter().find(|f| f.name == "episode1.mkv").unwrap();
 
         assert_ne!(root_video.id, sub_video.id);
+        assert_eq!(root_video.id.len(), 41);
+        assert_eq!(sub_video.id.len(), 41);
+        assert_eq!(parse_file_id(&root_video.id).get_version_num(), 7);
+        assert_eq!(parse_file_id(&sub_video.id).get_version_num(), 7);
         assert_eq!(root_video.relative_path, "movie.mkv");
         assert_eq!(sub_video.relative_path, "season1/episode1.mkv");
     }
 
     #[test]
-    fn test_hash_generation_basic() {
-        use std::path::Path;
-        let path = Path::new("test/file.mkv");
-        let id = generate_file_id(path, 1000);
+    fn test_uuidv7_id_shape_basic() {
+        let mut generator = Uuidv7Generator::new();
+        let id = generate_file_id(&mut generator);
         assert!(id.starts_with("file_"));
-        assert_eq!(id.len(), 21);
+        assert_eq!(id.len(), 41);
+        assert_eq!(parse_file_id(&id).get_version_num(), 7);
     }
 }
 
@@ -281,6 +299,7 @@ impl FileDiscovery {
     /// * `recursive` - Whether to scan subdirectories recursively.
     pub fn scan_directory(&self, root_path: &Path, recursive: bool) -> Result<Vec<MediaFile>> {
         let mut files = Vec::new();
+        let mut id_gen = Uuidv7Generator::new();
 
         let walker = if recursive {
             WalkDir::new(root_path).into_iter()
@@ -298,7 +317,7 @@ impl FileDiscovery {
                 continue;
             }
             if ft.is_file() {
-                if let Some(media_file) = self.classify_file(path, root_path)? {
+                if let Some(media_file) = self.classify_file(path, root_path, &mut id_gen)? {
                     files.push(media_file);
                 }
             }
@@ -321,6 +340,7 @@ impl FileDiscovery {
     /// A vector of `MediaFile` objects for valid media files, or an error if file access fails.
     pub fn scan_file_list(&self, file_paths: &[PathBuf]) -> Result<Vec<MediaFile>> {
         let mut media_files = Vec::new();
+        let mut id_gen = Uuidv7Generator::new();
 
         for path in file_paths {
             if !path.exists() {
@@ -355,7 +375,7 @@ impl FileDiscovery {
                     let relative_path = name.clone();
 
                     let media_file = MediaFile {
-                        id: generate_file_id(path, metadata.len()),
+                        id: generate_file_id(&mut id_gen),
                         path: path.clone(),
                         file_type,
                         size: metadata.len(),
@@ -375,7 +395,12 @@ impl FileDiscovery {
     ///
     /// Returns `Some(MediaFile)` if the file is a recognized media type,
     /// or `None` otherwise.
-    fn classify_file(&self, path: &Path, scan_root: &Path) -> Result<Option<MediaFile>> {
+    fn classify_file(
+        &self,
+        path: &Path,
+        scan_root: &Path,
+        id_gen: &mut Uuidv7Generator,
+    ) -> Result<Option<MediaFile>> {
         let extension = path
             .extension()
             .and_then(|ext| ext.to_str())
@@ -405,8 +430,8 @@ impl FileDiscovery {
             .to_string_lossy()
             .replace('\\', "/"); // Normalize to Unix-style separators for consistency
 
-        // Generate unique ID based on absolute path and file size
-        let id = generate_file_id(path, metadata.len());
+        // Generate a per-scan unique UUIDv7-based identifier
+        let id = generate_file_id(id_gen);
 
         Ok(Some(MediaFile {
             id,

@@ -50,44 +50,12 @@ async fn test_multiple_files_rename_to_same_target_with_auto_rename() {
     )
     .unwrap();
 
-    // Scan files to get actual file IDs
-    let discovery = subx_cli::core::matcher::FileDiscovery::new();
-    let files = discovery.scan_directory(root, true).unwrap();
-
-    let video_file = files
-        .iter()
-        .find(|f| matches!(f.file_type, subx_cli::core::matcher::MediaFileType::Video))
-        .unwrap();
-
-    let subtitle_files: Vec<_> = files
-        .iter()
-        .filter(|f| {
-            matches!(
-                f.file_type,
-                subx_cli::core::matcher::MediaFileType::Subtitle
-            )
-        })
-        .collect();
-
-    // Ensure we have 3 subtitle files
-    assert_eq!(
-        subtitle_files.len(),
-        3,
-        "Should have exactly 3 subtitle files"
-    );
-
-    // Create mock AI response with multiple matches to the same video
-    let multiple_matches_response = create_multiple_matches_response(
-        &video_file.id,
-        &subtitle_files
-            .iter()
-            .map(|f| f.id.as_str())
-            .collect::<Vec<_>>(),
-    );
-
+    // Echo the matcher's own UUIDv7 IDs back at it: pair the single
+    // discovered video against every discovered subtitle so the
+    // command attempts to rename them all onto the same target name.
     let mock_helper = MockOpenAITestHelper::new().await;
     mock_helper
-        .mock_chat_completion_success(&multiple_matches_response)
+        .mock_chat_completion_echoing_one_to_many(1, 3, 0.90)
         .await;
 
     // Execute match command with copy mode to test rename conflicts
@@ -206,45 +174,19 @@ async fn test_conflict_resolution_with_existing_target_files() {
     )
     .unwrap();
 
-    // Scan files to get actual file IDs
-    let discovery = subx_cli::core::matcher::FileDiscovery::new();
-    let files = discovery.scan_directory(root, true).unwrap();
-
-    let video_file = files
-        .iter()
-        .find(|f| matches!(f.file_type, subx_cli::core::matcher::MediaFileType::Video))
-        .unwrap();
-
-    let subtitle_files: Vec<_> = files
-        .iter()
-        .filter(|f| {
-            matches!(
-                f.file_type,
-                subx_cli::core::matcher::MediaFileType::Subtitle
-            )
-        })
-        .filter(|f| f.path == subtitle1_path || f.path == subtitle2_path) // Exclude pre-existing target files
-        .collect();
-
-    assert_eq!(
-        subtitle_files.len(),
-        2,
-        "Should have exactly 2 new subtitle files to match"
-    );
-
-    // Create mock AI response
-    let multiple_matches_response = create_multiple_matches_response(
-        &video_file.id,
-        &subtitle_files
-            .iter()
-            .map(|f| f.id.as_str())
-            .collect::<Vec<_>>(),
-    );
-
+    // Discover the on-disk file set without pre-baking IDs into a
+    // static mock: the matcher generates fresh UUIDv7 IDs on every
+    // scan, so we mount a closure-based wiremock responder that parses
+    // the captured request and pairs the video against only the new
+    // sub1/sub2 subtitles (filtering out the pre-existing movie.srt /
+    // movie.1.srt entries by filename).
     let mock_helper = MockOpenAITestHelper::new().await;
-    mock_helper
-        .mock_chat_completion_success(&multiple_matches_response)
-        .await;
+    mount_filename_filtered_video_to_subs_mock(
+        mock_helper.server(),
+        &["sub1.srt", "sub2.srt"],
+        0.90,
+    )
+    .await;
 
     // Execute match command
     let args = MatchArgs {
@@ -342,43 +284,12 @@ async fn test_move_mode_with_duplicate_rename_conflicts() {
     let original_content_1 = fs::read_to_string(&subtitle1_path).unwrap();
     let original_content_2 = fs::read_to_string(&subtitle2_path).unwrap();
 
-    // Scan files to get actual file IDs
-    let discovery = subx_cli::core::matcher::FileDiscovery::new();
-    let files = discovery.scan_directory(root, true).unwrap();
-
-    let video_file = files
-        .iter()
-        .find(|f| matches!(f.file_type, subx_cli::core::matcher::MediaFileType::Video))
-        .unwrap();
-
-    let subtitle_files: Vec<_> = files
-        .iter()
-        .filter(|f| {
-            matches!(
-                f.file_type,
-                subx_cli::core::matcher::MediaFileType::Subtitle
-            )
-        })
-        .collect();
-
-    assert_eq!(
-        subtitle_files.len(),
-        2,
-        "Should have exactly 2 subtitle files"
-    );
-
-    // Create mock AI response
-    let multiple_matches_response = create_multiple_matches_response(
-        &video_file.id,
-        &subtitle_files
-            .iter()
-            .map(|f| f.id.as_str())
-            .collect::<Vec<_>>(),
-    );
-
+    // Echo IDs back: pair the single video against both discovered
+    // subtitles so the matcher attempts to rename them both to the
+    // same target name.
     let mock_helper = MockOpenAITestHelper::new().await;
     mock_helper
-        .mock_chat_completion_success(&multiple_matches_response)
+        .mock_chat_completion_echoing_one_to_many(1, 2, 0.90)
         .await;
 
     // Execute match command with move mode
@@ -440,26 +351,91 @@ async fn test_move_mode_with_duplicate_rename_conflicts() {
     mock_helper.verify_expectations().await;
 }
 
-/// Helper function to create AI response with multiple matches to the same video
-fn create_multiple_matches_response(video_id: &str, subtitle_ids: &[&str]) -> String {
-    use serde_json::json;
+/// Mount a wiremock responder that scans the captured prompt for
+/// `ID:file_<uuid> | Name:<filename>` pairs, picks the first video ID,
+/// and pairs it against every subtitle whose filename appears in
+/// `subtitle_filenames`.
+async fn mount_filename_filtered_video_to_subs_mock(
+    server: &wiremock::MockServer,
+    subtitle_filenames: &[&str],
+    confidence: f64,
+) {
+    use serde_json::{Value, json};
+    use wiremock::matchers::{header, method, path};
+    use wiremock::{Mock, Request, Respond, ResponseTemplate};
 
-    let matches: Vec<_> = subtitle_ids
-        .iter()
-        .map(|subtitle_id| {
-            json!({
-                "video_file_id": video_id,
-                "subtitle_file_id": subtitle_id,
-                "confidence": 0.90,
-                "match_factors": ["filename_similarity", "content_correlation"]
+    struct R {
+        names: Vec<String>,
+        confidence: f64,
+    }
+    impl Respond for R {
+        fn respond(&self, request: &Request) -> ResponseTemplate {
+            let body: Value = serde_json::from_slice(&request.body).expect("valid JSON");
+            let prompt = body
+                .get("messages")
+                .and_then(|m| m.as_array())
+                .and_then(|arr| arr.last())
+                .and_then(|m| m.get("content"))
+                .and_then(|c| c.as_str())
+                .unwrap_or("");
+            // Each entry looks like:
+            // - ID:file_<uuid> | Name:<filename> | Path:<path>
+            let entry_re = regex::Regex::new(
+                r"ID:(file_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[0-9a-f]{4}-[0-9a-f]{12}) \| Name:([^|]+?) \| Path:",
+            )
+            .unwrap();
+            let mut entries: Vec<(String, String)> = Vec::new();
+            for cap in entry_re.captures_iter(prompt) {
+                entries.push((cap[1].to_string(), cap[2].trim().to_string()));
+            }
+            let video_section_end = prompt.find("\nSubtitle files:\n").unwrap_or(prompt.len());
+            let video_id = entries
+                .iter()
+                .find(|(id, _)| {
+                    if let Some(idx) = prompt.find(id.as_str()) {
+                        idx < video_section_end
+                    } else {
+                        false
+                    }
+                })
+                .map(|(id, _)| id.clone())
+                .unwrap_or_default();
+            let matches: Vec<Value> = entries
+                .iter()
+                .filter(|(id, name)| id != &video_id && self.names.iter().any(|n| n == name))
+                .map(|(id, _)| {
+                    json!({
+                        "video_file_id": video_id,
+                        "subtitle_file_id": id,
+                        "confidence": self.confidence,
+                        "match_factors": ["filename_similarity", "content_correlation"],
+                    })
+                })
+                .collect();
+            let content = json!({
+                "matches": matches,
+                "confidence": self.confidence,
+                "reasoning": "Filename-filtered echo response",
             })
-        })
-        .collect();
+            .to_string();
+            let response_body = json!({
+                "choices": [
+                    { "message": { "content": content }, "finish_reason": "stop" }
+                ],
+                "usage": { "prompt_tokens": 100, "completion_tokens": 50, "total_tokens": 150 },
+                "model": "gpt-4.1-mini"
+            });
+            ResponseTemplate::new(200).set_body_json(response_body)
+        }
+    }
 
-    json!({
-        "matches": matches,
-        "confidence": 0.90,
-        "reasoning": "Multiple high confidence matches found for the same video file."
-    })
-    .to_string()
+    Mock::given(method("POST"))
+        .and(path("/chat/completions"))
+        .and(header("authorization", "Bearer mock-api-key"))
+        .respond_with(R {
+            names: subtitle_filenames.iter().map(|s| s.to_string()).collect(),
+            confidence,
+        })
+        .mount(server)
+        .await;
 }

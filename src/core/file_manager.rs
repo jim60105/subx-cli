@@ -270,7 +270,9 @@ impl FileManager {
                 FileOperation::Removed(_path) => {
                     // Note: In a complete implementation, removed files would be
                     // restored from backup. This is a simplified version.
-                    eprintln!("Warning: Cannot restore removed file (backup not implemented)");
+                    if !crate::cli::output::active_mode().is_json() {
+                        eprintln!("Warning: Cannot restore removed file (backup not implemented)");
+                    }
                 }
             }
         }

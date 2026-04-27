@@ -48,7 +48,7 @@ impl WorkerPool {
 
     /// Execute a task by spawning a worker
     pub async fn execute(&self, task: Box<dyn Task + Send + Sync>) -> Result<TaskResult, String> {
-        let worker_id = Uuid::new_v4();
+        let worker_id = Uuid::now_v7();
         let task_id = task.task_id();
         let worker_type = self.determine_worker_type(task.task_type());
 
@@ -124,9 +124,11 @@ impl WorkerPool {
     pub async fn shutdown(&self) {
         let workers = { std::mem::take(&mut *self.workers.lock().unwrap()) };
         for (id, info) in workers {
-            // stderr diagnostic — never written to stdout, so safe in JSON
-            // mode. Suppressed when --quiet is set.
-            if !crate::cli::output::is_quiet() {
+            // stderr diagnostic — never written to stdout. Suppressed when
+            // --quiet is set or when JSON output mode is active so the JSON
+            // envelope on stdout is not accompanied by free-form chatter on
+            // stderr.
+            if !crate::cli::output::is_quiet() && !crate::cli::output::active_mode().is_json() {
                 eprintln!(
                     "Waiting for worker {} to complete task {}",
                     id, info.task_id
@@ -219,7 +221,7 @@ impl Worker {
     /// Creates a new worker with a unique ID and idle status.
     pub fn new() -> Self {
         Self {
-            id: Uuid::new_v4(),
+            id: Uuid::now_v7(),
             status: WorkerStatus::Idle,
         }
     }
@@ -689,5 +691,47 @@ mod tests {
 
         // Wait for tasks to complete
         tokio::time::sleep(tokio::time::Duration::from_millis(150)).await;
+    }
+
+    #[test]
+    fn worker_id_is_uuidv7() {
+        let w = Worker::new();
+        assert_eq!(w.id().get_version_num(), 7);
+    }
+
+    #[test]
+    fn consecutive_workers_have_distinct_ids() {
+        let a = Worker::new();
+        let b = Worker::new();
+        assert_ne!(a.id(), b.id());
+    }
+
+    #[tokio::test]
+    async fn worker_pool_execute_dispatches_uuidv7_worker_id() {
+        use crate::core::parallel::task::{Task, TaskResult};
+        use async_trait::async_trait;
+
+        struct DummyTask;
+
+        #[async_trait]
+        impl Task for DummyTask {
+            async fn execute(&self) -> TaskResult {
+                TaskResult::Success("done".into())
+            }
+            fn task_type(&self) -> &'static str {
+                "match"
+            }
+            fn task_id(&self) -> String {
+                "dummy".into()
+            }
+        }
+
+        let pool = WorkerPool::new(1);
+        let res = pool.execute(Box::new(DummyTask)).await;
+        assert!(matches!(res, Ok(TaskResult::Success(_))));
+
+        let workers = pool.list_active_workers();
+        assert_eq!(workers.len(), 1);
+        assert_eq!(workers[0].worker_id.get_version_num(), 7);
     }
 }

@@ -14,7 +14,6 @@ use tempfile::TempDir;
 
 mod common;
 use common::mock_openai_helper::MockOpenAITestHelper;
-use common::test_data_generators::MatchResponseGenerator;
 
 // Use async mutex to avoid environment variable race conditions
 static TEST_MUTEX: tokio::sync::Mutex<()> = tokio::sync::Mutex::const_new(());
@@ -59,38 +58,12 @@ async fn test_match_cache_copy_mode_target_directory_correctness() {
     debug!("  Video file: {}", video_file.display());
     debug!("  Subtitle file: {}", subtitle_file.display());
 
-    // Scan files to get actual file IDs
-    use subx_cli::core::matcher::FileDiscovery;
-    let discovery = FileDiscovery::new();
-    let files = discovery.scan_directory(test_root, true).unwrap();
-    debug!("Scanned directory, found {} files", files.len());
-
-    let video_file_info = files.iter().find(|f| f.name.ends_with(".mp4")).unwrap();
-    let subtitle_file_info = files.iter().find(|f| f.name.ends_with(".srt")).unwrap();
-    debug!(
-        "Found video file: {} (id: {})",
-        video_file_info.name, video_file_info.id
-    );
-    debug!(
-        "Found subtitle file: {} (id: {})",
-        subtitle_file_info.name, subtitle_file_info.id
-    );
-
-    // Create mock AI service, set to expect only one API call
+    // Use a request-echoing mock so the AI response references the
+    // same UUIDv7 IDs the matcher generates during its own scan.
     let mock_helper = MockOpenAITestHelper::new().await;
-    debug!("Create mock AI helper at: {}", mock_helper.base_url());
-
-    // Set to expect only one API call (for the first execution)
     mock_helper
-        .mock_chat_completion_with_expectation(
-            &MatchResponseGenerator::successful_match_with_ids(
-                &video_file_info.id,
-                &subtitle_file_info.id,
-            ),
-            1,
-        )
+        .mock_chat_completion_echoing_request_ids_with_expectation(1, 1, 0.95, 1)
         .await;
-    debug!("Set mock expectation to 1 API call");
 
     let config_service = TestConfigBuilder::new()
         .with_mock_ai_server(&mock_helper.base_url())
@@ -212,24 +185,11 @@ async fn test_match_cache_dry_run_vs_actual_execution_consistency() {
     )
     .unwrap();
 
-    // Scan files to get actual file IDs
-    use subx_cli::core::matcher::FileDiscovery;
-    let discovery = FileDiscovery::new();
-    let files = discovery.scan_directory(test_root, true).unwrap();
-
-    let video_file_info = files.iter().find(|f| f.name.ends_with(".mp4")).unwrap();
-    let subtitle_file_info = files.iter().find(|f| f.name.ends_with(".srt")).unwrap();
-
-    // Create mock AI service, set to expect only one API call
+    // Use a request-echoing mock so the AI response references the
+    // same UUIDv7 IDs the matcher generates during its own scan.
     let mock_helper = MockOpenAITestHelper::new().await;
     mock_helper
-        .mock_chat_completion_with_expectation(
-            &MatchResponseGenerator::successful_match_with_ids(
-                &video_file_info.id,
-                &subtitle_file_info.id,
-            ),
-            1,
-        )
+        .mock_chat_completion_echoing_request_ids_with_expectation(1, 1, 0.95, 1)
         .await;
 
     let config_service = TestConfigBuilder::new()
@@ -332,24 +292,11 @@ async fn test_match_cache_move_mode_target_directory_correctness() {
     )
     .unwrap();
 
-    // Scan files to get actual file IDs
-    use subx_cli::core::matcher::FileDiscovery;
-    let discovery = FileDiscovery::new();
-    let files = discovery.scan_directory(test_root, true).unwrap();
-
-    let video_file_info = files.iter().find(|f| f.name.ends_with(".mp4")).unwrap();
-    let subtitle_file_info = files.iter().find(|f| f.name.ends_with(".srt")).unwrap();
-
-    // Create mock AI service
+    // Use a request-echoing mock so the AI response references the
+    // same UUIDv7 IDs the matcher generates during its own scan.
     let mock_helper = MockOpenAITestHelper::new().await;
     mock_helper
-        .mock_chat_completion_with_expectation(
-            &MatchResponseGenerator::successful_match_with_ids(
-                &video_file_info.id,
-                &subtitle_file_info.id,
-            ),
-            1,
-        )
+        .mock_chat_completion_echoing_request_ids_with_expectation(1, 1, 0.95, 1)
         .await;
 
     let config_service = TestConfigBuilder::new()

@@ -19,16 +19,34 @@
 //! # Module layout
 //!
 //! - [`request`] - request/response data structures.
-//! - [`uuidv7`] - UUIDv7 generator with strict 1ms spacing.
 //! - [`engine`] - high-level [`engine::TranslationEngine`].
+//!
+//! The UUIDv7 cue ID generator lives in [`crate::core::uuidv7`] and is
+//! re-exported below for backward compatibility with the original
+//! `core::translation::uuidv7` public path.
 
 pub mod engine;
 pub mod request;
-pub mod uuidv7;
 
+/// Backward-compatibility shim for the original
+/// `subx_cli::core::translation::uuidv7` module path.
+///
+/// The UUIDv7 generator was relocated to [`crate::core::uuidv7`] when it
+/// became a shared dependency of the matcher and parallel layers; this
+/// shim preserves the old import path for downstream code that still
+/// references `subx_cli::core::translation::uuidv7::CueIdGenerator`.
+pub mod uuidv7 {
+    pub use crate::core::uuidv7::{
+        Uuidv7Generator, Uuidv7Generator as CueIdGenerator, generate_ids,
+        generate_ids as generate_cue_ids, unix_time_ms,
+    };
+}
+
+pub use crate::core::uuidv7::{
+    Uuidv7Generator as CueIdGenerator, generate_ids as generate_cue_ids, unix_time_ms,
+};
 pub use engine::{TranslationEngine, parse_glossary_text};
 pub use request::{
     GlossaryEntry, TerminologyEntry, TerminologyMap, TranslationBatch, TranslationCue,
     TranslationOutcome, TranslationRequest, TranslationResult,
 };
-pub use uuidv7::{CueIdGenerator, generate_cue_ids};

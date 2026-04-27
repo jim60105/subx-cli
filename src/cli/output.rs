@@ -13,10 +13,15 @@
 //!   `serde_json` document terminated by a trailing `\n`. No other writes
 //!   to stdout from any command, helper, or library code are permitted —
 //!   `print_success`/`print_warning`/`display_match_results`/progress
-//!   bars are silenced for the lifetime of the process. Stderr MAY still
-//!   carry free-form diagnostic logs, but ANSI styling and status symbols
-//!   are stripped (see [`crate::cli::ui`]). With `--quiet`, stderr
-//!   chatter is additionally suppressed except for fatal errors emitted
+//!   bars are silenced for the lifetime of the process. Stderr is also
+//!   tightened: free-form `eprintln!` / `println!` chatter (matcher
+//!   `🔍 AI Analysis Results:` block, `Total matches:` summaries,
+//!   `   - file_<id>` candidate lines, `Warning: Skipping relocation` /
+//!   `Warning: Conflict resolution prompt not implemented`, etc.) is
+//!   suppressed. Structured `tracing` / `log` records (gated by
+//!   `RUST_LOG`) are still allowed; ANSI styling and status symbols are
+//!   stripped (see [`crate::cli::ui`]). With `--quiet`, even those
+//!   structured records are suppressed except for fatal errors emitted
 //!   by the renderer itself.
 //! - **Text mode (default)**: behavior is unchanged from prior releases.
 //!

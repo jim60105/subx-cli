@@ -30,6 +30,36 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Per-file error isolation during batch translation so one failing file does not block the rest.
 
 ### Changed
+- Unified all in-process identifiers on UUIDv7 with a shared
+  `crate::core::uuidv7::Uuidv7Generator` that enforces strict ≥1 ms
+  spacing between adjacent IDs. The matcher's `FileDiscovery` now emits
+  `file_<uuidv7>` (41 chars total) instead of the previous deterministic
+  `file_<16 hex chars>` shape, and the parallel scheduler / worker pool
+  now mint UUIDv7 worker and task IDs (previously v4). The `uuid/v4`
+  Cargo feature has been removed; the crate enables only `uuid/v7`.
+  - **Library API break:** `subx_cli::core::matcher::discovery::generate_file_id`
+    now requires a `&mut Uuidv7Generator` parameter and returns
+    `String` directly. Downstream consumers that called this helper
+    must instantiate one generator per scan and thread it through.
+  - The translation module's `CueIdGenerator` and `generate_cue_ids`
+    are preserved as re-exports of the canonical
+    `core::uuidv7::Uuidv7Generator` and `generate_ids` to keep the
+    translation API source-compatible.
+- Tightened JSON-mode (`--output json`) stderr discipline. In addition
+  to the existing stdout cleanliness rules, free-form `eprintln!` /
+  `println!` chatter is now unconditionally suppressed when JSON mode
+  is active. This includes the matcher's `🔍 AI Analysis Results:`
+  block, `Total matches:` / `Preview:` summaries, per-candidate
+  `   - file_<id>` listings, "Cannot find AI-suggested file pair"
+  warnings, `Warning: Skipping relocation`, `Warning: Conflict
+  resolution prompt not implemented`, the file-manager "Cannot restore
+  removed file" warning, the translation engine's unknown-cue-ID
+  warning and progress chatter, and the parallel worker shutdown notice.
+  Structured `tracing` / `log` records (gated by `RUST_LOG`) are still
+  emitted; sync command `[DEBUG]` chatter has been migrated from
+  `eprintln!` to `log::debug!` so it now respects user log filters in
+  every output mode. `--quiet` continues to silence the remaining
+  structured records on top of this.
 - Refactored `src/core/formats/` from monolithic per-format files into directory modules (`srt/`, `ass/`, `vtt/`, `sub/`), each split into `mod.rs`, `parser.rs`, `serializer.rs`, `time.rs`, and `tests.rs`. Public API and module paths are preserved.
 - Extracted shared subtitle types and the `SubtitleFormat` trait from `formats/mod.rs` into a private `formats/types.rs` module, re-exported from `formats::*`. The `formats/mod.rs` facade is now ~150 lines.
 - Hardened all subtitle parsers with consistent defensive behavior: empty input is rejected with a typed error, BOMs are stripped at the parser layer, per-cue payloads are capped at 1 MiB, out-of-order cues are preserved (SRT/VTT), and negative timestamps are skipped without aborting the parse. VTT validates the `WEBVTT` header, ASS validates the `[Events]` section and rejects `Dialogue:` rows with fewer columns than the `Format:` line declares, and SUB rejects non-numeric frame ranges.

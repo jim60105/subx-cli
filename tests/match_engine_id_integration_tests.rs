@@ -92,7 +92,7 @@ async fn test_file_id_based_matching_integration() {
     for file in &files {
         assert!(!file.id.is_empty());
         assert!(file.id.starts_with("file_"));
-        assert_eq!(file.id.len(), 21); // "file_" + 16 hex chars
+        assert_eq!(file.id.len(), 41); // "file_" + 36-char UUIDv7 hyphenated
         assert!(file.name.contains('.')); // Full filename with extension
     }
 
@@ -119,10 +119,27 @@ async fn test_file_id_based_matching_integration() {
         "Expected match operations to be generated"
     );
 
-    // Verify that the operations contain the correct file references
+    // Strengthen the assertion: every operation ID must be a properly
+    // shaped UUIDv7 wrapped in the canonical `file_<uuid>` envelope, and
+    // all IDs across operations must be unique. This proves that the
+    // matcher really did mint UUIDv7 IDs rather than falling back to a
+    // deterministic hash, while accommodating that the engine internally
+    // re-discovers files (so IDs differ from the outer scan above).
+    let mut seen_ids: std::collections::HashSet<String> = std::collections::HashSet::new();
     for op in &operations {
-        assert!(!op.video_file.id.is_empty());
-        assert!(!op.subtitle_file.id.is_empty());
+        for id in [&op.video_file.id, &op.subtitle_file.id] {
+            assert!(
+                seen_ids.insert(id.clone()),
+                "operation id {} appears more than once across ops",
+                id
+            );
+            let stripped = id
+                .strip_prefix("file_")
+                .unwrap_or_else(|| panic!("id {} missing file_ prefix", id));
+            let parsed = uuid::Uuid::parse_str(stripped)
+                .unwrap_or_else(|e| panic!("id {} did not parse as UUID: {}", id, e));
+            assert_eq!(parsed.get_version_num(), 7, "id {} is not UUIDv7", id);
+        }
         assert!(op.confidence >= 0.8);
     }
 

@@ -18,12 +18,23 @@ use subx_cli::cli::output::{self, OutputMode};
 
 #[tokio::main]
 async fn main() {
-    // Initialize logging subsystem
-    env_logger::init();
-
     // 1. Tentative output mode for clap-error rendering.
     let argv: Vec<OsString> = std::env::args_os().collect();
     let tentative_mode = sniff_output_mode(&argv);
+    let tentative_quiet = sniff_quiet(&argv);
+
+    // Initialize logging subsystem. When `--quiet` is combined with
+    // `--output json`, the machine-readable-output spec requires that
+    // structured `tracing`/`log` records on stderr be suppressed in
+    // addition to free-form chatter, so we install a hard `Off` filter
+    // that wins over any `RUST_LOG` value the user may have set.
+    if tentative_quiet && tentative_mode.is_json() {
+        let _ = env_logger::Builder::new()
+            .filter_level(log::LevelFilter::Off)
+            .try_init();
+    } else {
+        env_logger::init();
+    }
 
     // 2. Try to parse argv; help/version are routed through clap's own
     //    text rendering even in tentative-JSON mode.
@@ -49,6 +60,37 @@ async fn main() {
             std::process::exit(e.exit_code());
         }
     }
+}
+
+/// Permissive scan of argv for the `--quiet` flag.
+///
+/// Mirrors [`sniff_output_mode`]'s placement constraint: only flags
+/// that appear *before* the subcommand token are considered, matching
+/// clap's own parsing rules for the top-level boolean.
+fn sniff_quiet(argv: &[OsString]) -> bool {
+    let mut iter = argv.iter().skip(1);
+    while let Some(arg) = iter.next() {
+        let s = match arg.to_str() {
+            Some(s) => s,
+            None => continue,
+        };
+        if s == "--quiet" {
+            return true;
+        }
+        if s == "--output" {
+            // Skip the value token so it isn't misread as the subcommand.
+            let _ = iter.next();
+            continue;
+        }
+        if s.starts_with("--output=") {
+            continue;
+        }
+        if !s.starts_with('-') {
+            // First positional token is the subcommand; stop scanning.
+            break;
+        }
+    }
+    false
 }
 
 /// Permissive scan of argv + `SUBX_OUTPUT` for the tentative output mode.

@@ -6,9 +6,7 @@ use subx_cli::commands::match_command;
 use subx_cli::config::TestConfigBuilder;
 use tempfile::TempDir;
 mod common;
-use common::{
-    mock_openai_helper::MockOpenAITestHelper, test_data_generators::MatchResponseGenerator,
-};
+use common::mock_openai_helper::MockOpenAITestHelper;
 
 #[tokio::test]
 async fn test_copy_mode_preserves_original_file() {
@@ -23,40 +21,17 @@ async fn test_copy_mode_preserves_original_file() {
     let subtitle_path = subtitle_dir.join("sub.srt");
     fs::write(&subtitle_path, b"content").unwrap();
 
-    // First scan files to get actual file IDs
-    let discovery = subx_cli::core::matcher::FileDiscovery::new();
-    let files = discovery.scan_directory(root, true).unwrap();
-    let video_file = files
-        .iter()
-        .find(|f| matches!(f.file_type, subx_cli::core::matcher::MediaFileType::Video))
-        .unwrap();
-    let subtitle_file = files
-        .iter()
-        .find(|f| {
-            matches!(
-                f.file_type,
-                subx_cli::core::matcher::MediaFileType::Subtitle
-            )
-        })
-        .unwrap();
-
-    // Create mock AI service
-    println!(
-        "Setting up mock with Video ID: {} and Subtitle ID: {}",
-        &video_file.id, &subtitle_file.id
-    );
+    // The matcher generates fresh UUIDv7 IDs on every scan, so use the
+    // request-echoing mock to pair the discovered video against the
+    // discovered subtitle without us having to pre-derive their IDs.
     let mock_helper = MockOpenAITestHelper::new().await;
     mock_helper
-        .mock_chat_completion_success(&MatchResponseGenerator::successful_match_with_ids(
-            &video_file.id,
-            &subtitle_file.id,
-        ))
+        .mock_chat_completion_echoing_request_ids(1, 1, 0.95)
         .await;
 
-    // Debug: check what get_input_handler returns
     let args = MatchArgs {
         input_paths: vec![],
-        recursive: true, // Fixed: need recursive to find files in subdirectories
+        recursive: true,
         path: Some(root.to_path_buf()),
         dry_run: false,
         confidence: 80,
@@ -65,22 +40,6 @@ async fn test_copy_mode_preserves_original_file() {
         move_files: false,
         no_extract: false,
     };
-    let input_handler = args.get_input_handler().unwrap();
-    let directories = input_handler.get_directories();
-    println!("Input handler directories: {:?}", directories);
-
-    // Debug: check what files would be found in the execution
-    let discovery = subx_cli::core::matcher::FileDiscovery::new();
-    for dir in &directories {
-        let execution_files = discovery.scan_directory(dir, args.recursive).unwrap();
-        println!(
-            "Files found during execution scan in {:?} (recursive={}):",
-            dir, args.recursive
-        );
-        for file in &execution_files {
-            println!("  {:?}: {:?} (ID: {})", file.file_type, file.path, file.id);
-        }
-    }
 
     let config_service = TestConfigBuilder::new()
         .with_mock_ai_server(&mock_helper.base_url())
@@ -110,35 +69,14 @@ async fn test_copy_mode_with_rename() {
     let subtitle_path = subtitle_dir.join("sub.srt");
     fs::write(&subtitle_path, b"content").unwrap();
 
-    // First scan files to get actual file IDs
-    let discovery = subx_cli::core::matcher::FileDiscovery::new();
-    let files = discovery.scan_directory(root, true).unwrap();
-    let video_file = files
-        .iter()
-        .find(|f| matches!(f.file_type, subx_cli::core::matcher::MediaFileType::Video))
-        .unwrap();
-    let subtitle_file = files
-        .iter()
-        .find(|f| {
-            matches!(
-                f.file_type,
-                subx_cli::core::matcher::MediaFileType::Subtitle
-            )
-        })
-        .unwrap();
-
-    // Create mock AI service
     let mock_helper = MockOpenAITestHelper::new().await;
     mock_helper
-        .mock_chat_completion_success(&MatchResponseGenerator::successful_match_with_ids(
-            &video_file.id,
-            &subtitle_file.id,
-        ))
+        .mock_chat_completion_echoing_request_ids(1, 1, 0.95)
         .await;
 
     let args = MatchArgs {
         input_paths: vec![],
-        recursive: true, // Fixed: need recursive to find files in subdirectories
+        recursive: true,
         path: Some(root.to_path_buf()),
         dry_run: false,
         confidence: 80,
@@ -155,7 +93,6 @@ async fn test_copy_mode_with_rename() {
     let original_subtitle = subtitle_dir.join("sub.srt");
     let copied_to_video_dir = video_dir.join("movie.srt");
 
-    // In Copy mode, the original file should remain unchanged
     assert!(
         original_subtitle.exists(),
         "Original file should remain unchanged"
@@ -165,7 +102,6 @@ async fn test_copy_mode_with_rename() {
         "Target location should have a copy"
     );
 
-    // Check if the copied content is correct
     assert_eq!(
         fs::read(&original_subtitle).unwrap(),
         fs::read(&copied_to_video_dir).unwrap(),

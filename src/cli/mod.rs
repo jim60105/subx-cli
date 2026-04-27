@@ -80,10 +80,12 @@ pub struct Cli {
     /// Suppress non-fatal status chatter.
     ///
     /// In text mode this silences `print_success`/`print_warning` and
-    /// progress bars; in JSON mode it additionally suppresses the
-    /// free-form stderr tracing/diagnostic logs that JSON mode otherwise
-    /// allows. Like `--output`, this flag must precede the subcommand
-    /// token.
+    /// progress bars. In JSON mode, free-form `eprintln!` / `println!`
+    /// chatter (matcher analysis blocks, conflict-resolution warnings,
+    /// AI candidate listings) is already suppressed unconditionally;
+    /// `--quiet` additionally silences the structured `tracing` / `log`
+    /// records that JSON mode would otherwise still allow on stderr.
+    /// Like `--output`, this flag must precede the subcommand token.
     #[arg(long, global = false)]
     pub quiet: bool,
 

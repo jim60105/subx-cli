@@ -119,3 +119,47 @@ fn json_mode_without_quiet_still_emits_clean_envelope() {
     let env = assert_json_stdout_clean(&out.stdout);
     assert_envelope(&env, "detect-encoding", "ok");
 }
+
+/// Spec scenario "--quiet in JSON mode additionally silences tracing chatter":
+/// even when the user explicitly opts into verbose `RUST_LOG=debug`
+/// logging, the combination `--quiet --output json` SHALL produce an
+/// empty stderr. This test would fail under the original
+/// `env_logger::init()` setup that ignored `--quiet`.
+#[test]
+fn quiet_json_mode_suppresses_stderr_even_with_rust_log_debug() {
+    let dir = TempDir::new().unwrap();
+    let input = dir.path().join("a.srt");
+    let output = dir.path().join("a.ass");
+    fs::write(&input, SAMPLE_SRT).unwrap();
+
+    let mut cmd = isolated_cmd(dir.path());
+    // Override the env_remove("RUST_LOG") in isolated_cmd so we exercise
+    // the worst-case "user wants logs but also wants quiet JSON".
+    cmd.env("RUST_LOG", "debug");
+
+    let assert = cmd
+        .args([
+            "--quiet",
+            "--output",
+            "json",
+            "convert",
+            input.to_str().unwrap(),
+            "--format",
+            "ass",
+            "--output",
+            output.to_str().unwrap(),
+        ])
+        .assert()
+        .success();
+    let out = assert.get_output();
+
+    let env = assert_json_stdout_clean(&out.stdout);
+    assert_envelope(&env, "convert", "ok");
+
+    assert!(
+        out.stderr.is_empty(),
+        "stderr must be empty under --quiet --output json even with \
+         RUST_LOG=debug, got: {:?}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+}

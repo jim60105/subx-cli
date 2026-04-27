@@ -9,10 +9,9 @@
 use assert_cmd::Command;
 use serde_json::{Value, json};
 use std::fs;
-use subx_cli::core::matcher::FileDiscovery;
 use tempfile::TempDir;
 use wiremock::matchers::{method, path};
-use wiremock::{Mock, MockServer, ResponseTemplate};
+use wiremock::{Mock, MockServer, Request, Respond, ResponseTemplate};
 
 const SAMPLE_SRT: &str = "1\n00:00:01,000 --> 00:00:02,000\nHello world\n\n";
 
@@ -43,43 +42,91 @@ fn assert_envelope_shape(env: &Value, command: &str, status: &str) {
     assert_eq!(env["status"], status);
 }
 
-/// Build a sample directory with one video + one subtitle and return
-/// the dir handle plus the (video_id, subtitle_id) the discovery layer
-/// will assign to those files.
-fn build_sample_pair() -> (TempDir, String, String) {
+/// Build a sample directory with one video + one subtitle.
+///
+/// IDs are no longer pre-derived because the matcher now generates fresh
+/// UUIDv7 file IDs on every scan; tests use [`mock_server_with_echo_match`]
+/// to echo whichever IDs the matcher actually emits.
+fn build_sample_pair() -> TempDir {
     let dir = TempDir::new().unwrap();
     let video = dir.path().join("Movie.mp4");
     let subtitle = dir.path().join("random.srt");
     fs::write(&video, b"fake video bytes").unwrap();
     fs::write(&subtitle, SAMPLE_SRT).unwrap();
-
-    let discovery = FileDiscovery::new();
-    let files = discovery.scan_directory(dir.path(), false).unwrap();
-    let video_id = files
-        .iter()
-        .find(|f| f.name.ends_with(".mp4"))
-        .map(|f| f.id.clone())
-        .expect("video discovered");
-    let subtitle_id = files
-        .iter()
-        .find(|f| f.name.ends_with(".srt"))
-        .map(|f| f.id.clone())
-        .expect("subtitle discovered");
-    (dir, video_id, subtitle_id)
+    dir
 }
 
-async fn mock_server_with_match_response(response_content: String) -> MockServer {
+/// Wiremock responder that synthesises a single-pair `MatchResult` whose
+/// `video_file_id` and `subtitle_file_id` are taken from the captured
+/// request prompt. Confidence and reasoning are caller-provided so tests
+/// can exercise both above- and below-threshold scenarios.
+struct EchoMatchResponder {
+    confidence: f64,
+    reasoning: &'static str,
+    factor: &'static str,
+}
+
+impl Respond for EchoMatchResponder {
+    fn respond(&self, request: &Request) -> ResponseTemplate {
+        let body: Value =
+            serde_json::from_slice(&request.body).expect("OpenAI request body must be valid JSON");
+        let prompt = body
+            .get("messages")
+            .and_then(|m| m.as_array())
+            .and_then(|arr| arr.last())
+            .and_then(|m| m.get("content"))
+            .and_then(|c| c.as_str())
+            .unwrap_or("");
+        let id_pattern = regex::Regex::new(
+            r"file_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[0-9a-f]{4}-[0-9a-f]{12}",
+        )
+        .expect("static regex compiles");
+        let ids: Vec<String> = id_pattern
+            .find_iter(prompt)
+            .map(|m| m.as_str().to_string())
+            .collect();
+        assert!(
+            ids.len() >= 2,
+            "expected at least one video and one subtitle ID in prompt, got {}",
+            ids.len()
+        );
+        let content = json!({
+            "matches": [
+                {
+                    "video_file_id": ids[0],
+                    "subtitle_file_id": ids[1],
+                    "confidence": self.confidence,
+                    "match_factors": [self.factor],
+                }
+            ],
+            "confidence": self.confidence,
+            "reasoning": self.reasoning,
+        })
+        .to_string();
+        let response_body = json!({
+            "choices": [
+                { "message": { "content": content }, "finish_reason": "stop" }
+            ],
+            "usage": { "prompt_tokens": 100, "completion_tokens": 50, "total_tokens": 150 },
+            "model": "gpt-4.1-mini"
+        });
+        ResponseTemplate::new(200).set_body_json(response_body)
+    }
+}
+
+async fn mock_server_with_echo_match(
+    confidence: f64,
+    reasoning: &'static str,
+    factor: &'static str,
+) -> MockServer {
     let mock_server = MockServer::start().await;
-    let body = json!({
-        "choices": [
-            { "message": { "content": response_content }, "finish_reason": "stop" }
-        ],
-        "usage": { "prompt_tokens": 100, "completion_tokens": 50, "total_tokens": 150 },
-        "model": "gpt-4.1-mini"
-    });
     Mock::given(method("POST"))
         .and(path("/chat/completions"))
-        .respond_with(ResponseTemplate::new(200).set_body_json(body))
+        .respond_with(EchoMatchResponder {
+            confidence,
+            reasoning,
+            factor,
+        })
         .mount(&mock_server)
         .await;
     mock_server
@@ -110,21 +157,8 @@ fn run_match(
 
 #[tokio::test]
 async fn match_dry_run_emits_envelope() {
-    let (dir, vid_id, sub_id) = build_sample_pair();
-    let response = json!({
-        "matches": [
-            {
-                "video_file_id": vid_id,
-                "subtitle_file_id": sub_id,
-                "confidence": 0.95,
-                "match_factors": ["filename_similarity"]
-            }
-        ],
-        "confidence": 0.95,
-        "reasoning": "Stable mock"
-    })
-    .to_string();
-    let server = mock_server_with_match_response(response).await;
+    let dir = build_sample_pair();
+    let server = mock_server_with_echo_match(0.95, "Stable mock", "filename_similarity").await;
 
     let assert = run_match(
         &server.uri(),
@@ -164,21 +198,8 @@ async fn match_dry_run_emits_envelope() {
 
 #[tokio::test]
 async fn match_live_run_emits_envelope_with_applied_true() {
-    let (dir, vid_id, sub_id) = build_sample_pair();
-    let response = json!({
-        "matches": [
-            {
-                "video_file_id": vid_id,
-                "subtitle_file_id": sub_id,
-                "confidence": 0.95,
-                "match_factors": ["filename_similarity"]
-            }
-        ],
-        "confidence": 0.95,
-        "reasoning": "Stable mock"
-    })
-    .to_string();
-    let server = mock_server_with_match_response(response).await;
+    let dir = build_sample_pair();
+    let server = mock_server_with_echo_match(0.95, "Stable mock", "filename_similarity").await;
 
     let assert = run_match(
         &server.uri(),
@@ -208,21 +229,8 @@ async fn match_live_run_emits_envelope_with_applied_true() {
 
 #[tokio::test]
 async fn match_subthreshold_candidate_is_rejected() {
-    let (dir, vid_id, sub_id) = build_sample_pair();
-    let response = json!({
-        "matches": [
-            {
-                "video_file_id": vid_id,
-                "subtitle_file_id": sub_id,
-                "confidence": 0.50,
-                "match_factors": ["weak_signal"]
-            }
-        ],
-        "confidence": 0.50,
-        "reasoning": "Stable mock low"
-    })
-    .to_string();
-    let server = mock_server_with_match_response(response).await;
+    let dir = build_sample_pair();
+    let server = mock_server_with_echo_match(0.50, "Stable mock low", "weak_signal").await;
 
     let assert = run_match(
         &server.uri(),
@@ -257,7 +265,7 @@ async fn match_subthreshold_candidate_is_rejected() {
 
 #[tokio::test]
 async fn match_ai_failure_emits_error_envelope() {
-    let (dir, _vid_id, _sub_id) = build_sample_pair();
+    let (dir, _vid_id, _sub_id) = (build_sample_pair(), (), ());
 
     // Mock server returns 500 for the chat completion endpoint.
     let mock_server = MockServer::start().await;

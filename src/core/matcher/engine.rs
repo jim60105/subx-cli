@@ -24,6 +24,7 @@ use crate::core::matcher::journal::{
 };
 use crate::core::matcher::{FileDiscovery, MediaFile, MediaFileType};
 use crate::core::parallel::{FileProcessingTask, ProcessingOperation, Task, TaskResult};
+use crate::core::uuidv7::Uuidv7Generator;
 use crate::error::SubXError;
 use dirs;
 use serde_json;
@@ -689,6 +690,7 @@ impl MatchEngine {
     /// When operations are served from cache, `rejected` is returned empty
     /// because cache entries do not preserve rejection metadata.
     pub async fn match_file_list_with_audit(&self, file_paths: &[PathBuf]) -> Result<MatchAudit> {
+        let json_mode = crate::cli::output::active_mode().is_json();
         // 1. Process the file list to create MediaFile objects
         let files = self.discovery.scan_file_list(file_paths)?;
 
@@ -743,18 +745,21 @@ impl MatchEngine {
         // 5. Query AI service
         let match_result = self.ai_client.analyze_content(analysis_request).await?;
 
-        // Debug: Log AI analysis results
-        eprintln!("🔍 AI Analysis Results:");
-        eprintln!("   - Total matches: {}", match_result.matches.len());
-        eprintln!(
-            "   - Confidence threshold: {:.2}",
-            self.config.confidence_threshold
-        );
-        for ai_match in &match_result.matches {
+        // Debug: Log AI analysis results (suppressed in JSON mode to keep
+        // stderr free of free-form chatter).
+        if !json_mode {
+            eprintln!("🔍 AI Analysis Results:");
+            eprintln!("   - Total matches: {}", match_result.matches.len());
             eprintln!(
-                "   - {} -> {} (confidence: {:.2})",
-                ai_match.video_file_id, ai_match.subtitle_file_id, ai_match.confidence
+                "   - Confidence threshold: {:.2}",
+                self.config.confidence_threshold
             );
+            for ai_match in &match_result.matches {
+                eprintln!(
+                    "   - {} -> {} (confidence: {:.2})",
+                    ai_match.video_file_id, ai_match.subtitle_file_id, ai_match.confidence
+                );
+            }
         }
 
         // 6. Assemble match operation list
@@ -808,10 +813,12 @@ impl MatchEngine {
                     });
                 }
                 _ => {
-                    eprintln!(
-                        "⚠️  Cannot find AI-suggested file pair:\n     Video ID: '{}'\n     Subtitle ID: '{}'",
-                        ai_match.video_file_id, ai_match.subtitle_file_id
-                    );
+                    if !json_mode {
+                        eprintln!(
+                            "⚠️  Cannot find AI-suggested file pair:\n     Video ID: '{}'\n     Subtitle ID: '{}'",
+                            ai_match.video_file_id, ai_match.subtitle_file_id
+                        );
+                    }
                     rejected.push(RejectedCandidate {
                         video_path: video_match
                             .map(|v| v.path.display().to_string())
@@ -1257,12 +1264,15 @@ impl MatchEngine {
         if !target.exists() {
             return Ok(target);
         }
+        let json_mode = crate::cli::output::active_mode().is_json();
         match self.config.conflict_resolution {
             ConflictResolution::Skip => {
-                eprintln!(
-                    "Warning: Skipping relocation due to existing file: {}",
-                    target.display()
-                );
+                if !json_mode {
+                    eprintln!(
+                        "Warning: Skipping relocation due to existing file: {}",
+                        target.display()
+                    );
+                }
                 Ok(target)
             }
             ConflictResolution::AutoRename => {
@@ -1305,7 +1315,11 @@ impl MatchEngine {
                 ))
             }
             ConflictResolution::Prompt => {
-                eprintln!("Warning: Conflict resolution prompt not implemented, using auto-rename");
+                if !json_mode {
+                    eprintln!(
+                        "Warning: Conflict resolution prompt not implemented, using auto-rename"
+                    );
+                }
                 self.resolve_filename_conflict(target)
             }
         }
@@ -1398,6 +1412,7 @@ impl MatchEngine {
             if cache_data.directory == cache_key {
                 // Rebuild match operation list for file list cache
                 let mut ops = Vec::new();
+                let mut id_gen = Uuidv7Generator::new();
                 for item in cache_data.match_operations {
                     // For file list operations, we reconstruct operations from cached data
                     let video_path = PathBuf::from(&item.video_file);
@@ -1409,7 +1424,7 @@ impl MatchEngine {
                         let subtitle_meta = subtitle_path.metadata()?;
 
                         let video_file = MediaFile {
-                            id: generate_file_id(&video_path, video_meta.len()),
+                            id: generate_file_id(&mut id_gen),
                             path: video_path.clone(),
                             file_type: MediaFileType::Video,
                             size: video_meta.len(),
@@ -1431,7 +1446,7 @@ impl MatchEngine {
                         };
 
                         let subtitle_file = MediaFile {
-                            id: generate_file_id(&subtitle_path, subtitle_meta.len()),
+                            id: generate_file_id(&mut id_gen),
                             path: subtitle_path.clone(),
                             file_type: MediaFileType::Subtitle,
                             size: subtitle_meta.len(),
@@ -1617,6 +1632,9 @@ impl MatchEngine {
 
     /// Log available files to assist debugging when a match is not found.
     fn log_available_files(&self, files: &[&MediaFile], file_type: &str) {
+        if crate::cli::output::active_mode().is_json() {
+            return;
+        }
         eprintln!("   Available {} files:", file_type);
         for f in files {
             eprintln!(
@@ -1633,6 +1651,9 @@ impl MatchEngine {
         videos: &[MediaFile],
         subtitles: &[MediaFile],
     ) {
+        if crate::cli::output::active_mode().is_json() {
+            return;
+        }
         eprintln!("\n❌ No matching files found that meet the criteria");
         eprintln!("🔍 AI analysis results:");
         eprintln!("   - Total matches: {}", match_result.matches.len());
@@ -1693,6 +1714,7 @@ fn reconstruct_operations_from_cache(
     config: &MatchConfig,
 ) -> Result<Vec<MatchOperation>> {
     let mut ops = Vec::new();
+    let mut id_gen = Uuidv7Generator::new();
     for item in &cache.match_operations {
         let video_path = PathBuf::from(&item.video_file);
         let subtitle_path = PathBuf::from(&item.subtitle_file);
@@ -1705,7 +1727,7 @@ fn reconstruct_operations_from_cache(
         let subtitle_meta = subtitle_path.metadata()?;
 
         let video_file = MediaFile {
-            id: generate_file_id(&video_path, video_meta.len()),
+            id: generate_file_id(&mut id_gen),
             path: video_path.clone(),
             file_type: MediaFileType::Video,
             size: video_meta.len(),
@@ -1727,7 +1749,7 @@ fn reconstruct_operations_from_cache(
         };
 
         let subtitle_file = MediaFile {
-            id: generate_file_id(&subtitle_path, subtitle_meta.len()),
+            id: generate_file_id(&mut id_gen),
             path: subtitle_path.clone(),
             file_type: MediaFileType::Subtitle,
             size: subtitle_meta.len(),

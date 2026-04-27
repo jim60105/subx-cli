@@ -1,6 +1,5 @@
 //! Advanced integration tests for match command with Wiremock mock AI server.
 
-use serde_json::json;
 use std::{
     fs,
     path::Path,
@@ -25,65 +24,12 @@ async fn test_parallel_match_operations_with_mock() {
     // Create multiple test video and subtitle files
     create_multiple_test_files(root, 5);
 
-    // Scan files to obtain actual file IDs
-    let discovery = subx_cli::core::matcher::FileDiscovery::new();
-    let files = discovery.scan_directory(root, true).unwrap();
-    let video_files: Vec<_> = files
-        .iter()
-        .filter(|f| matches!(f.file_type, subx_cli::core::matcher::MediaFileType::Video))
-        .collect();
-    let subtitle_files: Vec<_> = files
-        .iter()
-        .filter(|f| {
-            matches!(
-                f.file_type,
-                subx_cli::core::matcher::MediaFileType::Subtitle
-            )
-        })
-        .collect();
-
-    // Create multiple dynamic match responses
-    let matches_json = json!({
-        "matches": [
-            {
-                "video_file_id": video_files[0].id,
-                "subtitle_file_id": subtitle_files[0].id,
-                "confidence": 0.92,
-                "match_factors": ["filename_similarity"]
-            },
-            {
-                "video_file_id": video_files[1].id,
-                "subtitle_file_id": subtitle_files[1].id,
-                "confidence": 0.87,
-                "match_factors": ["content_correlation", "language_match"]
-            },
-            {
-                "video_file_id": video_files[2].id,
-                "subtitle_file_id": subtitle_files[2].id,
-                "confidence": 0.85,
-                "match_factors": ["filename_similarity"]
-            },
-            {
-                "video_file_id": video_files[3].id,
-                "subtitle_file_id": subtitle_files[3].id,
-                "confidence": 0.83,
-                "match_factors": ["content_correlation"]
-            },
-            {
-                "video_file_id": video_files[4].id,
-                "subtitle_file_id": subtitle_files[4].id,
-                "confidence": 0.81,
-                "match_factors": ["filename_similarity", "language_match"]
-            }
-        ],
-        "confidence": 0.85,
-        "reasoning": "Multiple high-confidence matches identified."
-    });
-
-    // Mock AI service to return multiple matches
+    // Mock AI service that echoes back the file IDs supplied in the
+    // matcher's actual prompt. We don't need to pre-derive IDs here because
+    // the mock pairs videos to subtitles 1:1 from the captured request.
     let mock_helper = MockOpenAITestHelper::new().await;
     mock_helper
-        .mock_chat_completion_success(&matches_json.to_string())
+        .mock_chat_completion_echoing_request_ids(5, 5, 0.9)
         .await;
 
     let config_service = TestConfigBuilder::new()

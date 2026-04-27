@@ -66,8 +66,8 @@ Response format must be JSON using the file IDs:\n\
 {\n\
   \"matches\": [\n\
     {\n\
-      \"video_file_id\": \"file_abc123456789abcd\",\n\
-      \"subtitle_file_id\": \"file_def456789abcdef0\",\n\
+      \"video_file_id\": \"file_019dcc51-f7da-74e3-9e0d-f75d40fc569c\",\n\
+      \"subtitle_file_id\": \"file_019dcc51-f7d5-7640-8bb1-d2bbbc127a23\",\n\
       \"confidence\": 0.95,\n\
       \"match_factors\": [\"filename_similarity\", \"content_correlation\"]\n\
     }\n\
@@ -124,17 +124,19 @@ mod tests {
     #[test]
     fn test_ai_prompt_with_file_ids_english() {
         let client = OpenAIClient::new("test_key".into(), "gpt-4.1".into(), 0.1, 1000, 0, 0);
+        let video_id = "file_019dcc51-f7da-74e3-9e0d-f75d40fc569c";
+        let subtitle_id = "file_019dcc51-f7d5-7640-8bb1-d2bbbc127a23";
         let request = AnalysisRequest {
-            video_files: vec!["ID:file_abc123456789abcd | Name:movie.mkv | Path:movie.mkv".into()],
-            subtitle_files: vec![
-                "ID:file_def456789abcdef0 | Name:movie.srt | Path:movie.srt".into(),
-            ],
+            video_files: vec![format!("ID:{video_id} | Name:movie.mkv | Path:movie.mkv")],
+            subtitle_files: vec![format!(
+                "ID:{subtitle_id} | Name:movie.srt | Path:movie.srt"
+            )],
             content_samples: vec![],
         };
 
         let prompt = client.build_analysis_prompt(&request);
 
-        assert!(prompt.contains("ID:file_abc123456789abcd"));
+        assert!(prompt.contains(&format!("ID:{video_id}")));
         assert!(prompt.contains("video_file_id"));
         assert!(prompt.contains("subtitle_file_id"));
         assert!(prompt.contains("Please analyze the matching"));
@@ -148,21 +150,25 @@ mod tests {
     #[test]
     fn test_parse_match_result_with_ids() {
         let client = OpenAIClient::new("test_key".into(), "gpt-4.1".into(), 0.1, 1000, 0, 0);
-        let json_resp = r#"{
-            "matches": [{
-                "video_file_id": "file_abc123456789abcd",
-                "subtitle_file_id": "file_def456789abcdef0",
+        let video_id = "file_019dcc51-f7da-74e3-9e0d-f75d40fc569c";
+        let subtitle_id = "file_019dcc51-f7d5-7640-8bb1-d2bbbc127a23";
+        let json_resp = format!(
+            r#"{{
+            "matches": [{{
+                "video_file_id": "{video_id}",
+                "subtitle_file_id": "{subtitle_id}",
                 "confidence": 0.95,
                 "match_factors": ["filename_similarity"]
-            }],
+            }}],
             "confidence": 0.9,
             "reasoning": "Strong match based on filename patterns"
-        }"#;
+        }}"#
+        );
 
-        let result = client.parse_match_result(json_resp).unwrap();
+        let result = client.parse_match_result(&json_resp).unwrap();
         assert_eq!(result.matches.len(), 1);
-        assert_eq!(result.matches[0].video_file_id, "file_abc123456789abcd");
-        assert_eq!(result.matches[0].subtitle_file_id, "file_def456789abcdef0");
+        assert_eq!(result.matches[0].video_file_id, video_id);
+        assert_eq!(result.matches[0].subtitle_file_id, subtitle_id);
         assert_eq!(result.matches[0].confidence, 0.95);
         assert_eq!(result.matches[0].match_factors[0], "filename_similarity");
     }

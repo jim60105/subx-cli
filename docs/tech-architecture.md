@@ -552,7 +552,7 @@ tabled = "0.20"
 dialoguer = "0.11"
 
 # Utilities
-uuid = { version = "1.3", features = ["v4"] }
+uuid = { version = "1.3", features = ["v7"] }
 url = "2"
 notify = "8.0"
 md5 = "0.7"

@@ -119,7 +119,8 @@ Config Layer (src/config/)    → DI-based configuration system
 | `src/core/formats/` | Subtitle parsing/conversion | `SubtitleFormat` trait, `FormatManager`, `FormatConverter` |
 | `src/core/matcher/` | AI-powered file matching | `MatchEngine`, `FileDiscovery`, `MatchConfig` |
 | `src/core/sync/` | Subtitle synchronization | `SyncEngine`, `SyncMethod` |
-| `src/core/translation/` | AI-assisted subtitle translation (two-pass terminology + cue translation, UUIDv7 cue IDs) | `TranslationEngine`, `TerminologyMap`, `CueIdGenerator` |
+| `src/core/uuidv7.rs` | Shared UUIDv7 generator with strict ≥1 ms spacing; canonical home of `Uuidv7Generator` and `generate_ids`. Used for matcher file IDs, translation cue IDs, and parallel worker/task IDs. | `Uuidv7Generator`, `generate_ids`, `unix_time_ms` |
+| `src/core/translation/` | AI-assisted subtitle translation (two-pass terminology + cue translation, UUIDv7 cue IDs re-exported from `core::uuidv7`) | `TranslationEngine`, `TerminologyMap`, `CueIdGenerator` (alias of `Uuidv7Generator`) |
 | `src/core/parallel/` | Task scheduling | `TaskScheduler`, `Task`, `WorkerPool` |
 | `src/core/file_manager.rs` | File operations with backup | `FileManager` |
 | `src/services/ai/` | AI provider clients | `AIProvider` trait, `OpenAIClient`, `OpenRouterClient`, `AzureOpenAIClient`, `LocalLLMClient` |

@@ -616,7 +616,7 @@ mod tests {
             "counter"
         }
         fn task_id(&self) -> String {
-            Uuid::new_v4().to_string()
+            Uuid::now_v7().to_string()
         }
     }
 
@@ -656,6 +656,15 @@ mod tests {
         });
         let result = scheduler.submit_task(task).await.unwrap();
         assert!(matches!(result, TaskResult::Success(_)));
+    }
+
+    #[test]
+    fn counter_task_id_is_uuidv7() {
+        let counter = Arc::new(AtomicUsize::new(0));
+        let task = CounterTask::new(counter);
+        let id = task.task_id();
+        let parsed = Uuid::parse_str(&id).expect("task_id must be a valid UUID");
+        assert_eq!(parsed.get_version_num(), 7);
     }
 
     #[tokio::test]

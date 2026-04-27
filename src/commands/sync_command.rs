@@ -252,14 +252,14 @@ async fn run_single(
         println!("🎬 Loading subtitle file: {}", subtitle_path.display());
         println!("📄 Subtitle entries count: {}", {
             let s = format_manager.load_subtitle(subtitle_path).map_err(|e| {
-                eprintln!("[DEBUG] Failed to load subtitle: {e}");
+                log::debug!("Failed to load subtitle: {e}");
                 e
             })?;
             s.entries.len()
         });
     }
     let mut subtitle = format_manager.load_subtitle(subtitle_path).map_err(|e| {
-        eprintln!("[DEBUG] Failed to load subtitle: {e}");
+        log::debug!("Failed to load subtitle: {e}");
         e
     })?;
     let mut effective_vad_cfg = config.sync.vad.clone();
@@ -271,7 +271,7 @@ async fn run_single(
         sync_engine
             .apply_manual_offset(&mut subtitle, offset)
             .map_err(|e| {
-                eprintln!("[DEBUG] Failed to apply manual offset: {e}");
+                log::debug!("Failed to apply manual offset: {e}");
                 e
             })?;
         SyncResult {
@@ -313,7 +313,7 @@ async fn run_single(
             .detect_sync_offset(video_path.as_path(), &subtitle, Some(method))
             .await
             .map_err(|e| {
-                eprintln!("[DEBUG] Failed to detect sync offset: {e}");
+                log::debug!("Failed to detect sync offset: {e}");
                 e
             })?;
         if args.verbose && !json {
@@ -326,7 +326,7 @@ async fn run_single(
             sync_engine
                 .apply_manual_offset(&mut subtitle, result.offset_seconds)
                 .map_err(|e| {
-                    eprintln!("[DEBUG] Failed to apply detected offset: {e}");
+                    log::debug!("Failed to apply detected offset: {e}");
                     e
                 })?;
         }
@@ -340,17 +340,14 @@ async fn run_single(
     if !args.dry_run {
         if let Some(out) = args.get_output_path() {
             if out.exists() && !args.force {
-                eprintln!(
-                    "[DEBUG] Output file exists and --force not set: {}",
-                    out.display()
-                );
+                log::debug!("Output file exists and --force not set: {}", out.display());
                 return Err(SubXError::CommandExecution(format!(
                     "Output file already exists: {}. Use --force to overwrite.",
                     out.display()
                 )));
             }
             format_manager.save_subtitle(&subtitle, &out).map_err(|e| {
-                eprintln!("[DEBUG] Failed to save subtitle: {e}");
+                log::debug!("Failed to save subtitle: {e}");
                 e
             })?;
             if !json {
@@ -363,7 +360,7 @@ async fn run_single(
             applied = true;
             output_path_used = Some(out);
         } else {
-            eprintln!("[DEBUG] No output path specified");
+            log::debug!("No output path specified");
             return Err(SubXError::CommandExecution(
                 "No output path specified".to_string(),
             ));

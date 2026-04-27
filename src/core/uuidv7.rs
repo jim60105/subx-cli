@@ -1,32 +1,34 @@
-//! UUIDv7 cue ID generation with strict 1ms spacing.
+//! Shared UUIDv7 identifier generation with strict 1ms spacing.
 //!
-//! Generating UUIDv7 cue IDs in subtitle order means the embedded
-//! `unix_time_ts` (the most-significant 48 bits) reflects request order
-//! and can be inspected from logs without consulting external state.
+//! This generator is used by both the subtitle translation engine (for cue
+//! IDs) and the media discovery layer (for file IDs). Generating UUIDv7 IDs
+//! in batch order means the embedded `unix_time_ts` (the most-significant 48
+//! bits) reflects request order and can be inspected from logs without
+//! consulting external state.
 //!
 //! This module enforces an additional constraint on top of the UUIDv7
-//! algorithm: adjacent cue ID generations are spaced by at least 1
-//! millisecond, so each next ID's `unix_time_ts` is strictly greater than
-//! the previous one. This avoids same-millisecond ambiguity that the
-//! standard UUIDv7 algorithm normally resolves through random or
-//! monotonic counter bits.
+//! algorithm: adjacent ID generations are spaced by at least 1 millisecond,
+//! so each next ID's `unix_time_ts` is strictly greater than the previous
+//! one. This avoids same-millisecond ambiguity that the standard UUIDv7
+//! algorithm normally resolves through random or monotonic counter bits.
 
 use std::thread;
 use std::time::Duration;
 
 use uuid::Uuid;
 
-/// Stateful UUIDv7 cue ID generator.
+/// Stateful UUIDv7 ID generator shared by media discovery and translation.
 ///
-/// Calling [`CueIdGenerator::next_id`] sleeps for at least 1ms when the
+/// Calling [`Uuidv7Generator::next_id`] sleeps for at least 1ms when the
 /// previous call observed the same millisecond, guaranteeing strictly
-/// increasing `unix_time_ts` values.
+/// increasing `unix_time_ts` values across all IDs produced by a single
+/// generator instance.
 #[derive(Debug, Default)]
-pub struct CueIdGenerator {
+pub struct Uuidv7Generator {
     last_unix_ts_ms: Option<u64>,
 }
 
-impl CueIdGenerator {
+impl Uuidv7Generator {
     /// Create a fresh generator.
     pub fn new() -> Self {
         Self {
@@ -34,7 +36,7 @@ impl CueIdGenerator {
         }
     }
 
-    /// Generate the next UUIDv7 cue ID with strict 1ms spacing.
+    /// Generate the next UUIDv7 ID with strict 1ms spacing.
     ///
     /// The implementation extracts the embedded `unix_time_ts` from the
     /// generated UUIDv7. If the new timestamp is not strictly greater than
@@ -59,12 +61,12 @@ impl CueIdGenerator {
     }
 }
 
-/// Generate `count` UUIDv7 cue IDs in subtitle order with 1ms spacing.
+/// Generate `count` UUIDv7 IDs in sequence with strict 1ms spacing.
 ///
-/// Convenience wrapper around [`CueIdGenerator`] for callers that just need
+/// Convenience wrapper around [`Uuidv7Generator`] for callers that just need
 /// a vector of IDs.
-pub fn generate_cue_ids(count: usize) -> Vec<Uuid> {
-    let mut id_gen = CueIdGenerator::new();
+pub fn generate_ids(count: usize) -> Vec<Uuid> {
+    let mut id_gen = Uuidv7Generator::new();
     let mut ids = Vec::with_capacity(count);
     for _ in 0..count {
         ids.push(id_gen.next_id());
@@ -91,7 +93,7 @@ mod tests {
 
     #[test]
     fn ids_are_uuidv7() {
-        let ids = generate_cue_ids(3);
+        let ids = generate_ids(3);
         for id in &ids {
             assert_eq!(id.get_version_num(), 7, "expected UUIDv7, got {}", id);
         }
@@ -99,7 +101,7 @@ mod tests {
 
     #[test]
     fn timestamps_strictly_increase() {
-        let ids = generate_cue_ids(5);
+        let ids = generate_ids(5);
         let mut last = 0u64;
         for (i, id) in ids.iter().enumerate() {
             let ts = unix_time_ms(id);
@@ -112,6 +114,28 @@ mod tests {
                 );
             }
             last = ts;
+        }
+    }
+
+    #[test]
+    fn tight_loop_strictly_monotonic_unix_time_ts() {
+        // Regression: even when next_id is called as fast as possible, the
+        // 1ms-spacing contract guarantees strictly increasing unix_time_ts.
+        let mut generator = Uuidv7Generator::new();
+        let mut last_ts = 0u64;
+        for i in 0..20 {
+            let id = generator.next_id();
+            let ts = unix_time_ms(&id);
+            if i > 0 {
+                assert!(
+                    ts > last_ts,
+                    "expected strictly increasing unix_time_ts at iter {}, got {} after {}",
+                    i,
+                    ts,
+                    last_ts
+                );
+            }
+            last_ts = ts;
         }
     }
 }

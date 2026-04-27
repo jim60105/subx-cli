@@ -11,11 +11,11 @@ use serde_json::json;
 use crate::Result;
 use crate::core::formats::Subtitle;
 use crate::core::formats::manager::FormatManager;
+use crate::core::translation::CueIdGenerator;
 use crate::core::translation::request::{
     GlossaryEntry, TerminologyMap, TranslationOutcome, TranslationRequest, TranslationResult,
     merge_terminology,
 };
-use crate::core::translation::uuidv7::CueIdGenerator;
 use crate::error::SubXError;
 use crate::services::ai::AIProvider;
 use crate::services::ai::translation_prompts::{
@@ -285,9 +285,10 @@ impl TranslationEngine {
         {
             Ok(map) => Ok((map, 1)),
             Err(err) if is_unknown_cue_id_error(&err) => {
-                // stderr diagnostic — never written to stdout, so safe in
-                // both text and JSON modes. Suppress when --quiet is set.
-                if !crate::cli::output::is_quiet() {
+                // stderr diagnostic — never written to stdout. Suppressed
+                // when --quiet is set or when JSON output mode is active so
+                // structured stdout is not accompanied by free-form chatter.
+                if !crate::cli::output::is_quiet() && !crate::cli::output::active_mode().is_json() {
                     eprintln!(
                         "⚠ Translation response contained an unknown cue ID; discarding the batch response and retrying once."
                     );
@@ -389,12 +390,9 @@ fn missing_translation_indices(
 }
 
 fn log_translation_progress(processed_cues: usize, total_cues: usize) {
-    // Diagnostic progress chatter. In JSON mode this MUST NOT touch stdout
-    // (the renderer owns stdout for the single envelope contract). In
-    // --quiet mode we suppress it entirely. Otherwise route to stderr so
-    // both text and JSON callers can observe progress without corrupting
-    // structured output.
-    if crate::cli::output::is_quiet() {
+    // Diagnostic progress chatter. JSON mode and --quiet both suppress this
+    // free-form stderr output to keep machine-readable consumers clean.
+    if crate::cli::output::is_quiet() || crate::cli::output::active_mode().is_json() {
         return;
     }
     eprintln!(

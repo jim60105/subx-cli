@@ -106,9 +106,11 @@ own `--quiet`).
 - In text mode, `--quiet` suppresses `print_success`/`print_warning`
   helpers, progress bars, and the match result table.
 - In JSON mode, stdout is **implicitly quiet** by construction (only the
-  envelope is ever written). `--quiet` additionally silences the
-  free-form stderr chatter (`tracing` info logs, AI provider
-  diagnostics) that JSON mode would otherwise allow on stderr.
+  envelope is ever written) AND stderr is tightened to suppress all
+  free-form `eprintln!` / `println!` chatter (matcher analysis blocks,
+  conflict-resolution warnings, AI candidate listings). `--quiet`
+  additionally silences any remaining structured `tracing` / `log`
+  records that JSON mode would otherwise allow on stderr.
 
 `--quiet` never suppresses the JSON envelope on stdout and never
 changes the process exit code.
@@ -721,11 +723,16 @@ When the active output mode is `json`:
   trailing `\n` and nothing else. No ANSI escape sequences, no `✓` /
   `✗` / `⚠` status symbols, no `indicatif` progress-bar frames, no
   match table, no free-form prose.
-- **Stderr** MAY contain free-form diagnostic logs (`tracing` info,
-  AI provider diagnostics) but SHALL NOT contain a JSON envelope,
-  status symbols, ANSI styling emitted by `print_success` /
-  `print_warning` / `print_error`, or `indicatif` progress-bar frames.
-  ANSI styling on stderr is stripped in JSON mode.
+- **Stderr** MAY contain structured diagnostic logs emitted via the
+  `tracing` / `log` facade (gated by `RUST_LOG`), but SHALL NOT contain
+  free-form `eprintln!` / `println!` chatter, JSON envelopes, status
+  symbols, ANSI styling emitted by `print_success` / `print_warning` /
+  `print_error`, or `indicatif` progress-bar frames. In particular, the
+  matcher's `🔍 AI Analysis Results:` block, `Total matches:` /
+  `Preview:` summaries, per-candidate `   - file_<id>` lines, and
+  `Warning: Skipping relocation` / `Warning: Conflict resolution prompt
+  not implemented` warnings are suppressed in JSON mode. ANSI styling
+  on stderr is stripped in JSON mode.
 - **Progress bars** are force-hidden via
   `ProgressBar::set_draw_target(ProgressDrawTarget::hidden())`,
   regardless of `general.enable_progress_bar`.
