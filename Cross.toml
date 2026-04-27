@@ -1,0 +1,33 @@
+# Cross-compilation overrides for `cross` (cross-rs/cross), used by the
+# release workflow (.github/workflows/release.yml) to produce the Linux
+# glibc and musl artifacts.
+#
+# A transitive *build* dependency chain (ort-sys -> ureq -> native-tls ->
+# openssl-sys) requires OpenSSL development headers at build time. The
+# default `cross` Docker images do not ship them, which caused the
+# release run for v1.7.0 to fail with:
+#
+#   warning: openssl-sys@0.9.114: Could not find directory of OpenSSL
+#   installation, and this `-sys` crate cannot proceed without this
+#   knowledge.
+#   error: failed to run custom build command for `openssl-sys v0.9.114`
+#
+# `pre-build` runs once per image inside the host (x86_64) container
+# before the cross build, so we install the host-arch `libssl-dev` and
+# `pkg-config` packages. This satisfies the build script which links
+# OpenSSL on the build machine (it is only used by the build dependency,
+# not by the released binary).
+[target.aarch64-unknown-linux-gnu]
+pre-build = [
+    "apt-get update && apt-get install --assume-yes --no-install-recommends pkg-config libssl-dev",
+]
+
+[target.x86_64-unknown-linux-musl]
+pre-build = [
+    "apt-get update && apt-get install --assume-yes --no-install-recommends pkg-config libssl-dev",
+]
+
+[target.aarch64-unknown-linux-musl]
+pre-build = [
+    "apt-get update && apt-get install --assume-yes --no-install-recommends pkg-config libssl-dev",
+]
