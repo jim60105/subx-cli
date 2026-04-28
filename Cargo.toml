@@ -5,7 +5,7 @@ slow-tests = []
 archive-rar = ["dep:unrar"]
 [package]
 name = "subx-cli"
-version = "1.7.2"
+version = "1.7.3"
 edition = "2024"
 authors = ["Jim Chen <Jim@ChenJ.im>"]
 description = "AI subtitle processing CLI tool, which automatically matches, renames, and converts subtitle files."
