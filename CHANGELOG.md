@@ -8,6 +8,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.7.4] - 2026-04-28
+
+### Fixed
+- Linux ARM64 (`subx-linux-aarch64`) release builds now succeed again. The previous toolchain was too old to link the ONNX Runtime libraries we ship; the release pipeline now uses an up-to-date toolchain so the aarch64 artifact is published reliably.
+
 ## [1.7.3] - 2026-04-28
 
 ### Fixed
@@ -503,7 +508,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Initial release of SubX CLI tool
 - Rust-based intelligent subtitle processing
 
-[Unreleased]: https://github.com/jim60105/subx-cli/compare/v1.7.3...HEAD
+[Unreleased]: https://github.com/jim60105/subx-cli/compare/v1.7.4...HEAD
+[1.7.4]: https://github.com/jim60105/subx-cli/compare/v1.7.3...v1.7.4
 [1.7.3]: https://github.com/jim60105/subx-cli/compare/v1.7.2...v1.7.3
 [1.7.2]: https://github.com/jim60105/subx-cli/compare/v1.7.1...v1.7.2
 [1.7.1]: https://github.com/jim60105/subx-cli/compare/v1.7.0...v1.7.1

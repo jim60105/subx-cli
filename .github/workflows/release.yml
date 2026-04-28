@@ -59,36 +59,37 @@ jobs:
           target: x86_64-unknown-linux-gnu
           binary_name: subx-cli
           asset_name: subx-linux-x86_64
-          use_cross: false
-        # ARM64 Linux gnu — cross-compiled via `cross` (Docker image ships the
-        # gcc + glibc toolchain needed by the optional `unrar` C dependency).
-        # `Cross.toml` pre-stages the ONNX Runtime archive at
-        # `/opt/onnxruntime/lib`; the `Build (cross)` step exports
-        # `ORT_LIB_LOCATION` so `ort-sys` skips its broken cache-based
-        # download path. musl targets are intentionally NOT released:
-        # upstream `ort` (Pyke) does not publish ONNX Runtime prebuilts
-        # for *-unknown-linux-musl, and building ONNX Runtime from source
-        # for musl is out of scope for this release pipeline.
+        # ARM64 Linux gnu — cross-compiled directly on the runner using
+        # Ubuntu's `crossbuild-essential-arm64` toolchain. We do NOT use
+        # `cross` here: its pinned v0.2.5 image is Ubuntu 20.04 based
+        # (GCC 9 / glibc 2.31), which is too old to link the ONNX Runtime
+        # prebuilt static archives shipped by `ort-sys` 2.0.0-rc.10. Those
+        # archives reference `std::__throw_bad_array_new_length` (libstdc++
+        # from GCC 11+) and `__libc_single_threaded` (glibc 2.32+), so the
+        # build host must provide a sufficiently new aarch64 toolchain and
+        # sysroot. ubuntu-latest (24.04) ships GCC 13 + glibc 2.39 via
+        # `crossbuild-essential-arm64`, which satisfies both.
+        #
+        # musl targets are intentionally NOT released: upstream `ort`
+        # (Pyke) does not publish ONNX Runtime prebuilts for
+        # *-unknown-linux-musl, and building ONNX Runtime from source for
+        # musl is out of scope for this release pipeline.
         - os: ubuntu-latest
           target: aarch64-unknown-linux-gnu
           binary_name: subx-cli
           asset_name: subx-linux-aarch64
-          use_cross: true
         - os: windows-latest
           target: x86_64-pc-windows-msvc
           binary_name: subx-cli.exe
           asset_name: subx-windows-x86_64.exe
-          use_cross: false
         - os: macos-latest
           target: x86_64-apple-darwin
           binary_name: subx-cli
           asset_name: subx-macos-x86_64
-          use_cross: false
         - os: macos-latest
           target: aarch64-apple-darwin
           binary_name: subx-cli
           asset_name: subx-macos-aarch64
-          use_cross: false
 
     steps:
     - uses: actions/checkout@v6
@@ -98,40 +99,48 @@ jobs:
       with:
         targets: ${{ matrix.target }}
 
-    # Install `cross` for matrix rows that opt in. Pinned to a known-good
-    # version per design.md Decision 1; bump deliberately when upstream
-    # ships a regression fix.
-    - name: Install cross
-      if: matrix.use_cross == true
-      run: cargo install cross --git https://github.com/cross-rs/cross --tag v0.2.5 --locked
-
-    # Fallback path for ARM64 gnu when `cross` is unavailable. Currently
-    # documented dead code — only fires when the matrix row's `use_cross`
-    # is explicitly false for the aarch64-gnu target. Kept so the workflow
-    # degrades gracefully if `cross` is removed in a follow-up change.
-    - name: Install aarch64 gnu cross toolchain (fallback)
-      if: matrix.use_cross == false && matrix.target == 'aarch64-unknown-linux-gnu'
+    # Cross-compile setup for ARM64 Linux gnu on the x86_64 runner. Installs
+    # the full aarch64 cross-toolchain (gcc + g++ + libc/libstdc++ sysroot)
+    # and points the relevant `cc` / `cargo` env vars at it. Both compilers
+    # are required: `unrar` (enabled by `--features archive-rar`) compiles
+    # C++ via `cc-rs`, while most other `*-sys` build scripts only need C.
+    - name: Install aarch64 gnu cross toolchain
+      if: matrix.target == 'aarch64-unknown-linux-gnu'
       run: |
         sudo apt-get update
-        sudo apt-get install -y gcc-aarch64-linux-gnu
-        echo "CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER=aarch64-linux-gnu-gcc" >> "$GITHUB_ENV"
+        sudo apt-get install -y --no-install-recommends \
+          crossbuild-essential-arm64 pkg-config libssl-dev curl ca-certificates
+        {
+          echo "CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER=aarch64-linux-gnu-gcc"
+          echo "CC_aarch64_unknown_linux_gnu=aarch64-linux-gnu-gcc"
+          echo "CXX_aarch64_unknown_linux_gnu=aarch64-linux-gnu-g++"
+          echo "AR_aarch64_unknown_linux_gnu=aarch64-linux-gnu-ar"
+        } >> "$GITHUB_ENV"
+
+    # Pre-fetch the official Pyke ONNX Runtime tarball for aarch64 and
+    # point `ORT_LIB_LOCATION` at its `lib/` directory. This bypasses
+    # `ort-sys`'s built-in CDN download path, which is unreliable in CI
+    # (see Cross.toml history for the original cross-container variant of
+    # this workaround). The hash matches the entry in `ort-sys`'s
+    # `dist.txt` for `none aarch64-unknown-linux-gnu` at v2.0.0-rc.10.
+    - name: Pre-fetch ONNX Runtime (aarch64)
+      if: matrix.target == 'aarch64-unknown-linux-gnu'
+      run: |
+        sudo mkdir -p /opt/onnxruntime
+        curl --fail --silent --show-error --location --retry 5 --retry-delay 2 \
+          https://cdn.pyke.io/0/pyke:ort-rs/ms@1.22.0/aarch64-unknown-linux-gnu.tgz -o /tmp/ort.tgz
+        echo '24E4760207136FC50B854BB5012AB81DE6189039CF6D4FD3F5B8D3DB7E929F1E  /tmp/ort.tgz' \
+          | tr 'A-F' 'a-f' | sha256sum -c -
+        sudo tar -xzf /tmp/ort.tgz -C /opt/onnxruntime --strip-components=1
+        rm /tmp/ort.tgz
+        echo "ORT_LIB_LOCATION=/opt/onnxruntime/lib" >> "$GITHUB_ENV"
 
     # `--features archive-rar` is required on every Linux artifact (see
     # spec: archive-rar feature parity). A failure here is a release
-    # blocker — do not silently drop the feature.
-    #
-    # `ORT_LIB_LOCATION` points at the ONNX Runtime static archive that
-    # `Cross.toml`'s `pre-build` stages inside the cross container. It
-    # is harmless on non-cross builds (this step is gated on
-    # `use_cross == true`).
-    - name: Build (cross)
-      if: matrix.use_cross == true
-      env:
-        ORT_LIB_LOCATION: /opt/onnxruntime/lib
-      run: cross build --release --features archive-rar --target ${{ matrix.target }}
-
-    - name: Build (cargo)
-      if: matrix.use_cross == false
+    # blocker — do not silently drop the feature. Non-Linux targets accept
+    # the flag too — `unrar` is feature-gated but the crate compiles on
+    # all platforms.
+    - name: Build
       run: cargo build --release --features archive-rar --target ${{ matrix.target }}
 
     - name: Package
