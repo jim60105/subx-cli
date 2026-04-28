@@ -275,6 +275,13 @@ assert_eq "(g.5) --musl exit code" "2" "$musl_flag_rc"
 assert_contains "(g.5) --musl mentions 'not published'" "$musl_flag_err" "not published"
 assert_contains "(g.5) --musl points at cargo install" "$musl_flag_err" "cargo install subx-cli"
 
+# (g.6) `--musl` rejects even when SUBX_LIBC=gnu is set. Either source
+# of a `musl` request must reject; SUBX_LIBC must NOT silently shadow
+# the explicit flag.
+musl_conflict_err=$(SUBX_LIBC=gnu bash "$INSTALL_SH" --musl 2>&1 >/dev/null) && musl_conflict_rc=$? || musl_conflict_rc=$?
+assert_eq "(g.6) SUBX_LIBC=gnu --musl exit code" "2" "$musl_conflict_rc"
+assert_contains "(g.6) SUBX_LIBC=gnu --musl rejects with 'not published'" "$musl_conflict_err" "not published"
+
 # -----------------------------------------------------------------------
 # Summary
 # -----------------------------------------------------------------------

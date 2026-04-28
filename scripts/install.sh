@@ -243,22 +243,26 @@ main() {
         esac
     done
 
-    # libc resolution: env var > flag > auto-detection > default (gnu).
-    # `musl` is rejected up-front because v1.7.2+ no longer publishes
-    # musl artifacts; surface a helpful message instead of letting the
-    # download step 404 against GitHub Releases.
+    # libc resolution: any musl request — from the env var OR the flag —
+    # is rejected up-front because v1.7.2+ no longer publishes musl
+    # artifacts. Rejecting both inputs (rather than letting one shadow
+    # the other) keeps the contract simple: if the user mentioned `musl`
+    # anywhere on the command line or in the environment, surface a
+    # helpful message instead of letting the download step 404 against
+    # GitHub Releases.
+    if [ "${SUBX_LIBC:-}" = "musl" ] || [ "$libc_flag" = "musl" ]; then
+        musl_unsupported_exit
+    fi
+
     local libc=""
     if [ -n "${SUBX_LIBC:-}" ]; then
         case "$SUBX_LIBC" in
             gnu) libc="gnu" ;;
-            musl) musl_unsupported_exit ;;
             *)
                 echo "Error: SUBX_LIBC must be 'gnu' or 'musl' (got: '$SUBX_LIBC')" >&2
                 exit 2
                 ;;
         esac
-    elif [ "$libc_flag" = "musl" ]; then
-        musl_unsupported_exit
     fi
 
     # Detect operating system and architecture.
