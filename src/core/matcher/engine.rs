@@ -213,14 +213,19 @@ pub fn apply_unique_target_paths(operations: &mut [MatchOperation]) {
             .unwrap_or_default();
         let (stem, ext) = split_filename(&filename);
         let (base_stem, existing_counter) = split_numeric_tail(&stem);
+        let source_path = operations[idx].subtitle_file.path.clone();
 
         // A probe path is taken if another op has already committed it
-        // (via `claimed`) or if some *other* op still holds it as its
+        // (via `claimed`), if some *other* op still holds it as its
         // original candidate (via `reserved`, minus the current op's own
         // candidate so the current op can keep its preferred slot when
-        // free).
+        // free), or if a file already exists on disk at that path
+        // (excluding the operation's own source file so a no-op rename
+        // can keep its current name).
         let is_taken = |p: &PathBuf| -> bool {
-            claimed.contains(p) || (p != &candidate && reserved.contains(p))
+            claimed.contains(p)
+                || (p != &candidate && reserved.contains(p))
+                || (p != &source_path && p.exists())
         };
 
         let mut resolved = candidate.clone();
@@ -850,6 +855,34 @@ mod language_name_tests {
         super::apply_unique_target_paths(&mut ops);
         assert_eq!(ops[0].new_subtitle_name, "movie.srt");
         assert_eq!(ops[1].new_subtitle_name, "movie.2.srt");
+    }
+
+    #[test]
+    fn test_unique_target_paths_skip_existing_on_disk() {
+        // Two ops want the same target. The output directory already
+        // contains `movie.srt` and `movie.1.srt`. The allocator must
+        // skip both pre-existing slots, otherwise downstream
+        // `resolve_filename_conflict` re-probing can race and steal
+        // a numerical slot that was already allocated to a peer op
+        // (depending on the operations[] iteration order).
+        let dir = tempfile::tempdir().unwrap();
+        let dir_path = dir.path().to_path_buf();
+        std::fs::write(dir_path.join("movie.srt"), b"existing").unwrap();
+        std::fs::write(dir_path.join("movie.1.srt"), b"existing").unwrap();
+        let dir_str = dir_path.to_string_lossy().to_string();
+        let src1 = dir_path.parent().unwrap().join("sub1.srt");
+        let src2 = dir_path.parent().unwrap().join("sub2.srt");
+        let mut ops = vec![
+            op(&dir_str, "movie.srt", src1.to_str().unwrap(), true),
+            op(&dir_str, "movie.srt", src2.to_str().unwrap(), true),
+        ];
+        super::apply_unique_target_paths(&mut ops);
+        let mut got: Vec<String> = ops.iter().map(|o| o.new_subtitle_name.clone()).collect();
+        got.sort();
+        assert_eq!(
+            got,
+            vec!["movie.2.srt".to_string(), "movie.3.srt".to_string()]
+        );
     }
 
     #[test]
