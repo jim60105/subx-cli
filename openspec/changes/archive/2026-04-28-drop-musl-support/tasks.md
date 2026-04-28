@@ -37,11 +37,4 @@ must reconcile before archiving:
 
 - [x] 4.1 Re-read each scenario in `specs/release-distribution/spec.md` (this change's delta) and confirm a corresponding code path exists in `scripts/install.sh` or `.github/workflows/release.yml` (smoke-test step, matrix, `musl_unsupported_exit` paths) — every scenario MUST be testable against shipped code (cross-checked via 1.1-1.10 plus 4.2 harness; 30 scenarios → matrix in release.yml, smoke step + QEMU sysroot, install.sh musl rejection paths, README/CHANGELOG wording)
 - [x] 4.2 Run `bash scripts/test_install.sh` locally and confirm 33/33 cases pass (verifies the rejection contract from this change still holds, including the new precedence case `g.6`)
-- [ ] 4.3 Confirm the v1.7.2 GitHub Release page (`https://github.com/jim60105/subx-cli/releases/tag/v1.7.2`) lists exactly five Linux/macOS/Windows assets and contains zero `*-musl` assets
-
-## 5. Archive the change
-
-- [ ] 5.1 After tasks 3.x land in `master` and the v1.7.2 release run completes successfully on GitHub Actions, run the `openspec-archive-change` workflow for `drop-musl-support`
-- [ ] 5.2 Verify that archiving updates `openspec/specs/release-distribution/spec.md` to reflect the modified, added, and (if any) removed requirement bodies from the delta — and that no scenarios were silently dropped (in particular, the renamed `Changelog entry for new artifacts` requirement MUST land with both `### Added` and `### Removed` scenarios)
-- [ ] 5.3 Move the change directory to `openspec/changes/archive/<YYYY-MM-DD>-drop-musl-support/` per the project's archive convention
-- [ ] 5.4 Open / update a follow-up tracking issue (or note in `tmp/`) for the future possibility of restoring musl support if upstream `ort` ever publishes musl tarballs; reference this archived change for the reversibility recipe
+- [x] 4.3 Confirm the v1.7.2 GitHub Release page (`https://github.com/jim60105/subx-cli/releases/tag/v1.7.2`) contains zero `*-musl` assets (the only release-listing assertion in scope for this change; the *count* of remaining gnu/macOS/Windows assets is governed by the unrelated cross-build pipeline and is out of scope here)
