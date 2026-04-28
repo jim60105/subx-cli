@@ -29,6 +29,228 @@ use crate::error::SubXError;
 use dirs;
 use serde_json;
 
+/// Current on-disk match-cache schema version.
+///
+/// Bumped whenever the prompt structure or cache layout changes in a
+/// way that invalidates earlier entries. Historical values: `"1.0"`
+/// (pre-XML prompt rewrite); `"2.0"` (current — XML-tagged prompt with
+/// optional `language` / `target_filename_suffix`).
+pub(crate) const CURRENT_CACHE_VERSION: &str = "2.0";
+
+/// Returns whether a cache file with the given `cache_version` string is
+/// considered compatible with the current code. Used by
+/// [`MatchEngine::check_file_list_cache`] to reject entries written by
+/// earlier prompt schemas.
+pub(crate) fn is_cache_version_current(version: &str) -> bool {
+    version == CURRENT_CACHE_VERSION
+}
+
+/// Sanitize an AI-supplied filename suffix.
+///
+/// Accepts only ASCII alphanumerics, underscore, and hyphen. The check is
+/// applied to the **whole string**: any disallowed character (including
+/// path separators or `.`) causes outright rejection rather than silent
+/// stripping, so payloads such as `"../etc"` cannot smuggle a usable
+/// `"etc"` token through.
+///
+/// # Arguments
+///
+/// * `raw` - Raw suffix supplied by the AI (e.g. `"tc"`, `"english"`,
+///   `"../etc"`).
+///
+/// # Returns
+///
+/// `Some(raw)` when the input is non-empty, no longer than 16 bytes, and
+/// composed entirely of `[A-Za-z0-9_-]`; `None` otherwise.
+pub(crate) fn sanitize_suffix(raw: &str) -> Option<String> {
+    if raw.is_empty() || raw.len() > 16 {
+        return None;
+    }
+    if raw
+        .chars()
+        .all(|c| c.is_ascii_alphanumeric() || c == '_' || c == '-')
+    {
+        Some(raw.to_string())
+    } else {
+        None
+    }
+}
+
+/// Normalize an AI-supplied language label without going through the
+/// strict ASCII gate of [`sanitize_suffix`].
+///
+/// This helper preserves Unicode (so labels such as `繁中` or `简中` reach
+/// [`LanguageDetector::normalize`]), only lower-casing ASCII letters and
+/// trimming whitespace before lookup. Sentinel values (`""` and `und`,
+/// case-insensitive) return `None`. After detector lookup, the returned
+/// canonical code is finally validated through [`sanitize_suffix`] so the
+/// downstream filename insertion remains safe.
+///
+/// # Arguments
+///
+/// * `detector` - Configured [`LanguageDetector`] used for synonym lookup.
+/// * `raw` - Raw label as supplied by the AI.
+///
+/// # Returns
+///
+/// `Some(code)` with a sanitized canonical short code (e.g. `"tc"`,
+/// `"en"`); `None` for empty input, the sentinel `und`, or labels that
+/// resolve to something unsafe for filenames.
+pub(crate) fn normalize_ai_language(detector: &LanguageDetector, raw: &str) -> Option<String> {
+    let trimmed = raw.trim();
+    if trimmed.is_empty() || trimmed.eq_ignore_ascii_case("und") {
+        return None;
+    }
+    let lowered: String = trimmed
+        .chars()
+        .map(|c| {
+            if c.is_ascii_uppercase() {
+                c.to_ascii_lowercase()
+            } else {
+                c
+            }
+        })
+        .collect();
+    let resolved = detector.normalize(&lowered)?;
+    sanitize_suffix(&resolved)
+}
+
+/// Globally enforce unique final target paths across a batch of
+/// [`MatchOperation`] values.
+///
+/// Run **after** any post-engine relocation rewrites (e.g.
+/// `match_command.rs` archive-origin forced relocation) so the
+/// uniqueness guarantee holds at the actual destination paths. The
+/// allocator iterates operations sorted by `(target_directory,
+/// subtitle_file.relative_path)` for stability across reruns and
+/// probes `<base>.<n>.<ext>` (preserving any language segment) starting
+/// at `n = 2` until a free path is found, mutating both
+/// `new_subtitle_name` and `relocation_target_path` so downstream
+/// consumers see consistent values.
+///
+/// # Arguments
+///
+/// * `operations` - Mutable slice of operations to deduplicate in place.
+pub fn apply_unique_target_paths(operations: &mut [MatchOperation]) {
+    use std::collections::HashSet;
+
+    fn final_target(op: &MatchOperation) -> PathBuf {
+        if let Some(p) = &op.relocation_target_path {
+            p.clone()
+        } else {
+            let parent = op
+                .subtitle_file
+                .path
+                .parent()
+                .unwrap_or_else(|| std::path::Path::new("."));
+            parent.join(&op.new_subtitle_name)
+        }
+    }
+
+    fn split_filename(name: &str) -> (String, String) {
+        // Split filename into (stem, ".ext"); preserves multi-dot stems.
+        if let Some(idx) = name.rfind('.') {
+            if idx > 0 {
+                return (name[..idx].to_string(), name[idx..].to_string());
+            }
+        }
+        (name.to_string(), String::new())
+    }
+
+    /// Strip a trailing `.<digits>` segment from `stem`, returning
+    /// `(base_stem, existing_counter)`. Used so that when the AI (or a
+    /// prior pass) already produced `movie.2.srt`, the next collision
+    /// becomes `movie.3.srt` rather than `movie.2.2.srt`.
+    fn split_numeric_tail(stem: &str) -> (String, Option<u32>) {
+        if let Some(idx) = stem.rfind('.') {
+            let (head, tail) = (&stem[..idx], &stem[idx + 1..]);
+            if !tail.is_empty() && tail.chars().all(|c| c.is_ascii_digit()) {
+                if let Ok(n) = tail.parse::<u32>() {
+                    return (head.to_string(), Some(n));
+                }
+            }
+        }
+        (stem.to_string(), None)
+    }
+
+    // Sort indices so we can mutate operations in-place but iterate in a
+    // deterministic order independent of the AI's response ordering.
+    let mut indices: Vec<usize> = (0..operations.len()).collect();
+    indices.sort_by(|&a, &b| {
+        let pa = final_target(&operations[a]);
+        let pb = final_target(&operations[b]);
+        let dir_a = pa.parent().map(|p| p.to_path_buf()).unwrap_or_default();
+        let dir_b = pb.parent().map(|p| p.to_path_buf()).unwrap_or_default();
+        dir_a.cmp(&dir_b).then_with(|| {
+            operations[a]
+                .subtitle_file
+                .relative_path
+                .cmp(&operations[b].subtitle_file.relative_path)
+        })
+    });
+
+    // Reserve every operation's *original* candidate so that two
+    // operations cannot both claim a numerically-suffixed slot that a
+    // third operation already legitimately needed. See OpenSpec scenario
+    // "Three-way duplicates and a pre-existing numeric suffix" — without
+    // this guard `[movie.srt, movie.srt, movie.2.srt]` would steal
+    // `movie.2.srt` from the third op while resolving the second.
+    let reserved: HashSet<PathBuf> = (0..operations.len())
+        .map(|i| final_target(&operations[i]))
+        .collect();
+
+    let mut claimed: HashSet<PathBuf> = HashSet::new();
+
+    for idx in indices {
+        let candidate = final_target(&operations[idx]);
+        let parent = candidate
+            .parent()
+            .map(|p| p.to_path_buf())
+            .unwrap_or_default();
+        let filename = candidate
+            .file_name()
+            .map(|f| f.to_string_lossy().to_string())
+            .unwrap_or_default();
+        let (stem, ext) = split_filename(&filename);
+        let (base_stem, existing_counter) = split_numeric_tail(&stem);
+
+        // A probe path is taken if another op has already committed it
+        // (via `claimed`) or if some *other* op still holds it as its
+        // original candidate (via `reserved`, minus the current op's own
+        // candidate so the current op can keep its preferred slot when
+        // free).
+        let is_taken = |p: &PathBuf| -> bool {
+            claimed.contains(p) || (p != &candidate && reserved.contains(p))
+        };
+
+        let mut resolved = candidate.clone();
+        let mut resolved_name = filename.clone();
+        if is_taken(&resolved) {
+            let mut counter = existing_counter.map(|n| n + 1).unwrap_or(2).max(2);
+            loop {
+                let new_name = format!("{}.{}{}", base_stem, counter, ext);
+                let probe = parent.join(&new_name);
+                if !is_taken(&probe) {
+                    resolved = probe;
+                    resolved_name = new_name;
+                    break;
+                }
+                counter = counter.saturating_add(1);
+                if counter > 9999 {
+                    break;
+                }
+            }
+        }
+
+        let op = &mut operations[idx];
+        op.new_subtitle_name = resolved_name;
+        if op.relocation_target_path.is_some() {
+            op.relocation_target_path = Some(resolved.clone());
+        }
+        claimed.insert(resolved);
+    }
+}
+
 /// File relocation mode for matched subtitle files
 #[derive(Debug, Clone, PartialEq)]
 pub enum FileRelocationMode {
@@ -81,10 +303,32 @@ mod language_name_tests {
     use super::*;
     use crate::core::matcher::discovery::{MediaFile, MediaFileType};
     use crate::services::ai::{
-        AIProvider, AnalysisRequest, ConfidenceScore, MatchResult, VerificationRequest,
+        AIProvider, AnalysisRequest, ConfidenceScore, FileMatch, MatchResult, VerificationRequest,
     };
     use async_trait::async_trait;
     use std::path::PathBuf;
+
+    fn legacy_match() -> FileMatch {
+        FileMatch {
+            video_file_id: "v".into(),
+            subtitle_file_id: "s".into(),
+            confidence: 1.0,
+            match_factors: vec![],
+            language: None,
+            target_filename_suffix: None,
+        }
+    }
+
+    fn match_with_language(language: Option<&str>, suffix: Option<&str>) -> FileMatch {
+        FileMatch {
+            video_file_id: "v".into(),
+            subtitle_file_id: "s".into(),
+            confidence: 1.0,
+            match_factors: vec![],
+            language: language.map(|s| s.to_string()),
+            target_filename_suffix: suffix.map(|s| s.to_string()),
+        }
+    }
 
     struct DummyAI;
     #[async_trait]
@@ -130,7 +374,7 @@ mod language_name_tests {
             name: "subtitle01".to_string(),
             extension: "ass".to_string(),
         };
-        let new_name = engine.generate_subtitle_name(&video, &subtitle);
+        let new_name = engine.generate_subtitle_name(&video, &subtitle, &legacy_match());
         assert_eq!(new_name, "movie01.tc.ass");
     }
 
@@ -167,7 +411,7 @@ mod language_name_tests {
             name: "subtitle02".to_string(),
             extension: "ass".to_string(),
         };
-        let new_name = engine.generate_subtitle_name(&video, &subtitle);
+        let new_name = engine.generate_subtitle_name(&video, &subtitle, &legacy_match());
         assert_eq!(new_name, "movie02.sc.ass");
     }
 
@@ -204,7 +448,7 @@ mod language_name_tests {
             name: "subtitle03".to_string(),
             extension: "ass".to_string(),
         };
-        let new_name = engine.generate_subtitle_name(&video, &subtitle);
+        let new_name = engine.generate_subtitle_name(&video, &subtitle, &legacy_match());
         assert_eq!(new_name, "movie03.ass");
     }
     #[test]
@@ -240,7 +484,7 @@ mod language_name_tests {
             name: "subtitle".to_string(),
             extension: "srt".to_string(),
         };
-        let new_name = engine.generate_subtitle_name(&video, &subtitle);
+        let new_name = engine.generate_subtitle_name(&video, &subtitle, &legacy_match());
         assert_eq!(new_name, "movie.srt");
     }
 
@@ -277,7 +521,7 @@ mod language_name_tests {
             name: "subtitle".to_string(),
             extension: "srt".to_string(),
         };
-        let new_name = engine.generate_subtitle_name(&video, &subtitle);
+        let new_name = engine.generate_subtitle_name(&video, &subtitle, &legacy_match());
         assert_eq!(new_name, "movie.tc.srt");
     }
 
@@ -315,8 +559,344 @@ mod language_name_tests {
             name: "sub".to_string(),
             extension: "srt".to_string(),
         };
-        let new_name = engine.generate_subtitle_name(&video, &subtitle);
+        let new_name = engine.generate_subtitle_name(&video, &subtitle, &legacy_match());
         assert_eq!(new_name, "a.b.c.srt");
+    }
+
+    fn make_engine() -> MatchEngine {
+        MatchEngine::new(
+            Box::new(DummyAI),
+            MatchConfig {
+                confidence_threshold: 0.0,
+                max_sample_length: 0,
+                enable_content_analysis: false,
+                backup_enabled: false,
+                relocation_mode: FileRelocationMode::None,
+                conflict_resolution: ConflictResolution::Skip,
+                ai_model: "test-model".to_string(),
+                max_subtitle_bytes: 52_428_800,
+            },
+        )
+    }
+
+    fn media(path: &str, name: &str, ext: &str, ty: MediaFileType) -> MediaFile {
+        MediaFile {
+            id: "".into(),
+            relative_path: path.into(),
+            path: PathBuf::from(path),
+            file_type: ty,
+            size: 0,
+            name: name.into(),
+            extension: ext.into(),
+        }
+    }
+
+    #[test]
+    fn test_generate_subtitle_name_ai_suffix_wins() {
+        let engine = make_engine();
+        let video = media("movie.mkv", "movie.mkv", "mkv", MediaFileType::Video);
+        let subtitle = media("tc/subs.srt", "subs", "srt", MediaFileType::Subtitle);
+        let m = match_with_language(Some("en"), Some("tc"));
+        assert_eq!(
+            engine.generate_subtitle_name(&video, &subtitle, &m),
+            "movie.tc.srt"
+        );
+    }
+
+    #[test]
+    fn test_generate_subtitle_name_ai_language_used() {
+        let engine = make_engine();
+        let video = media("movie.mkv", "movie.mkv", "mkv", MediaFileType::Video);
+        let subtitle = media("subs/movie.srt", "movie", "srt", MediaFileType::Subtitle);
+        let m = match_with_language(Some("ja"), None);
+        assert_eq!(
+            engine.generate_subtitle_name(&video, &subtitle, &m),
+            "movie.ja.srt"
+        );
+    }
+
+    #[test]
+    fn test_generate_subtitle_name_language_synonym_normalized() {
+        let engine = make_engine();
+        let video = media("movie.mkv", "movie.mkv", "mkv", MediaFileType::Video);
+        let subtitle = media("subs/movie.srt", "movie", "srt", MediaFileType::Subtitle);
+        for variant in &["english", "eng", "EN"] {
+            let m = match_with_language(Some(variant), None);
+            assert_eq!(
+                engine.generate_subtitle_name(&video, &subtitle, &m),
+                "movie.en.srt",
+                "variant {variant} should normalize to en"
+            );
+        }
+    }
+
+    #[test]
+    fn test_generate_subtitle_name_und_collapses_to_no_tag() {
+        let engine = make_engine();
+        let video = media("movie.mkv", "movie.mkv", "mkv", MediaFileType::Video);
+        let subtitle = media("subs/movie.srt", "movie", "srt", MediaFileType::Subtitle);
+        let m = match_with_language(Some("und"), None);
+        assert_eq!(
+            engine.generate_subtitle_name(&video, &subtitle, &m),
+            "movie.srt"
+        );
+    }
+
+    #[test]
+    fn test_generate_subtitle_name_sanitization_drops_path_traversal() {
+        let engine = make_engine();
+        let video = media("movie.mkv", "movie.mkv", "mkv", MediaFileType::Video);
+        let subtitle = media("subs/movie.srt", "movie", "srt", MediaFileType::Subtitle);
+        // Whole-string rejection: any disallowed character (including
+        // `.` and `/`) causes `sanitize_suffix` to return None, so a
+        // payload like "../etc" cannot smuggle "etc" through.
+        let m = match_with_language(None, Some("../etc"));
+        assert_eq!(
+            engine.generate_subtitle_name(&video, &subtitle, &m),
+            "movie.srt"
+        );
+    }
+
+    #[test]
+    fn test_sanitize_suffix_helper() {
+        assert_eq!(super::sanitize_suffix(""), None);
+        assert_eq!(super::sanitize_suffix("../"), None);
+        // Whole-string rejection: presence of `.` or `/` aborts.
+        assert_eq!(super::sanitize_suffix("../etc"), None);
+        assert_eq!(super::sanitize_suffix("a-b_c"), Some("a-b_c".into()));
+        assert_eq!(super::sanitize_suffix("繁中"), None);
+        // Length cap: anything > 16 bytes is rejected outright (no
+        // truncation, since silent truncation could mask injection).
+        assert_eq!(super::sanitize_suffix("0123456789abcdefGHIJKL"), None);
+        assert_eq!(
+            super::sanitize_suffix("0123456789abcdef"),
+            Some("0123456789abcdef".into())
+        );
+    }
+
+    #[test]
+    fn test_normalize_ai_language_helper() {
+        let det = LanguageDetector::new();
+        assert_eq!(
+            super::normalize_ai_language(&det, "english"),
+            Some("en".into())
+        );
+        assert_eq!(super::normalize_ai_language(&det, "ENG"), Some("en".into()));
+        assert_eq!(super::normalize_ai_language(&det, "EN"), Some("en".into()));
+        assert_eq!(super::normalize_ai_language(&det, "und"), None);
+        assert_eq!(super::normalize_ai_language(&det, "UND"), None);
+        assert_eq!(super::normalize_ai_language(&det, ""), None);
+        assert_eq!(super::normalize_ai_language(&det, "cht"), Some("tc".into()));
+        assert_eq!(super::normalize_ai_language(&det, "chs"), Some("sc".into()));
+        // Unicode label preserved long enough to reach the language map.
+        assert_eq!(
+            super::normalize_ai_language(&det, "繁中"),
+            Some("tc".into())
+        );
+        assert_eq!(
+            super::normalize_ai_language(&det, "简中"),
+            Some("sc".into())
+        );
+        // Hyphenated and underscored regional aliases.
+        assert_eq!(
+            super::normalize_ai_language(&det, "traditional-chinese"),
+            Some("tc".into())
+        );
+        assert_eq!(
+            super::normalize_ai_language(&det, "Traditional_Chinese"),
+            Some("tc".into())
+        );
+        assert_eq!(
+            super::normalize_ai_language(&det, "zh-Hant"),
+            Some("tc".into())
+        );
+        assert_eq!(
+            super::normalize_ai_language(&det, "zh_hans"),
+            Some("sc".into())
+        );
+        // Pass-through for unknown but otherwise valid short codes.
+        assert_eq!(super::normalize_ai_language(&det, "vi"), Some("vi".into()));
+        assert_eq!(super::normalize_ai_language(&det, "ID"), Some("id".into()));
+    }
+
+    fn op(parent: &str, name: &str, sub_relpath: &str, relocate: bool) -> MatchOperation {
+        let video_path = PathBuf::from(parent).join("movie.mkv");
+        let subtitle_path = PathBuf::from(sub_relpath);
+        let relocation_target_path = if relocate {
+            Some(PathBuf::from(parent).join(name))
+        } else {
+            None
+        };
+        MatchOperation {
+            video_file: MediaFile {
+                id: "v".into(),
+                relative_path: video_path.to_string_lossy().to_string(),
+                path: video_path,
+                file_type: MediaFileType::Video,
+                size: 0,
+                name: "movie.mkv".into(),
+                extension: "mkv".into(),
+            },
+            subtitle_file: MediaFile {
+                id: "s".into(),
+                relative_path: sub_relpath.into(),
+                path: subtitle_path,
+                file_type: MediaFileType::Subtitle,
+                size: 0,
+                name: name.into(),
+                extension: "srt".into(),
+            },
+            new_subtitle_name: name.into(),
+            confidence: 1.0,
+            reasoning: vec![],
+            relocation_mode: if relocate {
+                FileRelocationMode::Copy
+            } else {
+                FileRelocationMode::None
+            },
+            relocation_target_path,
+            requires_relocation: relocate,
+        }
+    }
+
+    #[test]
+    fn test_unique_target_paths_two_duplicates_same_dir() {
+        let mut ops = vec![
+            op("/d", "movie.srt", "/d/a.srt", false),
+            op("/d", "movie.srt", "/d/b.srt", false),
+        ];
+        super::apply_unique_target_paths(&mut ops);
+        assert_eq!(ops[0].new_subtitle_name, "movie.srt");
+        assert_eq!(ops[1].new_subtitle_name, "movie.2.srt");
+    }
+
+    #[test]
+    fn test_unique_target_paths_three_way_with_existing_two() {
+        // Sorted order: /d/a.srt → movie.srt, /d/b.srt → movie.srt
+        // (clones), /d/c.srt → movie.2.srt (already-unique candidate).
+        // Spec requires the *third* op to keep its preferred slot
+        // movie.2.srt, so the second op must skip past it (yielding
+        // movie.3.srt) instead of stealing it. See OpenSpec scenario
+        // "Three-way duplicates and a pre-existing numeric suffix".
+        let mut ops = vec![
+            op("/d", "movie.srt", "/d/a.srt", false),
+            op("/d", "movie.srt", "/d/b.srt", false),
+            op("/d", "movie.2.srt", "/d/c.srt", false),
+        ];
+        super::apply_unique_target_paths(&mut ops);
+        assert_eq!(ops[0].new_subtitle_name, "movie.srt");
+        assert_eq!(ops[1].new_subtitle_name, "movie.3.srt");
+        assert_eq!(ops[2].new_subtitle_name, "movie.2.srt");
+    }
+
+    #[test]
+    fn test_unique_target_paths_idempotent() {
+        // Running the allocator twice on the same batch must not change
+        // the result; the engine pre-pass plus the CLI post-pass rely on
+        // this.
+        let mut ops = vec![
+            op("/d", "movie.srt", "/d/a.srt", false),
+            op("/d", "movie.srt", "/d/b.srt", false),
+            op("/d", "movie.2.srt", "/d/c.srt", false),
+        ];
+        super::apply_unique_target_paths(&mut ops);
+        let snapshot: Vec<String> = ops.iter().map(|o| o.new_subtitle_name.clone()).collect();
+        super::apply_unique_target_paths(&mut ops);
+        let after: Vec<String> = ops.iter().map(|o| o.new_subtitle_name.clone()).collect();
+        assert_eq!(snapshot, after);
+    }
+
+    #[test]
+    fn test_unique_target_paths_two_languages_preserved() {
+        let mut ops = vec![
+            op("/d", "movie.tc.srt", "/d/a.srt", false),
+            op("/d", "movie.sc.srt", "/d/b.srt", false),
+        ];
+        super::apply_unique_target_paths(&mut ops);
+        assert_eq!(ops[0].new_subtitle_name, "movie.tc.srt");
+        assert_eq!(ops[1].new_subtitle_name, "movie.sc.srt");
+    }
+
+    #[test]
+    fn test_unique_target_paths_cross_video_collision_under_copy() {
+        // Two different videos in different source dirs both relocate
+        // into /shared with the same candidate filename "subs.srt".
+        let mut ops = vec![
+            op("/shared", "subs.srt", "/src1/subs.srt", true),
+            op("/shared", "subs.srt", "/src2/subs.srt", true),
+        ];
+        super::apply_unique_target_paths(&mut ops);
+        assert_eq!(ops[0].new_subtitle_name, "subs.srt");
+        assert_eq!(ops[1].new_subtitle_name, "subs.2.srt");
+        // relocation_target_path must be kept consistent.
+        assert_eq!(
+            ops[0].relocation_target_path.as_ref().unwrap(),
+            &PathBuf::from("/shared/subs.srt")
+        );
+        assert_eq!(
+            ops[1].relocation_target_path.as_ref().unwrap(),
+            &PathBuf::from("/shared/subs.2.srt")
+        );
+    }
+
+    #[test]
+    fn test_unique_target_paths_archive_origin_relocation_unique() {
+        // Mirrors the archive-origin scenario: relocation_target_path
+        // is set, and two ops collide on the rewritten path.
+        let mut ops = vec![
+            op("/videos", "movie.srt", "/tmp/a.srt", true),
+            op("/videos", "movie.srt", "/tmp/b.srt", true),
+        ];
+        super::apply_unique_target_paths(&mut ops);
+        assert_eq!(ops[0].new_subtitle_name, "movie.srt");
+        assert_eq!(ops[1].new_subtitle_name, "movie.2.srt");
+    }
+
+    #[test]
+    fn test_legacy_v1_cache_rejected() {
+        // After the v1.0 → v2.0 bump, `check_file_list_cache` calls
+        // `is_cache_version_current` on the loaded payload and bails out
+        // with `Ok(None)` before considering operations, so stale
+        // duplicate-name results from the legacy prompt cannot leak
+        // through. Round-trip a real on-disk v1 cache through
+        // `CacheData::load` (the same loader `check_file_list_cache`
+        // uses) to prove the rejection path actually fires — going
+        // through the engine method itself would require manipulating
+        // `XDG_CONFIG_HOME`, which AGENTS.md forbids.
+        use crate::core::matcher::cache::CacheData;
+        use std::time::{SystemTime, UNIX_EPOCH};
+        use tempfile::TempDir;
+
+        assert_eq!(CURRENT_CACHE_VERSION, "2.0");
+        assert!(super::is_cache_version_current("2.0"));
+        assert!(!super::is_cache_version_current("1.0"));
+        assert!(!super::is_cache_version_current(""));
+
+        let temp = TempDir::new().unwrap();
+        let cache_path = temp.path().join("legacy_v1_cache.json");
+        let now = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_secs();
+        let legacy = serde_json::json!({
+            "cache_version": "1.0",
+            "directory": "filelist_deadbeef",
+            "file_snapshot": [],
+            "match_operations": [],
+            "created_at": now,
+            "ai_model_used": "test-model",
+            "config_hash": "0000000000000000",
+            "original_relocation_mode": "None",
+            "original_backup_enabled": false,
+        });
+        std::fs::write(&cache_path, serde_json::to_string(&legacy).unwrap()).unwrap();
+
+        let loaded = CacheData::load(&cache_path).expect("legacy cache should parse");
+        assert_eq!(loaded.cache_version, "1.0");
+        assert!(
+            !super::is_cache_version_current(&loaded.cache_version),
+            "loaded v1 cache must be rejected by the version gate"
+        );
     }
 
     #[tokio::test]
@@ -788,7 +1368,7 @@ impl MatchEngine {
 
             match (video_match, subtitle_match) {
                 (Some(video), Some(subtitle)) => {
-                    let new_name = self.generate_subtitle_name(video, subtitle);
+                    let new_name = self.generate_subtitle_name(video, subtitle, &ai_match);
 
                     let requires_relocation = self.config.relocation_mode
                         != FileRelocationMode::None
@@ -833,7 +1413,14 @@ impl MatchEngine {
             }
         }
 
-        // 7. Save to cache for future use
+        // 7. Globally enforce unique target paths before caching so the
+        //    cached operations are already conflict-free. The CLI-level
+        //    `match_command.rs` runs a second pass after archive-origin
+        //    relocation rewrites — `apply_unique_target_paths` is
+        //    idempotent, so the two passes compose cleanly.
+        apply_unique_target_paths(&mut operations);
+
+        // 8. Save to cache for future use
         self.save_file_list_cache(&cache_key, &operations).await?;
 
         Ok(MatchAudit {
@@ -863,6 +1450,7 @@ impl MatchEngine {
 
             samples.push(ContentSample {
                 filename: subtitle.name.clone(),
+                subtitle_file_id: subtitle.id.clone(),
                 content_preview: preview,
                 file_size: subtitle.size,
             });
@@ -882,7 +1470,12 @@ impl MatchEngine {
         }
     }
 
-    fn generate_subtitle_name(&self, video: &MediaFile, subtitle: &MediaFile) -> String {
+    fn generate_subtitle_name(
+        &self,
+        video: &MediaFile,
+        subtitle: &MediaFile,
+        ai_match: &crate::services::ai::FileMatch,
+    ) -> String {
         let detector = LanguageDetector::new();
 
         // Remove the extension from the video file name (if any)
@@ -895,7 +1488,25 @@ impl MatchEngine {
             &video.name
         };
 
-        if let Some(code) = detector.get_primary_language(&subtitle.path) {
+        // Four-step precedence per the AI-driven naming spec:
+        // 1. Sanitized + normalized AI `target_filename_suffix` wins.
+        // 2. Sanitized + normalized AI `language` (with `und` → no tag).
+        // 3. Filename-derived language detection.
+        // 4. No language tag.
+        let ai_tag = ai_match
+            .target_filename_suffix
+            .as_deref()
+            .and_then(sanitize_suffix)
+            .or_else(|| {
+                ai_match
+                    .language
+                    .as_deref()
+                    .and_then(|s| normalize_ai_language(&detector, s))
+            });
+
+        let code = ai_tag.or_else(|| detector.get_primary_language(&subtitle.path));
+
+        if let Some(code) = code {
             format!("{}.{}.{}", video_base_name, code, subtitle.extension)
         } else {
             format!("{}.{}", video_base_name, subtitle.extension)
@@ -1409,6 +2020,9 @@ impl MatchEngine {
         let cache_data = CacheData::load(&cache_file_path).ok();
 
         if let Some(cache_data) = cache_data {
+            if !is_cache_version_current(&cache_data.cache_version) {
+                return Ok(None);
+            }
             if cache_data.directory == cache_key {
                 // Rebuild match operation list for file list cache
                 let mut ops = Vec::new();
@@ -1556,7 +2170,7 @@ impl MatchEngine {
         }
 
         let cache_data = CacheData {
-            cache_version: "1.0".to_string(),
+            cache_version: CURRENT_CACHE_VERSION.to_string(),
             directory: cache_key.to_string(),
             file_snapshot: snapshot_items,
             match_operations: cache_items,
@@ -1606,6 +2220,9 @@ impl MatchEngine {
         // Add configuration items that affect cache validity to the hash
         format!("{:?}", self.config.relocation_mode).hash(&mut hasher);
         self.config.backup_enabled.hash(&mut hasher);
+        // A short prompt-schema tag so future prompt rewrites invalidate
+        // the on-disk match cache automatically.
+        "prompt_v2".hash(&mut hasher);
         // Add other relevant configuration items
 
         Ok(format!("{:016x}", hasher.finish()))

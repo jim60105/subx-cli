@@ -68,11 +68,47 @@ impl LanguageDetector {
         language_codes.insert("简中".to_string(), "sc".to_string()); // Simplified Chinese (zh-Hans)
         language_codes.insert("简体".to_string(), "sc".to_string()); // Simplified Chinese (zh-Hans)
         language_codes.insert("chs".to_string(), "sc".to_string());
+        // Hyphenated/underscored regional aliases the AI may emit when
+        // asked for a "language" hint (BCP 47 short tags and common
+        // English labels). Lower-cased before lookup so these only need
+        // to be the canonical lower form.
+        language_codes.insert("traditional-chinese".to_string(), "tc".to_string());
+        language_codes.insert("traditional_chinese".to_string(), "tc".to_string());
+        language_codes.insert("zh-hant".to_string(), "tc".to_string());
+        language_codes.insert("zh_hant".to_string(), "tc".to_string());
+        language_codes.insert("simplified-chinese".to_string(), "sc".to_string());
+        language_codes.insert("simplified_chinese".to_string(), "sc".to_string());
+        language_codes.insert("zh-hans".to_string(), "sc".to_string());
+        language_codes.insert("zh_hans".to_string(), "sc".to_string());
         // English
         language_codes.insert("en".to_string(), "en".to_string());
         language_codes.insert("英文".to_string(), "en".to_string()); // English
         language_codes.insert("english".to_string(), "en".to_string());
-        // Additional languages (e.g., Japanese, Korean) can be added as needed.
+        language_codes.insert("eng".to_string(), "en".to_string());
+        // Common ISO 639-2 / ISO 639-3 synonyms for non-Chinese languages.
+        language_codes.insert("ja".to_string(), "ja".to_string());
+        language_codes.insert("jpn".to_string(), "ja".to_string());
+        language_codes.insert("japanese".to_string(), "ja".to_string());
+        language_codes.insert("ko".to_string(), "ko".to_string());
+        language_codes.insert("kor".to_string(), "ko".to_string());
+        language_codes.insert("korean".to_string(), "ko".to_string());
+        language_codes.insert("fr".to_string(), "fr".to_string());
+        language_codes.insert("fra".to_string(), "fr".to_string());
+        language_codes.insert("fre".to_string(), "fr".to_string());
+        language_codes.insert("french".to_string(), "fr".to_string());
+        language_codes.insert("de".to_string(), "de".to_string());
+        language_codes.insert("deu".to_string(), "de".to_string());
+        language_codes.insert("ger".to_string(), "de".to_string());
+        language_codes.insert("german".to_string(), "de".to_string());
+        language_codes.insert("es".to_string(), "es".to_string());
+        language_codes.insert("spa".to_string(), "es".to_string());
+        language_codes.insert("spanish".to_string(), "es".to_string());
+        language_codes.insert("pt".to_string(), "pt".to_string());
+        language_codes.insert("por".to_string(), "pt".to_string());
+        language_codes.insert("portuguese".to_string(), "pt".to_string());
+        language_codes.insert("ru".to_string(), "ru".to_string());
+        language_codes.insert("rus".to_string(), "ru".to_string());
+        language_codes.insert("russian".to_string(), "ru".to_string());
 
         let filename_patterns = vec![
             Regex::new(r"\.([a-z]{2,3})\.").unwrap(), // .tc., .sc., .en.
@@ -99,6 +135,45 @@ impl LanguageDetector {
             return Some(lang);
         }
         None
+    }
+
+    /// Normalize a raw language label (typically supplied by an AI model)
+    /// into the project's canonical short code.
+    ///
+    /// # Behavior
+    ///
+    /// - The input is lower-cased before lookup.
+    /// - Known synonyms are collapsed via the internal `language_codes` map
+    ///   (e.g. `"english"`/`"eng"`/`"EN"` → `"en"`,
+    ///   `"cht"`/`"繁中"`/`"traditional-chinese"` is matched against the same
+    ///   map; for the latter, only entries the detector knows are mapped).
+    /// - Unknown but otherwise valid `[A-Za-z0-9_-]{1,16}` tokens are passed
+    ///   through verbatim after lower-casing.
+    /// - Returns `None` for empty input.
+    ///
+    /// # Arguments
+    ///
+    /// * `raw` - The raw language label to normalize.
+    ///
+    /// # Returns
+    ///
+    /// `Some(code)` with the canonical or pass-through code, or `None` when
+    /// the input is empty.
+    pub fn normalize(&self, raw: &str) -> Option<String> {
+        let trimmed = raw.trim();
+        if trimmed.is_empty() {
+            return None;
+        }
+        let lower = trimmed.to_lowercase();
+        if let Some(code) = self.language_codes.get(&lower) {
+            return Some(code.clone());
+        }
+        // Also probe the original casing in case the caller passed a non-ASCII
+        // synonym (e.g. `"繁中"`) whose lower-case form is identical.
+        if let Some(code) = self.language_codes.get(trimmed) {
+            return Some(code.clone());
+        }
+        Some(lower)
     }
 
     /// Return the primary detected language code for the provided path.

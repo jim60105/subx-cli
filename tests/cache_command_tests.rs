@@ -520,6 +520,11 @@ async fn test_apply_legacy_cache_requires_force() {
         let mut h = DefaultHasher::new();
         "None".hash(&mut h);
         config.general.backup_enabled.hash(&mut h);
+        // Mirror the prompt-schema tag added in `compute_config_hash`
+        // so this test still hits the "config matches" path and the
+        // "legacy format" assertion below remains the failure mode
+        // under test.
+        "prompt_v2".hash(&mut h);
         format!("{:016x}", h.finish())
     };
     std::fs::write(&cache_file, make_test_cache_json(&hash)).unwrap();

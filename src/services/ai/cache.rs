@@ -91,6 +91,7 @@ mod tests {
             video_files: vec!["video1.mp4".to_string()],
             subtitle_files: vec!["sub1.srt".to_string()],
             content_samples: vec![ContentSample {
+                subtitle_file_id: "sub_id".to_string(),
                 filename: "sub1.srt".to_string(),
                 content_preview: "test".to_string(),
                 file_size: 123,

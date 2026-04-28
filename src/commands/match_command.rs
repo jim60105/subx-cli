@@ -67,7 +67,7 @@ use crate::cli::display_match_results;
 use crate::cli::output::{active_mode, emit_success};
 use crate::config::ConfigService;
 use crate::core::ComponentFactory;
-use crate::core::matcher::engine::{FileRelocationMode, MatchOperation};
+use crate::core::matcher::engine::{FileRelocationMode, MatchOperation, apply_unique_target_paths};
 use crate::core::matcher::{FileDiscovery, MatchConfig, MatchEngine, MediaFileType};
 use crate::core::parallel::{
     FileProcessingTask, ProcessingOperation, Task, TaskResult, TaskScheduler,
@@ -464,6 +464,10 @@ pub async fn execute_with_client(
             }
         }
     }
+
+    // Run the global uniqueness allocator after archive-origin relocation
+    // rewrites so the guarantee holds at the actual destination paths.
+    apply_unique_target_paths(&mut operations);
 
     let json_mode = active_mode().is_json();
 

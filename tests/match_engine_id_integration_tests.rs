@@ -50,6 +50,8 @@ impl AIProvider for MockAIClientWithIds {
                     subtitle_file_id: subtitle_id.clone(),
                     confidence: 0.95,
                     match_factors: vec!["id_based_test_match".to_string()],
+                    language: None,
+                    target_filename_suffix: None,
                 });
             }
         }

@@ -313,6 +313,11 @@ fn compute_config_hash(relocation_mode_debug: &str, backup_enabled: bool) -> Str
     let mut hasher = DefaultHasher::new();
     relocation_mode_debug.hash(&mut hasher);
     backup_enabled.hash(&mut hasher);
+    // Mirror `MatchEngine::calculate_config_hash` so the prompt-schema
+    // tag is part of the hash here too. Without this, `cache status` /
+    // `cache apply` would compute a different hash than the engine and
+    // never recognise its own caches as current.
+    "prompt_v2".hash(&mut hasher);
     format!("{:016x}", hasher.finish())
 }
 

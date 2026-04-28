@@ -283,7 +283,14 @@ Provider clients: `OpenAIClient` (`openai.rs`), `OpenRouterClient`
 use shared infrastructure from the module:
 
 - `prompts.rs` — `PromptBuilder` and `ResponseParser` traits with base
-  implementations for constructing analysis prompts and parsing AI responses
+  implementations for constructing analysis prompts and parsing AI responses.
+  The match prompt uses an XML-tagged structure (`<role>`,
+  `<instructions>`, `<video_files>`, `<subtitle_files>`,
+  `<content_samples>`, `<output_schema>`, `<example>`) per Anthropic's
+  Claude prompt-engineering guidelines, and asks the model to return
+  optional `language` and `target_filename_suffix` fields per match. The
+  matcher's `apply_unique_target_paths` allocator then enforces globally
+  unique final target paths across the entire batch.
 - `retry.rs` — `RetryConfig` struct and `retry_with_backoff()` async
   function for exponential backoff retry logic
 - `cache.rs` — `AICache` for in-memory TTL caching of analysis results

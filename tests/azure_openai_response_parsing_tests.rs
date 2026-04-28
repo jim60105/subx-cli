@@ -13,11 +13,13 @@ fn create_multiple_files_analysis_request() -> AnalysisRequest {
         subtitle_files: vec!["sub1.srt".to_string(), "sub2.srt".to_string()],
         content_samples: vec![
             ContentSample {
+                subtitle_file_id: "sub_id".to_string(),
                 filename: "sub1.srt".to_string(),
                 content_preview: "First subtitle content".to_string(),
                 file_size: 2048,
             },
             ContentSample {
+                subtitle_file_id: "sub_id".to_string(),
                 filename: "sub2.srt".to_string(),
                 content_preview: "Second subtitle content".to_string(),
                 file_size: 1536,
@@ -92,6 +94,7 @@ mod azure_openai_parsing_tests {
             video_files: vec!["unmatched.mp4".to_string()],
             subtitle_files: vec!["unmatched.srt".to_string()],
             content_samples: vec![ContentSample {
+                subtitle_file_id: "sub_id".to_string(),
                 filename: "unmatched.srt".to_string(),
                 content_preview: "Unmatched subtitle content".to_string(),
                 file_size: 512,

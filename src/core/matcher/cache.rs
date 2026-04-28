@@ -226,7 +226,7 @@ mod tests {
 
     fn make_cache(snapshot: Vec<SnapshotItem>, ops: Vec<OpItem>, mode: &str) -> CacheData {
         CacheData {
-            cache_version: "1.0".to_string(),
+            cache_version: "2.0".to_string(),
             directory: String::new(),
             file_snapshot: snapshot,
             match_operations: ops,

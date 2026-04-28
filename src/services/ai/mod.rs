@@ -229,6 +229,14 @@ pub struct AnalysisRequest {
 pub struct ContentSample {
     /// Filename of the subtitle file
     pub filename: String,
+    /// Stable file ID (`file_<uuid-v7>`) of the originating subtitle.
+    ///
+    /// Mirrors the `id` of the [`crate::core::matcher::MediaFile`] this
+    /// sample was extracted from, so the AI prompt can unambiguously map
+    /// `<sample subtitle_file_id="…">` previews back to a single subtitle —
+    /// even when two subtitles share a filename across different
+    /// directories.
+    pub subtitle_file_id: String,
     /// Preview of the subtitle content
     pub content_preview: String,
     /// Size of the subtitle file in bytes
@@ -263,6 +271,26 @@ pub struct FileMatch {
     pub confidence: f32,
     /// List of factors that contributed to this match
     pub match_factors: Vec<String>,
+    /// Optional language code inferred by the AI from filename + content.
+    ///
+    /// Short language code such as `"tc"`, `"sc"`, `"en"`, `"ja"`, or
+    /// `"und"` when the model could not decide. Marked
+    /// `#[serde(default)]` so legacy cached responses without this field
+    /// continue to deserialize. Consumers SHOULD pass the value through
+    /// [`crate::core::language::LanguageDetector::normalize`] before use.
+    #[serde(default)]
+    pub language: Option<String>,
+    /// Optional disambiguating filename suffix supplied by the AI.
+    ///
+    /// When the model decides two subtitles for the same video would
+    /// otherwise produce identical target filenames, it MAY hand back a
+    /// short tag (typically a language code such as `"tc"` or a numeric
+    /// fallback such as `"2"`) to splice between the video base name and
+    /// the subtitle extension. Marked `#[serde(default)]` for backward
+    /// compatibility with legacy cached responses. Callers MUST sanitize
+    /// the value before using it as a path component.
+    #[serde(default)]
+    pub target_filename_suffix: Option<String>,
 }
 
 /// Confidence score for AI matching decisions.

@@ -13,6 +13,7 @@ fn create_sample_analysis_request() -> AnalysisRequest {
         video_files: vec!["test.mp4".to_string()],
         subtitle_files: vec!["test.srt".to_string()],
         content_samples: vec![ContentSample {
+            subtitle_file_id: "sub_id".to_string(),
             filename: "test.srt".to_string(),
             content_preview: "Sample subtitle content preview".to_string(),
             file_size: 1024,

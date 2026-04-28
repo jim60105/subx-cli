@@ -16,6 +16,7 @@ async fn test_build_analysis_prompt_base_function() {
         video_files: vec!["ID:file_abc123 | Name:test.mkv | Path:/path/test.mkv".to_string()],
         subtitle_files: vec!["ID:file_def456 | Name:test.srt | Path:/path/test.srt".to_string()],
         content_samples: vec![ContentSample {
+            subtitle_file_id: "sub_id".to_string(),
             filename: "test.srt".to_string(),
             content_preview: "Sample subtitle content".to_string(),
             file_size: 512,
@@ -24,11 +25,11 @@ async fn test_build_analysis_prompt_base_function() {
 
     let prompt = build_analysis_prompt_base(&request);
 
-    assert!(prompt.contains("ID:file_abc123"));
-    assert!(prompt.contains("ID:file_def456"));
+    assert!(prompt.contains("id=\"file_abc123\""));
+    assert!(prompt.contains("id=\"file_def456\""));
     assert!(prompt.contains("Sample subtitle content"));
-    assert!(prompt.contains("Please analyze the matching relationship"));
-    assert!(prompt.contains("Response format must be JSON"));
+    assert!(prompt.contains("<role>"));
+    assert!(prompt.contains("<output_schema>"));
     assert!(prompt.contains("video_file_id"));
     assert!(prompt.contains("subtitle_file_id"));
 }
@@ -53,7 +54,7 @@ async fn test_build_verification_prompt_base_function() {
     assert!(prompt.contains("filename_similarity"));
     assert!(prompt.contains("content_correlation"));
     assert!(prompt.contains("timing_analysis"));
-    assert!(prompt.contains("Please evaluate the confidence level"));
+    assert!(prompt.contains("<role>"));
     assert!(prompt.contains("JSON format"));
 }
 
@@ -174,9 +175,10 @@ async fn test_prompt_building_edge_cases() {
     };
 
     let prompt = build_analysis_prompt_base(&request_empty);
-    assert!(prompt.contains("ID:file1"));
-    assert!(prompt.contains("ID:file2"));
-    assert!(!prompt.contains("Subtitle content preview"));
+    assert!(prompt.contains("id=\"file1\""));
+    assert!(prompt.contains("id=\"file2\""));
+    // No <content_samples> *element* should be emitted when the list is empty.
+    assert!(!prompt.contains("<content_samples>\n  <sample"));
 
     // Test with multiple files
     let request_multiple = AnalysisRequest {
@@ -192,10 +194,10 @@ async fn test_prompt_building_edge_cases() {
     };
 
     let prompt_multiple = build_analysis_prompt_base(&request_multiple);
-    assert!(prompt_multiple.contains("ID:vid1"));
-    assert!(prompt_multiple.contains("ID:vid2"));
-    assert!(prompt_multiple.contains("ID:sub1"));
-    assert!(prompt_multiple.contains("ID:sub2"));
+    assert!(prompt_multiple.contains("id=\"vid1\""));
+    assert!(prompt_multiple.contains("id=\"vid2\""));
+    assert!(prompt_multiple.contains("id=\"sub1\""));
+    assert!(prompt_multiple.contains("id=\"sub2\""));
 }
 
 /// Test verification prompt with various match factors
@@ -277,13 +279,10 @@ async fn test_json_parsing_malformed() {
 async fn test_system_message_constants() {
     // Test analysis system message
     let analysis_msg = OpenAIClient::get_analysis_system_message();
-    assert!(analysis_msg.contains("professional subtitle matching assistant"));
-    assert!(analysis_msg.contains("analyze the correspondence"));
-    assert!(analysis_msg.contains("video and subtitle files"));
+    assert!(analysis_msg.contains("subtitle-matching"));
 
     // Test verification system message
     let verification_msg = OpenAIClient::get_verification_system_message();
-    assert!(verification_msg.contains("evaluate the confidence level"));
-    assert!(verification_msg.contains("subtitle matching"));
-    assert!(verification_msg.contains("score between 0-1"));
+    assert!(verification_msg.contains("subtitle-matching"));
+    assert!(verification_msg.contains("verifier"));
 }

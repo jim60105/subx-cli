@@ -27,6 +27,7 @@ async fn test_openai_client_prompt_builder_trait() {
         video_files: vec!["ID:file_video1 | Name:movie.mkv | Path:/test/movie.mkv".to_string()],
         subtitle_files: vec!["ID:file_sub1 | Name:movie.srt | Path:/test/movie.srt".to_string()],
         content_samples: vec![ContentSample {
+            subtitle_file_id: "sub_id".to_string(),
             filename: "movie.srt".to_string(),
             content_preview: "Test subtitle content".to_string(),
             file_size: 1024,
@@ -34,12 +35,12 @@ async fn test_openai_client_prompt_builder_trait() {
     };
 
     let prompt = client.build_analysis_prompt(&analysis_request);
-    assert!(prompt.contains("ID:file_video1"));
-    assert!(prompt.contains("ID:file_sub1"));
+    assert!(prompt.contains("id=\"file_video1\""));
+    assert!(prompt.contains("id=\"file_sub1\""));
     assert!(prompt.contains("Test subtitle content"));
-    assert!(prompt.contains("Video files:"));
-    assert!(prompt.contains("Subtitle files:"));
-    assert!(prompt.contains("Response format must be JSON"));
+    assert!(prompt.contains("<video_files>"));
+    assert!(prompt.contains("<subtitle_files>"));
+    assert!(prompt.contains("<output_schema>"));
 
     // Test build_verification_prompt trait method
     let verification_request = VerificationRequest {
@@ -61,11 +62,11 @@ async fn test_openai_client_prompt_builder_trait() {
     // Test system messages
     assert_eq!(
         OpenAIClient::get_analysis_system_message(),
-        "You are a professional subtitle matching assistant that can analyze the correspondence between video and subtitle files."
+        "You are an expert subtitle-matching assistant."
     );
     assert_eq!(
         OpenAIClient::get_verification_system_message(),
-        "Please evaluate the confidence level of subtitle matching and provide a score between 0-1."
+        "You are an expert subtitle-matching verifier."
     );
 }
 
@@ -164,12 +165,12 @@ async fn test_openrouter_client_prompt_builder_trait() {
     };
 
     let prompt = client.build_analysis_prompt(&analysis_request);
-    assert!(prompt.contains("ID:file_video2"));
-    assert!(prompt.contains("ID:file_sub2"));
+    assert!(prompt.contains("id=\"file_video2\""));
+    assert!(prompt.contains("id=\"file_sub2\""));
     assert!(prompt.contains("episode1.mkv"));
     assert!(prompt.contains("episode1.srt"));
-    assert!(prompt.contains("Video files:"));
-    assert!(prompt.contains("Subtitle files:"));
+    assert!(prompt.contains("<video_files>"));
+    assert!(prompt.contains("<subtitle_files>"));
 
     // Test build_verification_prompt trait method
     let verification_request = VerificationRequest {
@@ -186,11 +187,11 @@ async fn test_openrouter_client_prompt_builder_trait() {
     // Test system messages
     assert_eq!(
         OpenRouterClient::get_analysis_system_message(),
-        "You are a professional subtitle matching assistant that can analyze the correspondence between video and subtitle files."
+        "You are an expert subtitle-matching assistant."
     );
     assert_eq!(
         OpenRouterClient::get_verification_system_message(),
-        "Please evaluate the confidence level of subtitle matching and provide a score between 0-1."
+        "You are an expert subtitle-matching verifier."
     );
 }
 
@@ -283,6 +284,7 @@ async fn test_azure_openai_client_prompt_builder_trait() {
             "ID:file_azure_sub1 | Name:azure_test.srt | Path:/azure/azure_test.srt".to_string(),
         ],
         content_samples: vec![ContentSample {
+            subtitle_file_id: "sub_id".to_string(),
             filename: "azure_test.srt".to_string(),
             content_preview: "Azure OpenAI test subtitle".to_string(),
             file_size: 1024,
@@ -290,10 +292,10 @@ async fn test_azure_openai_client_prompt_builder_trait() {
     };
 
     let prompt = client.build_analysis_prompt(&analysis_request);
-    assert!(prompt.contains("ID:file_azure1"));
-    assert!(prompt.contains("ID:file_azure_sub1"));
+    assert!(prompt.contains("id=\"file_azure1\""));
+    assert!(prompt.contains("id=\"file_azure_sub1\""));
     assert!(prompt.contains("Azure OpenAI test subtitle"));
-    assert!(prompt.contains("Video files:"));
+    assert!(prompt.contains("<video_files>"));
 
     // Test build_verification_prompt trait method
     let verification_request = VerificationRequest {
@@ -310,11 +312,11 @@ async fn test_azure_openai_client_prompt_builder_trait() {
     // Test system messages
     assert_eq!(
         AzureOpenAIClient::get_analysis_system_message(),
-        "You are a professional subtitle matching assistant that can analyze the correspondence between video and subtitle files."
+        "You are an expert subtitle-matching assistant."
     );
     assert_eq!(
         AzureOpenAIClient::get_verification_system_message(),
-        "Please evaluate the confidence level of subtitle matching and provide a score between 0-1."
+        "You are an expert subtitle-matching verifier."
     );
 }
 

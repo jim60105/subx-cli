@@ -403,7 +403,13 @@ trailing slash.
 `OpenRouterClient`:
 
 - `PromptBuilder` from `src/services/ai/prompts.rs` for `analyze_content`
-  and `verify_match` prompt construction.
+  and `verify_match` prompt construction. The analysis prompt is an
+  XML-tagged document (`<role>`, `<instructions>`, `<video_files>`,
+  `<subtitle_files>`, `<content_samples>`, `<output_schema>`,
+  `<example>`) and asks the model to return optional `language` and
+  `target_filename_suffix` fields per match — these drive AI-aware
+  output filenames such as `movie.tc.srt` / `movie.sc.srt` and
+  participate in the matcher's global uniqueness allocator.
 - `ResponseParser` (same module) for parsing the OpenAI-canonical response
   envelope into `MatchResult` / `ConfidenceScore`.
 - `HttpRetryClient` from `src/services/ai/retry.rs` for exponential-backoff

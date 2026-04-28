@@ -95,8 +95,8 @@ async fn test_multiple_files_rename_to_same_target_with_auto_rename() {
     // Verify that the target files were created with proper conflict resolution
     let expected_targets = vec![
         video_dir.join("movie.srt"),   // First file gets the base name
-        video_dir.join("movie.1.srt"), // Second file gets .1 suffix
-        video_dir.join("movie.2.srt"), // Third file gets .2 suffix
+        video_dir.join("movie.2.srt"), // Second file: allocator starts at .2
+        video_dir.join("movie.3.srt"), // Third file: next free number
     ];
 
     for (i, target_path) in expected_targets.iter().enumerate() {
@@ -323,7 +323,7 @@ async fn test_move_mode_with_duplicate_rename_conflicts() {
     );
 
     // Verify target files exist with conflict resolution naming
-    let target_files = vec![video_dir.join("movie.srt"), video_dir.join("movie.1.srt")];
+    let target_files = vec![video_dir.join("movie.srt"), video_dir.join("movie.2.srt")];
 
     for target_path in &target_files {
         assert!(
@@ -379,16 +379,16 @@ async fn mount_filename_filtered_video_to_subs_mock(
                 .and_then(|c| c.as_str())
                 .unwrap_or("");
             // Each entry looks like:
-            // - ID:file_<uuid> | Name:<filename> | Path:<path>
+            // <file id="file_<uuid>" name="<filename>" path="<path>"/>
             let entry_re = regex::Regex::new(
-                r"ID:(file_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[0-9a-f]{4}-[0-9a-f]{12}) \| Name:([^|]+?) \| Path:",
+                r#"<file id="(file_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[0-9a-f]{4}-[0-9a-f]{12})" name="([^"]+)""#,
             )
             .unwrap();
             let mut entries: Vec<(String, String)> = Vec::new();
             for cap in entry_re.captures_iter(prompt) {
                 entries.push((cap[1].to_string(), cap[2].trim().to_string()));
             }
-            let video_section_end = prompt.find("\nSubtitle files:\n").unwrap_or(prompt.len());
+            let video_section_end = prompt.find("</video_files>").unwrap_or(prompt.len());
             let video_id = entries
                 .iter()
                 .find(|(id, _)| {
