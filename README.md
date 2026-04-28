@@ -135,14 +135,26 @@ and downloads the matching pre-built binary from the latest GitHub Release.
 | Windows  | x86_64       | —      | `subx-windows-x86_64.exe`   | 64-bit Windows |
 
 > **Note on musl / Alpine:** Static musl artifacts (`subx-linux-*-musl`)
-> are not currently published. The upstream ONNX Runtime distribution
-> consumed by SubX-CLI's voice-activity-detection support does not ship
-> precompiled musl binaries, and building it from source on each release
-> is out of scope. Alpine and other musl-based distros should install
-> from source (`cargo install subx-cli`) or run the gnu binary inside a
+> are not published, and the script installer rejects musl with exit
+> code 2. SubX-CLI's voice-activity-detection feature links ONNX Runtime
+> via [`ort`], whose default `download-binaries` feature has no musl
+> prebuilts upstream; building ONNX Runtime from source on each release
+> is out of scope. Users on Alpine and other musl-based distros need
+> to provision a musl-compatible ONNX Runtime themselves (e.g., from
+> distro packages or built from source) and point `ort` at it via
+> `ORT_LIB_LOCATION` before running `cargo install subx-cli`. Plain
+> `cargo install subx-cli` will *not* succeed on musl without that
+> setup. The simplest alternative is to run the gnu binary inside a
 > glibc-compatible container.
+>
+> [`ort`]: https://crates.io/crates/ort
 
 ### From Source (any platform)
+
+> Building from source on **musl-based distros** (Alpine, etc.) requires
+> the `ORT_LIB_LOCATION` setup described in the **Note on musl / Alpine**
+> above. The bare `cargo install subx-cli` and `cargo build --release`
+> commands below assume a glibc host.
 
 ```bash
 # From crates.io

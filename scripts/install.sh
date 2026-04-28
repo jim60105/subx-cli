@@ -208,9 +208,16 @@ musl_unsupported_exit() {
         echo
         echo "Upstream ONNX Runtime does not ship musl prebuilts, so the"
         echo "release pipeline cannot produce statically-linked musl"
-        echo "binaries. To install on Alpine and other musl distros:"
+        echo "binaries. To install on Alpine and other musl distros you"
+        echo "need a locally provisioned, musl-compatible ONNX Runtime"
+        echo "(e.g., from distro packages or built from source). Then:"
         echo
+        echo "    export ORT_LIB_LOCATION=/path/to/musl/onnxruntime/lib"
         echo "    cargo install subx-cli"
+        echo
+        echo "Plain 'cargo install subx-cli' (without ORT_LIB_LOCATION)"
+        echo "will NOT work, because ort's default 'download-binaries'"
+        echo "feature also has no musl prebuilts."
         echo
         echo "Or run the gnu artifact inside a glibc-compatible container."
     } >&2

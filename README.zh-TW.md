@@ -110,13 +110,24 @@ chmod +x subx-cli && sudo mv subx-cli /usr/local/bin/
 | macOS   | aarch64  | —      | `subx-macos-aarch64`        | Apple Silicon（M1/M2/M3/M4） |
 | Windows | x86_64   | —      | `subx-windows-x86_64.exe`   | 64 位元 Windows |
 
-> **關於 musl／Alpine：** 目前不提供靜態 musl 版本（`subx-linux-*-musl`）。
-> SubX-CLI 透過 ONNX Runtime 提供語音活動偵測功能，而上游並未提供 musl 平台的
-> 預編譯二進位，從原始碼逐次建置 ONNX Runtime 不在本發行流程的範圍內。
-> Alpine 等 musl 系統建議改用原始碼安裝（`cargo install subx-cli`），
-> 或在 glibc 相容的容器內執行 gnu 版本。
+> **關於 musl／Alpine：** 不提供靜態 musl 版本（`subx-linux-*-musl`），
+> 安裝腳本若收到 musl 請求會以結束碼 2 拒絕。SubX-CLI 透過 [`ort`] 連結
+> ONNX Runtime 來提供語音活動偵測，而 `ort` 預設的 `download-binaries`
+> 功能在上游沒有 musl 預編譯二進位；從原始碼逐次建置 ONNX Runtime 不在
+> 本發行流程的範圍內。Alpine 等 musl 使用者必須自行準備 musl 相容的
+> ONNX Runtime（例如從發行版套件安裝或自行編譯），並在執行
+> `cargo install subx-cli` 之前透過 `ORT_LIB_LOCATION` 指向它。
+> *未經設定即直接執行* `cargo install subx-cli` 在 musl 上不會成功。
+> 較簡單的替代方案是在 glibc 相容的容器內執行 gnu 版本。
+>
+> [`ort`]: https://crates.io/crates/ort
 
 ### 從原始碼建構（所有平台）
+
+> 在 **musl 為基底的發行版**（Alpine 等）上從原始碼建構，必須先完成上方
+>「musl / Alpine 注意事項」中描述的 `ORT_LIB_LOCATION` 設定。下方未經
+> 額外設定的 `cargo install subx-cli` 與 `cargo build --release` 指令僅適
+> 用於 glibc 主機。
 
 ```bash
 # 從 crates.io 安裝
