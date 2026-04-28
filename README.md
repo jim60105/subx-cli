@@ -126,35 +126,15 @@ chmod +x subx-cli && sudo mv subx-cli /usr/local/bin/
 The installer auto-detects the host operating system and CPU architecture
 and downloads the matching pre-built binary from the latest GitHub Release.
 
-| Platform | Architecture | libc   | Asset name                  | Notes |
-|----------|--------------|--------|-----------------------------|-------|
-| Linux    | x86_64       | gnu    | `subx-linux-x86_64`         | Default for x86_64 Linux |
-| Linux    | aarch64      | gnu    | `subx-linux-aarch64`        | Default for ARM64 Linux (Raspberry Pi 4/5, AWS Graviton, Oracle Ampere, ARM64 containers) |
-| macOS    | x86_64       | —      | `subx-macos-x86_64`         | Intel Macs |
-| macOS    | aarch64      | —      | `subx-macos-aarch64`        | Apple Silicon (M1/M2/M3/M4) |
-| Windows  | x86_64       | —      | `subx-windows-x86_64.exe`   | 64-bit Windows |
-
-> **Note on musl / Alpine:** Static musl artifacts (`subx-linux-*-musl`)
-> are not published, and the script installer rejects musl with exit
-> code 2. SubX-CLI's voice-activity-detection feature links ONNX Runtime
-> via [`ort`], whose default `download-binaries` feature has no musl
-> prebuilts upstream; building ONNX Runtime from source on each release
-> is out of scope. Users on Alpine and other musl-based distros need
-> to provision a musl-compatible ONNX Runtime themselves (e.g., from
-> distro packages or built from source) and point `ort` at it via
-> `ORT_LIB_LOCATION` before running `cargo install subx-cli`. Plain
-> `cargo install subx-cli` will *not* succeed on musl without that
-> setup. The simplest alternative is to run the gnu binary inside a
-> glibc-compatible container.
->
-> [`ort`]: https://crates.io/crates/ort
+| Platform | Architecture | Asset name                  | Notes |
+|----------|--------------|-----------------------------|-------|
+| Linux    | x86_64       | `subx-linux-x86_64`         | x86_64 Linux |
+| Linux    | aarch64      | `subx-linux-aarch64`        | ARM64 Linux (Raspberry Pi 4/5, AWS Graviton, Oracle Ampere, ARM64 containers) |
+| macOS    | x86_64       | `subx-macos-x86_64`         | Intel Macs |
+| macOS    | aarch64      | `subx-macos-aarch64`        | Apple Silicon (M1/M2/M3/M4) |
+| Windows  | x86_64       | `subx-windows-x86_64.exe`   | 64-bit Windows |
 
 ### From Source (any platform)
-
-> Building from source on **musl-based distros** (Alpine, etc.) requires
-> the `ORT_LIB_LOCATION` setup described in the **Note on musl / Alpine**
-> above. The bare `cargo install subx-cli` and `cargo build --release`
-> commands below assume a glibc host.
 
 ```bash
 # From crates.io
