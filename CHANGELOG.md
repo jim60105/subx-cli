@@ -8,6 +8,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.8.0] - 2026-07-24
+
 ### Changed
 - AI-powered subtitle matching now produces better filenames out of the box. The model can now tag matches with their language (e.g. `movie.tc.srt` for Traditional Chinese, `movie.en.srt` for English), and SubX-CLI guarantees no two subtitles in the same batch get renamed to the same file — duplicates are automatically suffixed (`movie.srt`, `movie.2.srt`, `movie.3.srt`).
 
@@ -514,7 +516,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Initial release of SubX CLI tool
 - Rust-based intelligent subtitle processing
 
-[Unreleased]: https://github.com/jim60105/subx-cli/compare/v1.7.4...HEAD
+[Unreleased]: https://github.com/jim60105/subx-cli/compare/v1.8.0...HEAD
+[1.8.0]: https://github.com/jim60105/subx-cli/compare/v1.7.4...v1.8.0
 [1.7.4]: https://github.com/jim60105/subx-cli/compare/v1.7.3...v1.7.4
 [1.7.3]: https://github.com/jim60105/subx-cli/compare/v1.7.2...v1.7.3
 [1.7.2]: https://github.com/jim60105/subx-cli/compare/v1.7.1...v1.7.2
