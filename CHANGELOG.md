@@ -8,6 +8,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.9.0] - 2026-08-26
+
+### Added
+- Config-load diagnostics: SubX-CLI now logs which configuration sources (default file, user file, and environment variables) contributed to the merged configuration, together with the masked API key. This lets users trace a problematic value (e.g. an `http://` base URL from the shell environment) back to its origin.
+
+### Changed
+- Improved CLI integration-test isolation so that AI-provider environment variables exported in a developer's shell no longer leak into the test runs.
+- Fixed a false positive in the quality-check script's doc-generation check, which no longer fails on the `proc-macro-error2` package-name warning.
+
 ## [1.8.0] - 2026-07-24
 
 ### Changed
@@ -516,7 +525,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Initial release of SubX CLI tool
 - Rust-based intelligent subtitle processing
 
-[Unreleased]: https://github.com/jim60105/subx-cli/compare/v1.8.0...HEAD
+[Unreleased]: https://github.com/jim60105/subx-cli/compare/v1.9.0...HEAD
+[1.9.0]: https://github.com/jim60105/subx-cli/compare/v1.8.0...v1.9.0
 [1.8.0]: https://github.com/jim60105/subx-cli/compare/v1.7.4...v1.8.0
 [1.7.4]: https://github.com/jim60105/subx-cli/compare/v1.7.3...v1.7.4
 [1.7.3]: https://github.com/jim60105/subx-cli/compare/v1.7.2...v1.7.3
