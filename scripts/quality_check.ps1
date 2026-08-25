@@ -234,10 +234,12 @@ try {
 
     $docLines = Get-Content -LiteralPath $docOut.FullName
 
-    # Match the Bash filter: lines containing "error", excluding the known
-    # `warning[E0602]: unknown lint` noise.
+    # Match the Bash filter: only lines that start with a genuine rustc/cargo
+    # error line (error[...] or error: ...), excluding the known
+    # `warning[E0602]: unknown lint` noise. Substring matches such as the
+    # `proc-macro-error2` future-incompat warning must not trigger a failure.
     $criticalErrors = $docLines | Where-Object {
-        ($_ -match 'error') -and ($_ -notmatch 'warning\[E0602\]: unknown lint')
+        ($_ -match '^error(\[|:)') -and ($_ -notmatch 'warning\[E0602\]: unknown lint')
     }
 
     if ($criticalErrors) {
