@@ -255,8 +255,12 @@ main() {
         cargo doc --all-features ${cargo_features} --no-deps --document-private-items > "$doc_output" 2>&1
     fi
 
-    # Check for critical errors (excluding known lint warnings)
-    if grep -E "(error)" "$doc_output" | grep -v "warning\[E0602\]: unknown lint"; then
+    # Check for critical errors (excluding known lint warnings).
+    # Match only genuine rustc/cargo error lines (which start with `error`),
+    # so the future-incompat warning about the `proc-macro-error2` package
+    # name (which merely contains the substring "error") does not trigger a
+    # false-positive failure.
+    if grep -E "^error(\[|:)" "$doc_output" | grep -v "warning\[E0602\]: unknown lint"; then
         print_status "$RED" "❌ Documentation Generation Check: Critical errors found"
         failed_checks=$((failed_checks + 1))
     else
