@@ -58,6 +58,23 @@ fn isolated_cmd(workdir: &std::path::Path) -> Command {
         .env("HOME", workdir)
         .env_remove("SUBX_OUTPUT")
         .env("SUBX_GENERAL_ENABLE_PROGRESS_BAR", "false")
+        // Isolate from the developer's shell: the AI-provider env vars
+        // (e.g. `OPENAI_BASE_URL=http://...`) must not leak in, otherwise
+        // the strict config gate (hosted provider + `http://` base URL)
+        // rejects the merged config and the CLI exits with a config error.
+        .env_remove("OPENAI_API_KEY")
+        .env_remove("OPENAI_BASE_URL")
+        .env_remove("OPENROUTER_API_KEY")
+        .env_remove("AZURE_OPENAI_API_KEY")
+        .env_remove("AZURE_OPENAI_ENDPOINT")
+        .env_remove("AZURE_OPENAI_API_VERSION")
+        .env_remove("AZURE_OPENAI_DEPLOYMENT_ID")
+        .env_remove("LOCAL_LLM_BASE_URL")
+        .env_remove("LOCAL_LLM_API_KEY")
+        .env_remove("SUBX_AI_PROVIDER")
+        .env_remove("SUBX_AI_APIKEY")
+        .env_remove("SUBX_AI_BASE_URL")
+        .env_remove("SUBX_AI_MODEL")
         .current_dir(workdir)
         .timeout(std::time::Duration::from_secs(30));
     cmd
