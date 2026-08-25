@@ -431,6 +431,51 @@ impl ProductionConfigService {
                 crate::config::field_validator::normalize_ai_provider(&app_config.ai.provider);
         }
 
+        // Diagnostic logging: record which configuration sources (default
+        // file, user file, environment variables) contributed to the merged
+        // configuration, so a problematic value (e.g. an `http://` base URL
+        // that came from the user's shell environment) can be traced to its
+        // origin. Only variable *names* and the masked key cross this log
+        // line — the raw API key string must never be written to the logs.
+        let config_path = self.get_config_file_path()?;
+        let present_vars: Vec<&str> = [
+            "SUBX_AI_PROVIDER",
+            "SUBX_AI_APIKEY",
+            "SUBX_AI_BASE_URL",
+            "SUBX_AI_MODEL",
+            "OPENAI_API_KEY",
+            "OPENAI_BASE_URL",
+            "OPENROUTER_API_KEY",
+            "AZURE_OPENAI_API_KEY",
+            "AZURE_OPENAI_ENDPOINT",
+            "AZURE_OPENAI_API_VERSION",
+            "AZURE_OPENAI_DEPLOYMENT_ID",
+            "LOCAL_LLM_BASE_URL",
+            "LOCAL_LLM_API_KEY",
+        ]
+        .iter()
+        .filter(|name| self.env_provider.get_var(name).is_some())
+        .cloned()
+        .collect();
+        let masked_key = app_config
+            .ai
+            .api_key
+            .as_deref()
+            .map(|key| crate::config::mask_sensitive_value("ai.api_key", key))
+            .unwrap_or_default();
+
+        debug!(
+            "ProductionConfigService::load_and_validate: config file path = {}; \
+             contributed env vars: [{}]; ai.api_key = {}",
+            config_path.display(),
+            present_vars.join(", "),
+            if masked_key.is_empty() {
+                "unset".to_string()
+            } else {
+                masked_key
+            },
+        );
+
         // Validate the configuration
         crate::config::validator::validate_config(&app_config).map_err(|e| {
             debug!("ProductionConfigService: Config validation failed: {e}");
@@ -1186,6 +1231,12 @@ mod tests {
         // Test OPENAI_BASE_URL environment variable loading
         let mut env_provider = TestEnvironmentProvider::new();
         env_provider.set_var("OPENAI_BASE_URL", "https://test.openai.com/v1");
+        // Use a non-existent config path to avoid interference from the
+        // developer's real config file (test isolation).
+        env_provider.set_var(
+            "SUBX_CONFIG_PATH",
+            "/tmp/test_config_base_url_that_does_not_exist.toml",
+        );
 
         let service = ProductionConfigService::with_env_provider(Arc::new(env_provider))
             .expect("Failed to create config service");
@@ -2402,6 +2453,126 @@ mod tests {
             service.get_config_value("ai.provider").unwrap(),
             "local",
             "persisted ai.provider must be the canonical form"
+        );
+    }
+
+    /// Minimal `log::Log` collector used by the diagnostic-log tests.
+    ///
+    /// `log::Log::log` takes `&self`, so the captured lines live behind a
+    /// mutex the logger can write to without mutation.
+    struct LogCapture {
+        lines: std::sync::Mutex<Vec<String>>,
+    }
+
+    impl LogCapture {
+        fn new() -> Self {
+            Self {
+                lines: std::sync::Mutex::new(Vec::new()),
+            }
+        }
+
+        fn text(&self) -> String {
+            self.lines.lock().unwrap().join("\n")
+        }
+    }
+
+    impl log::Log for LogCapture {
+        fn enabled(&self, _metadata: &log::Metadata) -> bool {
+            true
+        }
+
+        fn log(&self, record: &log::Record) {
+            let mut line = String::new();
+            use std::fmt::Write;
+            let _ = write!(&mut line, "{}", record.args());
+            self.lines
+                .lock()
+                .unwrap()
+                .push(format!("[{}] {}", record.level(), line));
+        }
+
+        fn flush(&self) {}
+    }
+
+    /// Delegates to a shared `Arc<LogCapture>` so the boxed logger and the
+    /// test's assertions observe the same captured lines.
+    struct ArcLog(Arc<LogCapture>);
+
+    impl log::Log for ArcLog {
+        fn enabled(&self, _metadata: &log::Metadata) -> bool {
+            self.0.enabled(_metadata)
+        }
+
+        fn log(&self, record: &log::Record) {
+            log::Log::log(&self.0, record);
+        }
+
+        fn flush(&self) {
+            self.0.flush();
+        }
+    }
+
+    /// A successful tolerant read (`load_for_repair`) must not populate the
+    /// strict-config cache: the tolerant value feeds only the settings-repair
+    /// path, and an unvalidated config must not reach
+    /// `ComponentFactory::create_ai_provider` (defense in depth around the
+    /// hosted-provider HTTPS rule).
+    #[test]
+    fn a_successful_tolerant_read_does_not_populate_the_strict_cache() {
+        let (mut env, _dir) = env_with_isolated_config();
+        // Hosted provider (default `openai`) + an `http://` base URL from the
+        // environment: the exact scenario where the strict gate must still
+        // hold after a tolerant read.
+        env.set_var("OPENAI_BASE_URL", "http://localhost:11434/v1");
+        let service = ProductionConfigService::with_env_provider(Arc::new(env)).unwrap();
+
+        service
+            .load_for_repair()
+            .expect("the tolerant read must succeed on a fresh install");
+
+        assert!(
+            service.reload().is_err(),
+            "a successful tolerant read must not satisfy the strict gate"
+        );
+    }
+
+    /// The diagnostic log names the contributing environment variables and the
+    /// resolved config path, but the raw API key string must never be written
+    /// to the logs — only its masked form may appear.
+    #[test]
+    fn the_diagnostic_log_names_sources_but_never_the_raw_key() {
+        let capture = Arc::new(LogCapture::new());
+        let _ = log::set_boxed_logger(Box::new(ArcLog(capture.clone())));
+        // The `debug!` macro is gated on the runtime max level (default `Off`);
+        // raise it so the diagnostic record actually reaches the capture logger.
+        log::set_max_level(log::LevelFilter::Trace);
+
+        let (mut env, _dir) = env_with_isolated_config();
+        env.set_var("SUBX_AI_APIKEY", "sk-super-secret-1234");
+        env.set_var("OPENAI_BASE_URL", "http://localhost:11434/v1");
+        let service = ProductionConfigService::with_env_provider(Arc::new(env)).unwrap();
+
+        // The strict read fails (hosted provider + http URL), but the
+        // diagnostic line is emitted before validation — exactly the scenario
+        // the diagnostics exist to explain.
+        let _ = service.get_config();
+
+        let all = capture.text();
+        assert!(
+            !all.contains("sk-super-secret-1234"),
+            "the raw API key must not be written to the logs: {all}"
+        );
+        assert!(
+            all.contains("****1234"),
+            "the masked key form should appear: {all}"
+        );
+        assert!(
+            all.contains("OPENAI_BASE_URL"),
+            "the contributing variable name should be named: {all}"
+        );
+        assert!(
+            all.contains("SUBX_AI_APIKEY"),
+            "the SUBX-prefixed key variable should be named: {all}"
         );
     }
 }
