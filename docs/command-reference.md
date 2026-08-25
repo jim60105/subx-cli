@@ -65,7 +65,7 @@ Supported formats:
 | Format | Extension(s) | Notes |
 |---|---|---|
 | ZIP | `.zip` | Always available (pure Rust) |
-| 7-Zip | `.7z` | Always available (pure Rust via `sevenz-rust`) |
+| 7-Zip | `.7z` | Always available (pure Rust via `sevenz-rust2`) |
 | Tar-Gzip | `.tar.gz`, `.tgz` | Always available (pure Rust via `tar` + `flate2`) |
 | RAR | `.rar` | Requires the `archive-rar` feature flag (links native `libunrar`) |
 

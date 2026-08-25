@@ -8,6 +8,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+- Migrated 7-Zip extraction from the abandoned `sevenz-rust` crate to the maintained `sevenz-rust2` crate, resolving a path-traversal advisory (RUSTSEC-2026-0245) flagged by `cargo audit`.
+- Bumped transitive dependencies (`crossbeam-epoch`, `h2`) to versions without known security advisories, keeping the CI security audit clean.
+
 ## [1.9.0] - 2026-08-26
 
 ### Added

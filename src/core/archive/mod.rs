@@ -22,7 +22,7 @@
 //! |----------------------|----------|-------------------------|--------------|
 //! | `.zip`               | `zip`    | `zip`                   | always-on    |
 //! | `.rar`               | `rar`    | `unrar` / `unrar_sys`   | `archive-rar`|
-//! | `.7z`                | `sevenz` | `sevenz-rust`           | always-on    |
+//! | `.7z`                | `sevenz` | `sevenz-rust2`          | always-on    |
 //! | `.tar.gz` / `.tgz`   | `targz`  | `tar` + `flate2`        | always-on    |
 //!
 //! # Security

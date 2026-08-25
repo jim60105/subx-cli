@@ -457,12 +457,10 @@ fn test_tgz_input_produces_extracted_files() {
 
 /// Helper: create a 7z archive at `seven_z_path` with the given `(name, content)` entries.
 fn create_7z(seven_z_path: &Path, entries: &[(&str, &[u8])]) {
-    let mut writer = sevenz_rust::SevenZWriter::create(seven_z_path).unwrap();
+    let mut writer = sevenz_rust2::ArchiveWriter::create(seven_z_path).unwrap();
     for (name, content) in entries {
-        let entry = sevenz_rust::SevenZArchiveEntry::from_path(
-            std::path::Path::new(name),
-            name.to_string(),
-        );
+        let entry =
+            sevenz_rust2::ArchiveEntry::from_path(std::path::Path::new(name), name.to_string());
         writer
             .push_archive_entry(entry, Some(std::io::Cursor::new(content)))
             .unwrap();

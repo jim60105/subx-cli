@@ -10,7 +10,7 @@ use super::common::{ExtractionLimits, validate_entry_path};
 
 /// Extracts a 7-Zip archive to `dest_dir`.
 ///
-/// Uses the `sevenz-rust` crate for pure-Rust 7z decompression with
+/// Uses the `sevenz-rust2` crate for pure-Rust 7z decompression with
 /// entry-by-entry callback extraction. Validates each entry against
 /// path traversal, rejects directories and anti-items inline, and
 /// enforces decompression bomb limits via [`ExtractionLimits`].
@@ -18,64 +18,71 @@ pub(super) fn extract_7z(archive_path: &Path, dest_dir: &Path) -> io::Result<Vec
     let mut extracted_paths: Vec<PathBuf> = Vec::new();
     let mut limits = ExtractionLimits::new(archive_path);
 
-    sevenz_rust::decompress_file_with_extract_fn(archive_path, dest_dir, |entry, reader, _dest| {
-        if entry.is_directory || entry.is_anti_item {
-            return Ok(true);
-        }
+    sevenz_rust2::decompress_file_with_extract_fn(
+        archive_path,
+        dest_dir,
+        |entry, reader, _dest| {
+            if entry.is_directory() || entry.is_anti_item() {
+                return Ok(true);
+            }
 
-        // Reject reparse points (Windows symlinks)
-        if entry.has_windows_attributes && entry.windows_attributes & 0x0400 != 0 {
-            warn!(
-                "Skipping reparse-point entry in archive {}: {}",
-                archive_path.display(),
-                entry.name
-            );
-            return Ok(true);
-        }
-
-        limits
-            .check_entry(entry.size)
-            .map_err(|e| sevenz_rust::Error::Other(std::borrow::Cow::Owned(e.to_string())))?;
-
-        let entry_path = Path::new(&entry.name);
-        let target_path = match validate_entry_path(dest_dir, entry_path) {
-            Some(p) => p,
-            None => {
+            // Reject reparse points (Windows symlinks)
+            if entry.has_windows_attributes && entry.windows_attributes & 0x0400 != 0 {
                 warn!(
-                    "Skipping path-traversal entry in archive {}: {}",
+                    "Skipping reparse-point entry in archive {}: {}",
                     archive_path.display(),
-                    entry.name
+                    entry.name()
                 );
                 return Ok(true);
             }
-        };
 
-        if let Some(parent) = target_path.parent() {
-            fs::create_dir_all(parent).map_err(|e| {
-                sevenz_rust::Error::Io(e, format!("creating parent dir for {}", entry.name).into())
+            limits
+                .check_entry(entry.size())
+                .map_err(|e| sevenz_rust2::Error::Other(std::borrow::Cow::Owned(e.to_string())))?;
+
+            let entry_path = Path::new(entry.name());
+            let target_path = match validate_entry_path(dest_dir, entry_path) {
+                Some(p) => p,
+                None => {
+                    warn!(
+                        "Skipping path-traversal entry in archive {}: {}",
+                        archive_path.display(),
+                        entry.name()
+                    );
+                    return Ok(true);
+                }
+            };
+
+            if let Some(parent) = target_path.parent() {
+                fs::create_dir_all(parent).map_err(|e| {
+                    sevenz_rust2::Error::Io(
+                        e,
+                        format!("creating parent dir for {}", entry.name()).into(),
+                    )
+                })?;
+            }
+
+            let mut outfile = fs::File::create(&target_path).map_err(|e| {
+                sevenz_rust2::Error::Io(e, format!("creating {}", target_path.display()).into())
             })?;
-        }
+            io::copy(reader, &mut outfile).map_err(|e| {
+                sevenz_rust2::Error::Io(e, format!("writing {}", target_path.display()).into())
+            })?;
 
-        let mut outfile = fs::File::create(&target_path).map_err(|e| {
-            sevenz_rust::Error::Io(e, format!("creating {}", target_path.display()).into())
-        })?;
-        io::copy(reader, &mut outfile).map_err(|e| {
-            sevenz_rust::Error::Io(e, format!("writing {}", target_path.display()).into())
-        })?;
-
-        debug!("Extracted: {}", target_path.display());
-        extracted_paths.push(target_path);
-        Ok(true)
-    })
+            debug!("Extracted: {}", target_path.display());
+            extracted_paths.push(target_path);
+            Ok(true)
+        },
+    )
     .map_err(|e| match e {
-        sevenz_rust::Error::PasswordRequired => io::Error::new(
+        sevenz_rust2::Error::PasswordRequired => io::Error::new(
             io::ErrorKind::PermissionDenied,
             format!(
                 "7z archive is password-protected: {}",
                 archive_path.display()
             ),
         ),
-        sevenz_rust::Error::Io(io_err, ctx) => {
+        sevenz_rust2::Error::Io(io_err, ctx) => {
             io::Error::new(io_err.kind(), format!("{ctx}: {io_err}"))
         }
         other => io::Error::new(
@@ -116,11 +123,9 @@ mod tests {
         let tmp = tempfile::tempdir().unwrap();
         let seven_z_path = tmp.path().join("test.7z");
 
-        let mut writer = sevenz_rust::SevenZWriter::create(&seven_z_path).unwrap();
-        let entry = sevenz_rust::SevenZArchiveEntry::from_path(
-            Path::new("hello.srt"),
-            "hello.srt".to_string(),
-        );
+        let mut writer = sevenz_rust2::ArchiveWriter::create(&seven_z_path).unwrap();
+        let entry =
+            sevenz_rust2::ArchiveEntry::from_path(Path::new("hello.srt"), "hello.srt".to_string());
         writer
             .push_archive_entry(entry, Some(std::io::Cursor::new(b"content")))
             .unwrap();
@@ -139,7 +144,7 @@ mod tests {
         let tmp = tempfile::tempdir().unwrap();
         let seven_z_path = tmp.path().join("empty.7z");
 
-        let writer = sevenz_rust::SevenZWriter::create(&seven_z_path).unwrap();
+        let writer = sevenz_rust2::ArchiveWriter::create(&seven_z_path).unwrap();
         writer.finish().unwrap();
 
         let dest = tmp.path().join("extracted");
@@ -154,20 +159,18 @@ mod tests {
         let tmp = tempfile::tempdir().unwrap();
         let seven_z_path = tmp.path().join("malicious.7z");
 
-        let mut writer = sevenz_rust::SevenZWriter::create(&seven_z_path).unwrap();
+        let mut writer = sevenz_rust2::ArchiveWriter::create(&seven_z_path).unwrap();
 
         // Malicious entry with path traversal
-        let mut bad_entry = sevenz_rust::SevenZArchiveEntry::default();
+        let mut bad_entry = sevenz_rust2::ArchiveEntry::default();
         bad_entry.name = "../../etc/passwd".to_string();
         writer
             .push_archive_entry(bad_entry, Some(std::io::Cursor::new(b"malicious")))
             .unwrap();
 
         // Valid entry
-        let good_entry = sevenz_rust::SevenZArchiveEntry::from_path(
-            Path::new("valid.srt"),
-            "valid.srt".to_string(),
-        );
+        let good_entry =
+            sevenz_rust2::ArchiveEntry::from_path(Path::new("valid.srt"), "valid.srt".to_string());
         writer
             .push_archive_entry(good_entry, Some(std::io::Cursor::new(b"valid")))
             .unwrap();
@@ -177,9 +180,16 @@ mod tests {
         let dest = tmp.path().join("extracted");
         fs::create_dir_all(&dest).unwrap();
 
-        let result = extract_7z(&seven_z_path, &dest).unwrap();
-        assert_eq!(result.len(), 1);
-        assert!(dest.join("valid.srt").exists());
+        // The sevenz-rust2 `safe_join` validation rejects the traversal entry
+        // fail-fast, so the whole extraction now errors instead of skipping.
+        let result = extract_7z(&seven_z_path, &dest);
+        assert!(result.is_err());
+        assert!(
+            result
+                .unwrap_err()
+                .to_string()
+                .contains("unsafe entry path")
+        );
     }
 
     #[test]
@@ -188,10 +198,14 @@ mod tests {
 
         let tmp = tempfile::tempdir().unwrap();
         let seven_z_path = tmp.path().join("many.7z");
-
-        let mut writer = sevenz_rust::SevenZWriter::create(&seven_z_path).unwrap();
+        let mut writer = sevenz_rust2::ArchiveWriter::create(&seven_z_path).unwrap();
+        // Use the COPY (store) method so creating 10,001 entries stays fast
+        // instead of running LZMA2 compression per entry.
+        writer.set_content_methods(vec![sevenz_rust2::EncoderConfiguration::new(
+            sevenz_rust2::EncoderMethod::COPY,
+        )]);
         for i in 0..=MAX_ENTRY_COUNT {
-            let entry = sevenz_rust::SevenZArchiveEntry::from_path(
+            let entry = sevenz_rust2::ArchiveEntry::from_path(
                 Path::new(&format!("file_{i}.txt")),
                 format!("file_{i}.txt"),
             );
