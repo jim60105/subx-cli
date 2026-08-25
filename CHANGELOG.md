@@ -8,9 +8,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.9.1] - 2026-08-26
+
 ### Changed
 - Migrated 7-Zip extraction from the abandoned `sevenz-rust` crate to the maintained `sevenz-rust2` crate, resolving a path-traversal advisory (RUSTSEC-2026-0245) flagged by `cargo audit`.
 - Bumped transitive dependencies (`crossbeam-epoch`, `h2`) to versions without known security advisories, keeping the CI security audit clean.
+- Fixed a false positive in the Windows quality-check script's doc-generation check by aligning its error-line filter with the Unix script, so the `proc-macro-error2` package-name warning no longer fails the Windows CI run.
 
 ## [1.9.0] - 2026-08-26
 
@@ -529,7 +532,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Initial release of SubX CLI tool
 - Rust-based intelligent subtitle processing
 
-[Unreleased]: https://github.com/jim60105/subx-cli/compare/v1.9.0...HEAD
+[Unreleased]: https://github.com/jim60105/subx-cli/compare/v1.9.1...HEAD
+[1.9.1]: https://github.com/jim60105/subx-cli/compare/v1.9.0...v1.9.1
 [1.9.0]: https://github.com/jim60105/subx-cli/compare/v1.8.0...v1.9.0
 [1.8.0]: https://github.com/jim60105/subx-cli/compare/v1.7.4...v1.8.0
 [1.7.4]: https://github.com/jim60105/subx-cli/compare/v1.7.3...v1.7.4
