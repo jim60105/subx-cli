@@ -1,0 +1,78 @@
+> Line references are against the working tree at `b9de1f7`. A1
+> (`decouple-core-from-terminal-output`) lands before this change and shifts line
+> numbers inside `src/core/matcher/engine.rs`, `src/core/translation/engine.rs`
+> and `src/cli/mod.rs`; anchor on the named symbol when a cited line no longer
+> matches.
+
+## 1. Relocate `input_handler` into `core::input`
+
+- [ ] 1.1 `git mv src/cli/input_handler.rs src/core/input/mod.rs` so the rename is recorded as a rename; the file's 569 lines — `InputPathHandler` (`:130-452`), `CollectedFiles` (`:454-513`), the `Deref` / `AsRef` impls (`:515-527`) and `#[cfg(test)] mod symlink_tests` (`:529-568`) — move byte-for-byte apart from the doctest edits in 1.4–1.5
+- [ ] 1.2 Declare `pub mod input;` in `src/core/mod.rs` (module list at `:19-30`, alphabetically before `lock`) and add an `input` bullet to that file's subsystem list in the header comment (`:1-17`)
+- [ ] 1.3 Delete `mod input_handler;` from `src/cli/mod.rs:37` and replace `pub use input_handler::{CollectedFiles, InputPathHandler};` (`:53`) with `pub use crate::core::input::{CollectedFiles, InputPathHandler};`, carrying a rustdoc paragraph that names it a legacy alias, points at `crate::core::input`, and states it will be removed once consumers migrate — **no `#[deprecated]` attribute** (AGENTS.md forbids new ones)
+- [ ] 1.4 Rewrite the `use` line of the four surviving rustdoc examples in the moved file from `subx_cli::cli::InputPathHandler` to `subx_cli::core::input::InputPathHandler`: the struct-level "Basic Usage" (`:52-74`) and "Directory Processing" (`:78-105`) examples, and the method-level examples on `merge_paths_from_multiple_sources` (`:160-178`) and `get_directories` (`:257-276`). Their bodies and their `Ok::<(), subx_cli::error::SubXError>(())` tails are unchanged
+- [ ] 1.5 Delete the "## Command Integration" rustdoc example (`:107-129`) entirely, per `design.md` Decision 1a — it builds a clap `MatchArgs` literal and calls `args.get_input_handler()`, which cannot survive the crate split; the equivalent coverage already exists in `tests/unified_path_handling_tests.rs` and `tests/match_combined_paths_tests.rs`
+- [ ] 1.6 Repoint the five in-crate imports to `use crate::core::input::InputPathHandler;`: `src/cli/convert_args.rs:30`, `src/cli/detect_encoding_args.rs:31`, `src/cli/match_args.rs:4`, `src/cli/translate_args.rs:23`, `src/cli/sync_args.rs:36`
+- [ ] 1.7 Change the parameter type of `resolve_output_path` in `src/commands/translate_command.rs:325` from `&crate::cli::CollectedFiles` to `&crate::core::input::CollectedFiles`
+- [ ] 1.8 Confirm `grep -rn "cli::InputPathHandler\|cli::CollectedFiles" src/` returns only the single re-export line added in 1.3
+
+## 2. Move sync pairing and output-path derivation into `core::sync`
+
+- [ ] 2.1 Add `pub const SYNC_VIDEO_EXTENSIONS: &[&str] = &["mp4", "mkv", "avi", "mov"];` and `pub const SYNC_SUBTITLE_EXTENSIONS: &[&str] = &["srt", "ass", "vtt", "sub"];` to `src/core/sync/mod.rs` (after the re-export block at `:30-33`), with rustdoc naming them the single definition used by both pairing and handler construction
+- [ ] 2.2 Move `create_default_output_path` from `src/cli/sync_args.rs:455-466` into `src/core/sync/mod.rs` verbatim, with `# Arguments` / `# Returns` / `# Examples` rustdoc; move its four unit tests (`sync_args.rs:1068-1099`: `test_create_default_output_path_srt`, `_with_prefix`, `_vtt`, `_no_extension`) into that module's test block
+- [ ] 2.3 Add `pub use crate::core::sync::create_default_output_path;` to `src/cli/sync_args.rs` with a legacy-alias rustdoc paragraph (no `#[deprecated]`), so `SyncArgs::get_output_path` (`:227-235`) and `subx_cli::cli::sync_args::create_default_output_path` keep resolving; repoint `src/commands/sync_command.rs:10` at `crate::core::sync::create_default_output_path`
+- [ ] 2.4 Move `pub enum SyncMode` from `src/cli/sync_args.rs:438-450` into `src/core/sync/mod.rs` unchanged (`Single { video, subtitle }` and `Batch(InputPathHandler)`, `#[derive(Debug)]`), importing `crate::core::input::InputPathHandler` there
+- [ ] 2.5 Add `pub enum BatchRequest { Off, Auto, Directory(PathBuf) }` to `src/core/sync/mod.rs` with `#[derive(Debug, Clone, PartialEq, Eq, Default)]` and `#[default] Off`, documented as the parser-agnostic replacement for clap's `Option<Option<PathBuf>>` (`sync_args.rs:130-138`)
+- [ ] 2.6 Add `pub struct SyncPairingRequest` to `src/core/sync/mod.rs` with `#[derive(Debug, Clone, Default)]` and the eight fields from `design.md` Decision 2 (`positional_paths`, `input_paths`, `video`, `subtitle`, `batch`, `recursive`, `no_extract`, `manual`), each with rustdoc
+- [ ] 2.7 Add `pub fn resolve_sync_pairing(request: &SyncPairingRequest) -> Result<SyncMode, SubXError>` to `src/core/sync/mod.rs`, carrying the body of `SyncArgs::get_sync_mode` (`src/cli/sync_args.rs:301-435`) with exactly three mechanical substitutions: `self.<field>` → `request.<field>`; `if let Some(Some(batch_dir)) = &self.batch` (`:313`) → a `BatchRequest::Directory(d)` arm and `self.batch.is_some()` (`:303`) → `request.batch != BatchRequest::Off`; `self.is_manual_mode()` (`:374`, `:422`) → `request.manual`. Preserve the `PathBuf::new()` manual-mode video sentinel (`:377`, `:426`), the probe order, and every `SubXError::InvalidSyncConfiguration` return (`:388`, `:412`, `:430`, `:433`)
+- [ ] 2.8 Replace the four inline extension arrays inside the moved body — `&["srt", "ass", "vtt", "sub"]` (`:349`), `&["mp4", "mkv", "avi", "mov"]` (`:362`), `["mp4", "mkv", "avi", "mov"]` (`:398`), `["srt", "ass", "vtt", "sub"]` (`:401`) — plus the batch handler's `with_extensions` list (`:327`) with the two consts from 2.1
+- [ ] 2.9 Reduce `SyncArgs::get_sync_mode` (`src/cli/sync_args.rs:301-435`) to the ~15-line adapter in `design.md` Decision 2: build a `SyncPairingRequest` from the struct's fields, translate `batch: Option<Option<PathBuf>>` through the three-arm `match` into `BatchRequest`, pass `self.is_manual_mode()` as `manual`, and return `resolve_sync_pairing(&request)` unchanged. No filesystem access remains in `sync_args.rs`
+- [ ] 2.10 Rewrite `SyncArgs::get_input_handler`'s `with_extensions` call (`src/cli/sync_args.rs:296`) to use the concatenation of `SYNC_VIDEO_EXTENSIONS` and `SYNC_SUBTITLE_EXTENSIONS`, so the CLI handler and the core pairing cannot drift apart
+- [ ] 2.11 Change `src/cli/mod.rs:56` from `pub use sync_args::{SyncArgs, SyncMethod, SyncMethodArg, SyncMode};` to re-export `SyncMode` from `crate::core::sync` while keeping the other three from `sync_args`, with the same legacy-alias rustdoc treatment; repoint `src/commands/sync_command.rs:8` at `crate::core::sync::SyncMode`
+- [ ] 2.12 Leave `SyncMethodArg` (`sync_args.rs:18-25`), `impl From<SyncMethodArg> for crate::core::sync::SyncMethod` (`:27-34`), the back-compat `SyncMethod` enum (`:146-153`) and `SyncArgs::validate` (`:157-224`) in the CLI untouched, per `design.md` Decision 2a; leave `sync_command.rs`'s clone-and-mutate `SyncArgs` working state at `:503-509`, `:577-582` and `:688-698` untouched, per Decision 5
+
+## 3. Split the error presentation surface
+
+- [ ] 3.1 Create `src/cli/error_ext.rs` defining `pub trait SubXErrorExt { fn exit_code(&self) -> i32; fn user_friendly_message(&self) -> String; }` with module- and method-level rustdoc explaining that these are the binary's contract (process exit codes and terminal prose) while `category`/`machine_code`/`hint` stay on `SubXError`
+- [ ] 3.2 Move the body of `SubXError::exit_code` (`src/error.rs:1130-1141`) and `SubXError::user_friendly_message` (`:1248-1289`) into `impl SubXErrorExt for SubXError` in the new file, verbatim including both wildcard arms; delete both methods and their rustdoc (`:1122-1141`, `:1239-1289`) from `src/error.rs`
+- [ ] 3.3 Declare `pub mod error_ext;` in `src/cli/mod.rs` (module list at `:32-43`) and re-export the trait alongside the other `pub use` lines so `crate::cli::SubXErrorExt` resolves
+- [ ] 3.4 Add `use crate::cli::error_ext::SubXErrorExt;` to `src/main.rs` (near `:17`) for the three call sites `e.user_friendly_message()` (`:58`), `e.exit_code()` (`:60`) and `err.exit_code()` (`:141`)
+- [ ] 3.5 Add `use crate::cli::error_ext::SubXErrorExt;` to `src/cli/output.rs` for `ErrorEnvelope::from_error`'s `err.exit_code()` (`:157`) and `err.user_friendly_message()` (`:158`); `err.category()`, `err.machine_code()` and `err.hint()` (`:155`, `:156`, `:159`) stay inherent and need no import
+- [ ] 3.6 Extend `SubXError::hint`'s rustdoc (`src/error.rs:1205-1210`) per `design.md` Decision 4a: the prose is written for the `subx-cli` terminal, library consumers should treat the return as an availability signal rather than display copy, and the stable part of the contract is which variants return `Some`
+- [ ] 3.7 Extend the `OutputModeUnsupported` variant's rustdoc (`src/error.rs:155-160`) per Decision 4b: only the binary constructs it, it stays in the enum so `category()`/`machine_code()` keep wildcard-free exhaustive matches, and its `category` is deliberately `"command_execution"` while its `machine_code` is `"E_OUTPUT_MODE_UNSUPPORTED"` (`:1163-1166`, `:1194`)
+- [ ] 3.8 Change `operation_error_from` in `src/core/matcher/engine.rs:1255-1261` from `message: err.user_friendly_message()` to `message: err.to_string()`, and add rustdoc recording the invariant from Decision 4c — both call sites (`:1792`, `:1849`) construct `SubXError::FileOperationFailed`, whose `Display` (`error.rs:111`) and `user_friendly_message` (`:1278`) render identically and whose `hint()` is `None`, so the `machine-readable-output` per-item message contract is preserved byte-for-byte
+- [ ] 3.9 Confirm `grep -rn "exit_code\|user_friendly_message\|SubXErrorExt" src/core src/services` returns no call site or import
+
+## 4. Intra-doc links and doctests
+
+- [ ] 4.1 `src/error.rs:1208`: replace the ``[`Self::user_friendly_message`]`` link inside `hint()`'s rustdoc with plain text — the item is no longer on `Self`, and core must not link into `crate::cli`
+- [ ] 4.2 `src/core/matcher/engine.rs:1249`: change `OperationError::message`'s doc from ``User-friendly message from [`SubXError::user_friendly_message`].`` to reference `SubXError`'s `Display`, matching the change made in 3.8
+- [ ] 4.3 `src/commands/cache_command.rs:551`: rewrite the last segment of ``[`SubXError::category`]/[`SubXError::machine_code`]/[`SubXError::user_friendly_message`]`` to ``[`crate::cli::error_ext::SubXErrorExt::user_friendly_message`]``
+- [ ] 4.4 Verify the ``[`InputPathHandler`]`` links in `src/cli/translate_args.rs:7` and `:173` still resolve through the rewritten `use crate::core::input::InputPathHandler` from 1.6; qualify them explicitly if they do not
+- [ ] 4.5 Run `cargo doc --no-deps --all-features` and confirm zero `broken_intra_doc_links` diagnostics — `Cargo.toml` sets that lint to `deny`, so any survivor is a hard build failure
+
+## 5. Tests
+
+- [ ] 5.1 Before extracting anything in phase 2, add six characterisation unit tests for `SyncArgs::get_sync_mode` covering: lone video positional probing to `.srt`; lone subtitle positional probing to `.mp4`; probe order preferring `srt` over `ass` when both exist; manual mode returning an empty-`PathBuf` video for a subtitle-only positional; two positional paths classified without probing; unpairable single positional returning `SubXError::InvalidSyncConfiguration`
+- [ ] 5.2 After the extraction, re-point those six tests at `resolve_sync_pairing` in `src/core/sync/mod.rs`'s test module, constructing `SyncPairingRequest` via `..Default::default()`, and keep one CLI-side test asserting that `SyncArgs::get_sync_mode` agrees with the direct core call
+- [ ] 5.3 Add three `resolve_sync_pairing` tests for batch selection — `BatchRequest::Directory(dir)`, non-empty `input_paths`, and a single extension-less positional — plus one asserting that `BatchRequest::Auto` with no other paths yields a handler whose path list is exactly `["."]`
+- [ ] 5.4 Add a regression test in `src/cli/error_ext.rs` asserting that for `SubXError::FileOperationFailed(_)`, `err.to_string() == err.user_friendly_message()` and `err.hint().is_none()`, locking the invariant that 3.8 depends on
+- [ ] 5.5 Add a compile-level test that the legacy aliases still resolve: `use subx_cli::cli::{CollectedFiles, InputPathHandler, SyncMode};` and `subx_cli::cli::sync_args::create_default_output_path`
+- [ ] 5.6 Rewrite the three integration-test imports that name moved symbols: `tests/unified_path_handling_tests.rs:10` (`InputPathHandler` → `subx_cli::core::input`), `tests/archive_input_extraction_tests.rs:16` (same), `tests/sync_argument_flexibility_tests.rs:5` (`SyncMode` → `subx_cli::core::sync`)
+- [ ] 5.7 Leave `tests/cli/input_handler_tests.rs` untouched — it uses `use crate::cli::InputPathHandler;` and is not referenced by any `#[path = "cli/…"]` harness shim, so it is not compiled today; wiring it up belongs to B3
+
+## 6. Documentation
+
+- [ ] 6.1 Update `AGENTS.md:137`: the "Add/change CLI arguments" row still points at `src/cli/input_handler.rs` and at `src/cli/validation.rs` (deleted by A0) — replace with `src/cli/*_args.rs` and a pointer to `src/core/input/mod.rs` for the collection algorithm
+- [ ] 6.2 Update `AGENTS.md:210-211` so the sentence about exit codes and user guidance names `SubXErrorExt::exit_code` / `SubXErrorExt::user_friendly_message` from `src/cli/error_ext.rs`, and states that `category()`, `machine_code()` and `hint()` stay on `SubXError` in `src/error.rs`
+- [ ] 6.3 Update `docs/tech-architecture.md:39-60` (the CLI-layer module map): drop `cli/input_handler.rs`, add `cli/error_ext.rs`, and add `core/input/` plus the new `core::sync` pairing API to the core-layer description
+- [ ] 6.4 Update the source-of-truth file list in `docs/machine-readable-output.md:864-865` so `exit_code` and `user_friendly_message` are attributed to `src/cli/error_ext.rs` while `category`, `machine_code` and `hint` stay attributed to `src/error.rs`
+- [ ] 6.5 Add an `### Added` entry under `[Unreleased]` in `CHANGELOG.md:9` for `core::input`, `core::sync::{SyncMode, SyncPairingRequest, BatchRequest, resolve_sync_pairing, create_default_output_path, SYNC_VIDEO_EXTENSIONS, SYNC_SUBTITLE_EXTENSIONS}`, and `cli::error_ext::SubXErrorExt`
+- [ ] 6.6 Add a `### Changed` entry under `[Unreleased]` recording that `InputPathHandler`/`CollectedFiles`, the sync pairing resolver and `create_default_output_path` moved into the core layer with legacy re-exports left in `subx_cli::cli`, that `SubXError::exit_code` and `SubXError::user_friendly_message` are now `SubXErrorExt` trait methods requiring `use subx_cli::cli::error_ext::SubXErrorExt;`, and that no CLI behaviour, exit code, message, or JSON field changed
+- [ ] 6.7 Note for the archiving step: the `## Purpose` paragraphs of `openspec/specs/input-path-handling/spec.md` and `openspec/specs/timeline-sync/spec.md` cite `src/cli/input_handler.rs` and `src/cli/sync_args.rs`, and `openspec/specs/error-handling/spec.md`'s cites `src/error.rs` alone — re-sync all three when this change is archived
+
+## 7. Quality Gate
+
+- [ ] 7.1 Run `cargo fmt` and `cargo clippy -- -D warnings` and fix all warnings
+- [ ] 7.2 Run `cargo nextest run --filter-expr 'test(input_handler) + test(input_path) + test(unified_path) + test(archive_input) + test(sync_pairing) + test(sync_mode) + test(sync_argument) + test(default_output_path) + test(error) + test(output_format)' || true` and confirm the targeted modules pass
+- [ ] 7.3 Run `scripts/quality_check.sh` once at the end (main agent only — do not invoke from sub-agents) and ensure it is green
+- [ ] 7.4 Run `cargo test --doc --all-features` to confirm rustdoc examples still compile
