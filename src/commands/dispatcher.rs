@@ -116,7 +116,7 @@ pub async fn dispatch_command_with_ref(
     match command {
         Commands::Match(args) => {
             args.validate()
-                .map_err(crate::error::SubXError::CommandExecution)?;
+                .map_err(subx_core::error::SubXError::CommandExecution)?;
             crate::commands::match_command::execute(args, config_service).await
         }
         Commands::Convert(args) => {
@@ -147,14 +147,14 @@ pub async fn dispatch_command_with_ref(
 ///
 /// In [`OutputMode::Text`] this prints the script to stdout and returns
 /// `Ok(())`. In [`OutputMode::Json`] it returns
-/// [`crate::error::SubXError::OutputModeUnsupported`] so `main.rs` can
+/// [`subx_core::error::SubXError::OutputModeUnsupported`] so `main.rs` can
 /// emit the standard error envelope and exit with code 1.
 fn run_generate_completion(
     args: crate::cli::GenerateCompletionArgs,
     output_mode: OutputMode,
 ) -> Result<()> {
     if output_mode.is_json() {
-        return Err(crate::error::SubXError::OutputModeUnsupported {
+        return Err(subx_core::error::SubXError::OutputModeUnsupported {
             command: "generate-completion".to_string(),
         });
     }
@@ -173,11 +173,11 @@ mod tests {
         DetectEncodingArgs, GenerateCompletionArgs, MatchArgs, OutputSubtitleFormat, StatusArgs,
         SyncArgs,
     };
-    use crate::config::TestConfigService;
     use clap_complete::Shell;
+    use subx_core::config::TestConfigService;
 
     // Helper to check that errors are expected filesystem/config errors in a test environment
-    fn is_expected_test_error(e: &crate::error::SubXError) -> bool {
+    fn is_expected_test_error(e: &subx_core::error::SubXError) -> bool {
         let msg = format!("{e:?}");
         msg.contains("NotFound")
             || msg.contains("No subtitle files found")

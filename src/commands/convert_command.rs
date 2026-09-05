@@ -78,10 +78,10 @@ use serde::Serialize;
 use crate::cli::error_ext::SubXErrorExt;
 use crate::cli::output::{active_mode, emit_success};
 use crate::cli::{ConvertArgs, OutputSubtitleFormat};
-use crate::config::ConfigService;
-use crate::core::file_manager::FileManager;
-use crate::core::formats::converter::{ConversionConfig, FormatConverter};
-use crate::error::SubXError;
+use subx_core::config::ConfigService;
+use subx_core::core::file_manager::FileManager;
+use subx_core::core::formats::converter::{ConversionConfig, FormatConverter};
+use subx_core::error::SubXError;
 
 // ─── JSON payload types (machine-readable-output capability) ─────────────
 
@@ -92,10 +92,10 @@ use crate::error::SubXError;
 /// Status Semantics" requirement).
 #[derive(Debug, Serialize)]
 pub struct ConvertItemError {
-    /// Stable snake_case category from [`crate::error::SubXError::category`].
+    /// Stable snake_case category from [`subx_core::error::SubXError::category`].
     pub category: String,
     /// Stable upper-snake-case machine code from
-    /// [`crate::error::SubXError::machine_code`].
+    /// [`subx_core::error::SubXError::machine_code`].
     pub code: String,
     /// Human-readable message (English).
     pub message: String,
@@ -488,9 +488,9 @@ pub async fn execute_with_config(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::config::{TestConfigBuilder, TestConfigService};
     use std::fs;
     use std::sync::Arc;
+    use subx_core::config::{TestConfigBuilder, TestConfigService};
     use tempfile::TempDir;
 
     #[tokio::test]

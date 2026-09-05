@@ -42,9 +42,9 @@
 // src/cli/ui.rs
 use crate::cli::output::{self, OutputMode};
 use crate::cli::table::{MatchDisplayRow, create_match_table};
-use crate::core::matcher::MatchOperation;
 use colored::*;
 use indicatif::{ProgressBar, ProgressDrawTarget, ProgressStyle};
+use subx_core::core::matcher::MatchOperation;
 
 /// Display a success message with consistent formatting.
 ///
@@ -277,8 +277,8 @@ pub fn progress_draw_target_for(mode: OutputMode) -> ProgressDrawTarget {
 /// # Arguments
 ///
 /// * `usage` - Core-owned usage payload containing token counts and model
-///   information (`crate::core::report::AiUsage`, reachable under its
-///   legacy alias `crate::services::ai::AiUsageStats`)
+///   information (`subx_core::core::report::AiUsage`, reachable under its
+///   legacy alias `subx_core::services::ai::AiUsageStats`)
 ///
 /// Core and service modules no longer call this helper. Its only caller is
 /// [`crate::cli::reporter::TerminalReporter`]'s `ai_usage` channel — the
@@ -306,7 +306,7 @@ pub fn progress_draw_target_for(mode: OutputMode) -> ProgressDrawTarget {
 /// - **Performance analysis**: Understand token efficiency
 /// - **Debugging**: Verify expected model usage
 /// - **Optimization**: Identify opportunities to reduce token consumption
-pub fn display_ai_usage(usage: &crate::core::report::AiUsage) {
+pub fn display_ai_usage(usage: &subx_core::core::report::AiUsage) {
     if output::active_mode().is_json() {
         return;
     }
@@ -370,14 +370,14 @@ pub fn display_match_results(results: &[MatchOperation], is_dry_run: bool) {
             // Add relocation operation row if needed
             if op.requires_relocation {
                 let operation_icon = match op.relocation_mode {
-                    crate::core::matcher::engine::FileRelocationMode::Copy => "📄",
-                    crate::core::matcher::engine::FileRelocationMode::Move => "📁",
+                    subx_core::core::matcher::engine::FileRelocationMode::Copy => "📄",
+                    subx_core::core::matcher::engine::FileRelocationMode::Move => "📁",
                     _ => "",
                 };
 
                 let operation_verb = match op.relocation_mode {
-                    crate::core::matcher::engine::FileRelocationMode::Copy => "Copy to",
-                    crate::core::matcher::engine::FileRelocationMode::Move => "Move to",
+                    subx_core::core::matcher::engine::FileRelocationMode::Copy => "Copy to",
+                    subx_core::core::matcher::engine::FileRelocationMode::Move => "Move to",
                     _ => "",
                 };
 

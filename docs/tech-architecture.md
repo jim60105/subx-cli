@@ -7,11 +7,11 @@ Detection for audio synchronization.
 
 The codebase is being distributed across two crates: `subx-cli` — this
 repository — is the Cargo workspace root and owns the CLI binary and library
-facade, while `subx-core` (<https://github.com/jim60105/subx-core>) is the
-reusable core library, mounted here as a git submodule at `subx-core/` and
-consumed as a workspace member. The module-by-module map below still reflects
-the current single-crate layout; the allocation of the core engines to
-`subx-core` lands with the source migration of the two-crate split.
+facade (`src/cli/`, `src/commands/`, `src/lib.rs`, `src/main.rs`), while
+`subx-core` (<https://github.com/jim60105/subx-core>) is the
+reusable core library (`config`, `core`, `error`, `services`), mounted here
+as a git submodule at `subx-core/` and consumed as a workspace member. The
+module-by-module map below reflects that two-crate layout.
 
 ## System Architecture
 
@@ -83,12 +83,12 @@ presentation surface: the eight `*_args.rs` modules, `output.rs`,
 `reporter.rs`, `table.rs`, `ui.rs`, and `error_ext.rs` — the binary-half
 `SubXErrorExt` trait carrying `exit_code()` and
 `user_friendly_message()` (the library-half taxonomy, `category()`,
-`machine_code()` and `hint()`, stays on `SubXError` in `src/error.rs`).
+`machine_code()` and `hint()`, stays on `SubXError` in `subx-core/src/error.rs`).
 Input collection is no longer a CLI concern: `InputPathHandler` and
-`CollectedFiles` live in `src/core/input/`, and `src/cli/` keeps only
+`CollectedFiles` live in `subx-core/src/core/input/`, and `src/cli/` keeps only
 legacy re-exports for out-of-tree consumers.
 
-### Configuration Module (`src/config/`)
+### Configuration Module (`subx-core/src/config/`)
 
 The configuration system is built around the `ConfigService` trait, which
 abstracts all config access behind dependency injection. Production code
@@ -96,7 +96,7 @@ uses `ProductionConfigService` (file + env var backed), while tests use
 `TestConfigService` (in-memory, no filesystem).
 
 ```rust
-// src/config/service.rs
+// subx-core/src/config/service.rs
 pub trait ConfigService: Send + Sync {
     fn get_config(&self) -> Result<Config>;
     fn reload(&self) -> Result<()>;
@@ -112,7 +112,7 @@ pub trait ConfigService: Send + Sync {
 The `Config` struct holds all configuration sections:
 
 ```rust
-// src/config/mod.rs
+// subx-core/src/config/mod.rs
 pub struct Config {
     pub ai: AIConfig,
     pub formats: FormatsConfig,
@@ -133,16 +133,16 @@ configs), `EnvironmentProvider` trait with `SystemEnvironmentProvider` and
 `TestEnvironmentProvider` implementations, and validation logic split across
 `validator.rs` (section-level) and `field_validator.rs` (key-value level).
 
-### Core Engine (`src/core/`)
+### Core Engine (`subx-core/src/core/`)
 
-#### Factory and Dependency Injection (`src/core/factory.rs`)
+#### Factory and Dependency Injection (`subx-core/src/core/factory.rs`)
 
 `ComponentFactory` is the central wiring point. Constructed from a
 `ConfigService`, it creates all major components with proper configuration
 injection.
 
 ```rust
-// src/core/factory.rs
+// subx-core/src/core/factory.rs
 pub struct ComponentFactory {
     config: Config,
 }
@@ -164,14 +164,14 @@ the appropriate client: `OpenAIClient` for `"openai"`, `OpenRouterClient`
 for `"openrouter"`, or `AzureOpenAIClient` for `"azure-openai"`. All three
 implement the `AIProvider` trait.
 
-#### Match Engine (`src/core/matcher/`)
+#### Match Engine (`subx-core/src/core/matcher/`)
 
 The match engine pairs subtitle files with video files using AI analysis.
 The matching pipeline follows four stages: filename analysis, content
 sampling, AI similarity scoring, and result caching.
 
 ```rust
-// src/core/matcher/engine.rs
+// subx-core/src/core/matcher/engine.rs
 pub struct MatchEngine {
     ai_client: Box<dyn AIProvider>,
     config: MatchConfig,
@@ -192,14 +192,14 @@ pub struct MatchConfig {
 subtitle. `FileInfo` provides normalized name helpers that strip quality
 tags (`1080p`, `x264`), brackets, and parentheses for cleaner matching.
 
-#### Format Engine (`src/core/formats/`)
+#### Format Engine (`subx-core/src/core/formats/`)
 
 Subtitle format handling uses the `SubtitleFormat` trait as a plugin
 interface. Each format (SRT, ASS, VTT, SUB) implements parsing, detection,
 and serialization.
 
 ```rust
-// src/core/formats/mod.rs
+// subx-core/src/core/formats/mod.rs
 pub trait SubtitleFormat {
     fn format_name(&self) -> &'static str;
     fn file_extensions(&self) -> &'static [&'static str];
@@ -222,7 +222,7 @@ encoding-aware file reading. `FormatConverter` handles cross-format
 conversion, and `encoding/` provides `EncodingDetector` for automatic
 character encoding detection using `encoding_rs`.
 
-#### Sync Engine (`src/core/sync/`)
+#### Sync Engine (`subx-core/src/core/sync/`)
 
 The sync engine computes timing offsets between audio and subtitles using
 local Voice Activity Detection. Since v0.6.0, the architecture focuses
@@ -230,7 +230,7 @@ exclusively on local VAD processing — no network-based analysis is
 performed.
 
 ```rust
-// src/core/sync/engine.rs
+// subx-core/src/core/sync/engine.rs
 pub struct SyncEngine {
     config: SyncConfig,
     vad_detector: Option<VadSyncDetector>,
@@ -260,7 +260,7 @@ sizes, and compares detected speech segments against subtitle timestamps to
 compute the optimal offset. The `Auto` method currently resolves to
 `LocalVad`. The `Manual` method applies a user-specified offset directly.
 
-Alongside the engine, `src/core/sync/mod.rs` owns the parser-agnostic sync
+Alongside the engine, `subx-core/src/core/sync/mod.rs` owns the parser-agnostic sync
 pairing contract that used to be implicit behaviour of the CLI's `SyncArgs`:
 `resolve_sync_pairing(&SyncPairingRequest) -> Result<SyncMode, SubXError>`
 (single-pair auto-pairing and batch selection over `BatchRequest`),
@@ -268,7 +268,7 @@ pairing contract that used to be implicit behaviour of the CLI's `SyncArgs`:
 `SYNC_SUBTITLE_EXTENSIONS` lists. `SyncArgs::get_sync_mode` is a thin
 adapter that fills a `SyncPairingRequest` from its clap fields.
 
-#### Input Collection (`src/core/input/`)
+#### Input Collection (`subx-core/src/core/input/`)
 
 `InputPathHandler` merges positional, `-i`, and string path sources,
 validates them, scans directories (flat or recursive) with symlink
@@ -278,7 +278,7 @@ extracts archive inputs into `TempDir`s owned by the returned
 `crate::core::archive` and `crate::error` — never on `clap` or
 `crate::cli`; each command's `*Args::get_input_handler` is a thin adapter.
 
-#### Parallel Processing (`src/core/parallel/`)
+#### Parallel Processing (`subx-core/src/core/parallel/`)
 
 The parallel processing module implements a producer-consumer task
 scheduler. `TaskScheduler` manages a worker pool, task queue, and load
@@ -290,7 +290,7 @@ processing, and file operations. The overflow strategy determines behavior
 when the queue is full (`Block`, `DropOldest`, `Reject`, `Drop`, or
 `Expand`).
 
-#### File Manager (`src/core/file_manager.rs`)
+#### File Manager (`subx-core/src/core/file_manager.rs`)
 
 `FileManager` provides batch file operations with backup support. It
 records creations and moves so that `rollback()` can undo them if a later
@@ -300,13 +300,13 @@ cannot recover removed files.
 
 ### External Services
 
-#### AI Service (`src/services/ai/`)
+#### AI Service (`subx-core/src/services/ai/`)
 
 The AI service layer provides three provider implementations behind the
 `AIProvider` trait:
 
 ```rust
-// src/services/ai/mod.rs
+// subx-core/src/services/ai/mod.rs
 #[async_trait]
 pub trait AIProvider: Send + Sync {
     async fn analyze_content(&self, request: AnalysisRequest) -> Result<MatchResult>;
@@ -336,7 +336,7 @@ Each provider reports token accounting by calling
 receiving a response, passing a `core::report::AiUsage` value (legacy alias
 `AiUsageStats`).
 
-##### Reporting seam (`src/core/report/`)
+##### Reporting seam (`subx-core/src/core/report/`)
 
 Core engines and service clients never print to the terminal and never read
 the CLI's output mode or `--quiet` flag. They report through the
@@ -348,10 +348,11 @@ transport-agnostic `core::report::Reporter` seam — four channels
 `with_reporter` builder. The CLI owns the only terminal implementation,
 `cli::reporter::TerminalReporter`, which applies the JSON/`--quiet`
 suppression matrix and is attached at command boundaries. Layering rule:
-`src/core/` and `src/services/` must not reference `crate::cli` — enforced
-by `tests/core_cli_boundary.rs`.
+`subx-core` — its core and service modules alike — must not reference the
+`subx-cli` crate at all (the dependency is one-way and an upward reference
+cannot resolve); enforced by `tests/core_cli_boundary.rs`.
 
-#### VAD Service (`src/services/vad/`)
+#### VAD Service (`subx-core/src/services/vad/`)
 
 The VAD module handles local voice activity detection using the
 `voice_activity_detector` crate and `symphonia` for audio decoding.
@@ -482,9 +483,12 @@ Input: Source subtitle file
 
 ## Error Handling
 
-All errors flow through `SubXError`, defined in `src/error.rs` using
-`thiserror`. Each variant maps to a specific exit code and provides a
-user-friendly message.
+All errors flow through `SubXError`, defined in `subx-core/src/error.rs` using
+`thiserror`. The core crate owns the typed variants, their `Display`
+rendering and the machine-readable contract (`category()`, `machine_code()`,
+`hint()`); the exit-code mapping (1–6) and the user-friendly terminal prose
+are supplied by the `SubXErrorExt` trait in the CLI half
+(`subx_cli::cli::SubXErrorExt`).
 
 ```rust
 #[derive(thiserror::Error, Debug)]
@@ -563,7 +567,15 @@ re-analysis of previously matched files within the same session.
 
 ### Runtime Dependencies
 
+Dependencies are declared across two manifests. `subx-cli/Cargo.toml` keeps
+only what the CLI facade itself uses; everything the engines and services
+need belongs to `subx-core/Cargo.toml` (`subx-core = { path = "subx-core",
+version = "1.0" }` is how the CLI reaches it, and the crate must stay
+buildable standalone — depending on the CLI's feature graph is a defect, not
+a shortcut).
+
 ```toml
+# ── subx-cli/Cargo.toml ──
 # CLI framework
 clap = { version = "4.5.40", features = ["derive", "cargo"] }
 clap_complete = "4.5.54"
@@ -573,17 +585,31 @@ tokio = { version = "1.0", features = [
     "rt-multi-thread",
     "macros",
     "time",
-    "sync",
-    "fs",
 ] }
-
-# HTTP client
-reqwest = { version = "0.13", features = ["json", "stream", "rustls"] }
 
 # Serialization
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 toml = "1"
+
+# Config-directory resolution
+dirs = "6.0"
+
+# UI
+indicatif = "0.18"
+colored = "3.0"
+tabled = "0.20"
+
+# Logging
+log = "0.4"
+env_logger = "0.11"
+
+# ── subx-core/Cargo.toml ──
+# Async runtime
+tokio = { version = "1.0", features = ["rt", "sync", "time", "fs", "macros"] }
+
+# HTTP client
+reqwest = { version = "0.13", features = ["json", "stream", "rustls"] }
 
 # Audio processing
 symphonia = { version = "0.5", default-features = false, features = [
@@ -621,16 +647,10 @@ thiserror = "2.0"
 futures = "0.3"
 async-trait = "0.1"
 
-# UI
-indicatif = "0.18"
-colored = "3.0"
-tabled = "0.20"
-
 # Utilities
 uuid = { version = "1.3", features = ["v7"] }
 url = "2"
 log = "0.4"
-env_logger = "0.11"
 
 # Archive extraction
 zip = "8"

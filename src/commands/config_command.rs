@@ -109,10 +109,10 @@
 
 use crate::cli::output::{active_mode, emit_success, emit_success_with_warnings};
 use crate::cli::{ConfigAction, ConfigArgs};
-use crate::config::{ConfigService, mask_sensitive_value};
-use crate::error::{SubXError, SubXResult};
 use serde::Serialize;
 use serde_json::{Map, Value};
+use subx_core::config::{ConfigService, mask_sensitive_value};
+use subx_core::error::{SubXError, SubXResult};
 
 /// JSON payload for `config set` — the key/value that was just persisted.
 #[derive(Debug, Serialize)]
@@ -168,8 +168,8 @@ fn build_config_value_for_repair(
 /// failure; for the typical "single validator error" case the vector
 /// has length 1. The returned vector is empty when `config` is
 /// strict-valid.
-fn collect_strict_validation_warnings(config: &crate::config::Config) -> Vec<String> {
-    match crate::config::validator::validate_config(config) {
+fn collect_strict_validation_warnings(config: &subx_core::config::Config) -> Vec<String> {
+    match subx_core::config::validator::validate_config(config) {
         Ok(()) => Vec::new(),
         Err(err) => {
             vec![format!("configuration is currently invalid: {err}")]
@@ -210,7 +210,7 @@ async fn run_config_action(args: ConfigArgs, config_service: &dyn ConfigService)
             // inspect a strict-invalid configuration.
             let config = config_service.load_for_repair()?;
             let warnings = collect_strict_validation_warnings(&config);
-            let value = crate::config::service::read_config_value_from(&config, &key)?;
+            let value = subx_core::config::service::read_config_value_from(&config, &key)?;
             let masked = mask_sensitive_value(&key, &value);
             if json_mode {
                 let mut obj = Map::new();

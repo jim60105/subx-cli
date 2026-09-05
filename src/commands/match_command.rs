@@ -65,17 +65,19 @@ use crate::Result;
 use crate::cli::MatchArgs;
 use crate::cli::display_match_results;
 use crate::cli::output::{active_mode, emit_success};
-use crate::config::ConfigService;
-use crate::core::ComponentFactory;
-use crate::core::matcher::engine::{FileRelocationMode, MatchOperation, apply_unique_target_paths};
-use crate::core::matcher::{FileDiscovery, MatchConfig, MatchEngine, MediaFileType};
-use crate::core::parallel::{
-    FileProcessingTask, ProcessingOperation, Task, TaskResult, TaskScheduler,
-};
-use crate::error::SubXError;
-use crate::services::ai::AIProvider;
 use indicatif::ProgressDrawTarget;
 use serde::Serialize;
+use subx_core::config::ConfigService;
+use subx_core::core::ComponentFactory;
+use subx_core::core::matcher::engine::{
+    FileRelocationMode, MatchOperation, apply_unique_target_paths,
+};
+use subx_core::core::matcher::{FileDiscovery, MatchConfig, MatchEngine, MediaFileType};
+use subx_core::core::parallel::{
+    FileProcessingTask, ProcessingOperation, Task, TaskResult, TaskScheduler,
+};
+use subx_core::error::SubXError;
+use subx_core::services::ai::AIProvider;
 
 // ─── JSON payload types (machine-readable-output capability) ─────────────
 
@@ -410,15 +412,15 @@ pub async fn execute_with_config(
 pub async fn execute_with_client(
     args: MatchArgs,
     ai_client: Box<dyn AIProvider>,
-    config: &crate::config::Config,
+    config: &subx_core::config::Config,
 ) -> Result<()> {
     // Determine file relocation mode from command line arguments
     let relocation_mode = if args.copy {
-        crate::core::matcher::engine::FileRelocationMode::Copy
+        subx_core::core::matcher::engine::FileRelocationMode::Copy
     } else if args.move_files {
-        crate::core::matcher::engine::FileRelocationMode::Move
+        subx_core::core::matcher::engine::FileRelocationMode::Move
     } else {
-        crate::core::matcher::engine::FileRelocationMode::None
+        subx_core::core::matcher::engine::FileRelocationMode::None
     };
 
     // Create matching engine configuration from provided config
@@ -429,7 +431,7 @@ pub async fn execute_with_client(
         enable_content_analysis: true,
         backup_enabled: args.backup || config.general.backup_enabled,
         relocation_mode,
-        conflict_resolution: crate::core::matcher::engine::ConflictResolution::AutoRename,
+        conflict_resolution: subx_core::core::matcher::engine::ConflictResolution::AutoRename,
         ai_model: config.ai.model.clone(),
         max_subtitle_bytes: config.general.max_subtitle_bytes,
     };
@@ -467,7 +469,7 @@ pub async fn execute_with_client(
             if let Some(video_dir) = op.video_file.path.parent() {
                 op.relocation_target_path = Some(video_dir.join(&op.new_subtitle_name));
                 op.requires_relocation = true;
-                op.relocation_mode = crate::core::matcher::engine::FileRelocationMode::Copy;
+                op.relocation_mode = subx_core::core::matcher::engine::FileRelocationMode::Copy;
             }
         }
     }
@@ -482,7 +484,7 @@ pub async fn execute_with_client(
         // ─── JSON output path ───────────────────────────────────────────
         // Acquire the process-wide lock for live runs to mirror text-mode behavior.
         let _lock_guard = if !args.dry_run {
-            Some(crate::core::lock::acquire_subx_lock().await?)
+            Some(subx_core::core::lock::acquire_subx_lock().await?)
         } else {
             None
         };
@@ -586,7 +588,7 @@ pub async fn execute_with_client(
         // invocations cannot race on file-system mutations or the shared
         // match journal. The guard is held until the end of the scope,
         // which covers the full execute + journal-write window.
-        let _lock = crate::core::lock::acquire_subx_lock().await?;
+        let _lock = subx_core::core::lock::acquire_subx_lock().await?;
         engine.execute_operations(&operations, args.dry_run).await?;
     }
 
@@ -827,14 +829,14 @@ fn create_progress_bar(total: usize) -> indicatif::ProgressBar {
 mod tests {
     use super::{execute_parallel_match, execute_with_client};
     use crate::cli::MatchArgs;
-    use crate::config::{ConfigService, TestConfigBuilder, TestConfigService};
-    use crate::services::ai::{
-        AIProvider, AnalysisRequest, ConfidenceScore, MatchResult, VerificationRequest,
-    };
     use async_trait::async_trait;
     use std::fs;
     use std::path::PathBuf;
     use std::sync::Arc;
+    use subx_core::config::{ConfigService, TestConfigBuilder, TestConfigService};
+    use subx_core::services::ai::{
+        AIProvider, AnalysisRequest, ConfidenceScore, MatchResult, VerificationRequest,
+    };
     use tempfile::tempdir;
 
     struct DummyAI;
@@ -885,7 +887,7 @@ mod tests {
 
         // Note: Since we're testing in isolation, we might need to use execute_with_config
         // but first let's test the basic flow works with the dummy AI
-        let config = crate::config::TestConfigBuilder::new().build_config();
+        let config = subx_core::config::TestConfigBuilder::new().build_config();
         let result = execute_with_client(args, Box::new(DummyAI), &config).await;
 
         // The test should not fail due to missing cache directory in isolation
@@ -911,7 +913,7 @@ mod tests {
         let temp_dir = tempdir()?;
 
         // Should return normally when no video files are present
-        let config_service = crate::config::TestConfigBuilder::new().build_service();
+        let config_service = subx_core::config::TestConfigBuilder::new().build_service();
         let result = execute_parallel_match(&temp_dir.path(), false, None, &config_service).await;
         assert!(result.is_ok());
 

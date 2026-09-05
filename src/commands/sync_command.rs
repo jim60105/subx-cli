@@ -7,14 +7,14 @@
 use crate::cli::SyncArgs;
 use crate::cli::error_ext::SubXErrorExt;
 use crate::cli::output::{OutputMode, active_mode, emit_success};
-use crate::config::Config;
-use crate::config::ConfigService;
-use crate::core::formats::manager::FormatManager;
-use crate::core::sync::SyncMode;
-use crate::core::sync::create_default_output_path;
-use crate::core::sync::{SyncEngine, SyncMethod, SyncResult};
 use crate::{Result, error::SubXError};
 use serde::Serialize;
+use subx_core::config::Config;
+use subx_core::config::ConfigService;
+use subx_core::core::formats::manager::FormatManager;
+use subx_core::core::sync::SyncMode;
+use subx_core::core::sync::create_default_output_path;
+use subx_core::core::sync::{SyncEngine, SyncMethod, SyncResult};
 
 /// Approximate VAD chunk duration in milliseconds.
 ///
@@ -132,7 +132,7 @@ fn build_single_result(
     audio_path: Option<&std::path::Path>,
     output_path: Option<&std::path::Path>,
     applied: bool,
-    vad_cfg: &crate::config::VadConfig,
+    vad_cfg: &subx_core::config::VadConfig,
 ) -> SyncSingleResult {
     let offset_ms = (sync_result.offset_seconds as f64 * 1000.0).round() as i64;
     let confidence = if matches!(sync_result.method_used, SyncMethod::Manual) {
@@ -278,7 +278,7 @@ async fn run_single(
         SyncResult {
             offset_seconds: offset,
             confidence: 1.0,
-            method_used: crate::core::sync::SyncMethod::Manual,
+            method_used: subx_core::core::sync::SyncMethod::Manual,
             correlation_peak: 0.0,
             processing_duration: std::time::Duration::ZERO,
             warnings: Vec::new(),
@@ -722,9 +722,9 @@ pub async fn execute(args: SyncArgs, config_service: &dyn ConfigService) -> Resu
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::config::TestConfigService;
     use std::fs;
     use std::sync::Arc;
+    use subx_core::config::TestConfigService;
     use tempfile::TempDir;
 
     #[tokio::test]
@@ -806,7 +806,7 @@ fn determine_sync_method(args: &SyncArgs, default_method: &str) -> Result<SyncMe
 ///
 /// * `config` - Sync configuration to modify
 /// * `args` - CLI arguments containing overrides
-fn apply_cli_overrides(config: &mut crate::config::SyncConfig, args: &SyncArgs) -> Result<()> {
+fn apply_cli_overrides(config: &mut subx_core::config::SyncConfig, args: &SyncArgs) -> Result<()> {
     // Apply VAD-specific overrides
     if let Some(sensitivity) = args.vad_sensitivity {
         config.vad.sensitivity = sensitivity;

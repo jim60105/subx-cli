@@ -8,9 +8,9 @@
 //! itself never consults these globals (enforced by
 //! `tests/core_cli_boundary.rs`).
 
-use crate::core::report::{AiUsage, ProgressEvent, Reporter};
+use subx_core::core::report::{AiUsage, ProgressEvent, Reporter};
 
-/// Renders [`crate::core::report`] channels to stdout/stderr.
+/// Renders [`subx_core::core::report`] channels to stdout/stderr.
 ///
 /// Channel-and-suppression matrix (see the `machine-readable-output`
 /// capability):
@@ -80,14 +80,14 @@ impl Reporter for TerminalReporter {
 /// // Text mode is the default output mode, so this reaches stderr.
 /// reporter.diagnostic("status detail");
 /// ```
-pub fn terminal_reporter() -> std::sync::Arc<dyn crate::core::report::Reporter> {
+pub fn terminal_reporter() -> std::sync::Arc<dyn subx_core::core::report::Reporter> {
     std::sync::Arc::new(TerminalReporter)
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::core::report::noop;
+    use subx_core::core::report::noop;
 
     /// Channel/stream matrix in the default (`text`, not quiet) mode — the
     /// only mode assertable without mutating the process-wide `OnceLock`

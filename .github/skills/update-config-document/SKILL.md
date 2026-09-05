@@ -1,6 +1,6 @@
 ---
 name: update-config-document
-description: Audit and update SubX-CLI's configuration documentation (`docs/config-usage-analysis.md`) so every configuration item is accurately described, linked to its real production usage site, and reflects the current codebase. Use when the user asks to update, refresh, audit, verify, or regenerate the configuration usage analysis doc, when configuration items have been added, renamed, or removed in `src/config/`, when call-hierarchy line numbers in the doc are stale, or when the README's configuration/subcommand reference needs to be synced with updated configuration documentation.
+description: Audit and update SubX-CLI's configuration documentation (`docs/config-usage-analysis.md`) so every configuration item is accurately described, linked to its real production usage site, and reflects the current codebase. Use when the user asks to update, refresh, audit, verify, or regenerate the configuration usage analysis doc, when configuration items have been added, renamed, or removed in `subx-core/src/config/`, when call-hierarchy line numbers in the doc are stale, or when the README's configuration/subcommand reference needs to be synced with updated configuration documentation.
 ---
 
 # Update Configuration Documentation
@@ -12,8 +12,10 @@ it synchronized with the real codebase.
 
 - **Primary document to update:** `docs/config-usage-analysis.md`
 - **Secondary document to update (after primary is done):** `README.md`
-- **Source of truth for configuration items:** `src/config/` (structs,
-  defaults, validation) and all their consumers across the codebase.
+- **Source of truth for configuration items:** `subx-core/src/config/`
+  (structs, defaults, validation — the configuration crate half of the
+  two-crate split) and all their consumers across `subx-core/src/` and
+  `src/` (the CLI half).
 
 ## Workflow
 
@@ -27,7 +29,7 @@ Load `docs/config-usage-analysis.md` first. Treat its existing contents as
 ### 2. For Each Configuration Item, Do All of the Following
 
 1. **Verify correctness and relevance.** Confirm the item still exists in
-   `src/config/` with the same name, type, default, and semantics.
+   `subx-core/src/config/` with the same name, type, default, and semantics.
 
 2. **Identify the real "Actual Usage Location".**
    - Search for every production call site that reads the value.
@@ -53,7 +55,7 @@ the current source files and update any that have drifted.
 
 ### 4. Discover Undocumented Items
 
-Scan `src/config/` for configuration fields that are **not** represented in
+Scan `subx-core/src/config/` for configuration fields that are **not** represented in
 `docs/config-usage-analysis.md`. For every missing item, append a new entry
 following the existing document's format and conventions.
 

@@ -24,20 +24,20 @@ use crate::Result;
 use crate::cli::error_ext::SubXErrorExt;
 use crate::cli::output::{OutputMode, active_mode, emit_success};
 use crate::cli::{ApplyArgs, CacheArgs, ClearArgs, ClearType, RollbackArgs, StatusArgs};
-use crate::config::ConfigService;
-use crate::core::lock::acquire_subx_lock;
-use crate::core::matcher::cache::CacheData;
-use crate::core::matcher::engine::{
-    FileRelocationMode, MatchConfig, apply_cached_operations_with_reporter,
-};
-use crate::core::matcher::journal::{
-    JournalData, JournalEntry, JournalEntryStatus, JournalOperationType,
-};
-use crate::error::SubXError;
 use serde::Serialize;
 use std::io::IsTerminal;
 use std::path::{Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};
+use subx_core::config::ConfigService;
+use subx_core::core::lock::acquire_subx_lock;
+use subx_core::core::matcher::cache::CacheData;
+use subx_core::core::matcher::engine::{
+    FileRelocationMode, MatchConfig, apply_cached_operations_with_reporter,
+};
+use subx_core::core::matcher::journal::{
+    JournalData, JournalEntry, JournalEntryStatus, JournalOperationType,
+};
+use subx_core::error::SubXError;
 
 // ─── JSON payload types (machine-readable-output / cache-management) ─────
 
@@ -49,10 +49,10 @@ use std::time::{SystemTime, UNIX_EPOCH};
 #[derive(Debug, Serialize)]
 pub struct CacheItemError {
     /// Stable snake_case category from
-    /// [`crate::error::SubXError::category`].
+    /// [`subx_core::error::SubXError::category`].
     pub category: String,
     /// Stable upper-snake-case machine code from
-    /// [`crate::error::SubXError::machine_code`].
+    /// [`subx_core::error::SubXError::machine_code`].
     pub code: String,
     /// Human-readable English message.
     pub message: String,
@@ -737,7 +737,7 @@ pub async fn execute_apply(args: &ApplyArgs, config_service: &dyn ConfigService)
         enable_content_analysis: true,
         backup_enabled: cache.original_backup_enabled,
         relocation_mode,
-        conflict_resolution: crate::core::matcher::engine::ConflictResolution::Skip,
+        conflict_resolution: subx_core::core::matcher::engine::ConflictResolution::Skip,
         ai_model: cache.ai_model_used.clone(),
         max_subtitle_bytes: config.general.max_subtitle_bytes,
     };
@@ -1027,11 +1027,11 @@ pub async fn execute(args: CacheArgs) -> Result<()> {
             // Fall back to the production configuration service when no service
             // was injected by the caller. This keeps the legacy `execute` entry
             // point functional for users invoking it directly.
-            let config_service = crate::config::ProductionConfigService::new()?;
+            let config_service = subx_core::config::ProductionConfigService::new()?;
             execute_status(&status_args, &config_service).await?;
         }
         crate::cli::CacheAction::Apply(ref apply_args) => {
-            let config_service = crate::config::ProductionConfigService::new()?;
+            let config_service = subx_core::config::ProductionConfigService::new()?;
             execute_apply(apply_args, &config_service).await?;
         }
         crate::cli::CacheAction::Rollback(rollback_args) => {
@@ -1072,10 +1072,12 @@ pub async fn execute_with_config(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::config::TestConfigService;
-    use crate::core::matcher::cache::{CacheData, SnapshotItem};
-    use crate::core::matcher::journal::{JournalEntry, JournalEntryStatus, JournalOperationType};
     use std::path::PathBuf;
+    use subx_core::config::TestConfigService;
+    use subx_core::core::matcher::cache::{CacheData, SnapshotItem};
+    use subx_core::core::matcher::journal::{
+        JournalEntry, JournalEntryStatus, JournalOperationType,
+    };
     use tempfile::TempDir;
 
     // -----------------------------------------------------------------------
@@ -1783,7 +1785,7 @@ mod tests {
 
     #[tokio::test]
     async fn execute_rollback_journal_with_only_pending_entries_is_noop() {
-        use crate::core::matcher::journal::JournalData;
+        use subx_core::core::matcher::journal::JournalData;
 
         let (_tmp, subx_dir) = isolated_config_dir();
         let journal_file = subx_dir.join("match_journal.json");
@@ -1825,7 +1827,7 @@ mod tests {
 
     #[tokio::test]
     async fn execute_rollback_force_skips_integrity_check() {
-        use crate::core::matcher::journal::JournalData;
+        use subx_core::core::matcher::journal::JournalData;
 
         let (_tmp, subx_dir) = isolated_config_dir();
         let journal_file = subx_dir.join("match_journal.json");

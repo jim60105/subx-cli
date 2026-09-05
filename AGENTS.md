@@ -110,7 +110,7 @@ git config submodule.recurse true       # keep pulls/checkout in sync (per-clone
 main.rs → cli::run() → cli::run_with_config()
   → commands::dispatcher::dispatch_command_with_ref()
     → *_command::execute(args, &dyn ConfigService)
-      → core/* and services/*
+      → subx-core/src/core/* and subx-core/src/services/*
 ```
 
 ### Layer Overview
@@ -118,16 +118,16 @@ main.rs → cli::run() → cli::run_with_config()
 ```
 CLI Layer (src/cli/)          → Argument parsing, user interface
 Command Layer (src/commands/) → Business logic per command
-Core Layer (src/core/)        → Processing engines, formats, matching
-Service Layer (src/services/) → External integrations (AI, audio, VAD)
-Config Layer (src/config/)    → DI-based configuration system
+Core Layer (subx-core/src/core/)        → Processing engines, formats, matching
+Service Layer (subx-core/src/services/) → External integrations (AI, audio, VAD)
+Config Layer (subx-core/src/config/)    → DI-based configuration system
 ```
 
 ### Key Design Patterns
 
 - **Dependency injection** — All components receive `&dyn ConfigService` or
   `Arc<dyn ConfigService>`. Never use global state. `ComponentFactory`
-  (in `src/core/factory.rs`) centralizes component construction from config.
+  (in `subx-core/src/core/factory.rs`) centralizes component construction from config.
 - **Trait objects for polymorphism** — `SubtitleFormat` (format plugins),
   `AIProvider` (AI backends), `ConfigService` (prod vs test),
   `EnvironmentProvider` (system vs test env).
@@ -146,34 +146,34 @@ Config Layer (src/config/)    → DI-based configuration system
 |---|---|---|
 | `src/cli/` | Argument parsing via clap derive + terminal presentation | `Cli`, `Commands`, `*Args`, `SubXErrorExt` (`error_ext.rs`), `TerminalReporter` |
 | `src/commands/` | Command implementations | `dispatcher`, `execute()` functions |
-| `src/config/` | Configuration with DI | `ConfigService`, `Config`, `TestConfigService`, `TestConfigBuilder` |
-| `src/core/factory.rs` | Component wiring | `ComponentFactory` |
-| `src/core/archive/` | Archive extraction (`.zip`, `.7z`, `.tar.gz`, optional `.rar`) | `ArchiveFormat`, `extract_archive()` |
-| `src/core/formats/` | Subtitle parsing/conversion | `SubtitleFormat` trait, `FormatManager`, `FormatConverter` |
-| `src/core/matcher/` | AI-powered file matching | `MatchEngine`, `FileDiscovery`, `MatchConfig` |
-| `src/core/sync/` | Subtitle synchronization; core-owned sync pairing and default output-path derivation | `SyncEngine`, `SyncMethod`, `SyncMode`, `SyncPairingRequest`, `BatchRequest`, `resolve_sync_pairing`, `create_default_output_path`, `SYNC_VIDEO_EXTENSIONS`, `SYNC_SUBTITLE_EXTENSIONS` |
-| `src/core/uuidv7.rs` | Shared UUIDv7 generator with strict ≥1 ms spacing; canonical home of `Uuidv7Generator` and `generate_ids`. Used for matcher file IDs, translation cue IDs, and parallel worker/task IDs. | `Uuidv7Generator`, `generate_ids`, `unix_time_ms` |
-| `src/core/translation/` | AI-assisted subtitle translation (two-pass terminology + cue translation, UUIDv7 cue IDs re-exported from `core::uuidv7`) | `TranslationEngine`, `TerminologyMap`, `CueIdGenerator` (alias of `Uuidv7Generator`) |
-| `src/core/parallel/` | Task scheduling | `TaskScheduler`, `Task`, `WorkerPool` |
-| `src/core/file_manager.rs` | File operations with backup | `FileManager` |
-| `src/core/input/` | Core-owned input collection: path merging, directory scanning, extension filtering, archive extraction | `InputPathHandler`, `CollectedFiles` |
-| `src/services/ai/` | AI provider clients | `AIProvider` trait, `OpenAIClient`, `OpenRouterClient`, `AzureOpenAIClient`, `LocalLLMClient` |
-| `src/services/audio/` | Audio analysis data structures and helpers | `AudioData`, `AudioEnvelope`, `DialogueSegment` |
-| `src/services/vad/` | Voice Activity Detection | `LocalVadDetector`, `VadSyncDetector` |
-| `src/error.rs` | Error taxonomy and machine contracts (library half) | `SubXError` (`category()`, `machine_code()`, `hint()`), `SubXResult<T>` |
+| `subx-core/src/config/` | Configuration with DI | `ConfigService`, `Config`, `TestConfigService`, `TestConfigBuilder` |
+| `subx-core/src/core/factory.rs` | Component wiring | `ComponentFactory` |
+| `subx-core/src/core/archive/` | Archive extraction (`.zip`, `.7z`, `.tar.gz`, optional `.rar`) | `ArchiveFormat`, `extract_archive()` |
+| `subx-core/src/core/formats/` | Subtitle parsing/conversion | `SubtitleFormat` trait, `FormatManager`, `FormatConverter` |
+| `subx-core/src/core/matcher/` | AI-powered file matching | `MatchEngine`, `FileDiscovery`, `MatchConfig` |
+| `subx-core/src/core/sync/` | Subtitle synchronization; core-owned sync pairing and default output-path derivation | `SyncEngine`, `SyncMethod`, `SyncMode`, `SyncPairingRequest`, `BatchRequest`, `resolve_sync_pairing`, `create_default_output_path`, `SYNC_VIDEO_EXTENSIONS`, `SYNC_SUBTITLE_EXTENSIONS` |
+| `subx-core/src/core/uuidv7.rs` | Shared UUIDv7 generator with strict ≥1 ms spacing; canonical home of `Uuidv7Generator` and `generate_ids`. Used for matcher file IDs, translation cue IDs, and parallel worker/task IDs. | `Uuidv7Generator`, `generate_ids`, `unix_time_ms` |
+| `subx-core/src/core/translation/` | AI-assisted subtitle translation (two-pass terminology + cue translation, UUIDv7 cue IDs re-exported from `core::uuidv7`) | `TranslationEngine`, `TerminologyMap`, `CueIdGenerator` (alias of `Uuidv7Generator`) |
+| `subx-core/src/core/parallel/` | Task scheduling | `TaskScheduler`, `Task`, `WorkerPool` |
+| `subx-core/src/core/file_manager.rs` | File operations with backup | `FileManager` |
+| `subx-core/src/core/input/` | Core-owned input collection: path merging, directory scanning, extension filtering, archive extraction | `InputPathHandler`, `CollectedFiles` |
+| `subx-core/src/services/ai/` | AI provider clients | `AIProvider` trait, `OpenAIClient`, `OpenRouterClient`, `AzureOpenAIClient`, `LocalLLMClient` |
+| `subx-core/src/services/audio/` | Audio analysis data structures and helpers | `AudioData`, `AudioEnvelope`, `DialogueSegment` |
+| `subx-core/src/services/vad/` | Voice Activity Detection | `LocalVadDetector`, `VadSyncDetector` |
+| `subx-core/src/error.rs` | Error taxonomy and machine contracts (library half) | `SubXError` (`category()`, `machine_code()`, `hint()`), `SubXResult<T>` |
 | `src/cli/error_ext.rs` | Binary-half error presentation (exit codes, terminal prose) | `SubXErrorExt` (`exit_code()`, `user_friendly_message()`) |
 
 ### Common Edit Targets
 
 | Task | Files to Edit |
 |---|---|
-| Add/change CLI arguments | `src/cli/*_args.rs` (the collection algorithm lives in `src/core/input/mod.rs`) |
+| Add/change CLI arguments | `src/cli/*_args.rs` (the collection algorithm lives in `subx-core/src/core/input/mod.rs`) |
 | Add/change command logic | `src/commands/*_command.rs` |
 | Change command routing | `src/commands/dispatcher.rs` |
-| Add/change config keys | `src/config/mod.rs`, `service.rs`, `field_validator.rs`, `validator.rs` |
-| Add AI provider | `src/services/ai/`, `src/core/factory.rs`, `src/config/` |
-| Add subtitle format | `src/core/formats/`, register in `FormatManager::new()` |
-| Add/change translation behavior | `src/cli/translate_args.rs`, `src/commands/translate_command.rs`, `src/core/translation/`, AI prompt helpers in `src/services/ai/` |
+| Add/change config keys | `subx-core/src/config/mod.rs`, `service.rs`, `field_validator.rs`, `validator.rs` |
+| Add AI provider | `subx-core/src/services/ai/`, `subx-core/src/core/factory.rs`, `subx-core/src/config/` |
+| Add subtitle format | `subx-core/src/core/formats/`, register in `FormatManager::new()` |
+| Add/change translation behavior | `src/cli/translate_args.rs`, `src/commands/translate_command.rs`, `subx-core/src/core/translation/`, AI prompt helpers in `subx-core/src/services/ai/` |
 
 ## File Organization
 
@@ -199,12 +199,13 @@ scripts/            Build, quality, and CI shell scripts
 src/                Rust source code
   ├── cli/          CLI argument parsing and UI modules
   ├── commands/     Command implementations
+  ├── lib.rs        Library entry point
+  └── main.rs       Binary entry point
+subx-core/          The subx-core library crate (git submodule):
   ├── config/       Configuration management (DI-based)
   ├── core/         Core processing engines
   ├── services/     External service integrations
-  ├── error.rs      Error type definitions
-  ├── lib.rs        Library entry point
-  └── main.rs       Binary entry point
+  └── error.rs      Error type definitions
 tests/              Integration tests organized by feature
   ├── cli/          CLI-focused test modules
   ├── commands/     Command-focused test modules
@@ -238,16 +239,18 @@ tests/              Integration tests organized by feature
 
 ### Error Handling
 
-- Use `SubXError` variants from `src/error.rs` — never invent ad-hoc error
-  types.
+- Use `SubXError` variants from `subx-core/src/error.rs` — never invent
+  ad-hoc error types.
 - The machine contracts `category()`, `machine_code()` and `hint()` stay on
-  `SubXError` in `src/error.rs` (library half). The process/terminal half
-  lives in `src/cli/error_ext.rs`: each variant maps to an exit code (1–6)
-  via `SubXErrorExt::exit_code` and provides user-facing guidance via
+  `SubXError` in `subx-core/src/error.rs` (library half). The process/terminal
+  half lives in `src/cli/error_ext.rs`: each variant maps to an exit code
+  (1–6) via `SubXErrorExt::exit_code` and provides user-facing guidance via
   `SubXErrorExt::user_friendly_message` — callers must
-  `use crate::cli::error_ext::SubXErrorExt;`. Code under `src/core/` and
-  `src/services/` must not import the trait or call either method; render
-  messages through `Display` there.
+  `use crate::cli::error_ext::SubXErrorExt;`. Code under
+  `subx-core/src/core/` and `subx-core/src/services/` must not name the
+  trait or either method — the crate may never reference `subx-cli` at all
+  (enforced by `tests/core_cli_boundary.rs`); render messages through
+  `Display` there.
 
 ### Naming Conventions
 
@@ -271,9 +274,9 @@ tests/              Integration tests organized by feature
 
 | Helper | Location | Purpose |
 |---|---|---|
-| `TestConfigService` | `src/config/test_service.rs` | Isolated config without filesystem I/O |
-| `TestConfigBuilder` | `src/config/builder.rs` | Fluent builder for test configs |
-| `TestEnvironmentProvider` | `src/config/environment.rs` | In-memory env vars for isolated testing |
+| `TestConfigService` | `subx-core/src/config/test_service.rs` | Isolated config without filesystem I/O |
+| `TestConfigBuilder` | `subx-core/src/config/builder.rs` | Fluent builder for test configs |
+| `TestEnvironmentProvider` | `subx-core/src/config/environment.rs` | In-memory env vars for isolated testing |
 | `CLITestHelper` | `tests/common/cli_helpers.rs` | TempDir + config; auto-cleanup via `Drop` |
 | `MockOpenAITestHelper` | `tests/common/mock_openai_helper.rs` | Wiremock-based AI mock server |
 | `MockAzureOpenAITestHelper` | `tests/common/mock_azure_openai_helper.rs` | Wiremock-based Azure OpenAI mock server |
@@ -361,7 +364,7 @@ Provider-specific variables (checked first):
 
 General overrides with `SUBX_` prefix (e.g., `SUBX_AI_MODEL`,
 `SUBX_GENERAL_WORKSPACE`). Note that env-var handling has special cases
-in `src/config/service.rs` — check the implementation if a specific
+in `subx-core/src/config/service.rs` — check the implementation if a specific
 override doesn't work as expected.
 
 Workspace override: `SUBX_WORKSPACE` or `general.workspace` config changes
@@ -382,11 +385,11 @@ See `docs/configuration-guide.md` for the full reference.
 
 New configuration keys must be added to all of the following:
 
-1. `src/config/mod.rs` — struct field with serde attributes
-2. `src/config/service.rs` — both `get_config_value()` and
+1. `subx-core/src/config/mod.rs` — struct field with serde attributes
+2. `subx-core/src/config/service.rs` — both `get_config_value()` and
    `set_config_value()`
-3. `src/config/field_validator.rs` — field-level validation
-4. `src/config/validator.rs` — section-level validation
+3. `subx-core/src/config/field_validator.rs` — field-level validation
+4. `subx-core/src/config/validator.rs` — section-level validation
 5. `docs/configuration-guide.md` — user-facing documentation
 
 ## AI Provider System
@@ -394,7 +397,7 @@ New configuration keys must be added to all of the following:
 Four providers are supported: `openai`, `openrouter`, `azure-openai`, and
 `local`. The string `ollama` is accepted as an alias for `local` and is
 normalized to the canonical value at config write time. All implement the
-`AIProvider` trait (defined in `src/services/ai/mod.rs`) with two async
+`AIProvider` trait (defined in `subx-core/src/services/ai/mod.rs`) with two async
 methods: `analyze_content()` and `verify_match()`.
 
 Hosted providers (`openai`, `openrouter`, `azure-openai`) require
@@ -406,13 +409,13 @@ or `https://`.
 
 To add a new provider, follow the step-by-step guide in
 `docs/ai-provider-integration-guide.md`. Key touchpoints: create the client
-in `src/services/ai/`, register in `src/core/factory.rs` →
-`create_ai_provider()`, add validation in `src/config/field_validator.rs`
-and `src/config/validator.rs`, and update both README files plus
+in `subx-core/src/services/ai/`, register in `subx-core/src/core/factory.rs` →
+`create_ai_provider()`, add validation in `subx-core/src/config/field_validator.rs`
+and `subx-core/src/config/validator.rs`, and update both README files plus
 `docs/configuration-guide.md`.
 
 AI-provider changes should also review supporting modules in
-`src/services/ai/`: `cache.rs`, `error_sanitizer.rs`, `prompts.rs`,
+`subx-core/src/services/ai/`: `cache.rs`, `error_sanitizer.rs`, `prompts.rs`,
 `retry.rs`, and `security.rs`.
 
 ## OpenSpec and Project Skills

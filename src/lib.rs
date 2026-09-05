@@ -19,14 +19,12 @@
 //!
 //! - [`cli`] - Command-line interface and argument parsing
 //! - [`commands`] - Implementation of all SubX commands
-//! - [`config`] - Configuration management and validation
-//! - [`core`] - Core processing engines (formats, matching, sync)
-//! - [`error`] - Comprehensive error handling system
-//! - [`services`] - External service integrations (AI, audio processing)
 //!
-//! The core engines are supplied by the `subx_core` crate, a git submodule
-//! mounted at `subx-core/` and a member of this Cargo workspace; the modules
-//! above will re-export it as the two-crate split progresses.
+//! The [`config`], [`core`], [`error`] and [`services`] modules are owned by
+//! the `subx_core` crate — the library half of the SubX two-crate split, a
+//! git submodule mounted at `subx-core/` and a member of this Cargo
+//! workspace. They are re-exported below under their pre-split paths so
+//! existing consumers keep compiling; `subx_core::` is the canonical path.
 //!
 //! # Quick Start
 //!
@@ -84,11 +82,12 @@
 //!
 //! # Feature Flags
 //!
-//! SubX supports several optional features:
+//! Both optional features of this crate are pass-throughs that enable the
+//! matching gate in the `subx-core` crate (where the gated sources live) and
+//! nothing else:
 //! ```text
-//! - ai - AI service integrations (default)
-//! - audio - Audio processing capabilities (default)  
-//! - parallel - Parallel processing support (default)
+//! - archive-rar - enable RAR archive extraction (optional unrar dependency)
+//! - slow-tests  - compile long-running tests in both crates
 //! ```
 
 #![allow(
@@ -137,22 +136,76 @@ pub const CORE_VERSION: &str = subx_core::VERSION;
 
 pub mod cli;
 pub mod commands;
-pub mod config;
-pub use config::Config;
-// Re-export new configuration service system
-pub use config::{
+
+// ── Legacy back-compat re-exports of the subx-core crate ──────────────────
+//
+// `config`, `core`, `error` and `services` moved to the `subx-core` crate
+// (the library half of the SubX two-crate split). Their canonical paths are
+// now `subx_core::{config, core, error, services}`; the re-exports below
+// exist only so consumers written against the pre-split `subx_cli::` paths
+// keep compiling, and they will be deleted once every out-of-tree consumer
+// (the Tauri GUI first) has migrated. Code inside this crate names
+// `subx_core::…` directly and never resolves through them.
+
+/// Configuration management and validation.
+///
+/// Legacy re-export: the module now lives in the `subx-core` crate; the
+/// canonical path is [`subx_core::config`]. This alias exists for consumers
+/// that have not yet migrated and will be removed once they have.
+pub use subx_core::config;
+/// Core processing engines (formats, matching, sync).
+///
+/// Legacy re-export: the module now lives in the `subx-core` crate; the
+/// canonical path is [`subx_core::core`]. This alias exists for consumers
+/// that have not yet migrated and will be removed once they have.
+pub use subx_core::core;
+/// Comprehensive error handling system.
+///
+/// Legacy re-export: the module now lives in the `subx-core` crate; the
+/// canonical path is [`subx_core::error`]. This alias exists for consumers
+/// that have not yet migrated and will be removed once they have.
+pub use subx_core::error;
+/// External service integrations (AI, audio processing).
+///
+/// Legacy re-export: the module now lives in the `subx-core` crate; the
+/// canonical path is [`subx_core::services`]. This alias exists for
+/// consumers that have not yet migrated and will be removed once they have.
+pub use subx_core::services;
+
+/// Root configuration types.
+///
+/// Legacy re-exports: these types now live in the `subx-core` crate, where
+/// the canonical paths are `subx_core::Config` and `subx_core::ConfigService`
+/// and so on. They exist for consumers that have not yet migrated and will
+/// be removed once they have.
+pub use subx_core::Config;
+pub use subx_core::{
     ConfigService, EnvironmentProvider, ProductionConfigService, SystemEnvironmentProvider,
     TestConfigBuilder, TestConfigService, TestEnvironmentProvider,
 };
-pub mod core;
-pub mod error;
+
+/// All twelve `#[macro_export]` configuration test macros, re-exported from
+/// the `subx-core` crate.
+///
+/// `#[macro_export]` places a macro at its defining crate's root, so
+/// `pub use subx_core::config;` above cannot reach them; they are listed
+/// individually. Legacy re-exports for consumers that have not yet migrated
+/// to `subx_core::` paths, and will be removed once they have.
+pub use subx_core::{
+    create_default_test_config_service, create_production_config_service_with_empty_env,
+    create_production_config_service_with_env, create_test_config_service,
+    test_production_config_with_env, test_production_config_with_openai_env, test_with_ai_config,
+    test_with_ai_config_and_key, test_with_config, test_with_default_config,
+    test_with_parallel_config, test_with_sync_config,
+};
+
 /// Convenient type alias for `Result<T, SubXError>`.
 ///
-/// This type alias simplifies error handling throughout the SubX library
-/// by providing a default error type for all fallible operations.
-pub type Result<T> = error::SubXResult<T>;
-
-pub mod services;
+/// Denotes the same type as before the crate split: the error type now lives
+/// in the `subx-core` crate, and this alias is the legacy `subx_cli::Result`
+/// path kept for consumers that have not yet migrated to
+/// [`subx_core::Result`].
+pub type Result<T> = subx_core::error::SubXResult<T>;
 
 /// Main application structure with dependency injection support.
 ///

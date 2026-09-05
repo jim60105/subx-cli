@@ -24,7 +24,7 @@ pub enum SyncMethodArg {
     Manual,
 }
 
-impl From<SyncMethodArg> for crate::core::sync::SyncMethod {
+impl From<SyncMethodArg> for subx_core::core::sync::SyncMethod {
     fn from(arg: SyncMethodArg) -> Self {
         match arg {
             SyncMethodArg::Vad => Self::LocalVad,
@@ -33,14 +33,14 @@ impl From<SyncMethodArg> for crate::core::sync::SyncMethod {
     }
 }
 
-use crate::core::input::InputPathHandler;
-use crate::core::sync::{
+use clap::{Args, ValueEnum};
+use std::path::PathBuf;
+use subx_core::core::input::InputPathHandler;
+use subx_core::core::sync::{
     BatchRequest, SYNC_SUBTITLE_EXTENSIONS, SYNC_VIDEO_EXTENSIONS, SyncMode, SyncPairingRequest,
     resolve_sync_pairing,
 };
-use crate::error::{SubXError, SubXResult};
-use clap::{Args, ValueEnum};
-use std::path::PathBuf;
+use subx_core::error::{SubXError, SubXResult};
 
 /// Refactored sync command arguments supporting multiple sync methods.
 #[derive(Args, Debug, Clone)]
@@ -234,7 +234,7 @@ Need help? Run: subx sync --help"
         } else {
             self.subtitle
                 .as_ref()
-                .map(|subtitle| crate::core::sync::create_default_output_path(subtitle))
+                .map(|subtitle| subx_core::core::sync::create_default_output_path(subtitle))
         }
     }
 
@@ -326,11 +326,11 @@ Need help? Run: subx sync --help"
 }
 
 /// Legacy re-export. [`create_default_output_path`] now lives in
-/// [`crate::core::sync`]; prefer that path. The alias exists so that
+/// [`subx_core::core::sync`]; prefer that path. The alias exists so that
 /// consumers of `subx_cli::cli::sync_args::create_default_output_path` keep
 /// compiling across the `subx-core` split and will be removed once they have
 /// migrated. In-crate callers reference the core path directly.
-pub use crate::core::sync::create_default_output_path;
+pub use subx_core::core::sync::create_default_output_path;
 
 #[cfg(test)]
 mod tests {
@@ -388,12 +388,12 @@ mod tests {
     #[test]
     fn test_method_arg_conversion() {
         assert_eq!(
-            crate::core::sync::SyncMethod::from(SyncMethodArg::Vad),
-            crate::core::sync::SyncMethod::LocalVad
+            subx_core::core::sync::SyncMethod::from(SyncMethodArg::Vad),
+            subx_core::core::sync::SyncMethod::LocalVad
         );
         assert_eq!(
-            crate::core::sync::SyncMethod::from(SyncMethodArg::Manual),
-            crate::core::sync::SyncMethod::Manual
+            subx_core::core::sync::SyncMethod::from(SyncMethodArg::Manual),
+            subx_core::core::sync::SyncMethod::Manual
         );
     }
 
@@ -935,7 +935,7 @@ mod tests {
     // ── adapter agreement ─────────────────────────────────────────────────────
     //
     // The pairing cases themselves moved to
-    // `crate::core::sync::tests` with the extraction (tasks 5.1/5.2). This
+    // `subx_core::core::sync::tests` with the extraction (tasks 5.1/5.2). This
     // test locks the CLI adapter: `SyncArgs::get_sync_mode` must agree with a
     // direct `resolve_sync_pairing` call on the request built from the same
     // fields. `SyncMode` is Debug-only, so the comparison destructures.
