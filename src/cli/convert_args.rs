@@ -27,10 +27,10 @@
 
 #![allow(clippy::needless_borrows_for_generic_args)]
 // src/cli/convert_args.rs
-use crate::core::input::InputPathHandler;
-use crate::error::SubXError;
 use clap::{Args, ValueEnum};
 use std::path::PathBuf;
+use subx_core::core::input::InputPathHandler;
+use subx_core::error::SubXError;
 
 /// Command-line arguments for subtitle format conversion.
 #[derive(Args, Debug)]

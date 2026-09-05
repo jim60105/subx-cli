@@ -21,20 +21,20 @@ before starting.
 
 The configuration layer accepts five provider names: `openai`, `openrouter`,
 `azure-openai`, `anthropic`, and `local`
-(see `src/config/field_validator.rs:30-35`). However, only three have
+(see `subx-core/src/config/field_validator.rs:30-35`). However, only three have
 runtime implementations with client code and factory support: **openai**,
 **openrouter**, and **azure-openai**
-(see `src/core/factory.rs:189-210`). When adding a new provider, you are
+(see `subx-core/src/core/factory.rs:189-210`). When adding a new provider, you are
 building both the config acceptance path and the runtime implementation.
 
 ## Step-by-Step Integration
 
 ### Step 1. Create the Provider Client
 
-**File:** `src/services/ai/{provider}.rs` (new)
+**File:** `subx-core/src/services/ai/{provider}.rs` (new)
 
 Create a module that implements the `AIProvider` trait. The trait lives in
-`src/services/ai/mod.rs` and requires two async methods:
+`subx-core/src/services/ai/mod.rs` and requires two async methods:
 `analyze_content` and `verify_match`.
 
 ```rust
@@ -96,11 +96,11 @@ impl AIProvider for {Provider}Client {
 }
 ```
 
-The existing providers (`src/services/ai/openai.rs`,
-`src/services/ai/openrouter.rs`) serve as concrete references. Each one
-uses `PromptBuilder` and `ResponseParser` from `src/services/ai/prompts.rs`
+The existing providers (`subx-core/src/services/ai/openai.rs`,
+`subx-core/src/services/ai/openrouter.rs`) serve as concrete references. Each one
+uses `PromptBuilder` and `ResponseParser` from `subx-core/src/services/ai/prompts.rs`
 to construct and parse AI messages, and `HttpRetryClient` from
-`src/services/ai/retry.rs` for exponential backoff. Follow the same
+`subx-core/src/services/ai/retry.rs` for exponential backoff. Follow the same
 pattern — reuse the shared prompt and retry infrastructure rather than
 reimplementing it.
 
@@ -114,12 +114,12 @@ client stores the reporter as an `Arc<dyn Reporter>` field defaulting to
 `crate::core::report::noop()`; callers attach a sink with the
 `with_reporter` builder (the CLI attaches its `TerminalReporter`, which
 renders the block via `ui::display_ai_usage`). Providers must not import
-anything from `src/cli/` — `src/services/` may not reference the CLI
+anything from `src/cli/` — `subx-core/src/services/` may not reference the CLI
 layer.
 
 ### Step 2. Register the Module
 
-**File:** `src/services/ai/mod.rs`
+**File:** `subx-core/src/services/ai/mod.rs`
 
 Add the module declaration:
 
@@ -130,7 +130,7 @@ pub mod {provider};
 
 ### Step 3. Add to Field Validation
 
-**File:** `src/config/field_validator.rs`
+**File:** `subx-core/src/config/field_validator.rs`
 
 Add the new provider slug to the `validate_enum` call at line 32:
 
@@ -152,7 +152,7 @@ assert!(validate_field("ai.provider", "{provider}").is_ok());
 
 ### Step 4. Add Provider-Specific Validation
 
-**File:** `src/config/validator.rs`
+**File:** `subx-core/src/config/validator.rs`
 
 Add a match arm in `validate_ai_config` for the new provider. Each provider
 validates its own required fields — at minimum: non-empty API key, valid
@@ -190,7 +190,7 @@ test that constructs an `AIConfig` with the new provider and verifies
 > - **The `local` provider** accepts either `http://` or `https://` and any
 >   reachable host (loopback, RFC1918 LAN, VPN/tailnet, public). Plaintext
 >   HTTP against a non-loopback host with an API key set logs an advisory
->   warning (see `src/services/ai/security.rs`) but does not block the
+>   warning (see `subx-core/src/services/ai/security.rs`) but does not block the
 >   request.
 >
 > A new hosted provider added by following this guide should reuse the
@@ -199,7 +199,7 @@ test that constructs an `AIConfig` with the new provider and verifies
 
 ### Step 5. Handle Environment Variables
 
-**File:** `src/config/service.rs`
+**File:** `subx-core/src/config/service.rs`
 
 The config service has a dedicated block for each provider's environment
 variables (around line 255–297). Add a similar block for the new provider:
@@ -236,7 +236,7 @@ fn test_production_config_service_{provider}_api_key_loading() {
 
 ### Step 6. Add Test Configuration Support
 
-**File:** `src/config/test_service.rs`
+**File:** `subx-core/src/config/test_service.rs`
 
 Add a test verifying that `TestConfigService::with_ai_settings_and_key`
 works with the new provider:
@@ -256,7 +256,7 @@ fn test_config_service_with_ai_settings_and_key_{provider}() {
 
 ### Step 7. Add Builder Tests
 
-**File:** `src/config/builder.rs`
+**File:** `subx-core/src/config/builder.rs`
 
 Add a test confirming the `TestConfigBuilder` fluent API produces a valid
 config for the new provider:
@@ -277,7 +277,7 @@ fn test_builder_ai_configuration_{provider}() {
 
 ### Step 8. Register in the Factory
 
-**File:** `src/core/factory.rs`
+**File:** `subx-core/src/core/factory.rs`
 
 Import the new client and add a match arm in `create_ai_provider`:
 
@@ -317,7 +317,7 @@ that `subx-cli config set ai.provider {provider}` appears in the help text.
 
 ### Step 10. Update Validation Tests
 
-**File:** `src/config/validation.rs`
+**File:** `subx-core/src/config/validation.rs`
 
 Add the new provider to any `validate_enum` test arrays that list accepted
 providers.
@@ -329,8 +329,8 @@ providers.
 Write integration tests covering both success and failure paths:
 
 ```rust
-use subx_cli::config::TestConfigService;
-use subx_cli::core::ComponentFactory;
+use subx_core::config::TestConfigService;
+use subx_core::core::ComponentFactory;
 
 #[tokio::test]
 async fn test_{provider}_client_creation() {
@@ -366,14 +366,14 @@ Three documentation files need updates:
 
 Azure OpenAI diverges from the generic pattern in several ways. When
 implementing a provider that has similar platform-specific behavior, use
-Azure as a reference (see `src/services/ai/azure_openai.rs`).
+Azure as a reference (see `subx-core/src/services/ai/azure_openai.rs`).
 
 The `ai.model` field serves as the Azure deployment name rather than a model
 identifier. The `ai.api_version` field (an `Option<String>` on `AIConfig`)
 is required, with a default of `2025-04-01-preview`. The API endpoint URL
 format differs from standard OpenAI.
 
-Azure loads five environment variables in `src/config/service.rs`:
+Azure loads five environment variables in `subx-core/src/config/service.rs`:
 `AZURE_OPENAI_API_KEY`, `AZURE_OPENAI_ENDPOINT`,
 `AZURE_OPENAI_API_VERSION`, and `AZURE_OPENAI_DEPLOYMENT_ID` (which
 overrides `ai.model`). If your provider has similar multi-field
@@ -383,7 +383,7 @@ configuration, follow the same pattern of dedicated env var blocks.
 
 The `local` provider (alias `ollama`, normalized at config write time)
 targets any OpenAI-compatible chat-completions endpoint. It is implemented
-by `LocalLLMClient` in `src/services/ai/local.rs` and registered in
+by `LocalLLMClient` in `subx-core/src/services/ai/local.rs` and registered in
 `ComponentFactory::create_ai_provider` via the canonical value `local`.
 
 ### Wire protocol
@@ -410,7 +410,7 @@ trailing slash.
 `LocalLLMClient` reuses the same shared traits as `OpenAIClient` and
 `OpenRouterClient`:
 
-- `PromptBuilder` from `src/services/ai/prompts.rs` for `analyze_content`
+- `PromptBuilder` from `subx-core/src/services/ai/prompts.rs` for `analyze_content`
   and `verify_match` prompt construction. The analysis prompt is an
   XML-tagged document (`<role>`, `<instructions>`, `<video_files>`,
   `<subtitle_files>`, `<content_samples>`, `<output_schema>`,
@@ -420,7 +420,7 @@ trailing slash.
   participate in the matcher's global uniqueness allocator.
 - `ResponseParser` (same module) for parsing the OpenAI-canonical response
   envelope into `MatchResult` / `ConfidenceScore`.
-- `HttpRetryClient` from `src/services/ai/retry.rs` for exponential-backoff
+- `HttpRetryClient` from `subx-core/src/services/ai/retry.rs` for exponential-backoff
   retries driven by `ai.retry_attempts` and `ai.retry_delay_ms`.
 
 This means the local provider participates in the same retry, prompt, and
@@ -489,7 +489,7 @@ local/LAN OpenAI-compatible endpoint:
    fields.
 
 In those cases the clients append the canonical advisory string returned
-by `local_provider_hint()` (in `src/services/ai/security.rs`) to the
+by `local_provider_hint()` (in `subx-core/src/services/ai/security.rs`) to the
 emitted `SubXError::AiService` message via the existing `error_sanitizer`
 pipeline:
 
@@ -508,15 +508,15 @@ checklist before opening a pull request.
 
 | Layer | File | Change |
 |---|---|---|
-| **Client** | `src/services/ai/{provider}.rs` | New: provider implementation |
-| **Client** | `src/services/ai/mod.rs` | Add module declaration |
-| **Factory** | `src/core/factory.rs` | Add match arm + import |
-| **Validation** | `src/config/field_validator.rs` | Add to enum list |
-| **Validation** | `src/config/validator.rs` | Add validation block |
-| **Config** | `src/config/service.rs` | Add env var handling |
-| **Config** | `src/config/test_service.rs` | Add provider test |
-| **Config** | `src/config/builder.rs` | Add builder test |
-| **Config** | `src/config/validation.rs` | Update enum test arrays |
+| **Client** | `subx-core/src/services/ai/{provider}.rs` | New: provider implementation |
+| **Client** | `subx-core/src/services/ai/mod.rs` | Add module declaration |
+| **Factory** | `subx-core/src/core/factory.rs` | Add match arm + import |
+| **Validation** | `subx-core/src/config/field_validator.rs` | Add to enum list |
+| **Validation** | `subx-core/src/config/validator.rs` | Add validation block |
+| **Config** | `subx-core/src/config/service.rs` | Add env var handling |
+| **Config** | `subx-core/src/config/test_service.rs` | Add provider test |
+| **Config** | `subx-core/src/config/builder.rs` | Add builder test |
+| **Config** | `subx-core/src/config/validation.rs` | Update enum test arrays |
 | **CLI** | `src/cli/config_args.rs` | Add doc examples |
 | **Tests** | `tests/{provider}_integration_tests.rs` | New: integration tests |
 | **Docs** | `docs/configuration-guide.md` | Add config section |
@@ -531,7 +531,7 @@ A complete provider integration requires tests at three levels:
 They cover config validation, client construction, and error handling for
 invalid inputs.
 
-**Factory tests** in `src/core/factory.rs` verify that the factory
+**Factory tests** in `subx-core/src/core/factory.rs` verify that the factory
 dispatches to the correct client and rejects invalid configurations.
 
 **Integration tests** in `tests/{provider}_integration_tests.rs` exercise
@@ -562,7 +562,7 @@ should produce a clear error immediately. If the provider uses a
 recognizable key format (like OpenAI's `sk-` prefix), add format validation
 as well, but keep it lenient — providers change key formats over time.
 
-Reuse the shared `HttpRetryClient` from `src/services/ai/retry.rs` for
+Reuse the shared `HttpRetryClient` from `subx-core/src/services/ai/retry.rs` for
 retry logic. It implements exponential backoff with configurable attempts
 and delay. Timeout values come from `AIConfig.request_timeout_seconds`.
 Handle timeout and network errors by returning `SubXError::AiService` with

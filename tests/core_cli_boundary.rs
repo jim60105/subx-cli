@@ -1,18 +1,30 @@
-//! Layering guard: no module under `src/core/` or `src/services/` may
-//! reference `crate::cli`.
+//! Layering guard: the `subx-core` crate may never reference `subx-cli`.
 //!
-//! The crate split (`expose-core-orchestration-apis`, eventually the
-//! `subx-core` crate) requires `src/core/` and `src/services/` to stop
-//! depending on the CLI layer: core code must not read the process-global
-//! output mode or quiet flag, and must not call terminal helpers such as
-//! `display_ai_usage`. All human-oriented output goes through the
-//! `crate::core::report::Reporter` seam instead.
+//! `subx-core` is the library half of the SubX two-crate split (the git
+//! submodule mounted at `subx-core/`). The dependency between the crates
+//! points downward only — `subx-cli` depends on `subx-core`, never the other
+//! way — so any reference from core to the CLI is unfixable rather than
+//! merely stale: there is no dependency edge for rustc or rustdoc to resolve
+//! it through, and `broken_intra_doc_links = "deny"` turns such a rustdoc
+//! link into a hard build failure.
+//!
+//! The guard therefore rejects, anywhere in a line of any `.rs` file under
+//! `subx-core/src/` (code, comments, doc links and doctests alike):
+//!
+//! - `crate::cli` and `crate::commands` — the paths core code used before
+//!   the crate split, when the CLI modules shared the crate root;
+//! - `subx_cli` — the cross-crate spelling of the same references.
+//!
+//! Human-oriented output from core goes through the transport-agnostic
+//! `subx_core::core::report::Reporter` seam instead.
 //!
 //! Paths resolve from `CARGO_MANIFEST_DIR`, never the working directory, so
 //! the guard works no matter where the test runner is invoked from.
 
 use std::fs;
 use std::path::{Path, PathBuf};
+
+const FORBIDDEN: [&str; 3] = ["crate::cli", "crate::commands", "subx_cli"];
 
 fn collect_rs_files(dir: &Path, out: &mut Vec<PathBuf>) {
     let entries =
@@ -28,36 +40,41 @@ fn collect_rs_files(dir: &Path, out: &mut Vec<PathBuf>) {
 }
 
 #[test]
-fn core_and_services_never_reference_the_cli_layer() {
+fn subx_core_never_references_the_cli_crate() {
     let root = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let core_src = root.join("subx-core").join("src");
     let mut offenders: Vec<String> = Vec::new();
 
-    for subtree in ["src/core", "src/services"] {
-        let mut files = Vec::new();
-        collect_rs_files(&root.join(subtree), &mut files);
-        assert!(
-            !files.is_empty(),
-            "guard walked no files under {subtree} — path resolution is broken"
-        );
-        for file in files {
-            let text = fs::read_to_string(&file)
-                .unwrap_or_else(|e| panic!("failed to read {}: {e}", file.display()));
-            for (lineno, line) in text.lines().enumerate() {
-                if line.contains("crate::cli") {
-                    offenders.push(format!(
-                        "{}:{}",
-                        file.strip_prefix(&root).unwrap_or(&file).display(),
-                        lineno + 1
-                    ));
-                }
+    let mut files = Vec::new();
+    collect_rs_files(&core_src, &mut files);
+    assert!(
+        !files.is_empty(),
+        "guard walked no files under {} — the submodule is not initialised \
+         (run `git submodule update --init --recursive`) or path resolution \
+         is broken",
+        core_src.display()
+    );
+    for file in files {
+        let text = fs::read_to_string(&file)
+            .unwrap_or_else(|e| panic!("failed to read {}: {e}", file.display()));
+        for (lineno, line) in text.lines().enumerate() {
+            if let Some(token) = FORBIDDEN.iter().find(|token| line.contains(**token)) {
+                offenders.push(format!(
+                    "{}:{}: contains `{token}`",
+                    file.strip_prefix(&root).unwrap_or(&file).display(),
+                    lineno + 1
+                ));
             }
         }
     }
 
     assert!(
         offenders.is_empty(),
-        "src/core/ and src/services/ must not reference crate::cli \
-         (route human-oriented output through crate::core::report::Reporter). \nOffending file:line:\n{}",
+        "subx-core/src/ must never reference the subx-cli crate — there is \
+         no dependency edge in that direction, so code, doc links and \
+         doctests naming crate::cli, crate::commands or subx_cli cannot \
+         resolve (route human-oriented output through \
+         subx_core::core::report::Reporter instead). \nOffending file:line:\n{}",
         offenders.join("\n")
     );
 }

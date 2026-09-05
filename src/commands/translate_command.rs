@@ -34,11 +34,11 @@ use crate::cli::TranslateArgs;
 use std::path::{Path, PathBuf};
 
 use crate::cli::output::{active_mode, emit_success, is_quiet};
-use crate::config::ConfigService;
-use crate::core::ComponentFactory;
-use crate::core::translation::{TranslationRequest, parse_glossary_text};
-use crate::error::SubXError;
 use serde::Serialize;
+use subx_core::config::ConfigService;
+use subx_core::core::ComponentFactory;
+use subx_core::core::translation::{TranslationRequest, parse_glossary_text};
+use subx_core::error::SubXError;
 
 /// Per-file record reported in the `translate` JSON envelope.
 ///
@@ -73,7 +73,7 @@ pub struct TranslateExecution {
     /// Validated CLI arguments.
     pub args: TranslateArgs,
     /// Effective target language (`args.target_language` if non-empty,
-    /// otherwise [`crate::config::TranslationConfig::default_target_language`]).
+    /// otherwise [`subx_core::config::TranslationConfig::default_target_language`]).
     pub target_language: String,
     /// Configured translation batch size.
     pub batch_size: usize,
@@ -274,12 +274,12 @@ pub async fn execute_with_config(
 }
 
 async fn translate_one_file(
-    engine: &crate::core::translation::TranslationEngine,
+    engine: &subx_core::core::translation::TranslationEngine,
     input_path: &Path,
     output: &ResolvedOutput,
     execution: &TranslateExecution,
     glossary_text: Option<String>,
-    glossary_entries: Vec<crate::core::translation::GlossaryEntry>,
+    glossary_entries: Vec<subx_core::core::translation::GlossaryEntry>,
     backup_enabled: bool,
 ) -> crate::Result<()> {
     if output.path.exists() && !execution.args.force && !output.replaces_source {
@@ -323,7 +323,7 @@ async fn translate_one_file(
 
 fn resolve_output_path(
     input_path: &Path,
-    collected: &crate::core::input::CollectedFiles,
+    collected: &subx_core::core::input::CollectedFiles,
     args: &TranslateArgs,
     target_language: &str,
 ) -> crate::Result<ResolvedOutput> {
@@ -421,8 +421,8 @@ fn backup_path(input_path: &Path) -> PathBuf {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::config::TestConfigBuilder;
     use std::path::PathBuf;
+    use subx_core::config::TestConfigBuilder;
 
     fn base_args() -> TranslateArgs {
         TranslateArgs {

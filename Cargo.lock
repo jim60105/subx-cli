@@ -2984,40 +2984,65 @@ dependencies = [
  "anyhow",
  "assert_cmd",
  "async-trait",
- "audioadapter-buffers",
  "clap",
  "clap_complete",
  "colored",
- "config",
  "criterion",
  "dirs",
  "encoding_rs",
  "env_logger",
  "flate2",
- "futures",
  "hound",
  "indicatif",
  "log",
  "mockall",
- "num_cpus",
  "predicates",
  "pretty_assertions",
  "regex",
  "reqwest",
  "rstest",
- "rubato",
  "serde",
  "serde_json",
  "sevenz-rust2",
  "subx-core",
- "symphonia",
  "tabled",
  "tar",
  "tempfile",
  "test-case",
- "thiserror",
  "tokio",
  "tokio-test",
+ "toml",
+ "uuid",
+ "wiremock",
+ "zip",
+]
+
+[[package]]
+name = "subx-core"
+version = "1.0.0"
+dependencies = [
+ "anyhow",
+ "async-trait",
+ "audioadapter-buffers",
+ "config",
+ "dirs",
+ "encoding_rs",
+ "flate2",
+ "futures",
+ "log",
+ "mockall",
+ "num_cpus",
+ "regex",
+ "reqwest",
+ "rubato",
+ "serde",
+ "serde_json",
+ "sevenz-rust2",
+ "symphonia",
+ "tar",
+ "tempfile",
+ "thiserror",
+ "tokio",
  "toml",
  "unrar",
  "url",
@@ -3027,10 +3052,6 @@ dependencies = [
  "wiremock",
  "zip",
 ]
-
-[[package]]
-name = "subx-core"
-version = "1.0.0"
 
 [[package]]
 name = "symphonia"

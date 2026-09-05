@@ -79,10 +79,10 @@ use std::path::PathBuf;
 
 use crate::Result;
 use crate::cli::output::{self, emit_success};
-use crate::config::ConfigService;
-use crate::core::formats::encoding::{Charset, EncodingDetector};
 use log::error;
 use serde::Serialize;
+use subx_core::config::ConfigService;
+use subx_core::core::formats::encoding::{Charset, EncodingDetector};
 
 /// Per-item error carried inside [`DetectEncodingItem::error`].
 ///
@@ -92,10 +92,10 @@ use serde::Serialize;
 /// while the overall command status remains `"ok"`.
 #[derive(Debug, Serialize)]
 pub struct DetectEncodingItemError {
-    /// Snake_case category mirroring [`crate::error::SubXError::category`].
+    /// Snake_case category mirroring [`subx_core::error::SubXError::category`].
     pub category: String,
     /// Upper-snake-case machine code mirroring
-    /// [`crate::error::SubXError::machine_code`].
+    /// [`subx_core::error::SubXError::machine_code`].
     pub code: String,
     /// Human-readable English message.
     pub message: String,
@@ -272,7 +272,7 @@ fn charset_to_label(c: &Charset) -> &'static str {
 /// - **Automation**: Integrate encoding detection into batch processing workflows
 use crate::cli::DetectEncodingArgs;
 use crate::cli::error_ext::SubXErrorExt;
-use crate::error::SubXError;
+use subx_core::error::SubXError;
 
 /// Execute character encoding detection for subtitle files based on input arguments.
 pub fn detect_encoding_command(args: &DetectEncodingArgs) -> Result<()> {

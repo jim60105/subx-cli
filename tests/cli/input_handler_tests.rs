@@ -1,7 +1,7 @@
 //! Unit tests: InputPathHandler file and directory handling
 
-use crate::cli::InputPathHandler;
-use crate::error::SubXError;
+use subx_core::core::input::InputPathHandler;
+use subx_core::error::SubXError;
 use std::fs;
 use std::path::PathBuf;
 use tempfile::TempDir;

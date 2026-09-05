@@ -32,10 +32,10 @@
 //! OpenSpec change proposal.
 
 use crate::cli::error_ext::SubXErrorExt;
-use crate::error::SubXError;
 use serde::Serialize;
 use std::io::{self, Write};
 use std::sync::OnceLock;
+use subx_core::error::SubXError;
 
 /// Schema version emitted in every JSON envelope.
 pub const SCHEMA_VERSION: &str = "1.0";

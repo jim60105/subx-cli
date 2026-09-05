@@ -43,16 +43,6 @@ pub mod table;
 mod translate_args;
 pub mod ui;
 
-/// Legacy re-export. [`InputPathHandler`] and [`CollectedFiles`] now live in
-/// [`crate::core::input`]; prefer that path. These aliases exist so that
-/// consumers written against `subx_cli::cli::…` keep compiling across the
-/// `subx-core` split and will be removed once they have migrated.
-pub use crate::core::input::{CollectedFiles, InputPathHandler};
-/// Legacy re-export. [`SyncMode`] now lives in [`crate::core::sync`]; prefer
-/// that path. The alias exists so that consumers written against
-/// `subx_cli::cli::SyncMode` keep compiling across the `subx-core` split and
-/// will be removed once they have migrated.
-pub use crate::core::sync::SyncMode;
 pub use cache_args::{
     ApplyArgs, CacheAction, CacheArgs, ClearArgs, ClearType, RollbackArgs, StatusArgs,
 };
@@ -65,6 +55,16 @@ pub use generate_completion_args::GenerateCompletionArgs;
 pub use match_args::MatchArgs;
 pub use output::{OutputMode, SCHEMA_VERSION};
 pub use reporter::{TerminalReporter, terminal_reporter};
+/// Legacy re-export. [`InputPathHandler`] and [`CollectedFiles`] now live in
+/// [`subx_core::core::input`]; prefer that path. These aliases exist so that
+/// consumers written against `subx_cli::cli::…` keep compiling across the
+/// `subx-core` split and will be removed once they have migrated.
+pub use subx_core::core::input::{CollectedFiles, InputPathHandler};
+/// Legacy re-export. [`SyncMode`] now lives in [`subx_core::core::sync`]; prefer
+/// that path. The alias exists so that consumers written against
+/// `subx_cli::cli::SyncMode` keep compiling across the `subx-core` split and
+/// will be removed once they have migrated.
+pub use subx_core::core::sync::SyncMode;
 pub use sync_args::{SyncArgs, SyncMethod, SyncMethodArg};
 pub use translate_args::TranslateArgs;
 pub use ui::{
@@ -141,7 +141,7 @@ pub enum Commands {
 /// The active [`OutputMode`] is resolved from `--output`, the
 /// `SUBX_OUTPUT` environment variable, and the built-in default in that
 /// order; `command` is the kebab-cased subcommand name (`"match"`,
-/// `"sync"`, …); `result` carries any [`crate::error::SubXError`]
+/// `"sync"`, …); `result` carries any [`subx_core::error::SubXError`]
 /// produced during dispatch.
 #[derive(Debug)]
 pub struct RunOutcome {
@@ -191,7 +191,7 @@ pub fn command_name(cmd: &Commands) -> &'static str {
 /// [`run_with_config`] (which returns a [`RunOutcome`]) for new
 /// integrations that need the resolved [`OutputMode`].
 pub async fn run() -> crate::Result<()> {
-    let config_service = std::sync::Arc::new(crate::config::ProductionConfigService::new()?);
+    let config_service = std::sync::Arc::new(subx_core::config::ProductionConfigService::new()?);
     run_with_config(config_service.as_ref()).await.result
 }
 
@@ -207,7 +207,7 @@ pub async fn run() -> crate::Result<()> {
 /// # Arguments
 ///
 /// * `config_service` - The configuration service to use
-pub async fn run_with_config(config_service: &dyn crate::config::ConfigService) -> RunOutcome {
+pub async fn run_with_config(config_service: &dyn subx_core::config::ConfigService) -> RunOutcome {
     let cli = match Cli::try_parse() {
         Ok(cli) => cli,
         Err(err) => {
@@ -221,7 +221,7 @@ pub async fn run_with_config(config_service: &dyn crate::config::ConfigService) 
                 output_mode: mode,
                 quiet: false,
                 command: "",
-                result: Err(crate::error::SubXError::CommandExecution(format!(
+                result: Err(subx_core::error::SubXError::CommandExecution(format!(
                     "argument parsing failed: {err}"
                 ))),
             };
@@ -240,7 +240,7 @@ pub async fn run_with_config(config_service: &dyn crate::config::ConfigService) 
                 output_mode,
                 quiet,
                 command,
-                result: Err(crate::error::SubXError::CommandExecution(format!(
+                result: Err(subx_core::error::SubXError::CommandExecution(format!(
                     "Failed to set workspace directory to {}: {}",
                     std::path::PathBuf::from(&ws_env).display(),
                     e
@@ -255,7 +255,7 @@ pub async fn run_with_config(config_service: &dyn crate::config::ConfigService) 
                     output_mode,
                     quiet,
                     command,
-                    result: Err(crate::error::SubXError::CommandExecution(format!(
+                    result: Err(subx_core::error::SubXError::CommandExecution(format!(
                         "Failed to set workspace directory to {}: {}",
                         ws_dir.display(),
                         e

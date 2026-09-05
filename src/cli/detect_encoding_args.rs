@@ -28,10 +28,10 @@
 //! subx detect-encoding *.srt *.ass *.vtt *.sub
 //! ```
 
-use crate::core::input::InputPathHandler;
-use crate::error::SubXError;
 use clap::Args;
 use std::path::PathBuf;
+use subx_core::core::input::InputPathHandler;
+use subx_core::error::SubXError;
 
 /// Command-line arguments for file encoding detection.
 #[derive(Args, Debug)]

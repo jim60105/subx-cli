@@ -40,12 +40,14 @@ exclude = [
 all-features = true
 rustdoc-args = ["--cfg", "docsrs"]
 
-# Test-only feature flags: 'slow-tests' gates long-running tests;
-# 'archive-rar' enables optional RAR archive extraction.
+# Test-only feature flags. Both are pass-throughs: the gated sources live in
+# the subx-core crate, and each declaration both enables the core feature and
+# remains a real `subx-cli` feature (tests/ still write
+# #[cfg(feature = "slow-tests")] against this crate's feature set).
 [features]
 default = []
-slow-tests = []
-archive-rar = ["dep:unrar"]
+slow-tests = ["subx-core/slow-tests"]
+archive-rar = ["subx-core/archive-rar"]
 
 # Documentation quality linting
 [lints.rustdoc]
@@ -69,46 +71,21 @@ subx-core = { path = "subx-core", version = "1.0" }
 clap = { version = "4.5.40", features = ["derive", "cargo"] }
 clap_complete = "4.5.54"
 
-# Subtitle format parsing dependencies
-regex = "1.0"
-encoding_rs = "0.8"
-
 # Async runtime
+# `time`: src/commands/match_command.rs uses tokio::time in production code;
+# it must not rely on subx-core enabling the feature through unification.
+# fs/sync are needed only by test targets and are declared under
+# [dev-dependencies] below.
 tokio = { version = "1.0", features = [
     "rt-multi-thread",
     "macros",
     "time",
-    "sync",
-    "fs",
 ] }
-
-# Error handling
-anyhow = "1.0"
-thiserror = "2.0"
 
 # Serialization
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 toml = "1"
-
-# Configuration management
-config = "0.15"
-
-# HTTP client
-reqwest = { version = "0.13", features = ["json", "stream", "rustls"] }
-
-# File scanning
-walkdir = "2.3"
-
-# URL parsing and validation
-url = "2"
-
-# Parallel processing support
-futures = "0.3"
-
-# Async trait support
-async-trait = "0.1"
-uuid = { version = "1.3", features = ["v7"] }
 
 # Logging
 log = "0.4"
@@ -119,39 +96,28 @@ colored = "3.0"
 tabled = "0.20"
 indicatif = "0.18"
 
-# Audio processing
-symphonia = { version = "0.5", default-features = false, features = [
-    "isomp4",
-    "mkv",
-    "ogg",
-    "wav",
-    "aac",
-    "flac",
-    "mp3",
-    "pcm",
-    "vorbis",
-] }
-
-# VAD
-voice_activity_detector = { version = "0.2.1", features = [
-    "async",
-] }
-rubato = "2.0"
-audioadapter-buffers = "3"
-
-# Configuration management dependencies: path resolution and multi-core detection
+# Config-directory resolution (src/commands/cache_command.rs). subx-core
+# depends on `dirs` too; declaring the same registry crate twice is normal.
 dirs = "6.0"
-num_cpus = "1.0"
-
-# Archive extraction
-zip = "8"
-unrar = { version = "0.5", optional = true }
-tar = "0.4"
-flate2 = "1"
-tempfile = "3.10"
-sevenz-rust2 = "0.22.2"
 
 [dev-dependencies]
+# Registry crates that tests/, benches/ and the #[cfg(test)] modules inside
+# src/ name directly. Before the crate split they compiled through
+# [dependencies]; the split moved them to subx-core, so they must be declared
+# for the test targets here rather than inherited through the workspace
+# dependency graph. B3 prunes whatever its test move leaves over.
+anyhow = "1.0"
+async-trait = "0.1"
+encoding_rs = "0.8"
+flate2 = "1"
+reqwest = { version = "0.13", features = ["json", "stream", "rustls"] }
+sevenz-rust2 = "0.22.2"
+tar = "0.4"
+tempfile = "3.10"
+tokio = { version = "1.0", features = ["fs", "sync"] }
+uuid = { version = "1.3", features = ["v7"] }
+zip = "8"
+
 # WAV fixture generation for VAD and sync integration tests
 hound = "3.5"
 

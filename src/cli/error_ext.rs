@@ -1,6 +1,6 @@
 //! Binary-owned presentation extensions for [`SubXError`].
 //!
-//! The `SubXError` taxonomy itself lives in [`crate::error`] and ships with
+//! The `SubXError` taxonomy itself lives in [`subx_core::error`] and ships with
 //! the library half of the split (`subx-core`): `category()`, `machine_code()`
 //! and `hint()` are inherent methods there because machine-readable front
 //! ends (e.g. the Tauri GUI) consume them directly.
@@ -19,7 +19,7 @@
 //! call either method; core code that needs a rendered message uses
 //! `Display` (`to_string()`), optionally combined with `hint()`.
 
-use crate::error::SubXError;
+use subx_core::error::SubXError;
 
 /// Presentation-layer extensions to [`SubXError`] owned by the binary.
 pub trait SubXErrorExt {
@@ -108,9 +108,9 @@ impl SubXErrorExt for SubXError {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::error::ApiErrorSource;
     use std::io;
     use std::path::PathBuf;
+    use subx_core::error::ApiErrorSource;
 
     // ── exit_code mapping ─────────────────────────────────────────────────────
     //
@@ -151,12 +151,18 @@ mod tests {
     /// `error_sanitizer` helpers) to confirm that when input *does*
     /// contain an `sk-*` secret, it is stripped before wrapping it in
     /// `SubXError::AiService`.
+    ///
+    /// The `Display`/`Debug` half of this audit — the same exhaustive
+    /// variant list — lives in the `subx-core` repository's `src/error.rs`
+    /// (`test_no_api_key_leaks_in_any_variant`), beside the code that
+    /// defines the variants. Keep the two variant lists in step; updating
+    /// one without the other half-defeats the `secrets-protection` audit.
     #[test]
     fn test_no_api_key_leaks_in_any_variant() {
-        use crate::services::ai::error_sanitizer::{
+        use std::path::PathBuf;
+        use subx_core::services::ai::error_sanitizer::{
             DEFAULT_ERROR_BODY_MAX_LEN, sanitize_url_in_error, truncate_error_body,
         };
-        use std::path::PathBuf;
 
         // 1. Canonical variant audit: benign dummy data must never yield
         //    an `sk-` substring.

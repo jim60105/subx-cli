@@ -862,7 +862,7 @@ What requires a major bump:
   `timeline-sync` spec files under the same change directory.
 - Source of truth for the envelope and error mapping:
   - `src/cli/output.rs` (envelope, renderer, schema-version constant)
-  - `src/error.rs` (`SubXError::category`, `machine_code`, `hint` — the
+  - `subx-core/src/error.rs` (`SubXError::category`, `machine_code`, `hint` — the
     library-half machine contracts)
   - `src/cli/error_ext.rs` (`SubXErrorExt::exit_code`,
     `SubXErrorExt::user_friendly_message` — the binary-half presentation

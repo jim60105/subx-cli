@@ -338,7 +338,7 @@ export SUBX_WORKSPACE="/path/to/working/directory"
 
 Note that provider-specific variables (like `OPENAI_API_KEY`) are checked
 before `SUBX_` prefixed variables. The env-var handling has special cases in
-`src/config/service.rs` — if a specific override does not take effect as
+`subx-core/src/config/service.rs` — if a specific override does not take effect as
 expected, check the implementation.
 
 ## Security Considerations

@@ -20,10 +20,10 @@
 //! ```
 #![allow(clippy::needless_borrows_for_generic_args)]
 
-use crate::core::input::InputPathHandler;
-use crate::error::SubXError;
 use clap::Args;
 use std::path::PathBuf;
+use subx_core::core::input::InputPathHandler;
+use subx_core::error::SubXError;
 
 /// Command-line arguments for AI-assisted subtitle translation.
 ///
