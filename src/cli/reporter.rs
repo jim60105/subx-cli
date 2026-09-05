@@ -52,10 +52,12 @@ impl Reporter for TerminalReporter {
             return;
         }
         // Within the defining crate the enum has only `Message`; new
-        // structured variants from expose-core-orchestration-apis must keep
-        // this match compiling — the wildcard arm ignores them until they
-        // land. (The arm is statically unreachable today, hence the allow.)
-        #[allow(unreachable_patterns)]
+        // structured variants from expose-core-orchestration-apis are simply
+        // ignored here until they land and a handler is wired up.
+        // A wildcard arm is required so foreign variants keep compiling when
+        // they land; `single_match`/`unreachable_patterns` fire only while the
+        // enum is single-variant, hence the allows.
+        #[allow(unreachable_patterns, clippy::single_match)]
         match event {
             ProgressEvent::Message(message) => eprintln!("{message}"),
             _ => {}
