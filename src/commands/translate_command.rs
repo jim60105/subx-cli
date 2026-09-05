@@ -174,7 +174,8 @@ pub async fn execute(args: TranslateArgs, config_service: &dyn ConfigService) ->
         .map(parse_glossary_text)
         .unwrap_or_default();
 
-    let factory = ComponentFactory::new(config_service)?;
+    let factory =
+        ComponentFactory::new(config_service)?.with_reporter(crate::cli::terminal_reporter());
     let engine = factory.create_translation_engine()?;
     let mut failures = Vec::new();
     let mut items: Vec<TranslatedFile> = Vec::with_capacity(collected.len());

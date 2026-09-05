@@ -9,7 +9,6 @@
 //! non-OpenAI response, or signals that the requested model is not loaded.
 
 use crate::Result;
-use crate::cli::display_ai_usage;
 use crate::error::SubXError;
 use crate::services::ai::AiUsageStats;
 use crate::services::ai::{
@@ -41,6 +40,7 @@ pub struct LocalLLMClient {
     retry_delay_ms: u64,
     base_url: String,
     request_timeout_seconds: u64,
+    reporter: std::sync::Arc<dyn crate::core::report::Reporter>,
 }
 
 impl std::fmt::Debug for LocalLLMClient {
@@ -112,7 +112,22 @@ impl LocalLLMClient {
             // the same stored form.
             base_url: base_url.trim_end_matches('/').to_string(),
             request_timeout_seconds,
+            reporter: crate::core::report::noop(),
         }
+    }
+
+    /// Attach a reporting sink, consuming and returning the client.
+    ///
+    /// # Arguments
+    ///
+    /// * `reporter` - Sink that receives [`crate::core::report::AiUsage`]
+    ///   after every successful API response.
+    pub fn with_reporter(
+        mut self,
+        reporter: std::sync::Arc<dyn crate::core::report::Reporter>,
+    ) -> Self {
+        self.reporter = reporter;
+        self
     }
 
     /// Create a `LocalLLMClient` from the unified `AIConfig`.
@@ -242,7 +257,7 @@ impl LocalLLMClient {
                     completion_tokens: c as u32,
                     total_tokens: t as u32,
                 };
-                display_ai_usage(&stats);
+                self.reporter.ai_usage(&stats);
             }
         }
 

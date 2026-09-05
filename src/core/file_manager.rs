@@ -98,6 +98,7 @@ use crate::{Result, error::SubXError};
 /// - No partial state is left after rollback completion
 pub struct FileManager {
     operations: Vec<FileOperation>,
+    reporter: std::sync::Arc<dyn crate::core::report::Reporter>,
 }
 
 #[cfg(test)]
@@ -157,7 +158,22 @@ impl FileManager {
     pub fn new() -> Self {
         Self {
             operations: Vec::new(),
+            reporter: crate::core::report::noop(),
         }
+    }
+
+    /// Attach a reporting sink, consuming and returning the manager.
+    ///
+    /// # Arguments
+    ///
+    /// * `reporter` - Sink for warnings raised while rolling operations
+    ///   back.
+    pub fn with_reporter(
+        mut self,
+        reporter: std::sync::Arc<dyn crate::core::report::Reporter>,
+    ) -> Self {
+        self.reporter = reporter;
+        self
     }
 
     /// Records the creation of a file for potential rollback.
@@ -270,9 +286,8 @@ impl FileManager {
                 FileOperation::Removed(_path) => {
                     // Note: In a complete implementation, removed files would be
                     // restored from backup. This is a simplified version.
-                    if !crate::cli::output::active_mode().is_json() {
-                        eprintln!("Warning: Cannot restore removed file (backup not implemented)");
-                    }
+                    self.reporter
+                        .warn("Warning: Cannot restore removed file (backup not implemented)");
                 }
             }
         }

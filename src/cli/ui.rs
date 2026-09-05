@@ -276,7 +276,13 @@ pub fn progress_draw_target_for(mode: OutputMode) -> ProgressDrawTarget {
 ///
 /// # Arguments
 ///
-/// * `usage` - AI usage statistics containing token counts and model information
+/// * `usage` - Core-owned usage payload containing token counts and model
+///   information (`crate::core::report::AiUsage`, reachable under its
+///   legacy alias `crate::services::ai::AiUsageStats`)
+///
+/// Core and service modules no longer call this helper. Its only caller is
+/// [`crate::cli::reporter::TerminalReporter`]'s `ai_usage` channel — the
+/// single place where core AI-usage reporting reaches the terminal.
 ///
 /// # Examples
 ///
@@ -300,7 +306,7 @@ pub fn progress_draw_target_for(mode: OutputMode) -> ProgressDrawTarget {
 /// - **Performance analysis**: Understand token efficiency
 /// - **Debugging**: Verify expected model usage
 /// - **Optimization**: Identify opportunities to reduce token consumption
-pub fn display_ai_usage(usage: &crate::services::ai::AiUsageStats) {
+pub fn display_ai_usage(usage: &crate::core::report::AiUsage) {
     if output::active_mode().is_json() {
         return;
     }

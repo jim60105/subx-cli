@@ -97,6 +97,7 @@ fn run_match(
     workdir: &std::path::Path,
     extra_args: &[&str],
     json_mode: bool,
+    quiet: bool,
 ) -> assert_cmd::assert::Assert {
     let xdg = workdir.join(".xdg");
     fs::create_dir_all(&xdg).unwrap();
@@ -109,6 +110,10 @@ fn run_match(
         .env("SUBX_GENERAL_ENABLE_PROGRESS_BAR", "false");
     if json_mode {
         cmd.args(["--output", "json"]);
+    }
+    // `--quiet` is a root flag and must precede the subcommand token.
+    if quiet {
+        cmd.arg("--quiet");
     }
     cmd.arg("match")
         .args(extra_args)
@@ -159,6 +164,7 @@ async fn json_mode_dry_run_emits_no_stderr_chatter() {
             dir.path().to_str().unwrap(),
         ],
         true,
+        false,
     )
     .success();
 
@@ -189,6 +195,7 @@ async fn human_mode_dry_run_still_prints_ai_analysis_results() {
             dir.path().to_str().unwrap(),
         ],
         false,
+        false,
     )
     .success();
 
@@ -215,9 +222,171 @@ async fn json_mode_live_run_suppresses_conflict_skip_warning() {
         dir.path(),
         &["--confidence", "80", dir.path().to_str().unwrap()],
         true,
+        false,
     );
     let output = assert.get_output().clone();
     // The command may exit ok or fail depending on conflict policy; we
     // only care about stderr discipline here.
     assert_stderr_clean_in_json_mode(&output.stderr);
+}
+
+/// A wiremock responder that always suggests one pair whose IDs match no
+/// scanned file, forcing the `⚠️  Cannot find AI-suggested file pair:`
+/// branch in `match_file_list_with_audit` regardless of the prompt.
+struct BogusPairResponder;
+
+impl Respond for BogusPairResponder {
+    fn respond(&self, _request: &Request) -> ResponseTemplate {
+        let content = json!({
+            "matches": [{
+                "video_file_id": "file_ffffffff-ffff-7fff-bfff-ffffffffffff",
+                "subtitle_file_id": "file_eeeeeeee-eeee-7eee-beee-eeeeeeeeeeee",
+                "confidence": 0.99,
+                "match_factors": ["bogus"],
+            }],
+            "confidence": 0.99,
+            "reasoning": "Bogus pair",
+        })
+        .to_string();
+        ResponseTemplate::new(200).set_body_json(json!({
+            "choices": [
+                { "message": { "content": content }, "finish_reason": "stop" }
+            ],
+            "usage": { "prompt_tokens": 10, "completion_tokens": 5, "total_tokens": 15 },
+            "model": "gpt-4.1-mini"
+        }))
+    }
+}
+
+async fn mock_server_with_bogus_pair() -> MockServer {
+    let mock_server = MockServer::start().await;
+    Mock::given(method("POST"))
+        .and(path("/chat/completions"))
+        .respond_with(BogusPairResponder)
+        .mount(&mock_server)
+        .await;
+    mock_server
+}
+
+/// A1 §1.1 — text-mode characterisation: the FULL `🔍 AI Analysis
+/// Results:` block reaches **stderr** byte-identically (header plus the
+/// `Total matches`, `Confidence threshold` and per-pair candidate lines),
+/// and none of it appears on stdout. Written before the reporter rewiring;
+/// must pass unchanged afterwards.
+#[tokio::test]
+async fn text_mode_prints_full_ai_analysis_block_on_stderr() {
+    let dir = build_pair_dir("Movie.mp4", "random.srt");
+    let server = mock_server_with_echo(1, 0.95).await;
+
+    let assert = run_match(
+        &server.uri(),
+        dir.path(),
+        &[
+            "--dry-run",
+            "--confidence",
+            "80",
+            dir.path().to_str().unwrap(),
+        ],
+        false,
+        false,
+    )
+    .success();
+
+    let out = assert.get_output();
+    let stderr = String::from_utf8_lossy(&out.stderr).into_owned();
+    let stdout = String::from_utf8_lossy(&out.stdout).into_owned();
+
+    assert!(
+        stderr.contains(
+            "🔍 AI Analysis Results:\n   - Total matches: 1\n   - Confidence threshold: 0.80\n"
+        ),
+        "text-mode stderr missing the exact AI analysis block header:\n{stderr}"
+    );
+    let candidate_line = stderr
+        .lines()
+        .find(|l| l.starts_with("   - file_"))
+        .unwrap_or_else(|| panic!("text-mode stderr missing candidate line:\n{stderr}"));
+    assert!(
+        candidate_line.contains(" -> file_") && candidate_line.contains(" (confidence: 0.95)"),
+        "candidate line has unexpected shape: {candidate_line}"
+    );
+    // "🔍" alone is NOT a valid stdout marker: the results table prints a
+    // "🔍 Preview mode" line on stdout in text mode. Pin block-own lines.
+    for marker in [
+        "🔍 AI Analysis Results:",
+        "Total matches:",
+        "Confidence threshold:",
+    ] {
+        assert!(
+            !stdout.contains(marker),
+            "AI analysis marker {marker:?} leaked to stdout:\n{stdout}"
+        );
+    }
+}
+
+/// A1 §1.3 — text-mode characterisation: an AI-suggested pair that
+/// resolves to no scanned file prints `⚠️  Cannot find AI-suggested file
+/// pair:` (with the embedded two-space emoji form and the `Video ID:` /
+/// `Subtitle ID:` layout) on **stderr**, never on stdout.
+#[tokio::test]
+async fn text_mode_prints_cannot_find_ai_suggested_pair_on_stderr() {
+    let dir = build_pair_dir("Movie.mp4", "random.srt");
+    let server = mock_server_with_bogus_pair().await;
+
+    let assert = run_match(
+        &server.uri(),
+        dir.path(),
+        &[
+            "--dry-run",
+            "--confidence",
+            "80",
+            dir.path().to_str().unwrap(),
+        ],
+        false,
+        false,
+    )
+    .success();
+
+    let out = assert.get_output();
+    let stderr = String::from_utf8_lossy(&out.stderr).into_owned();
+    let stdout = String::from_utf8_lossy(&out.stdout).into_owned();
+    assert!(
+        stderr.contains(
+            "⚠️  Cannot find AI-suggested file pair:\n     Video ID: 'file_ffffffff-ffff-7fff-bfff-ffffffffffff'\n     Subtitle ID: 'file_eeeeeeee-eeee-7eee-beee-eeeeeeeeeeee'"
+        ),
+        "text-mode stderr missing the exact cannot-find-pair warning:\n{stderr}"
+    );
+    assert!(
+        !stdout.contains("Cannot find AI-suggested file pair"),
+        "pair warning leaked to stdout:\n{stdout}"
+    );
+}
+
+/// A1 §1.2 (match-side half) — `--quiet` does NOT silence the matcher's
+/// warn-channel output in text mode. The root `--quiet` flag must precede
+/// the `match` subcommand token.
+#[tokio::test]
+async fn quiet_text_mode_still_prints_cannot_find_ai_suggested_pair() {
+    let dir = build_pair_dir("Movie.mp4", "random.srt");
+    let server = mock_server_with_bogus_pair().await;
+
+    let assert = run_match(
+        &server.uri(),
+        dir.path(),
+        &[
+            "--dry-run",
+            "--confidence",
+            "80",
+            dir.path().to_str().unwrap(),
+        ],
+        false,
+        true,
+    )
+    .success();
+
+    let stderr = String::from_utf8_lossy(&assert.get_output().stderr).into_owned();
+    assert!(
+        stderr.contains("⚠️  Cannot find AI-suggested file pair:"),
+        "--quiet must not silence matcher warnings:\n{stderr}"
+    );
 }

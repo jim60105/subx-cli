@@ -431,7 +431,8 @@ pub async fn execute(args: SyncArgs, config_service: &dyn ConfigService) -> Resu
         }
     }
 
-    let sync_engine = SyncEngine::new(config.sync.clone())?;
+    let sync_engine =
+        SyncEngine::new(config.sync.clone())?.with_reporter(crate::cli::terminal_reporter());
     let format_manager = FormatManager::new();
     let mode = active_mode();
     let json = matches!(mode, OutputMode::Json);

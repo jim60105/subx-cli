@@ -37,6 +37,7 @@ mod generate_completion_args;
 mod input_handler;
 mod match_args;
 pub mod output;
+pub mod reporter;
 pub mod sync_args;
 pub mod table;
 mod translate_args;
@@ -53,6 +54,7 @@ pub use generate_completion_args::GenerateCompletionArgs;
 pub use input_handler::{CollectedFiles, InputPathHandler};
 pub use match_args::MatchArgs;
 pub use output::{OutputMode, SCHEMA_VERSION};
+pub use reporter::{TerminalReporter, terminal_reporter};
 pub use sync_args::{SyncArgs, SyncMethod, SyncMethodArg, SyncMode};
 pub use translate_args::TranslateArgs;
 pub use ui::{

@@ -280,7 +280,8 @@ pub async fn execute(args: MatchArgs, config_service: &dyn ConfigService) -> Res
     let config = config_service.get_config()?;
 
     // Create AI client using the component factory
-    let factory = ComponentFactory::new(config_service)?;
+    let factory =
+        ComponentFactory::new(config_service)?.with_reporter(crate::cli::terminal_reporter());
     let ai_client = factory.create_ai_provider()?;
 
     // Execute the matching workflow with dependency injection
@@ -316,7 +317,8 @@ pub async fn execute_with_config(
     let config = config_service.get_config()?;
 
     // Create AI client using the component factory
-    let factory = ComponentFactory::new(config_service.as_ref())?;
+    let factory = ComponentFactory::new(config_service.as_ref())?
+        .with_reporter(crate::cli::terminal_reporter());
     let ai_client = factory.create_ai_provider()?;
 
     // Execute the matching workflow with dependency injection
@@ -433,7 +435,12 @@ pub async fn execute_with_client(
     };
 
     // Initialize the matching engine with AI client and configuration
-    let engine = MatchEngine::new(ai_client, match_config);
+    // The AI client already carries the factory's reporter when this is
+    // reached through the command entry points, but execute_with_client may
+    // also be called with an externally supplied client, so the engine
+    // attaches its own.
+    let engine =
+        MatchEngine::new(ai_client, match_config).with_reporter(crate::cli::terminal_reporter());
 
     // Use the get_input_handler method to get all input files
     let input_handler = args.get_input_handler()?;

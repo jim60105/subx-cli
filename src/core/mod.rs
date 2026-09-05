@@ -10,6 +10,7 @@
 //! - `language` for language detection and handling
 //! - `matcher` for AI-powered subtitle matching algorithms
 //! - `parallel` for task scheduling and parallel execution
+//! - `report` for the transport-agnostic reporting seam core reports through
 //! - `sync` for audio-text synchronization engines
 //! - `factory` for component creation with dependency injection
 //! - `services` for service container and dependency management
@@ -25,6 +26,7 @@ pub mod language;
 pub mod lock;
 pub mod matcher;
 pub mod parallel;
+pub mod report;
 pub mod sync;
 pub mod translation;
 pub mod uuidv7;
