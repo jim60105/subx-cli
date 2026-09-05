@@ -1,12 +1,10 @@
-mod common;
-
 use std::io::Write;
 use std::path::{Path, PathBuf};
 
 use serde_json::json;
 use subx_cli::cli::TranslateArgs;
 use subx_cli::commands::translate_command;
-use subx_cli::config::TestConfigBuilder;
+use subx_core::config::TestConfigBuilder;
 use tempfile::tempdir;
 use wiremock::matchers::{header, method, path};
 use wiremock::{Mock, MockServer, Request, Respond, ResponseTemplate};
@@ -76,7 +74,7 @@ fn base_args(input: PathBuf) -> TranslateArgs {
     }
 }
 
-async fn mock_config() -> (MockServer, subx_cli::config::TestConfigService) {
+async fn mock_config() -> (MockServer, subx_core::config::TestConfigService) {
     let server = MockServer::start().await;
     Mock::given(method("POST"))
         .and(path("/chat/completions"))
@@ -92,7 +90,7 @@ async fn mock_config() -> (MockServer, subx_cli::config::TestConfigService) {
     (server, config)
 }
 
-async fn mock_config_with_backup() -> (MockServer, subx_cli::config::TestConfigService) {
+async fn mock_config_with_backup() -> (MockServer, subx_core::config::TestConfigService) {
     let (server, _config) = mock_config().await;
     let config = TestConfigBuilder::new()
         .with_mock_ai_server(&server.uri())

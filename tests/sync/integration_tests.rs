@@ -2,19 +2,18 @@
 //! Synchronization functionality integration tests
 //! Testing cross-module synchronization workflows
 
-use subx_cli::core::sync::SyncEngine;
-use subx_cli::core::sync::dialogue::DialogueDetector;
-use subx_cli::core::sync::engine::{SyncConfig, SyncMethod};
-use subx_cli::core::formats::{Subtitle, SubtitleEntry, SubtitleFormatType, SubtitleMetadata};
-use subx_cli::services::audio::generate_dialogue_audio;
-use subx_cli::config::TestConfigBuilder;
-use subx_cli::core::formats::manager::FormatManager;
+use subx_core::core::sync::SyncEngine;
+use subx_core::core::sync::dialogue::DialogueDetector;
+use subx_core::core::sync::engine::{SyncConfig, SyncMethod};
+use subx_core::core::formats::{Subtitle, SubtitleEntry, SubtitleFormatType, SubtitleMetadata};
+use subx_core::services::audio::generate_dialogue_audio;
+use subx_core::config::TestConfigBuilder;
+use subx_core::core::formats::manager::FormatManager;
 use tempfile::TempDir;
 use std::time::Duration;
 use std::path::PathBuf;
 
-mod common;
-use common::{TestFileManager, AudioMockGenerator, SubtitleGenerator, SubtitleFormat};
+use subx_core::test_support::{TestFileManager, AudioMockGenerator, SubtitleGenerator, SubtitleFormat};
 
 /// Test end-to-end synchronization workflow
 #[tokio::test] 

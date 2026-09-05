@@ -9,7 +9,7 @@ use subx_cli::cli::DetectEncodingArgs;
 use subx_cli::commands::detect_encoding_command::{
     detect_encoding_command, detect_encoding_command_with_config,
 };
-use subx_cli::config::TestConfigService;
+use subx_core::config::TestConfigService;
 use tempfile::TempDir;
 
 mod detect_encoding_command_tests {

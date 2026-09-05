@@ -1,10 +1,10 @@
 use std::fs;
 use std::sync::Arc;
-use subx_cli::Result;
 use subx_cli::cli::SyncArgs;
 use subx_cli::commands::sync_command;
-use subx_cli::config::{Config, TestConfigService};
-use subx_cli::core::sync::SyncEngine;
+use subx_core::Result;
+use subx_core::config::{Config, TestConfigService};
+use subx_core::core::sync::SyncEngine;
 use tempfile::TempDir;
 
 #[tokio::test]
@@ -133,9 +133,9 @@ fn test_negative_offset_validation() -> Result<()> {
     Ok(())
 }
 
-fn create_test_subtitle() -> subx_cli::core::formats::Subtitle {
+fn create_test_subtitle() -> subx_core::core::formats::Subtitle {
     use std::time::Duration;
-    use subx_cli::core::formats::{Subtitle, SubtitleEntry, SubtitleFormatType, SubtitleMetadata};
+    use subx_core::core::formats::{Subtitle, SubtitleEntry, SubtitleFormatType, SubtitleMetadata};
 
     Subtitle {
         entries: vec![SubtitleEntry::new(

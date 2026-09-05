@@ -1,18 +1,20 @@
 //! 測試新的批次同步邏輯：基於 starts_with 的配對和各種情境的處理
+use subx_core::test_support::workspace::TestWorkspace;
 mod common;
-use common::cli_helpers::CLITestHelper;
+use common::cli_helpers::CliRun;
 use std::path::PathBuf;
 use tokio::fs;
 
 /// 測試情境1：目錄中沒有任何視頻文件 - 跳過所有字幕文件
 #[tokio::test]
 async fn test_batch_no_video_files() {
-    let helper = CLITestHelper::new();
+    let helper = TestWorkspace::new();
     let ws = helper.temp_dir_path().to_path_buf();
     fs::create_dir_all(ws.join("media")).await.unwrap();
 
     // 只創建字幕文件
-    let src = PathBuf::from("assets/SubX - The Subtitle Revolution.srt");
+    let src =
+        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("assets/SubX - The Subtitle Revolution.srt");
     fs::copy(&src, ws.join("media/movie1.srt")).await.unwrap();
     fs::copy(&src, ws.join("media/movie2.srt")).await.unwrap();
 
@@ -43,7 +45,7 @@ async fn test_batch_no_video_files() {
 /// 測試情境2：正好一個視頻和一個字幕 - 無論檔名是否匹配都應該同步
 #[tokio::test]
 async fn test_batch_one_video_one_subtitle_matched_names() {
-    let helper = CLITestHelper::new();
+    let helper = TestWorkspace::new();
     let ws = helper.temp_dir_path().to_path_buf();
     fs::create_dir_all(ws.join("media")).await.unwrap();
 
@@ -51,7 +53,8 @@ async fn test_batch_one_video_one_subtitle_matched_names() {
     fs::write(ws.join("media/movie.mp4"), b"fake video")
         .await
         .unwrap();
-    let src = PathBuf::from("assets/SubX - The Subtitle Revolution.srt");
+    let src =
+        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("assets/SubX - The Subtitle Revolution.srt");
     fs::copy(&src, ws.join("media/movie.srt")).await.unwrap();
 
     let result = helper
@@ -77,7 +80,7 @@ async fn test_batch_one_video_one_subtitle_matched_names() {
 /// 測試情境2：正好一個視頻和一個字幕 - 檔名不匹配但仍應該同步
 #[tokio::test]
 async fn test_batch_one_video_one_subtitle_unmatched_names() {
-    let helper = CLITestHelper::new();
+    let helper = TestWorkspace::new();
     let ws = helper.temp_dir_path().to_path_buf();
     fs::create_dir_all(ws.join("media")).await.unwrap();
 
@@ -85,7 +88,8 @@ async fn test_batch_one_video_one_subtitle_unmatched_names() {
     fs::write(ws.join("media/video.mp4"), b"fake video")
         .await
         .unwrap();
-    let src = PathBuf::from("assets/SubX - The Subtitle Revolution.srt");
+    let src =
+        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("assets/SubX - The Subtitle Revolution.srt");
     fs::copy(&src, ws.join("media/subtitle.srt")).await.unwrap();
 
     let result = helper
@@ -111,7 +115,7 @@ async fn test_batch_one_video_one_subtitle_unmatched_names() {
 /// 測試情境3：多個文件 - 基於 starts_with 的配對
 #[tokio::test]
 async fn test_batch_multiple_files_starts_with_matching() {
-    let helper = CLITestHelper::new();
+    let helper = TestWorkspace::new();
     let ws = helper.temp_dir_path().to_path_buf();
     fs::create_dir_all(ws.join("media")).await.unwrap();
 
@@ -123,7 +127,8 @@ async fn test_batch_multiple_files_starts_with_matching() {
         .await
         .unwrap();
 
-    let src = PathBuf::from("assets/SubX - The Subtitle Revolution.srt");
+    let src =
+        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("assets/SubX - The Subtitle Revolution.srt");
     fs::copy(&src, ws.join("media/movie.srt")).await.unwrap(); // 完全匹配
     fs::copy(&src, ws.join("media/movie_extended.srt"))
         .await
@@ -164,7 +169,7 @@ async fn test_batch_multiple_files_starts_with_matching() {
 /// 測試情境3：多個文件 - 影片沒有對應字幕的跳過訊息
 #[tokio::test]
 async fn test_batch_multiple_files_video_without_subtitle() {
-    let helper = CLITestHelper::new();
+    let helper = TestWorkspace::new();
     let ws = helper.temp_dir_path().to_path_buf();
     fs::create_dir_all(ws.join("media")).await.unwrap();
 
@@ -179,7 +184,8 @@ async fn test_batch_multiple_files_video_without_subtitle() {
         .await
         .unwrap(); // 沒有對應字幕
 
-    let src = PathBuf::from("assets/SubX - The Subtitle Revolution.srt");
+    let src =
+        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("assets/SubX - The Subtitle Revolution.srt");
     fs::copy(&src, ws.join("media/movie1.srt")).await.unwrap();
     fs::copy(&src, ws.join("media/movie2_version1.srt"))
         .await
@@ -214,7 +220,7 @@ async fn test_batch_multiple_files_video_without_subtitle() {
 /// 測試邊界情況：空目錄
 #[tokio::test]
 async fn test_batch_empty_directory() {
-    let helper = CLITestHelper::new();
+    let helper = TestWorkspace::new();
     let ws = helper.temp_dir_path().to_path_buf();
     fs::create_dir_all(ws.join("empty")).await.unwrap();
 
@@ -229,7 +235,7 @@ async fn test_batch_empty_directory() {
 /// 測試檔名包含特殊字符的情況
 #[tokio::test]
 async fn test_batch_special_characters_in_filenames() {
-    let helper = CLITestHelper::new();
+    let helper = TestWorkspace::new();
     let ws = helper.temp_dir_path().to_path_buf();
     fs::create_dir_all(ws.join("media")).await.unwrap();
 
@@ -238,7 +244,8 @@ async fn test_batch_special_characters_in_filenames() {
         .await
         .unwrap();
 
-    let src = PathBuf::from("assets/SubX - The Subtitle Revolution.srt");
+    let src =
+        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("assets/SubX - The Subtitle Revolution.srt");
     fs::copy(&src, ws.join("media/movie-2023_cn.srt"))
         .await
         .unwrap(); // starts_with 匹配

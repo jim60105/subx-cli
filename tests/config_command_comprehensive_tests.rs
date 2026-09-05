@@ -7,7 +7,7 @@
 use std::sync::Arc;
 use subx_cli::cli::{ConfigAction, ConfigArgs};
 use subx_cli::commands::config_command::{execute, execute_with_config};
-use subx_cli::config::{ConfigService, TestConfigService};
+use subx_core::config::{ConfigService, TestConfigService};
 
 mod config_command_tests {
     use super::*;

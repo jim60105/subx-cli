@@ -123,7 +123,7 @@ fn config_list_emits_full_config_envelope() {
         .as_object()
         .expect("data.config object");
     // The full configuration map must include the well-known top-level
-    // sections defined by `subx_cli::config::Config`.
+    // sections defined by `subx_core::config::Config`.
     for section in ["ai", "general", "formats", "sync"] {
         assert!(
             cfg.contains_key(section),

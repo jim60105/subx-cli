@@ -9,7 +9,7 @@ use std::path::PathBuf;
 use std::sync::Arc;
 use subx_cli::cli::SyncArgs;
 use subx_cli::commands::sync_command::{execute, execute_with_config};
-use subx_cli::config::{ConfigService, TestConfigService};
+use subx_core::config::{ConfigService, TestConfigService};
 use tempfile::TempDir;
 
 mod sync_command_tests {

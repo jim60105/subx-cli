@@ -2,7 +2,7 @@
 
 use subx_cli::cli::{ConfigAction, ConfigArgs};
 use subx_cli::commands::config_command;
-use subx_cli::config::{ConfigService, TestConfigBuilder};
+use subx_core::config::{ConfigService, TestConfigBuilder};
 
 #[tokio::test]
 async fn test_config_command_set_success() {

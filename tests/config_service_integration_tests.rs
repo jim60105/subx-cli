@@ -5,13 +5,13 @@
 
 use std::sync::Arc;
 use subx_cli::App;
-use subx_cli::config::{
+use subx_core::config::{
     ConfigService, ProductionConfigService, TestConfigBuilder, TestConfigService,
 };
 
 #[test]
 fn test_production_config_service_creation() {
-    use subx_cli::config::TestEnvironmentProvider;
+    use subx_core::config::TestEnvironmentProvider;
     // Isolate from the developer's real `~/.config/subx/config.toml`
     // (which may set a non-HTTPS `ai.base_url`).
     let dir = tempfile::tempdir().unwrap();
@@ -85,7 +85,7 @@ fn test_config_builder_comprehensive() {
 
 #[test]
 fn test_config_service_reload() {
-    use subx_cli::config::TestEnvironmentProvider;
+    use subx_core::config::TestEnvironmentProvider;
     let dir = tempfile::tempdir().unwrap();
     let mut env = TestEnvironmentProvider::new();
     env.set_var(
@@ -126,7 +126,7 @@ fn test_app_creation_with_config_service() {
 
 #[test]
 fn test_app_creation_with_production_config() {
-    use subx_cli::config::TestEnvironmentProvider;
+    use subx_core::config::TestEnvironmentProvider;
     // Build the App with a production config service that is isolated
     // from the developer's real `~/.config/subx/config.toml`.
     let dir = tempfile::tempdir().unwrap();

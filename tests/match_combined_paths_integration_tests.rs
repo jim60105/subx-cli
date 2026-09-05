@@ -4,11 +4,10 @@ use log::debug;
 use std::fs;
 use subx_cli::cli::MatchArgs;
 use subx_cli::commands::match_command;
-use subx_cli::config::TestConfigBuilder;
+use subx_core::config::TestConfigBuilder;
+use subx_core::test_support::mock_openai::MockOpenAITestHelper;
+use subx_core::test_support::responses::MatchResponseGenerator;
 use tempfile::TempDir;
-mod common;
-use common::mock_openai_helper::MockOpenAITestHelper;
-use common::test_data_generators::MatchResponseGenerator;
 
 // Using async mutex to avoid environment variable race conditions
 static TEST_MUTEX: tokio::sync::Mutex<()> = tokio::sync::Mutex::const_new(());
@@ -46,7 +45,7 @@ async fn test_match_with_combined_path_and_input_paths_simple() {
     debug!("Created test files in main directory");
 
     // Scan main directory to get file IDs
-    use subx_cli::core::matcher::FileDiscovery;
+    use subx_core::core::matcher::FileDiscovery;
     let discovery = FileDiscovery::new();
     let main_files = discovery.scan_directory(&main_dir, false).unwrap();
 
@@ -141,7 +140,7 @@ async fn test_match_with_only_input_paths() {
     debug!("Created test files in two input directories");
 
     // Scan directories to get file IDs
-    use subx_cli::core::matcher::FileDiscovery;
+    use subx_core::core::matcher::FileDiscovery;
     let discovery = FileDiscovery::new();
     let input1_files = discovery.scan_directory(&input1_dir, false).unwrap();
     let input2_files = discovery.scan_directory(&input2_dir, false).unwrap();
@@ -247,7 +246,7 @@ async fn test_match_with_file_and_directory_inputs() {
     debug!("Created test files in main directory and input directory");
 
     // Scan directories to get file IDs
-    use subx_cli::core::matcher::FileDiscovery;
+    use subx_core::core::matcher::FileDiscovery;
     let discovery = FileDiscovery::new();
     let main_files = discovery.scan_directory(&main_dir, false).unwrap();
     let input_files = discovery.scan_directory(&input_dir, false).unwrap();

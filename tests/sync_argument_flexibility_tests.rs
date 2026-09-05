@@ -4,8 +4,8 @@ use std::fs;
 use std::sync::Arc;
 use subx_cli::cli::{SyncArgs, SyncMethodArg};
 use subx_cli::commands::sync_command;
-use subx_cli::config::TestConfigService;
-use subx_cli::core::sync::SyncMode;
+use subx_core::config::TestConfigService;
+use subx_core::core::sync::SyncMode;
 use tempfile::TempDir;
 
 #[tokio::test]
