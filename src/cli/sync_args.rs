@@ -33,10 +33,14 @@ impl From<SyncMethodArg> for crate::core::sync::SyncMethod {
     }
 }
 
-use crate::cli::InputPathHandler;
+use crate::core::input::InputPathHandler;
+use crate::core::sync::{
+    BatchRequest, SYNC_SUBTITLE_EXTENSIONS, SYNC_VIDEO_EXTENSIONS, SyncMode, SyncPairingRequest,
+    resolve_sync_pairing,
+};
 use crate::error::{SubXError, SubXResult};
 use clap::{Args, ValueEnum};
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 
 /// Refactored sync command arguments supporting multiple sync methods.
 #[derive(Args, Debug, Clone)]
@@ -230,7 +234,7 @@ Need help? Run: subx sync --help"
         } else {
             self.subtitle
                 .as_ref()
-                .map(|subtitle| create_default_output_path(subtitle))
+                .map(|subtitle| crate::core::sync::create_default_output_path(subtitle))
         }
     }
 
@@ -293,177 +297,40 @@ Need help? Run: subx sync --help"
         )?;
 
         Ok(InputPathHandler::from_args(&merged_paths, self.recursive)?
-            .with_extensions(&["mp4", "mkv", "avi", "mov", "srt", "ass", "vtt", "sub"])
+            .with_extensions(&[SYNC_VIDEO_EXTENSIONS, SYNC_SUBTITLE_EXTENSIONS].concat())
             .with_no_extract(self.no_extract))
     }
 
-    /// Get sync mode: single file or batch
+    /// Get sync mode: single file or batch.
+    ///
+    /// Thin adapter: fills a [`SyncPairingRequest`] from this struct's clap
+    /// fields and returns [`resolve_sync_pairing`]'s result unchanged. No
+    /// filesystem access and no pairing logic lives here (change
+    /// relocate-misplaced-core-modules, Decision 2).
     pub fn get_sync_mode(&self) -> Result<SyncMode, SubXError> {
-        // Batch mode: process directories or multiple inputs when -b, -i, or directory positional used
-        if self.batch.is_some()
-            || !self.input_paths.is_empty()
-            || self
-                .positional_paths
-                .iter()
-                .any(|p| p.extension().is_none())
-        {
-            let mut paths = Vec::new();
-
-            // Include batch directory argument if provided
-            if let Some(Some(batch_dir)) = &self.batch {
-                paths.push(batch_dir.clone());
-            }
-
-            // Include input paths (-i) and any positional paths
-            paths.extend(self.input_paths.clone());
-            paths.extend(self.positional_paths.clone());
-
-            // If still no paths, use current directory
-            if paths.is_empty() {
-                paths.push(PathBuf::from("."));
-            }
-
-            let handler = InputPathHandler::from_args(&paths, self.recursive)?
-                .with_extensions(&["mp4", "mkv", "avi", "mov", "srt", "ass", "vtt", "sub"])
-                .with_no_extract(self.no_extract);
-
-            return Ok(SyncMode::Batch(handler));
-        }
-
-        // Single file positional mode: auto-infer video/subtitle pairing
-        if !self.positional_paths.is_empty() {
-            if self.positional_paths.len() == 1 {
-                let path = &self.positional_paths[0];
-                let ext = path
-                    .extension()
-                    .and_then(|s| s.to_str())
-                    .unwrap_or("")
-                    .to_lowercase();
-                let mut video = None;
-                let mut subtitle = None;
-                match ext.as_str() {
-                    "mp4" | "mkv" | "avi" | "mov" => {
-                        video = Some(path.clone());
-                        if let Some(stem) = path.file_stem().and_then(|s| s.to_str()) {
-                            let dir = path.parent().unwrap_or_else(|| Path::new("."));
-                            for sub_ext in &["srt", "ass", "vtt", "sub"] {
-                                let cand = dir.join(format!("{stem}.{sub_ext}"));
-                                if cand.exists() {
-                                    subtitle = Some(cand);
-                                    break;
-                                }
-                            }
-                        }
-                    }
-                    "srt" | "ass" | "vtt" | "sub" => {
-                        subtitle = Some(path.clone());
-                        if let Some(stem) = path.file_stem().and_then(|s| s.to_str()) {
-                            let dir = path.parent().unwrap_or_else(|| Path::new("."));
-                            for vid_ext in &["mp4", "mkv", "avi", "mov"] {
-                                let cand = dir.join(format!("{stem}.{vid_ext}"));
-                                if cand.exists() {
-                                    video = Some(cand);
-                                    break;
-                                }
-                            }
-                        }
-                    }
-                    _ => {}
-                }
-                // For manual mode, we don't need video file if we have subtitle
-                if self.is_manual_mode() {
-                    if let Some(subtitle_path) = subtitle {
-                        return Ok(SyncMode::Single {
-                            video: PathBuf::new(), // Empty video path for manual mode
-                            subtitle: subtitle_path,
-                        });
-                    }
-                }
-                if let (Some(v), Some(s)) = (video, subtitle) {
-                    return Ok(SyncMode::Single {
-                        video: v,
-                        subtitle: s,
-                    });
-                }
-                return Err(SubXError::InvalidSyncConfiguration);
-            } else if self.positional_paths.len() == 2 {
-                let mut video = None;
-                let mut subtitle = None;
-                for p in &self.positional_paths {
-                    if let Some(ext) = p
-                        .extension()
-                        .and_then(|s| s.to_str())
-                        .map(|s| s.to_lowercase())
-                    {
-                        if ["mp4", "mkv", "avi", "mov"].contains(&ext.as_str()) {
-                            video = Some(p.clone());
-                        }
-                        if ["srt", "ass", "vtt", "sub"].contains(&ext.as_str()) {
-                            subtitle = Some(p.clone());
-                        }
-                    }
-                }
-                if let (Some(v), Some(s)) = (video, subtitle) {
-                    return Ok(SyncMode::Single {
-                        video: v,
-                        subtitle: s,
-                    });
-                }
-                return Err(SubXError::InvalidSyncConfiguration);
-            }
-        }
-
-        // Explicit mode: video and subtitle options
-        if let (Some(video), Some(subtitle)) = (self.video.as_ref(), self.subtitle.as_ref()) {
-            Ok(SyncMode::Single {
-                video: video.clone(),
-                subtitle: subtitle.clone(),
-            })
-        } else if self.is_manual_mode() {
-            if let Some(subtitle) = self.subtitle.as_ref() {
-                // Manual mode only requires subtitle file
-                Ok(SyncMode::Single {
-                    video: PathBuf::new(), // Empty video path for manual mode
-                    subtitle: subtitle.clone(),
-                })
-            } else {
-                Err(SubXError::InvalidSyncConfiguration)
-            }
-        } else {
-            Err(SubXError::InvalidSyncConfiguration)
-        }
+        resolve_sync_pairing(&SyncPairingRequest {
+            positional_paths: self.positional_paths.clone(),
+            input_paths: self.input_paths.clone(),
+            video: self.video.clone(),
+            subtitle: self.subtitle.clone(),
+            batch: match &self.batch {
+                None => BatchRequest::Off,
+                Some(None) => BatchRequest::Auto,
+                Some(Some(dir)) => BatchRequest::Directory(dir.clone()),
+            },
+            recursive: self.recursive,
+            no_extract: self.no_extract,
+            manual: self.is_manual_mode(),
+        })
     }
 }
 
-/// Sync mode: single file or batch
-#[derive(Debug)]
-pub enum SyncMode {
-    /// Single file sync mode, specify video and subtitle files
-    Single {
-        /// Video file path
-        video: PathBuf,
-        /// Subtitle file path
-        subtitle: PathBuf,
-    },
-    /// Batch sync mode, using InputPathHandler to process multiple paths
-    Batch(InputPathHandler),
-}
-
-// Helper functions
-
-/// Creates a default output path by appending `_synced` to the file stem.
-pub fn create_default_output_path(input: &Path) -> PathBuf {
-    let mut output = input.to_path_buf();
-
-    if let Some(stem) = input.file_stem().and_then(|s| s.to_str()) {
-        if let Some(extension) = input.extension().and_then(|s| s.to_str()) {
-            let new_filename = format!("{stem}_synced.{extension}");
-            output.set_file_name(new_filename);
-        }
-    }
-
-    output
-}
+/// Legacy re-export. [`create_default_output_path`] now lives in
+/// [`crate::core::sync`]; prefer that path. The alias exists so that
+/// consumers of `subx_cli::cli::sync_args::create_default_output_path` keep
+/// compiling across the `subx-core` split and will be removed once they have
+/// migrated. In-crate callers reference the core path directly.
+pub use crate::core::sync::create_default_output_path;
 
 #[cfg(test)]
 mod tests {
@@ -1065,36 +932,87 @@ mod tests {
         assert!(args.get_sync_mode().is_err());
     }
 
-    // ── create_default_output_path ────────────────────────────────────────────
+    // ── adapter agreement ─────────────────────────────────────────────────────
+    //
+    // The pairing cases themselves moved to
+    // `crate::core::sync::tests` with the extraction (tasks 5.1/5.2). This
+    // test locks the CLI adapter: `SyncArgs::get_sync_mode` must agree with a
+    // direct `resolve_sync_pairing` call on the request built from the same
+    // fields. `SyncMode` is Debug-only, so the comparison destructures.
 
     #[test]
-    fn test_create_default_output_path_srt() {
-        let input = PathBuf::from("test.srt");
-        let output = create_default_output_path(&input);
-        assert_eq!(output.file_name().unwrap(), "test_synced.srt");
-    }
+    fn test_get_sync_mode_adapter_agrees_with_core() {
+        let tmp = TempDir::new().unwrap();
+        let video = tmp.path().join("movie.mp4");
+        let sub = tmp.path().join("movie.srt");
+        std::fs::write(&video, b"fake video").unwrap();
+        std::fs::write(&sub, b"1\n00:00:01,000 --> 00:00:02,000\nHi\n").unwrap();
 
-    #[test]
-    fn test_create_default_output_path_with_prefix() {
-        let input = PathBuf::from("/path/to/movie.ass");
-        let output = create_default_output_path(&input);
-        assert_eq!(output.file_name().unwrap(), "movie_synced.ass");
-        assert_eq!(output.parent().unwrap(), std::path::Path::new("/path/to"));
-    }
+        // Single-pair agreement (probed sibling).
+        let args = SyncArgs {
+            positional_paths: vec![video.clone()],
+            ..default_args()
+        };
+        let direct = SyncPairingRequest {
+            positional_paths: vec![video.clone()],
+            ..Default::default()
+        };
+        match (
+            args.get_sync_mode().unwrap(),
+            resolve_sync_pairing(&direct).unwrap(),
+        ) {
+            (
+                SyncMode::Single {
+                    video: v1,
+                    subtitle: s1,
+                },
+                SyncMode::Single {
+                    video: v2,
+                    subtitle: s2,
+                },
+            ) => {
+                assert_eq!(v1, v2);
+                assert_eq!(s1, s2);
+            }
+            other => panic!("adapter/core disagree: {other:?}"),
+        }
 
-    #[test]
-    fn test_create_default_output_path_vtt() {
-        let input = PathBuf::from("episode.vtt");
-        let output = create_default_output_path(&input);
-        assert_eq!(output.file_name().unwrap(), "episode_synced.vtt");
-    }
+        // Batch agreement through the Option<Option<PathBuf>> -> BatchRequest
+        // translation, including handler field equality.
+        let args = SyncArgs {
+            batch: Some(Some(tmp.path().to_path_buf())),
+            recursive: true,
+            ..default_args()
+        };
+        let direct = SyncPairingRequest {
+            batch: BatchRequest::Directory(tmp.path().to_path_buf()),
+            recursive: true,
+            ..Default::default()
+        };
+        match (
+            args.get_sync_mode().unwrap(),
+            resolve_sync_pairing(&direct).unwrap(),
+        ) {
+            (SyncMode::Batch(h1), SyncMode::Batch(h2)) => {
+                assert_eq!(h1.paths, h2.paths);
+                assert_eq!(h1.recursive, h2.recursive);
+                assert_eq!(h1.file_extensions, h2.file_extensions);
+                assert_eq!(h1.no_extract, h2.no_extract);
+            }
+            other => panic!("adapter/core disagree: {other:?}"),
+        }
 
-    #[test]
-    fn test_create_default_output_path_no_extension() {
-        // File without extension: stem exists but extension does not; path returned unchanged
-        let input = PathBuf::from("noextension");
-        let output = create_default_output_path(&input);
-        assert_eq!(output, PathBuf::from("noextension"));
+        // Error agreement.
+        let args = default_args();
+        let direct = SyncPairingRequest::default();
+        assert!(matches!(
+            args.get_sync_mode(),
+            Err(SubXError::InvalidSyncConfiguration)
+        ));
+        assert!(matches!(
+            resolve_sync_pairing(&direct),
+            Err(SubXError::InvalidSyncConfiguration)
+        ));
     }
 
     // ── CLI parsing ───────────────────────────────────────────────────────────

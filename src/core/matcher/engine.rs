@@ -1246,17 +1246,30 @@ pub struct OperationError {
     pub category: &'static str,
     /// Stable machine code from [`SubXError::machine_code`].
     pub code: &'static str,
-    /// User-friendly message from [`SubXError::user_friendly_message`].
+    /// Rendered message from [`SubXError`]'s `Display` impl.
     pub message: String,
 }
 
 /// Convert a [`SubXError`] into a self-contained [`OperationError`] for
 /// audit reporting.
+///
+/// The message is rendered through `Display` (`to_string()`), not the
+/// binary's `SubXErrorExt::user_friendly_message()`, because core must not
+/// depend on the presentation half of the error surface. This is provably
+/// lossless today: both call sites in this file construct
+/// `SubXError::FileOperationFailed` immediately before calling here, and for
+/// that variant `Display` and `user_friendly_message()` render identically
+/// (`File operation failed: {msg}`) while `hint()` is `None` — so the
+/// per-item `error.message` contract of the `machine-readable-output`
+/// capability is preserved byte-for-byte. The equality is locked by
+/// `file_operation_failed_display_equals_user_friendly_message` in
+/// `src/cli/error_ext.rs`. If this function ever receives another variant,
+/// re-check that invariant before widening its input set.
 fn operation_error_from(err: &SubXError) -> OperationError {
     OperationError {
         category: err.category(),
         code: err.machine_code(),
-        message: err.user_friendly_message(),
+        message: err.to_string(),
     }
 }
 

@@ -14,7 +14,7 @@ The `SubXError` surface SHALL be partitioned so that machine contracts belong to
 - `fn exit_code(&self) -> i32`
 - `fn user_friendly_message(&self) -> String`
 
-Both trait methods SHALL carry the bodies they had as inherent methods, unchanged, so that no exit code, message, prefix, or `Hint:` line differs from before the split. Callers SHALL import the trait (`use crate::cli::error_ext::SubXErrorExt;`) at the four in-crate sites that need it: `src/main.rs` and `src/cli/output.rs`'s `ErrorEnvelope::from_error`.
+Both trait methods SHALL carry the bodies they had as inherent methods, unchanged, so that no exit code, message, prefix, or `Hint:` line differs from before the split. Callers SHALL import the trait (`use crate::cli::error_ext::SubXErrorExt;`, spelled `use subx_cli::cli::error_ext::SubXErrorExt;` in the binary crate) at every in-crate site that needs it — six files: `src/main.rs`, `src/cli/output.rs`'s `ErrorEnvelope::from_error`, and the per-item error payloads in `src/commands/{cache,convert,detect_encoding,sync}_command.rs`.
 
 Additional constraints:
 

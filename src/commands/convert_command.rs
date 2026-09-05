@@ -75,6 +75,7 @@ use std::path::{Path, PathBuf};
 
 use serde::Serialize;
 
+use crate::cli::error_ext::SubXErrorExt;
 use crate::cli::output::{active_mode, emit_success};
 use crate::cli::{ConvertArgs, OutputSubtitleFormat};
 use crate::config::ConfigService;

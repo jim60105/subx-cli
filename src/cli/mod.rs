@@ -33,8 +33,8 @@ mod cache_args;
 mod config_args;
 mod convert_args;
 mod detect_encoding_args;
+pub mod error_ext;
 mod generate_completion_args;
-mod input_handler;
 mod match_args;
 pub mod output;
 pub mod reporter;
@@ -43,6 +43,16 @@ pub mod table;
 mod translate_args;
 pub mod ui;
 
+/// Legacy re-export. [`InputPathHandler`] and [`CollectedFiles`] now live in
+/// [`crate::core::input`]; prefer that path. These aliases exist so that
+/// consumers written against `subx_cli::cli::…` keep compiling across the
+/// `subx-core` split and will be removed once they have migrated.
+pub use crate::core::input::{CollectedFiles, InputPathHandler};
+/// Legacy re-export. [`SyncMode`] now lives in [`crate::core::sync`]; prefer
+/// that path. The alias exists so that consumers written against
+/// `subx_cli::cli::SyncMode` keep compiling across the `subx-core` split and
+/// will be removed once they have migrated.
+pub use crate::core::sync::SyncMode;
 pub use cache_args::{
     ApplyArgs, CacheAction, CacheArgs, ClearArgs, ClearType, RollbackArgs, StatusArgs,
 };
@@ -50,12 +60,12 @@ use clap::{Parser, Subcommand};
 pub use config_args::{ConfigAction, ConfigArgs};
 pub use convert_args::{ConvertArgs, OutputSubtitleFormat};
 pub use detect_encoding_args::DetectEncodingArgs;
+pub use error_ext::SubXErrorExt;
 pub use generate_completion_args::GenerateCompletionArgs;
-pub use input_handler::{CollectedFiles, InputPathHandler};
 pub use match_args::MatchArgs;
 pub use output::{OutputMode, SCHEMA_VERSION};
 pub use reporter::{TerminalReporter, terminal_reporter};
-pub use sync_args::{SyncArgs, SyncMethod, SyncMethodArg, SyncMode};
+pub use sync_args::{SyncArgs, SyncMethod, SyncMethodArg};
 pub use translate_args::TranslateArgs;
 pub use ui::{
     create_progress_bar, display_ai_usage, display_match_results, print_error, print_success,

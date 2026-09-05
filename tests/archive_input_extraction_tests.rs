@@ -13,7 +13,7 @@ use tempfile::TempDir;
 use zip::ZipWriter;
 use zip::write::SimpleFileOptions;
 
-use subx_cli::cli::InputPathHandler;
+use subx_cli::core::input::InputPathHandler;
 
 /// Helper: create a zip archive at `zip_path` with the given `(name, content)` entries.
 fn create_zip(zip_path: &Path, entries: &[(&str, &[u8])]) {

@@ -1,3 +1,11 @@
+//! Core-owned input path collection.
+//!
+//! Provides [`InputPathHandler`] (universal file/directory input processing:
+//! path merging, recursive scanning, extension filtering, archive extraction)
+//! and [`CollectedFiles`] (the collected-path handle with RAII archive temp
+//! dirs). The module deliberately depends on nothing from the CLI layer or on
+//! any argument-parsing type — CLI structs are thin adapters over it.
+
 use std::collections::HashMap;
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -50,7 +58,7 @@ use crate::error::SubXError;
 /// ## Basic Usage
 ///
 /// ```rust
-/// use subx_cli::cli::InputPathHandler;
+/// use subx_cli::core::input::InputPathHandler;
 /// use std::path::PathBuf;
 /// # use tempfile::TempDir;
 /// # use std::fs;
@@ -76,7 +84,7 @@ use crate::error::SubXError;
 /// ## Directory Processing
 ///
 /// ```rust
-/// use subx_cli::cli::InputPathHandler;
+/// use subx_cli::core::input::InputPathHandler;
 /// use std::path::PathBuf;
 /// # use tempfile::TempDir;
 /// # use std::fs;
@@ -101,30 +109,6 @@ use crate::error::SubXError;
 ///     .with_extensions(&["srt"]);
 /// let files_recursive = handler_recursive.collect_files()?;
 /// assert_eq!(files_recursive.len(), 2); // Finds both file1 and file2
-/// # Ok::<(), subx_cli::error::SubXError>(())
-/// ```
-///
-/// ## Command Integration
-///
-/// ```rust,no_run
-/// use subx_cli::cli::{InputPathHandler, MatchArgs};
-/// # use std::path::PathBuf;
-///
-/// // Example of how commands use InputPathHandler
-/// # let args = MatchArgs {
-/// #     path: Some(PathBuf::from("test")),
-/// #     input_paths: vec![],
-/// #     recursive: false,
-/// #     dry_run: false,
-/// #     confidence: 80,
-/// #     backup: false,
-/// #     copy: false,
-/// #     move_files: false,
-/// #     no_extract: false,
-/// # };
-/// let handler = args.get_input_handler()?;
-/// let files = handler.collect_files()?;
-/// // Process files...
 /// # Ok::<(), subx_cli::error::SubXError>(())
 /// ```
 #[derive(Debug, Clone)]
@@ -158,7 +142,7 @@ impl InputPathHandler {
     /// # Examples
     ///
     /// ```rust
-    /// use subx_cli::cli::InputPathHandler;
+    /// use subx_cli::core::input::InputPathHandler;
     /// use std::path::PathBuf;
     ///
     /// // Merge paths from different sources
@@ -255,7 +239,7 @@ impl InputPathHandler {
     /// # Examples
     ///
     /// ```rust
-    /// use subx_cli::cli::InputPathHandler;
+    /// use subx_cli::core::input::InputPathHandler;
     /// use std::path::PathBuf;
     /// # use tempfile::TempDir;
     /// # use std::fs;

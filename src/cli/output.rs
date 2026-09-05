@@ -31,6 +31,7 @@
 //! minor bumps; renames or removals are major bumps and require a new
 //! OpenSpec change proposal.
 
+use crate::cli::error_ext::SubXErrorExt;
 use crate::error::SubXError;
 use serde::Serialize;
 use std::io::{self, Write};

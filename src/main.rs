@@ -14,6 +14,7 @@
 //! envelope when the tentative mode is JSON).
 
 use std::ffi::OsString;
+use subx_cli::cli::error_ext::SubXErrorExt;
 use subx_cli::cli::output::{self, OutputMode};
 
 #[tokio::main]

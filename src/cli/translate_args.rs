@@ -20,7 +20,7 @@
 //! ```
 #![allow(clippy::needless_borrows_for_generic_args)]
 
-use crate::cli::InputPathHandler;
+use crate::core::input::InputPathHandler;
 use crate::error::SubXError;
 use clap::Args;
 use std::path::PathBuf;

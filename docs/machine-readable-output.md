@@ -8,7 +8,8 @@ This document is the authoritative reference for that contract.
 
 The default text mode is unchanged. JSON mode is strictly opt-in and
 the existing exit-code contract (1–6, mapped through
-`SubXError::exit_code`) is preserved across both modes.
+`SubXErrorExt::exit_code` from `src/cli/error_ext.rs`) is preserved across
+both modes.
 
 ## Table of Contents
 
@@ -196,8 +197,8 @@ these keys:
 |-------------|---------|--------------|-------------|
 | `category`  | string  | Always       | Stable snake_case identifier (see table below). |
 | `code`      | string  | Always       | Stable upper-snake-case machine code, prefixed `E_` (e.g. `E_AI_SERVICE`). |
-| `exit_code` | integer | Always       | The numeric process exit code, equal to `SubXError::exit_code` for that variant (or to the underlying handler's exit code for synthetic envelopes). The process exit status equals this value. |
-| `message`   | string  | Always       | Human-readable English text from `SubXError::user_friendly_message` (or the rendered clap error with ANSI removed for synthetic envelopes). |
+| `exit_code` | integer | Always       | The numeric process exit code, equal to `SubXErrorExt::exit_code` for that variant (or to the underlying handler's exit code for synthetic envelopes). The process exit status equals this value. |
+| `message`   | string  | Always       | Human-readable English text from `SubXErrorExt::user_friendly_message` (or the rendered clap error with ANSI removed for synthetic envelopes). |
 | `hint`      | string  | Optional     | Short remediation hint surfaced from `SubXError::hint`. |
 | `details`   | object  | Optional     | Free-form structured context (e.g. `path`, `format`, `partial_results`). |
 
@@ -235,7 +236,7 @@ backing variant.
 | *(synthetic — clap parse failure)* | `argument_parsing`       | `E_ARGUMENT_PARSING`            | clap exit code (typically `2`) |
 
 `OutputModeUnsupported` deliberately reuses the `command_execution`
-category because that is its `SubXError::exit_code` group; the more
+category because that is its `SubXErrorExt::exit_code` group; the more
 specific signal is in `code` (`E_OUTPUT_MODE_UNSUPPORTED`). See
 [`generate-completion` Rejection](#generate-completion-rejection).
 
@@ -710,7 +711,7 @@ $ subx-cli --output json generate-completion bash
 ```
 
 No shell-completion bytes are written to stdout in this case. The exit
-code is `SubXError::CommandExecution(_).exit_code()` (currently `1`);
+code is `SubXErrorExt::exit_code` for `SubXError::CommandExecution(_)` (currently `1`);
 the contract pins the helper, not the literal number. In text mode the
 existing behavior is unchanged: the completion script is written to
 stdout and the process exits `0`.
@@ -806,7 +807,7 @@ fi
 ```
 
 Note that `subx-cli` always exits with the documented exit code
-(1–6 from `SubXError::exit_code`), so `set -e` plus inspecting `$?`
+(1–6 from `SubXErrorExt::exit_code`), so `set -e` plus inspecting `$?`
 remains a valid simpler approach when you only care about
 success/failure; parsing `error.code` is for scripts that want to
 react to specific categories.
@@ -830,7 +831,7 @@ Within a major schema version, SubX-CLI guarantees:
 - Every error `category` and `code` listed in
   [Category and machine-code table](#category-and-machine-code-table)
   is stable. New categories may be added in minor bumps.
-- `error.exit_code` continues to equal `SubXError::exit_code` for the
+- `error.exit_code` continues to equal `SubXErrorExt::exit_code` for the
   underlying variant. The numeric exit-code contract (1–6) is
   preserved across patch releases.
 - `OutputModeUnsupported` continues to map to category
@@ -861,7 +862,10 @@ What requires a major bump:
   `timeline-sync` spec files under the same change directory.
 - Source of truth for the envelope and error mapping:
   - `src/cli/output.rs` (envelope, renderer, schema-version constant)
-  - `src/error.rs` (`SubXError::category`, `machine_code`, `exit_code`,
-    `user_friendly_message`, `hint`)
+  - `src/error.rs` (`SubXError::category`, `machine_code`, `hint` — the
+    library-half machine contracts)
+  - `src/cli/error_ext.rs` (`SubXErrorExt::exit_code`,
+    `SubXErrorExt::user_friendly_message` — the binary-half presentation
+    contract; callers import the trait)
 - Command reference: [`command-reference.md`](command-reference.md)
 - Configuration reference: [`configuration-guide.md`](configuration-guide.md)
