@@ -1,0 +1,4 @@
+[submodule "subx-core"]
+	path = subx-core
+	url = https://github.com/jim60105/subx-core
+	branch = main

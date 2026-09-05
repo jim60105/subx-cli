@@ -117,10 +117,18 @@ chmod +x subx-cli && sudo mv subx-cli /usr/local/bin/
 cargo install subx-cli
 
 # 或從儲存庫編譯
-git clone https://github.com/jim60105/subx-cli.git
+git clone --recurse-submodules https://github.com/jim60105/subx-cli.git
 cd subx-cli
 cargo build --release
 ```
+
+> **從 git 複製（clone）建構需要先取得 `subx-core` 子模組。** 請使用
+> `git clone --recurse-submodules https://github.com/jim60105/subx-cli`
+> 複製儲存庫，或先對既有複製執行 `git submodule update --init --recursive`
+> 修復後再建構。在複製目錄內執行 `git config submodule.recurse true`
+> 可讓後續的 `git pull` 與 `git checkout` 自動同步子模組——請注意這是一項
+> 每個複製各自的設定，對最初的 `git clone` 本身無效，因此
+> `--recurse-submodules` 須另行使用。
 
 ## 支援格式
 

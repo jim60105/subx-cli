@@ -71,6 +71,37 @@ and unreliable results.
 - The main agent runs the quality check **before every `git commit`** to
   ensure all changes pass together.
 
+## Repository Layout
+
+The codebase is distributed across two git repositories:
+
+- **`subx-cli`** (this repository) — the CLI binary and its library facade.
+  Its `Cargo.toml` is the Cargo **workspace root** with
+  `members = [".", "subx-core"]`.
+- **`subx-core`** (<https://github.com/jim60105/subx-core>) — the reusable
+  core library, mounted here as a **git submodule** at `subx-core/`.
+
+Rules:
+
+- `subx-core/Cargo.toml` must **never** contain a `[workspace]` table (a
+  nested workspace root is a hard Cargo error) and must **never** use
+  workspace inheritance (`version.workspace = true`,
+  `<dep>.workspace = true`, `[lints] workspace = true`, ...): those resolve
+  inside this workspace but break a standalone clone of `subx-core`, which is
+  how crates.io, `docs.rs`, and the Tauri GUI consume the crate.
+- `[profile.*]` tables belong to the workspace root manifest only; Cargo
+  ignores them in a member and warns on every build when present.
+- Library changes are committed in `subx-core` first, then the submodule
+  pointer (gitlink) is bumped in `subx-cli`.
+
+Cloning and updating:
+
+```bash
+git clone --recurse-submodules https://github.com/jim60105/subx-cli   # fresh clone
+git submodule update --init --recursive                              # repair an existing clone
+git config submodule.recurse true       # keep pulls/checkout in sync (per-clone setting)
+```
+
 ## Architecture
 
 ### Execution Flow
