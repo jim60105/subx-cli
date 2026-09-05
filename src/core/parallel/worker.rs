@@ -9,6 +9,7 @@ use uuid::Uuid;
 pub struct WorkerPool {
     workers: Arc<Mutex<HashMap<Uuid, WorkerInfo>>>,
     max_workers: usize,
+    reporter: Arc<dyn crate::core::report::Reporter>,
 }
 
 #[derive(Debug)]
@@ -36,6 +37,9 @@ pub enum WorkerType {
 impl WorkerPool {
     /// Creates a new worker pool with the specified maximum number of workers.
     ///
+    /// The pool reports through a [`crate::core::report::NoopReporter`]
+    /// unless a reporter is attached with [`WorkerPool::with_reporter`].
+    ///
     /// # Arguments
     ///
     /// * `max_workers` - The maximum number of concurrent workers allowed
@@ -43,7 +47,24 @@ impl WorkerPool {
         Self {
             workers: Arc::new(Mutex::new(HashMap::new())),
             max_workers,
+            reporter: crate::core::report::noop(),
         }
+    }
+
+    /// Attach a reporting sink, consuming and returning the pool.
+    ///
+    /// # Arguments
+    ///
+    /// * `reporter` - Sink for progress chatter emitted while the pool
+    ///   drains its workers.
+    pub fn with_reporter(mut self, reporter: Arc<dyn crate::core::report::Reporter>) -> Self {
+        self.reporter = reporter;
+        self
+    }
+
+    /// Clone the attached reporting sink for use across `await` points.
+    fn reporter(&self) -> Arc<dyn crate::core::report::Reporter> {
+        Arc::clone(&self.reporter)
     }
 
     /// Execute a task by spawning a worker
@@ -122,18 +143,15 @@ impl WorkerPool {
 
     /// Shutdown and wait for all workers
     pub async fn shutdown(&self) {
+        let reporter = self.reporter();
         let workers = { std::mem::take(&mut *self.workers.lock().unwrap()) };
         for (id, info) in workers {
-            // stderr diagnostic — never written to stdout. Suppressed when
-            // --quiet is set or when JSON output mode is active so the JSON
-            // envelope on stdout is not accompanied by free-form chatter on
-            // stderr.
-            if !crate::cli::output::is_quiet() && !crate::cli::output::active_mode().is_json() {
-                eprintln!(
-                    "Waiting for worker {} to complete task {}",
-                    id, info.task_id
-                );
-            }
+            // Progress chatter on the drain path — the reporter decides
+            // whether it reaches the terminal.
+            reporter.progress(&crate::core::report::ProgressEvent::Message(&format!(
+                "Waiting for worker {id} to complete task {}",
+                info.task_id
+            )));
             let _ = info.handle.await;
         }
     }
@@ -158,6 +176,7 @@ impl Clone for WorkerPool {
         Self {
             workers: Arc::clone(&self.workers),
             max_workers: self.max_workers,
+            reporter: Arc::clone(&self.reporter),
         }
     }
 }

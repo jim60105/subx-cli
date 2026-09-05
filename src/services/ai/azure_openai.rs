@@ -1,4 +1,3 @@
-use crate::cli::display_ai_usage;
 use crate::error::SubXError;
 use crate::services::ai::hosted_hint::{append_local_hint, maybe_attach_local_hint};
 use crate::services::ai::prompts::{PromptBuilder, ResponseParser};
@@ -25,6 +24,7 @@ pub struct AzureOpenAIClient {
     retry_attempts: u32,
     retry_delay_ms: u64,
     request_timeout_seconds: u64,
+    reporter: std::sync::Arc<dyn crate::core::report::Reporter>,
 }
 
 impl std::fmt::Debug for AzureOpenAIClient {
@@ -75,7 +75,22 @@ impl AzureOpenAIClient {
             retry_attempts,
             retry_delay_ms,
             request_timeout_seconds,
+            reporter: crate::core::report::noop(),
         }
+    }
+
+    /// Attach a reporting sink, consuming and returning the client.
+    ///
+    /// # Arguments
+    ///
+    /// * `reporter` - Sink that receives [`crate::core::report::AiUsage`]
+    ///   after every successful API response.
+    pub fn with_reporter(
+        mut self,
+        reporter: std::sync::Arc<dyn crate::core::report::Reporter>,
+    ) -> Self {
+        self.reporter = reporter;
+        self
     }
 
     /// Create client from AIConfig
@@ -271,7 +286,7 @@ impl AzureOpenAIClient {
                     completion_tokens: c as u32,
                     total_tokens: t as u32,
                 };
-                display_ai_usage(&stats);
+                self.reporter.ai_usage(&stats);
             }
         }
         let content = resp_json["choices"][0]["message"]["content"]

@@ -41,6 +41,7 @@ use crate::{
 /// ```
 pub struct ComponentFactory {
     config: Config,
+    reporter: std::sync::Arc<dyn crate::core::report::Reporter>,
 }
 
 impl ComponentFactory {
@@ -55,7 +56,31 @@ impl ComponentFactory {
     /// Returns an error if configuration loading fails.
     pub fn new(config_service: &dyn ConfigService) -> Result<Self> {
         let config = config_service.get_config()?;
-        Ok(Self { config })
+        Ok(Self {
+            config,
+            reporter: crate::core::report::noop(),
+        })
+    }
+
+    /// Attach a reporting sink, consuming and returning the factory.
+    ///
+    /// The reporter is propagated into every component this factory builds,
+    /// so one call at a command boundary wires an entire command.
+    ///
+    /// # Arguments
+    ///
+    /// * `reporter` - Sink shared by every component created afterwards.
+    pub fn with_reporter(
+        mut self,
+        reporter: std::sync::Arc<dyn crate::core::report::Reporter>,
+    ) -> Self {
+        self.reporter = reporter;
+        self
+    }
+
+    /// Clone the factory's reporting sink for attachment to a component.
+    fn reporter(&self) -> std::sync::Arc<dyn crate::core::report::Reporter> {
+        std::sync::Arc::clone(&self.reporter)
     }
 
     /// Create a match engine with AI configuration.
@@ -78,7 +103,7 @@ impl ComponentFactory {
             ai_model: self.config.ai.model.clone(),
             max_subtitle_bytes: self.config.general.max_subtitle_bytes,
         };
-        Ok(MatchEngine::new(ai_provider, match_config))
+        Ok(MatchEngine::new(ai_provider, match_config).with_reporter(self.reporter()))
     }
 
     /// Create a file manager with general configuration.
@@ -88,7 +113,7 @@ impl ComponentFactory {
     pub fn create_file_manager(&self) -> FileManager {
         // For now, FileManager doesn't take configuration in its constructor
         // This will be updated when FileManager is refactored to accept config
-        FileManager::new()
+        FileManager::new().with_reporter(self.reporter())
     }
 
     /// Create an AI provider with AI configuration.
@@ -101,7 +126,7 @@ impl ComponentFactory {
     /// Returns an error if the provider type is unsupported or
     /// provider creation fails.
     pub fn create_ai_provider(&self) -> Result<Box<dyn AIProvider>> {
-        create_ai_provider(&self.config.ai)
+        create_ai_provider_with_reporter(&self.config.ai, self.reporter())
     }
 
     /// Get a reference to the current configuration.
@@ -154,10 +179,11 @@ impl ComponentFactory {
     pub fn create_translation_engine(&self) -> Result<crate::core::translation::TranslationEngine> {
         let ai_provider: std::sync::Arc<dyn AIProvider> =
             std::sync::Arc::from(self.create_ai_provider()?);
-        crate::core::translation::TranslationEngine::new(
+        let engine = crate::core::translation::TranslationEngine::new(
             ai_provider,
             self.config.translation.batch_size,
-        )
+        )?;
+        Ok(engine.with_reporter(self.reporter()))
     }
 }
 
@@ -210,28 +236,33 @@ fn validate_ai_config(ai_config: &crate::config::AIConfig) -> Result<()> {
 ///
 /// This function creates the appropriate AI provider based on the
 /// provider type specified in the configuration.
-pub fn create_ai_provider(ai_config: &crate::config::AIConfig) -> Result<Box<dyn AIProvider>> {
+pub fn create_ai_provider_with_reporter(
+    ai_config: &crate::config::AIConfig,
+    reporter: std::sync::Arc<dyn crate::core::report::Reporter>,
+) -> Result<Box<dyn AIProvider>> {
     let canonical = crate::config::field_validator::normalize_ai_provider(&ai_config.provider);
     match canonical.as_str() {
         "openai" => {
             validate_ai_config(ai_config)?;
-            let client = OpenAIClient::from_config(ai_config)?;
+            let client = OpenAIClient::from_config(ai_config)?.with_reporter(reporter);
             Ok(Box::new(client))
         }
         "openrouter" => {
             validate_ai_config(ai_config)?;
-            let client = OpenRouterClient::from_config(ai_config)?;
+            let client = OpenRouterClient::from_config(ai_config)?.with_reporter(reporter);
             Ok(Box::new(client))
         }
         "azure-openai" => {
             validate_ai_config(ai_config)?;
             let client =
-                crate::services::ai::azure_openai::AzureOpenAIClient::from_config(ai_config)?;
+                crate::services::ai::azure_openai::AzureOpenAIClient::from_config(ai_config)?
+                    .with_reporter(reporter);
             Ok(Box::new(client))
         }
         "local" => {
             validate_ai_config(ai_config)?;
-            let client = crate::services::ai::local::LocalLLMClient::from_config(ai_config)?;
+            let client = crate::services::ai::local::LocalLLMClient::from_config(ai_config)?
+                .with_reporter(reporter);
             Ok(Box::new(client))
         }
         other => Err(SubXError::config(format!(
@@ -239,6 +270,15 @@ pub fn create_ai_provider(ai_config: &crate::config::AIConfig) -> Result<Box<dyn
             other
         ))),
     }
+}
+
+/// Create an AI provider from AI configuration, reporting through a no-op
+/// sink.
+///
+/// Convenience wrapper over [`create_ai_provider_with_reporter`] for callers
+/// with no reporting sink to attach.
+pub fn create_ai_provider(ai_config: &crate::config::AIConfig) -> Result<Box<dyn AIProvider>> {
+    create_ai_provider_with_reporter(ai_config, crate::core::report::noop())
 }
 
 #[cfg(test)]

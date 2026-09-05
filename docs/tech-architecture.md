@@ -295,8 +295,25 @@ use shared infrastructure from the module:
   function for exponential backoff retry logic
 - `cache.rs` — `AICache` for in-memory TTL caching of analysis results
 
-Each provider calls `display_ai_usage` (from `src/cli/`) after receiving a
-response, reporting token counts via `AiUsageStats`.
+Each provider reports token accounting by calling
+`crate::core::report::Reporter::ai_usage` on its attached reporter after
+receiving a response, passing a `core::report::AiUsage` value (legacy alias
+`AiUsageStats`).
+
+##### Reporting seam (`src/core/report/`)
+
+Core engines and service clients never print to the terminal and never read
+the CLI's output mode or `--quiet` flag. They report through the
+transport-agnostic `core::report::Reporter` seam — four channels
+(`diagnostic`, `warn`, `ai_usage`, `progress`). Every attachable type
+(`MatchEngine`, `TranslationEngine`, `SyncEngine`, `ComponentFactory`,
+`FileManager`, `WorkerPool`, the four AI clients) defaults to
+`NoopReporter` — library consumers see silence — and accepts a sink via the
+`with_reporter` builder. The CLI owns the only terminal implementation,
+`cli::reporter::TerminalReporter`, which applies the JSON/`--quiet`
+suppression matrix and is attached at command boundaries. Layering rule:
+`src/core/` and `src/services/` must not reference `crate::cli` — enforced
+by `tests/core_cli_boundary.rs`.
 
 #### VAD Service (`src/services/vad/`)
 

@@ -26,7 +26,9 @@ use crate::cli::{ApplyArgs, CacheArgs, ClearArgs, ClearType, RollbackArgs, Statu
 use crate::config::ConfigService;
 use crate::core::lock::acquire_subx_lock;
 use crate::core::matcher::cache::CacheData;
-use crate::core::matcher::engine::{FileRelocationMode, MatchConfig, apply_cached_operations};
+use crate::core::matcher::engine::{
+    FileRelocationMode, MatchConfig, apply_cached_operations_with_reporter,
+};
 use crate::core::matcher::journal::{
     JournalData, JournalEntry, JournalEntryStatus, JournalOperationType,
 };
@@ -769,7 +771,13 @@ pub async fn execute_apply(args: &ApplyArgs, config_service: &dyn ConfigService)
 
             let mut single = cache.clone();
             single.match_operations = vec![op.clone()];
-            match apply_cached_operations(&single, &match_config).await {
+            match apply_cached_operations_with_reporter(
+                &single,
+                &match_config,
+                crate::cli::terminal_reporter(),
+            )
+            .await
+            {
                 Ok(()) => {
                     applied += 1;
                     items.push(CacheApplyItem {
@@ -799,7 +807,12 @@ pub async fn execute_apply(args: &ApplyArgs, config_service: &dyn ConfigService)
             },
         );
     } else {
-        apply_cached_operations(&cache, &match_config).await?;
+        apply_cached_operations_with_reporter(
+            &cache,
+            &match_config,
+            crate::cli::terminal_reporter(),
+        )
+        .await?;
         println!("Apply complete.");
     }
     Ok(())

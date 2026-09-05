@@ -1,5 +1,4 @@
 use crate::Result;
-use crate::cli::display_ai_usage;
 use crate::error::SubXError;
 use crate::services::ai::AiUsageStats;
 use crate::services::ai::{
@@ -25,6 +24,7 @@ pub struct OpenAIClient {
     retry_attempts: u32,
     retry_delay_ms: u64,
     base_url: String,
+    reporter: std::sync::Arc<dyn crate::core::report::Reporter>,
 }
 
 impl std::fmt::Debug for OpenAIClient {
@@ -386,7 +386,22 @@ impl OpenAIClient {
             retry_attempts,
             retry_delay_ms,
             base_url: base_url.trim_end_matches('/').to_string(),
+            reporter: crate::core::report::noop(),
         }
+    }
+
+    /// Attach a reporting sink, consuming and returning the client.
+    ///
+    /// # Arguments
+    ///
+    /// * `reporter` - Sink that receives [`crate::core::report::AiUsage`]
+    ///   after every successful API response.
+    pub fn with_reporter(
+        mut self,
+        reporter: std::sync::Arc<dyn crate::core::report::Reporter>,
+    ) -> Self {
+        self.reporter = reporter;
+        self
     }
 
     /// Create client from unified configuration
@@ -517,7 +532,7 @@ impl OpenAIClient {
                     completion_tokens: c as u32,
                     total_tokens: t as u32,
                 };
-                display_ai_usage(&stats);
+                self.reporter.ai_usage(&stats);
             }
         }
 

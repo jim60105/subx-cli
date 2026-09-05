@@ -21,6 +21,10 @@ use crate::{Result, error::SubXError};
 pub struct SyncEngine {
     config: SyncConfig,
     vad_detector: Option<VadSyncDetector>,
+    /// Attachment point for the reporting seam. The sync engine has no
+    /// reporting site today; `expose-core-orchestration-apis` will use it
+    /// for progress and cancellation events.
+    reporter: std::sync::Arc<dyn crate::core::report::Reporter>,
 }
 
 impl SyncEngine {
@@ -64,7 +68,28 @@ impl SyncEngine {
         Ok(Self {
             config,
             vad_detector,
+            reporter: crate::core::report::noop(),
         })
+    }
+
+    /// Attach a reporting sink, consuming and returning the engine.
+    ///
+    /// # Arguments
+    ///
+    /// * `reporter` - Sink reserved for the sync engine's future
+    ///   progress/cancellation reporting (see `expose-core-orchestration-apis`).
+    pub fn with_reporter(
+        mut self,
+        reporter: std::sync::Arc<dyn crate::core::report::Reporter>,
+    ) -> Self {
+        self.reporter = reporter;
+        self
+    }
+
+    /// The attached reporting sink (used by future progress/cancellation
+    /// reporting work).
+    pub fn reporter(&self) -> &std::sync::Arc<dyn crate::core::report::Reporter> {
+        &self.reporter
     }
 
     /// Detect sync offset using automatic or specified method.

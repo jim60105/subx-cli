@@ -320,17 +320,12 @@ pub struct VerificationRequest {
 }
 
 /// AI usage statistics.
-#[derive(Debug, Clone)]
-pub struct AiUsageStats {
-    /// Name of the model used.
-    pub model: String,
-    /// Number of prompt tokens used.
-    pub prompt_tokens: u32,
-    /// Number of completion tokens used.
-    pub completion_tokens: u32,
-    /// Total number of tokens used.
-    pub total_tokens: u32,
-}
+///
+/// Legacy alias of the core-owned [`crate::core::report::AiUsage`] — the one
+/// canonical usage payload for the reporting seam. Prefer importing
+/// `crate::core::report::AiUsage` in new code; this path exists so existing
+/// consumers keep compiling.
+pub use crate::core::report::AiUsage as AiUsageStats;
 
 /// AI response content and usage statistics.
 #[derive(Debug, Clone)]

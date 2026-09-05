@@ -39,7 +39,6 @@ Create a module that implements the `AIProvider` trait. The trait lives in
 
 ```rust
 use crate::Result;
-use crate::cli::display_ai_usage;
 use crate::error::SubXError;
 use crate::services::ai::AiUsageStats;
 use crate::services::ai::{
@@ -80,7 +79,7 @@ impl {Provider}Client {
     /// Send a chat completion request to the provider API.
     async fn chat_completion(&self, messages: Vec<Value>) -> Result<String> {
         // Build request, call make_request_with_retry, parse response,
-        // emit usage stats via display_ai_usage
+        // report usage stats via self.reporter.ai_usage(&stats)
     }
 }
 
@@ -105,9 +104,18 @@ to construct and parse AI messages, and `HttpRetryClient` from
 pattern — reuse the shared prompt and retry infrastructure rather than
 reimplementing it.
 
-Every provider must call `display_ai_usage` (from `src/cli/`) after
-receiving an API response. Parse token counts from the response and build
-an `AiUsageStats` struct to pass to this function.
+Every provider must report token accounting through the reporting seam —
+`self.reporter.ai_usage(&usage)` — after receiving an API response. Parse
+token counts from the response and build an
+`crate::core::report::AiUsage` value (legacy alias
+`crate::services::ai::AiUsageStats`) with the fields `model: String`,
+`prompt_tokens: u32`, `completion_tokens: u32`, `total_tokens: u32`. The
+client stores the reporter as an `Arc<dyn Reporter>` field defaulting to
+`crate::core::report::noop()`; callers attach a sink with the
+`with_reporter` builder (the CLI attaches its `TerminalReporter`, which
+renders the block via `ui::display_ai_usage`). Providers must not import
+anything from `src/cli/` — `src/services/` may not reference the CLI
+layer.
 
 ### Step 2. Register the Module
 
@@ -560,9 +568,10 @@ and delay. Timeout values come from `AIConfig.request_timeout_seconds`.
 Handle timeout and network errors by returning `SubXError::AiService` with
 a descriptive message.
 
-Call `display_ai_usage` after every successful API response. Parse the token
-counts (prompt tokens, completion tokens, total tokens) from the provider's
-response format and pass them as `AiUsageStats`.
+Report usage via `self.reporter.ai_usage(&usage)` after every successful
+API response. Parse the token counts (prompt tokens, completion tokens,
+total tokens) from the provider's response format and pass them as a
+`crate::core::report::AiUsage`.
 
 Never log or print API keys. The config system handles keys through
 `Option<String>` fields and environment variables. Follow the same pattern

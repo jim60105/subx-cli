@@ -8,6 +8,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- Transport-agnostic reporting seam at `core::report`: `Reporter` (four channels — `diagnostic`, `warn`, `ai_usage`, `progress`), `NoopReporter` as the default sink, the `AiUsage` payload type, and `ProgressEvent`. Every attachable engine, factory and AI client (`MatchEngine`, `TranslationEngine`, `SyncEngine`, `ComponentFactory`, `FileManager`, `WorkerPool`, the four AI provider clients) gained a `with_reporter` builder; constructor signatures are unchanged. The CLI renders the seam through `cli::reporter::TerminalReporter`.
+
+### Changed
+- Core and service modules now report status, warnings, progress and AI token usage through the `Reporter` seam instead of printing directly and reading the CLI's output mode / `--quiet` flag (`crate::cli` is no longer referenced anywhere under `src/core/` or `src/services/`, enforced by `tests/core_cli_boundary.rs`). Terminal behaviour is unchanged: the same messages appear on the same streams under the same JSON/quiet rules. `services::ai::AiUsageStats` is now a legacy alias of `core::report::AiUsage`.
+
 ### Removed
 - Pruned five dependencies with zero use sites from `Cargo.toml`: `notify`, `once_cell`, `tokio-util`, `winapi`, and `libc`. The `notify` subtree — seven packages (`notify`, `notify-types`, `inotify`, `inotify-sys`, `fsevent-sys`, `kqueue`, `kqueue-sys`) — leaves the resolved dependency graph entirely, shrinking the surface scanned by the `cargo audit` CI gate. `once_cell`, `tokio-util`, `winapi`, and `libc` remain in `Cargo.lock` legitimately as transitive dependencies of crates that require them.
 

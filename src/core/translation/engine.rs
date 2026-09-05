@@ -35,6 +35,7 @@ pub struct TranslationEngine {
     ai_provider: Arc<dyn AIProvider>,
     format_manager: FormatManager,
     batch_size: usize,
+    reporter: Arc<dyn crate::core::report::Reporter>,
 }
 
 impl std::fmt::Debug for TranslationEngine {
@@ -61,7 +62,25 @@ impl TranslationEngine {
             ai_provider,
             format_manager: FormatManager::new(),
             batch_size,
+            reporter: crate::core::report::noop(),
         })
+    }
+
+    /// Attach a reporting sink, consuming and returning the engine.
+    ///
+    /// # Arguments
+    ///
+    /// * `reporter` - Sink for progress chatter (batch progress, retry
+    ///   notices); the CLI attaches its `TerminalReporter` at command
+    ///   boundaries, library consumers may pass any implementation.
+    pub fn with_reporter(mut self, reporter: Arc<dyn crate::core::report::Reporter>) -> Self {
+        self.reporter = reporter;
+        self
+    }
+
+    /// Clone the attached reporting sink for use across `await` points.
+    fn reporter(&self) -> Arc<dyn crate::core::report::Reporter> {
+        Arc::clone(&self.reporter)
     }
 
     /// Get the configured AI batch size.
@@ -156,7 +175,10 @@ impl TranslationEngine {
                 translations.insert(id, text);
             }
             batch_count += issued_batches;
-            log_translation_progress(translations.len(), cue_ids.len());
+            self.reporter()
+                .progress(&crate::core::report::ProgressEvent::Message(
+                    &format_translation_progress(translations.len(), cue_ids.len()),
+                ));
         }
 
         let mut empty_fallback_ids = BTreeSet::new();
@@ -181,7 +203,10 @@ impl TranslationEngine {
                 translations.insert(id.clone(), String::new());
                 empty_fallback_ids.insert(id);
             }
-            log_translation_progress(translations.len(), cue_ids.len());
+            self.reporter()
+                .progress(&crate::core::report::ProgressEvent::Message(
+                    &format_translation_progress(translations.len(), cue_ids.len()),
+                ));
         }
 
         // 4. Reapply translated text to the original subtitle entries while
@@ -285,14 +310,11 @@ impl TranslationEngine {
         {
             Ok(map) => Ok((map, 1)),
             Err(err) if is_unknown_cue_id_error(&err) => {
-                // stderr diagnostic — never written to stdout. Suppressed
-                // when --quiet is set or when JSON output mode is active so
-                // structured stdout is not accompanied by free-form chatter.
-                if !crate::cli::output::is_quiet() && !crate::cli::output::active_mode().is_json() {
-                    eprintln!(
-                        "⚠ Translation response contained an unknown cue ID; discarding the batch response and retrying once."
-                    );
-                }
+                // Retry notice on the progress stream — the reporter
+                // decides whether it reaches the terminal.
+                self.reporter().progress(&crate::core::report::ProgressEvent::Message(
+                    "⚠ Translation response contained an unknown cue ID; discarding the batch response and retrying once.",
+                ));
                 match self
                     .translate_batch_once(batch_cues, batch_ids, request, terminology)
                     .await
@@ -387,18 +409,6 @@ fn missing_translation_indices(
         .enumerate()
         .filter_map(|(idx, id)| (!translations.contains_key(id)).then_some(idx))
         .collect()
-}
-
-fn log_translation_progress(processed_cues: usize, total_cues: usize) {
-    // Diagnostic progress chatter. JSON mode and --quiet both suppress this
-    // free-form stderr output to keep machine-readable consumers clean.
-    if crate::cli::output::is_quiet() || crate::cli::output::active_mode().is_json() {
-        return;
-    }
-    eprintln!(
-        "{}",
-        format_translation_progress(processed_cues, total_cues)
-    );
 }
 
 fn format_translation_progress(processed_cues: usize, total_cues: usize) -> String {
