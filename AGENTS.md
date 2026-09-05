@@ -113,28 +113,30 @@ Config Layer (src/config/)    → DI-based configuration system
 
 | Module | Purpose | Key Types |
 |---|---|---|
-| `src/cli/` | Argument parsing via clap derive | `Cli`, `Commands`, `*Args`, `InputPathHandler` |
+| `src/cli/` | Argument parsing via clap derive + terminal presentation | `Cli`, `Commands`, `*Args`, `SubXErrorExt` (`error_ext.rs`), `TerminalReporter` |
 | `src/commands/` | Command implementations | `dispatcher`, `execute()` functions |
 | `src/config/` | Configuration with DI | `ConfigService`, `Config`, `TestConfigService`, `TestConfigBuilder` |
 | `src/core/factory.rs` | Component wiring | `ComponentFactory` |
 | `src/core/archive/` | Archive extraction (`.zip`, `.7z`, `.tar.gz`, optional `.rar`) | `ArchiveFormat`, `extract_archive()` |
 | `src/core/formats/` | Subtitle parsing/conversion | `SubtitleFormat` trait, `FormatManager`, `FormatConverter` |
 | `src/core/matcher/` | AI-powered file matching | `MatchEngine`, `FileDiscovery`, `MatchConfig` |
-| `src/core/sync/` | Subtitle synchronization | `SyncEngine`, `SyncMethod` |
+| `src/core/sync/` | Subtitle synchronization; core-owned sync pairing and default output-path derivation | `SyncEngine`, `SyncMethod`, `SyncMode`, `SyncPairingRequest`, `BatchRequest`, `resolve_sync_pairing`, `create_default_output_path`, `SYNC_VIDEO_EXTENSIONS`, `SYNC_SUBTITLE_EXTENSIONS` |
 | `src/core/uuidv7.rs` | Shared UUIDv7 generator with strict ≥1 ms spacing; canonical home of `Uuidv7Generator` and `generate_ids`. Used for matcher file IDs, translation cue IDs, and parallel worker/task IDs. | `Uuidv7Generator`, `generate_ids`, `unix_time_ms` |
 | `src/core/translation/` | AI-assisted subtitle translation (two-pass terminology + cue translation, UUIDv7 cue IDs re-exported from `core::uuidv7`) | `TranslationEngine`, `TerminologyMap`, `CueIdGenerator` (alias of `Uuidv7Generator`) |
 | `src/core/parallel/` | Task scheduling | `TaskScheduler`, `Task`, `WorkerPool` |
 | `src/core/file_manager.rs` | File operations with backup | `FileManager` |
+| `src/core/input/` | Core-owned input collection: path merging, directory scanning, extension filtering, archive extraction | `InputPathHandler`, `CollectedFiles` |
 | `src/services/ai/` | AI provider clients | `AIProvider` trait, `OpenAIClient`, `OpenRouterClient`, `AzureOpenAIClient`, `LocalLLMClient` |
 | `src/services/audio/` | Audio analysis data structures and helpers | `AudioData`, `AudioEnvelope`, `DialogueSegment` |
 | `src/services/vad/` | Voice Activity Detection | `LocalVadDetector`, `VadSyncDetector` |
-| `src/error.rs` | Error definitions | `SubXError`, `SubXResult<T>` |
+| `src/error.rs` | Error taxonomy and machine contracts (library half) | `SubXError` (`category()`, `machine_code()`, `hint()`), `SubXResult<T>` |
+| `src/cli/error_ext.rs` | Binary-half error presentation (exit codes, terminal prose) | `SubXErrorExt` (`exit_code()`, `user_friendly_message()`) |
 
 ### Common Edit Targets
 
 | Task | Files to Edit |
 |---|---|
-| Add/change CLI arguments | `src/cli/*_args.rs`, `src/cli/input_handler.rs`, `src/cli/validation.rs` |
+| Add/change CLI arguments | `src/cli/*_args.rs` (the collection algorithm lives in `src/core/input/mod.rs`) |
 | Add/change command logic | `src/commands/*_command.rs` |
 | Change command routing | `src/commands/dispatcher.rs` |
 | Add/change config keys | `src/config/mod.rs`, `service.rs`, `field_validator.rs`, `validator.rs` |
@@ -207,8 +209,14 @@ tests/              Integration tests organized by feature
 
 - Use `SubXError` variants from `src/error.rs` — never invent ad-hoc error
   types.
-- Each variant maps to an exit code (1–6) via `exit_code()` and provides
-  user-facing guidance via `user_friendly_message()`.
+- The machine contracts `category()`, `machine_code()` and `hint()` stay on
+  `SubXError` in `src/error.rs` (library half). The process/terminal half
+  lives in `src/cli/error_ext.rs`: each variant maps to an exit code (1–6)
+  via `SubXErrorExt::exit_code` and provides user-facing guidance via
+  `SubXErrorExt::user_friendly_message` — callers must
+  `use crate::cli::error_ext::SubXErrorExt;`. Code under `src/core/` and
+  `src/services/` must not import the trait or call either method; render
+  messages through `Display` there.
 
 ### Naming Conventions
 

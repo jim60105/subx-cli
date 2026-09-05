@@ -1,7 +1,7 @@
 #![allow(clippy::needless_borrows_for_generic_args)]
 //! Command-line arguments for the AI-powered subtitle matching command.
 
-use crate::cli::InputPathHandler;
+use crate::core::input::InputPathHandler;
 use crate::error::SubXError;
 use clap::Args;
 use std::path::PathBuf;

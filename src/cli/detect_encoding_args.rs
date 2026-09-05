@@ -28,7 +28,7 @@
 //! subx detect-encoding *.srt *.ass *.vtt *.sub
 //! ```
 
-use crate::cli::InputPathHandler;
+use crate::core::input::InputPathHandler;
 use crate::error::SubXError;
 use clap::Args;
 use std::path::PathBuf;

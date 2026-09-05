@@ -27,7 +27,7 @@
 
 #![allow(clippy::needless_borrows_for_generic_args)]
 // src/cli/convert_args.rs
-use crate::cli::InputPathHandler;
+use crate::core::input::InputPathHandler;
 use crate::error::SubXError;
 use clap::{Args, ValueEnum};
 use std::path::PathBuf;

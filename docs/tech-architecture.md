@@ -70,6 +70,16 @@ The UI layer depends on `indicatif` for progress bars, `colored` for
 terminal colors, `dialoguer` for interactive prompts, and `tabled` for
 tabular output formatting.
 
+`src/cli/` holds only the clap argument structs and the terminal
+presentation surface: the eight `*_args.rs` modules, `output.rs`,
+`reporter.rs`, `table.rs`, `ui.rs`, and `error_ext.rs` — the binary-half
+`SubXErrorExt` trait carrying `exit_code()` and
+`user_friendly_message()` (the library-half taxonomy, `category()`,
+`machine_code()` and `hint()`, stays on `SubXError` in `src/error.rs`).
+Input collection is no longer a CLI concern: `InputPathHandler` and
+`CollectedFiles` live in `src/core/input/`, and `src/cli/` keeps only
+legacy re-exports for out-of-tree consumers.
+
 ### Configuration Module (`src/config/`)
 
 The configuration system is built around the `ConfigService` trait, which
@@ -241,6 +251,24 @@ is not 8 kHz or 16 kHz, runs VAD analysis with dynamically calculated chunk
 sizes, and compares detected speech segments against subtitle timestamps to
 compute the optimal offset. The `Auto` method currently resolves to
 `LocalVad`. The `Manual` method applies a user-specified offset directly.
+
+Alongside the engine, `src/core/sync/mod.rs` owns the parser-agnostic sync
+pairing contract that used to be implicit behaviour of the CLI's `SyncArgs`:
+`resolve_sync_pairing(&SyncPairingRequest) -> Result<SyncMode, SubXError>`
+(single-pair auto-pairing and batch selection over `BatchRequest`),
+`create_default_output_path`, and the `SYNC_VIDEO_EXTENSIONS` /
+`SYNC_SUBTITLE_EXTENSIONS` lists. `SyncArgs::get_sync_mode` is a thin
+adapter that fills a `SyncPairingRequest` from its clap fields.
+
+#### Input Collection (`src/core/input/`)
+
+`InputPathHandler` merges positional, `-i`, and string path sources,
+validates them, scans directories (flat or recursive) with symlink
+skipping and case-insensitive extension filtering, and transparently
+extracts archive inputs into `TempDir`s owned by the returned
+`CollectedFiles` handle. It depends only on `std`, `log`, `tempfile`,
+`crate::core::archive` and `crate::error` — never on `clap` or
+`crate::cli`; each command's `*Args::get_input_handler` is a thin adapter.
 
 #### Parallel Processing (`src/core/parallel/`)
 

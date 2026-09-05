@@ -7,7 +7,8 @@
 use std::fs;
 use tempfile::TempDir;
 
-use subx_cli::cli::{ConvertArgs, DetectEncodingArgs, InputPathHandler, MatchArgs, SyncArgs};
+use subx_cli::cli::{ConvertArgs, DetectEncodingArgs, MatchArgs, SyncArgs};
+use subx_cli::core::input::InputPathHandler;
 use subx_cli::error::SubXError;
 
 /// Test that MatchArgs correctly merges path and input_paths

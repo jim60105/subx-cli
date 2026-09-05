@@ -5,12 +5,13 @@
 //! automatic method selection, and manual offset adjustment.
 
 use crate::cli::SyncArgs;
-use crate::cli::SyncMode;
+use crate::cli::error_ext::SubXErrorExt;
 use crate::cli::output::{OutputMode, active_mode, emit_success};
-use crate::cli::sync_args::create_default_output_path;
 use crate::config::Config;
 use crate::config::ConfigService;
 use crate::core::formats::manager::FormatManager;
+use crate::core::sync::SyncMode;
+use crate::core::sync::create_default_output_path;
 use crate::core::sync::{SyncEngine, SyncMethod, SyncResult};
 use crate::{Result, error::SubXError};
 use serde::Serialize;

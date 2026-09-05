@@ -271,6 +271,7 @@ fn charset_to_label(c: &Charset) -> &'static str {
 /// - **Migration**: Assess encoding diversity when migrating subtitle libraries
 /// - **Automation**: Integrate encoding detection into batch processing workflows
 use crate::cli::DetectEncodingArgs;
+use crate::cli::error_ext::SubXErrorExt;
 use crate::error::SubXError;
 
 /// Execute character encoding detection for subtitle files based on input arguments.

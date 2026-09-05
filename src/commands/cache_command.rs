@@ -21,6 +21,7 @@
 //! All mutating operations acquire an exclusive file lock before proceeding.
 
 use crate::Result;
+use crate::cli::error_ext::SubXErrorExt;
 use crate::cli::output::{OutputMode, active_mode, emit_success};
 use crate::cli::{ApplyArgs, CacheArgs, ClearArgs, ClearType, RollbackArgs, StatusArgs};
 use crate::config::ConfigService;
@@ -550,7 +551,7 @@ pub async fn execute_status(args: &StatusArgs, config_service: &dyn ConfigServic
 ///   isolation contract from the `machine-readable-output` spec can be
 ///   honored: failures are recorded as `items[i].status = "error"` with
 ///   an [`CacheItemError`] populated from
-///   [`SubXError::category`]/[`SubXError::machine_code`]/[`SubXError::user_friendly_message`].
+///   [`SubXError::category`]/[`SubXError::machine_code`]/[`crate::cli::error_ext::SubXErrorExt::user_friendly_message`].
 ///
 /// # Arguments
 ///

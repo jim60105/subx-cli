@@ -8,6 +8,7 @@
 //! - `file_manager` for safe file operations with rollback support
 //! - `formats` for parsing and converting subtitle formats
 //! - `language` for language detection and handling
+//! - `input` for input path collection, directory scanning and archive extraction
 //! - `matcher` for AI-powered subtitle matching algorithms
 //! - `parallel` for task scheduling and parallel execution
 //! - `report` for the transport-agnostic reporting seam core reports through
@@ -22,6 +23,7 @@ pub mod factory;
 pub mod file_manager;
 pub mod formats;
 pub mod fs_util;
+pub mod input;
 pub mod language;
 pub mod lock;
 pub mod matcher;

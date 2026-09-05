@@ -323,7 +323,7 @@ async fn translate_one_file(
 
 fn resolve_output_path(
     input_path: &Path,
-    collected: &crate::cli::CollectedFiles,
+    collected: &crate::core::input::CollectedFiles,
     args: &TranslateArgs,
     target_language: &str,
 ) -> crate::Result<ResolvedOutput> {
