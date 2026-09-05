@@ -5,6 +5,14 @@ modular architecture with dependency injection, supports multiple subtitle
 formats, and integrates AI-powered file matching with local Voice Activity
 Detection for audio synchronization.
 
+The codebase is being distributed across two crates: `subx-cli` — this
+repository — is the Cargo workspace root and owns the CLI binary and library
+facade, while `subx-core` (<https://github.com/jim60105/subx-core>) is the
+reusable core library, mounted here as a git submodule at `subx-core/` and
+consumed as a workspace member. The module-by-module map below still reflects
+the current single-crate layout; the allocation of the core engines to
+`subx-core` lands with the source migration of the two-crate split.
+
 ## System Architecture
 
 ```

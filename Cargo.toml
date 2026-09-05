@@ -1,3 +1,10 @@
+# Workspace root. `subx-core` is a git submodule mounted at subx-core/
+# (https://github.com/jim60105/subx-core); run
+# `git submodule update --init --recursive` after cloning subx-cli.
+[workspace]
+members = [".", "subx-core"]
+resolver = "3"
+
 [package]
 name = "subx-cli"
 version = "1.9.1"
@@ -55,6 +62,9 @@ doc_markdown = "allow"                  # Allow markdown formatting warnings
 missing_docs = "allow" # Allow missing docs at rust level
 
 [dependencies]
+# SubX core library (git submodule at subx-core/)
+subx-core = { path = "subx-core", version = "1.0" }
+
 # CLI framework
 clap = { version = "4.5.40", features = ["derive", "cargo"] }
 clap_complete = "4.5.54"

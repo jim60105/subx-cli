@@ -3009,6 +3009,7 @@ dependencies = [
  "serde",
  "serde_json",
  "sevenz-rust2",
+ "subx-core",
  "symphonia",
  "tabled",
  "tar",
@@ -3026,6 +3027,10 @@ dependencies = [
  "wiremock",
  "zip",
 ]
+
+[[package]]
+name = "subx-core"
+version = "1.0.0"
 
 [[package]]
 name = "symphonia"

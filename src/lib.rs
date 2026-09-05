@@ -24,6 +24,10 @@
 //! - [`error`] - Comprehensive error handling system
 //! - [`services`] - External service integrations (AI, audio processing)
 //!
+//! The core engines are supplied by the `subx_core` crate, a git submodule
+//! mounted at `subx-core/` and a member of this Cargo workspace; the modules
+//! above will re-export it as the two-crate split progresses.
+//!
 //! # Quick Start
 //!
 //! ```rust,no_run
@@ -112,6 +116,24 @@
 /// println!("SubX version: {}", VERSION);
 /// ```
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");
+
+/// Version of the `subx-core` library this build is linked against.
+///
+/// This constant reports the version of the [`subx_core`] crate resolved at
+/// build time (the git submodule mounted at `subx-core/`), and is distinct
+/// from [`VERSION`], which reports this CLI crate's own version. The two
+/// crates carry independent version lines related only by the caret
+/// requirement in `Cargo.toml`.
+///
+/// # Examples
+///
+/// ```rust
+/// use subx_cli::CORE_VERSION;
+///
+/// assert!(!CORE_VERSION.is_empty());
+/// println!("Linked subx-core version: {}", CORE_VERSION);
+/// ```
+pub const CORE_VERSION: &str = subx_core::VERSION;
 
 pub mod cli;
 pub mod commands;
@@ -572,6 +594,16 @@ mod tests {
     #[test]
     fn test_version_matches_cargo_pkg_version() {
         assert_eq!(VERSION, env!("CARGO_PKG_VERSION"));
+    }
+
+    #[test]
+    fn core_version_matches_declared_requirement() {
+        // Inside the workspace, `path` resolution wins outright and the
+        // `version = "1.0"` key in the subx-core dependency declaration is
+        // never consulted. This is the only local guard against the pinned
+        // submodule drifting outside the declared caret requirement.
+        assert!(!CORE_VERSION.is_empty());
+        assert_eq!(CORE_VERSION.split('.').next(), Some("1"));
     }
 
     #[test]

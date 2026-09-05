@@ -141,10 +141,19 @@ and downloads the matching pre-built binary from the latest GitHub Release.
 cargo install subx-cli
 
 # Or compile from the repository
-git clone https://github.com/jim60105/subx-cli.git
+git clone --recurse-submodules https://github.com/jim60105/subx-cli.git
 cd subx-cli
 cargo build --release
 ```
+
+> **Building from a git clone requires the `subx-core` submodule.** Clone with
+> `git clone --recurse-submodules https://github.com/jim60105/subx-cli`, or
+> repair an existing clone with `git submodule update --init --recursive`
+> before building. Running `git config submodule.recurse true` inside your
+> clone makes later `git pull` and `git checkout` operations keep the
+> submodule in sync automatically — note that it is a per-clone setting and
+> does not apply to the initial `git clone` itself, which is why
+> `--recurse-submodules` is documented separately.
 
 ## Supported Formats
 

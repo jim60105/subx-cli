@@ -16,6 +16,9 @@ jobs:
       upload_url: ${{ steps.create_release.outputs.upload_url }}
     steps:
     - uses: actions/checkout@v6
+      with:
+        submodules: recursive
+        fetch-depth: 0
     
     - name: Extract changelog content
       id: extract_changelog
@@ -93,6 +96,8 @@ jobs:
 
     steps:
     - uses: actions/checkout@v6
+      with:
+        submodules: recursive
 
     - name: Install Rust
       uses: dtolnay/rust-toolchain@stable
@@ -190,6 +195,9 @@ jobs:
     if: ${{ !contains(github.ref_name, '-') }}
     steps:
     - uses: actions/checkout@v6
+      with:
+        submodules: recursive
+        fetch-depth: 0
     - name: Install Rust
       uses: dtolnay/rust-toolchain@stable
     - name: Publish to crates.io
