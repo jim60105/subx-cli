@@ -516,7 +516,13 @@ clap = { version = "4.5.40", features = ["derive", "cargo"] }
 clap_complete = "4.5.54"
 
 # Async runtime
-tokio = { version = "1.0", features = ["full"] }
+tokio = { version = "1.0", features = [
+    "rt-multi-thread",
+    "macros",
+    "time",
+    "sync",
+    "fs",
+] }
 
 # HTTP client
 reqwest = { version = "0.13", features = ["json", "stream", "rustls"] }
@@ -527,12 +533,22 @@ serde_json = "1.0"
 toml = "1"
 
 # Audio processing
-symphonia = { version = "0.5", features = ["all"] }
+symphonia = { version = "0.5", default-features = false, features = [
+    "isomp4",
+    "mkv",
+    "ogg",
+    "wav",
+    "aac",
+    "flac",
+    "mp3",
+    "pcm",
+    "vorbis",
+] }
 
 # VAD
 voice_activity_detector = { version = "0.2.1", features = ["async"] }
-hound = "3.5"
-rubato = "0.16.2"
+rubato = "2.0"
+audioadapter-buffers = "3"
 
 # Subtitle processing
 regex = "1.0"
@@ -542,6 +558,7 @@ walkdir = "2.3"
 # Configuration
 config = "0.15"
 dirs = "6.0"
+num_cpus = "1.0"
 
 # Error handling
 anyhow = "1.0"
@@ -550,43 +567,50 @@ thiserror = "2.0"
 # Concurrency
 futures = "0.3"
 async-trait = "0.1"
-num_cpus = "1.0"
 
 # UI
 indicatif = "0.18"
 colored = "3.0"
 tabled = "0.20"
-dialoguer = "0.11"
 
 # Utilities
 uuid = { version = "1.3", features = ["v7"] }
 url = "2"
-notify = "8.0"
-md5 = "0.7"
 log = "0.4"
 env_logger = "0.11"
-once_cell = "1.19"
 
-# Platform-specific
-[target.'cfg(windows)'.dependencies]
-winapi = { version = "0.3", features = ["winuser"] }
-
-[target.'cfg(unix)'.dependencies]
-libc = "0.2"
+# Archive extraction
+zip = "8"
+unrar = { version = "0.5", optional = true }
+tar = "0.4"
+flate2 = "1"
+tempfile = "3.10"
+sevenz-rust2 = "0.22.2"
 ```
 
 ### Dev Dependencies
 
 ```toml
+# WAV fixture generation for VAD and sync integration tests
+hound = "3.5"
+
+# testing frameworks and utilities
 tokio-test = "0.4"
 assert_cmd = "2.0"
 predicates = "3.0"
-tempfile = "3.10"
+
+# mock and test case generation
 mockall = "0.13"
 rstest = "0.25"
 test-case = "3.0"
+regex = "1.10" # For test output validation
+
+# coverage and HTTP mocking
 wiremock = "0.6"
 criterion = { version = "0.6.0", features = ["html_reports"] }
+
+# diff-friendly assertions for fixture round-trip harness
+pretty_assertions = "1.4"
 ```
 
 ## Testing Strategy

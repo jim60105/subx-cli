@@ -8,6 +8,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Removed
+- Pruned five dependencies with zero use sites from `Cargo.toml`: `notify`, `once_cell`, `tokio-util`, `winapi`, and `libc`. The `notify` subtree — seven packages (`notify`, `notify-types`, `inotify`, `inotify-sys`, `fsevent-sys`, `kqueue`, `kqueue-sys`) — leaves the resolved dependency graph entirely, shrinking the surface scanned by the `cargo audit` CI gate. `once_cell`, `tokio-util`, `winapi`, and `libc` remain in `Cargo.lock` legitimately as transitive dependencies of crates that require them.
+
+### Changed
+- Moved `hound` from `[dependencies]` to `[dev-dependencies]`; it is only used by VAD and sync integration tests to synthesize WAV fixtures, so it no longer links into the release binary.
+- Reordered `Cargo.toml` so `[package]` is the first table with `[features]` below the `[package]` group, and rewrote the remaining non-English manifest comment in English.
+- Removed the unreachable `src/cli/validation.rs` (a 0-byte file declared by no module) so the published crate contains only sources reachable from the crate root.
+
 ## [1.9.1] - 2026-08-26
 
 ### Changed
