@@ -70,7 +70,8 @@ use serde::Serialize;
 use subx_core::config::ConfigService;
 use subx_core::core::ComponentFactory;
 use subx_core::core::matcher::engine::{
-    FileRelocationMode, MatchOperation, apply_unique_target_paths,
+    FileRelocationMode, MatchOperation, apply_archive_origin_relocation,
+    apply_unique_target_paths,
 };
 use subx_core::core::matcher::{FileDiscovery, MatchConfig, MatchEngine, MediaFileType};
 use subx_core::core::parallel::{
@@ -463,16 +464,9 @@ pub async fn execute_with_client(
     let rejected = audit.rejected;
 
     // For subtitles extracted from archives, force copy to the video's
-    // parent directory so output never lands in the temp directory.
-    for op in &mut operations {
-        if files.archive_origin(&op.subtitle_file.path).is_some() && !op.requires_relocation {
-            if let Some(video_dir) = op.video_file.path.parent() {
-                op.relocation_target_path = Some(video_dir.join(&op.new_subtitle_name));
-                op.requires_relocation = true;
-                op.relocation_mode = subx_core::core::matcher::engine::FileRelocationMode::Copy;
-            }
-        }
-    }
+    // parent directory so output never lands in the temp directory
+    // (core behaviour; MUST run before the uniqueness allocator below).
+    apply_archive_origin_relocation(&mut operations, &files);
 
     // Run the global uniqueness allocator after archive-origin relocation
     // rewrites so the guarantee holds at the actual destination paths.
