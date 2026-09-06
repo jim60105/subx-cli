@@ -35,16 +35,20 @@ or produce errors.
 
 - **Always run `scripts/quality_check.sh`** once before every `git commit`.
   This is the single source of truth for quality validation — it runs
-  formatting, linting, doc checks, and all tests. Use `-v` for verbose
+  formatting, linting, doc checks, and all tests **of both crates** (every
+  `cargo check` / `clippy` / `nextest` invocation carries `--workspace`).
+  For work inside a standalone `subx-core` clone, `subx-core/scripts/quality_check.sh`
+  is the local gate — a strict subset; the authoritative run is still this one,
+  in the superproject, at the moment the submodule pointer is bumped. Use `-v` for verbose
   output if debugging failures. On Unix, you may optionally wrap it with
   `timeout 240` to prevent hangs.
 - **Use `cargo nextest run --workspace || true` for tests**, never bare
   `cargo test` (except for doc tests). The `|| true` prevents shell abort due
   to a known nextest issue in this project — **you must still inspect the
-  output and treat any test failure as a real failure**. **Always pass
-  `--workspace`**: `default-members` is unset, so a bare `cargo nextest run`
-  acts on the root package alone and silently skips the 40-plus test files
-  under `subx-core/tests/`.
+  output and treat any test failure as a real failure**. The manifest sets
+  `default-members = [".", "subx-core"]`, so a bare `cargo nextest run`
+  covers both crates; the scripts still pass `--workspace` explicitly, so the
+  manifest key protects the human and the flag protects the gate.
 - **Which crate does my test belong to?** Decide in this order:
   1. It spawns the binary (`assert_cmd` / `run_command_*`) → `subx-cli/tests/`.
   2. It names `subx_cli::cli`, `subx_cli::commands` or `subx_cli::App` →
@@ -96,9 +100,14 @@ or produce errors.
   **75%**, `subx-core` **90%**, `subx-cli` **82%**. Floors are derived as
   `floor(measured − 3)` clamped to ≥75 (core) / ≥65 (cli); they may be
   **raised** as coverage improves and may only be **lowered through a
-  proposal**. `harden-split-test-suite` (C1) wires the per-crate thresholds
-  into `scripts/check_coverage.sh` / `.ps1` and CI; until then CI enforces
-  only the 75% workspace gate.
+  proposal**. All three are enforced by `scripts/check_coverage.sh` / `.ps1`
+  (flags `--threshold-core` / `--threshold-cli`, environment
+  `COVERAGE_THRESHOLD_CORE` / `COVERAGE_THRESHOLD_CLI`, combined gate stays
+  `COVERAGE_THRESHOLD`) and by the CI coverage matrix env. The JSON file list
+  is partitioned by `.filename` (`/subx-core/src/` vs the workspace root's
+  `src/`); each group's percentage comes from summed line counts — never a
+  mean of per-file percentages — and the two groups must account for the
+  reported total.
 - Required tooling: Rust stable, `rustfmt`, `clippy`, `cargo-nextest`.
   For coverage: `cargo-llvm-cov`, plus `jq` and `bc` on Linux/macOS (the
   Windows port `scripts/check_coverage.ps1` parses JSON natively in
@@ -242,11 +251,12 @@ docs/               Technical documentation
   ├── configuration-guide.md             Configuration reference
   └── tech-architecture.md               Technical architecture overview
 openspec/           OpenSpec changes, specs, and workflow config
-scripts/            Build, quality, and CI shell scripts
+scripts/            Build, quality, and CI shell scripts (both crates' gate)
+subx-core/scripts/  quality_check.sh — standalone-clone local gate for subx-core
   ├── quality_check.sh                   Full QA (lint, format, tests; Linux/macOS)
   ├── quality_check.ps1                  Full QA (Windows / PowerShell)
-  ├── check_coverage.sh                  Coverage report (threshold 75%, Linux/macOS)
-  ├── check_coverage.ps1                 Coverage report (threshold 75%, Windows / PowerShell)
+  ├── check_coverage.sh                  Coverage report (floors 75% combined / 90% core / 82% cli; Linux/macOS)
+  ├── check_coverage.ps1                 Coverage report (same floors, Windows / PowerShell)
   ├── install.sh                         End-user binary installer
   ├── test_parallel_stability.sh         Parallel test isolation check
   └── test_unified_paths.sh              Path handling tests (⚠️ uses real AI API)
@@ -483,10 +493,25 @@ items or configuration documentation need to be audited or refreshed.
 ## CI/CD Pipeline
 
 CI runs on push/PR to `master` across Ubuntu, Windows, and macOS with Rust
-stable. It executes `scripts/quality_check.sh -v -p ci --full`, runs
-`cargo audit` for security, and enforces 75% coverage via
+stable. It executes `scripts/quality_check.sh -v -p ci --full` (workspace-wide),
+runs `cargo audit` for security, and enforces the three coverage floors via
 `scripts/check_coverage.sh` on Linux/macOS and the PowerShell port
 `scripts/check_coverage.ps1` on Windows. Results are uploaded to Codecov.
+A `submodule-pointer` job guards the supply chain: the `subx-core` version must
+match `subx-cli`'s caret requirement, the gitlink commit must be reachable from
+`subx-core`'s `main` (advisory on PRs, blocking on `master` pushes), and
+`.gitmodules` must keep recording `branch = main` — the referent
+Dependabot's `gitsubmodules` entry (`.github/dependabot.yml`, weekly) uses to
+keep the pointer moving. `subx-core` additionally runs its own CI in its own
+repository (`subx-core/.github/workflows/build-test-audit-coverage.yml`:
+three-OS test job, own-lockfile audit, ungated standalone coverage).
+
+Releases publish **both crates**: the tag's `publish-crates` job asserts
+Cargo ≥ 1.90, submodule cleanliness, the absence of any `--allow-dirty`
+publish flag, and a `cargo publish --workspace --dry-run`, probes the sparse
+crates.io index to pick `--workspace` vs `--workspace --exclude subx-core`,
+then runs the real `cargo publish --workspace` (topological order; the
+half-published recovery is documented in the job).
 
 Releases are triggered by `v*` tags. The workflow extracts notes from
 `CHANGELOG.md`, cross-compiles for 7 targets — Linux x86_64 (gnu),

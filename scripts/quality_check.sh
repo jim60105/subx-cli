@@ -224,9 +224,9 @@ main() {
     fi
     
     if [[ "${VERBOSE}" == "true" ]]; then
-        run_check "Code Compilation Check" "cargo check --all-features ${cargo_features}"
+        run_check "Code Compilation Check" "cargo check --workspace --all-features ${cargo_features}"
     else
-        run_check "Code Compilation Check" "cargo check --all-features ${cargo_features} --quiet"
+        run_check "Code Compilation Check" "cargo check --workspace --all-features ${cargo_features} --quiet"
     fi
 
     # 2. Code formatting check
@@ -234,9 +234,9 @@ main() {
 
     # 3. Clippy linting check
     if [[ "${VERBOSE}" == "true" ]]; then
-        run_check "Clippy Code Quality Check" "cargo clippy --all-features ${cargo_features} -- -D warnings"
+        run_check "Clippy Code Quality Check" "cargo clippy --workspace --all-features ${cargo_features} -- -D warnings"
     else
-        run_check "Clippy Code Quality Check" "cargo clippy --all-features ${cargo_features} --quiet -- -D warnings"
+        run_check "Clippy Code Quality Check" "cargo clippy --workspace --all-features ${cargo_features} --quiet -- -D warnings"
     fi
 
     # 4. Documentation generation check
@@ -325,10 +325,10 @@ main() {
     if [[ "${FULL_TESTS}" == "true" ]]; then
         nextest_features="--features slow-tests"
     fi
-    run_test_with_conditional_output "Unit Tests" "cargo nextest run --profile ${NEXTEST_PROFILE} ${nextest_features} -E 'kind(lib)' --ignore-default-filter"
+    run_test_with_conditional_output "Unit Tests" "cargo nextest run --workspace --profile ${NEXTEST_PROFILE} ${nextest_features} -E 'kind(lib)' --ignore-default-filter"
 
     # 8. Integration tests  
-    run_test_with_conditional_output "Integration Tests" "cargo nextest run --profile ${NEXTEST_PROFILE} ${nextest_features} --ignore-default-filter"
+    run_test_with_conditional_output "Integration Tests" "cargo nextest run --workspace --profile ${NEXTEST_PROFILE} ${nextest_features} --ignore-default-filter"
 
     # Cleanup
     # (Temporary files are cleaned up in their respective sections)

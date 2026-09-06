@@ -193,11 +193,11 @@ if ($Full) {
 # 1. Code compilation check
 if ($VerboseOutput) {
     Invoke-Check -Name 'Code Compilation Check' -Command {
-        & cargo check --all-features @cargoFeatureArgs
+        & cargo check --workspace --all-features @cargoFeatureArgs
     } | Out-Null
 } else {
     Invoke-Check -Name 'Code Compilation Check' -Command {
-        & cargo check --all-features @cargoFeatureArgs --quiet
+        & cargo check --workspace --all-features @cargoFeatureArgs --quiet
     } | Out-Null
 }
 
@@ -209,11 +209,11 @@ Invoke-Check -Name 'Code Formatting Check' -Command {
 # 3. Clippy linting check
 if ($VerboseOutput) {
     Invoke-Check -Name 'Clippy Code Quality Check' -Command {
-        & cargo clippy --all-features @cargoFeatureArgs -- -D warnings
+        & cargo clippy --workspace --all-features @cargoFeatureArgs -- -D warnings
     } | Out-Null
 } else {
     Invoke-Check -Name 'Clippy Code Quality Check' -Command {
-        & cargo clippy --all-features @cargoFeatureArgs --quiet -- -D warnings
+        & cargo clippy --workspace --all-features @cargoFeatureArgs --quiet -- -D warnings
     } | Out-Null
 }
 
@@ -303,12 +303,12 @@ if ($Full) {
 }
 
 Invoke-TestCheck -Name 'Unit Tests' -Command {
-    & cargo nextest run --profile $Profile @nextestFeatureArgs -E 'kind(lib)' --ignore-default-filter
+    & cargo nextest run --workspace --profile $Profile @nextestFeatureArgs -E 'kind(lib)' --ignore-default-filter
 } | Out-Null
 
 # 8. Integration tests
 Invoke-TestCheck -Name 'Integration Tests' -Command {
-    & cargo nextest run --profile $Profile @nextestFeatureArgs --ignore-default-filter
+    & cargo nextest run --workspace --profile $Profile @nextestFeatureArgs --ignore-default-filter
 } | Out-Null
 
 # Summary
