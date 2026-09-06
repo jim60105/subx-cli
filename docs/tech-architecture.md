@@ -5,13 +5,14 @@ modular architecture with dependency injection, supports multiple subtitle
 formats, and integrates AI-powered file matching with local Voice Activity
 Detection for audio synchronization.
 
-The codebase is being distributed across two crates: `subx-cli` — this
+The codebase is distributed across two crates: `subx-cli` — this
 repository — is the Cargo workspace root and owns the CLI binary and library
-facade (`src/cli/`, `src/commands/`, `src/lib.rs`, `src/main.rs`), while
-`subx-core` (<https://github.com/jim60105/subx-core>) is the
-reusable core library (`config`, `core`, `error`, `services`), mounted here
-as a git submodule at `subx-core/` and consumed as a workspace member. The
-module-by-module map below reflects that two-crate layout.
+facade (`subx-cli/src/cli/`, `subx-cli/src/commands/`, `subx-cli/src/lib.rs`,
+`subx-cli/src/main.rs`), while `subx-core`
+(<https://github.com/jim60105/subx-core>) is the reusable core library
+(`config`, `core`, `error`, `services`), mounted here as a git submodule at
+`subx-core/` and consumed as a workspace member. The module-by-module map
+below reflects that two-crate layout.
 
 ## System Architecture
 
@@ -42,16 +43,58 @@ module-by-module map below reflects that two-crate layout.
         └───────────────────────────────────────────────────┘
 ```
 
-## Core Modules
+## Crate Topology
 
-### CLI Layer (`src/cli/` and `src/commands/`)
+`subx-cli` is the Cargo workspace root and the binary; `subx-core` is a
+library mounted as a git submodule at `subx-core/` and consumed as a
+workspace member. The dependency runs one way only — `subx-cli` depends on
+`subx-core`, never the reverse — and `subx-core` may not name `subx_cli` in
+code or in an intra-doc link (an upward reference cannot resolve, and
+`subx-cli/tests/core_cli_boundary.rs` asserts the rule). `subx-core/Cargo.toml`
+carries no `[workspace]` table, no workspace inheritance, and no
+`[profile.*]` table, so the crate stays resolvable standalone from its own
+repository. Cloning this repository requires `--recurse-submodules` (or a
+`git submodule update --init --recursive` afterwards): a plain clone leaves an
+empty `subx-core/` directory and a workspace that fails to resolve.
+
+**Dependency allocation rule.** `clap`, `clap_complete`, `colored`, `tabled`
+and `indicatif` are permanently `subx-cli`-only (crate-topology spec,
+decision D8): a change placing any of them in `subx-core` is a design error,
+not a dependency addition. The audio, VAD and archive stack
+(`symphonia`, `voice_activity_detector`, `rubato`, `zip`, `tar`,
+`sevenz-rust2`, …) belongs to `subx-core`. `archive-rar` and `slow-tests` are
+declared in both manifests: core owns the real gate, and the CLI declares a
+pass-through feature that forwards to it. The two `Cargo.toml` files are the
+source of truth for everything else — this document deliberately does not
+transcribe them; `cargo tree -p subx-core --depth 1` answers the question a
+transcription would be trying to answer. The normative statement of the rule
+lives in `openspec/specs/crate-topology/`.
+
+### Release Profile
+
+```toml
+[profile.release]
+opt-level = 3
+lto = true
+codegen-units = 1
+panic = "abort"
+strip = true
+```
+
+`[profile.*]` is declared only in the workspace root. A copy inside
+`subx-core/Cargo.toml` would be ignored — non-root workspace members do not
+get profile sections — with a warning on every build.
+
+## The CLI Crate (`subx-cli`)
+
+### CLI Layer (`subx-cli/src/cli/` and `subx-cli/src/commands/`)
 
 The CLI layer handles argument parsing, command routing, and user-facing
 output. It uses `clap` with the derive API for argument definitions and
 delegates execution to command modules.
 
 ```rust
-// src/cli/mod.rs
+// subx-cli/src/cli/mod.rs
 pub struct Cli {
     pub command: Commands,
 }
@@ -65,28 +108,30 @@ pub enum Commands {
     Config(ConfigArgs),
     Cache(CacheArgs),
     GenerateCompletion(GenerateCompletionArgs),
+    Translate(TranslateArgs),
 }
 ```
 
-Each command has a corresponding module in `src/commands/` with an
+Each command has a corresponding module in `subx-cli/src/commands/` with an
 `execute()` function that receives parsed arguments and a `&dyn
 ConfigService` reference. The `dispatcher` module routes `Commands` variants
 to their handlers. Shell completion generation for bash, zsh, fish, and
 PowerShell is handled inline via `clap_complete`.
 
 The UI layer depends on `indicatif` for progress bars, `colored` for
-terminal colors, `dialoguer` for interactive prompts, and `tabled` for
-tabular output formatting.
+terminal colors, and `tabled` for tabular output formatting.
 
-`src/cli/` holds only the clap argument structs and the terminal
+`subx-cli/src/cli/` holds only the clap argument structs and the terminal
 presentation surface: the eight `*_args.rs` modules, `output.rs`,
 `reporter.rs`, `table.rs`, `ui.rs`, and `error_ext.rs` — the binary-half
 `SubXErrorExt` trait carrying `exit_code()` and
 `user_friendly_message()` (the library-half taxonomy, `category()`,
 `machine_code()` and `hint()`, stays on `SubXError` in `subx-core/src/error.rs`).
 Input collection is no longer a CLI concern: `InputPathHandler` and
-`CollectedFiles` live in `subx-core/src/core/input/`, and `src/cli/` keeps only
+`CollectedFiles` live in `subx-core/src/core/input/`, and `subx-cli/src/cli/` keeps only
 legacy re-exports for out-of-tree consumers.
+
+## The Library Crate (`subx-core`)
 
 ### Configuration Module (`subx-core/src/config/`)
 
@@ -119,6 +164,7 @@ pub struct Config {
     pub sync: SyncConfig,
     pub general: GeneralConfig,
     pub parallel: ParallelConfig,
+    pub translation: TranslationConfig,
     pub loaded_from: Option<PathBuf>,
 }
 ```
@@ -159,10 +205,12 @@ impl ComponentFactory {
 }
 ```
 
-The `create_ai_provider` method dispatches on `ai.provider` to construct
-the appropriate client: `OpenAIClient` for `"openai"`, `OpenRouterClient`
-for `"openrouter"`, or `AzureOpenAIClient` for `"azure-openai"`. All three
-implement the `AIProvider` trait.
+The `create_ai_provider` method dispatches on the canonical `ai.provider`
+value to construct the appropriate client: `OpenAIClient` for `"openai"`,
+`OpenRouterClient` for `"openrouter"`, `AzureOpenAIClient` for
+`"azure-openai"`, or `LocalLLMClient` for `"local"` (the alias `ollama`
+normalises to `local` before dispatch). All four implement the `AIProvider`
+trait.
 
 #### Match Engine (`subx-core/src/core/matcher/`)
 
@@ -225,8 +273,7 @@ character encoding detection using `encoding_rs`.
 Format handlers are `Send + Sync` by supertrait (`SubtitleFormat: Send + Sync`),
 which makes `FormatManager`, `FormatConverter` and `TranslationEngine`
 thread-safe; the guarantee is asserted at compile time in
-`subx-core/src/core/mod.rs`. *(C3: this sentence may relocate to `subx-core`'s
-own documentation when that file is rewritten for the two-crate world.)*
+`subx-core/src/core/mod.rs`.
 
 #### Sync Engine (`subx-core/src/core/sync/`)
 
@@ -274,7 +321,7 @@ pairing contract that used to be implicit behaviour of the CLI's `SyncArgs`:
 `SYNC_SUBTITLE_EXTENSIONS` lists. `SyncArgs::get_sync_mode` is a thin
 adapter that fills a `SyncPairingRequest` from its clap fields.
 
-#### Input Collection (`subx-core/src/core/input/`)
+#### Input Path Handling (`subx-core/src/core/input/`)
 
 `InputPathHandler` merges positional, `-i`, and string path sources,
 validates them, scans directories (flat or recursive) with symlink
@@ -283,6 +330,21 @@ extracts archive inputs into `TempDir`s owned by the returned
 `CollectedFiles` handle. It depends only on `std`, `log`, `tempfile`,
 `crate::core::archive` and `crate::error` — never on `clap` or
 `crate::cli`; each command's `*Args::get_input_handler` is a thin adapter.
+
+#### Translation Engine (`subx-core/src/core/translation/`)
+
+`TranslationEngine` implements the two-pass translation behind `subx-cli
+translate`: a terminology pass (glossary entries parsed by
+`parse_glossary_text` into a `TerminologyMap` that steers cue translation)
+followed by a cue-translation pass that batches cues into
+`TranslationRequest`s and validates the AI responses. It rides the existing
+`subx-core/src/core/formats/` pipeline — parse, translate, re-apply — so
+timing, cue ordering, cue counts and supported metadata survive the round
+trip. Cue IDs are UUIDv7 (from `subx-core/src/core/uuidv7.rs`, re-exported
+here for path compatibility), spaced ≥1 ms apart so batch logs and retries
+carry strictly increasing, order-encoding IDs. The `[translation]`
+configuration section lives in `subx-core/src/config/mod.rs` as
+`TranslationConfig`.
 
 #### Parallel Processing (`subx-core/src/core/parallel/`)
 
@@ -304,45 +366,7 @@ operation fails. Removed files are backed up before deletion when
 `backup_enabled` is true. Rollback restores recorded creations and moves but
 cannot recover removed files.
 
-### External Services
-
-#### AI Service (`subx-core/src/services/ai/`)
-
-The AI service layer provides three provider implementations behind the
-`AIProvider` trait:
-
-```rust
-// subx-core/src/services/ai/mod.rs
-#[async_trait]
-pub trait AIProvider: Send + Sync {
-    async fn analyze_content(&self, request: AnalysisRequest) -> Result<MatchResult>;
-    async fn verify_match(&self, request: VerificationRequest) -> Result<ConfidenceScore>;
-}
-```
-
-Provider clients: `OpenAIClient` (`openai.rs`), `OpenRouterClient`
-(`openrouter.rs`), and `AzureOpenAIClient` (`azure_openai.rs`). All three
-use shared infrastructure from the module:
-
-- `prompts.rs` — `PromptBuilder` and `ResponseParser` traits with base
-  implementations for constructing analysis prompts and parsing AI responses.
-  The match prompt uses an XML-tagged structure (`<role>`,
-  `<instructions>`, `<video_files>`, `<subtitle_files>`,
-  `<content_samples>`, `<output_schema>`, `<example>`) per Anthropic's
-  Claude prompt-engineering guidelines, and asks the model to return
-  optional `language` and `target_filename_suffix` fields per match. The
-  matcher's `apply_unique_target_paths` allocator then enforces globally
-  unique final target paths across the entire batch.
-- `retry.rs` — `RetryConfig` struct and `retry_with_backoff()` async
-  function for exponential backoff retry logic
-- `cache.rs` — `AICache` for in-memory TTL caching of analysis results
-
-Each provider reports token accounting by calling
-`crate::core::report::Reporter::ai_usage` on its attached reporter after
-receiving a response, passing a `core::report::AiUsage` value (legacy alias
-`AiUsageStats`).
-
-##### Reporting seam (`subx-core/src/core/report/`)
+#### Reporting Seam (`subx-core/src/core/report/`)
 
 Core engines and service clients never print to the terminal and never read
 the CLI's output mode or `--quiet` flag. They report through the
@@ -362,8 +386,50 @@ Batch progress and cooperative cancellation cross the crate boundary
 through the same seam: engines stream structured
 `core::report::ProgressEvent::{Started, Advanced, Finished}` values and
 poll `Reporter::cancelled()`, and no engine knows what transport renders
-or answers them. *(Flag for C3: relocate this documentation to
-`subx-core`'s own docs if C3 splits them.)*
+or answers them. Constructors stay compatible with pre-seam code:
+`MatchEngine::new`, `SyncEngine::new`, `TranslationEngine::new` and
+`ComponentFactory::new` keep their signatures and default to
+`NoopReporter`; attaching a sink is the opt-in `with_reporter` step.
+
+### External Services
+
+#### AI Service (`subx-core/src/services/ai/`)
+
+The AI service layer provides four provider implementations behind the
+`AIProvider` trait:
+
+```rust
+// subx-core/src/services/ai/mod.rs
+#[async_trait]
+pub trait AIProvider: Send + Sync {
+    async fn analyze_content(&self, request: AnalysisRequest) -> Result<MatchResult>;
+    async fn verify_match(&self, request: VerificationRequest) -> Result<ConfidenceScore>;
+}
+```
+
+Provider clients: `OpenAIClient` (`openai.rs`), `OpenRouterClient`
+(`openrouter.rs`), `AzureOpenAIClient` (`azure_openai.rs`), and
+`LocalLLMClient` (`local.rs`, the OpenAI-compatible local-runtime client).
+All four use shared infrastructure from the module:
+
+- `prompts.rs` — `PromptBuilder` and `ResponseParser` traits with base
+  implementations for constructing analysis prompts and parsing AI responses.
+  The match prompt uses an XML-tagged structure (`<role>`,
+  `<instructions>`, `<video_files>`, `<subtitle_files>`,
+  `<content_samples>`, `<output_schema>`, `<example>`) per Anthropic's
+  Claude prompt-engineering guidelines, and asks the model to return
+  optional `language` and `target_filename_suffix` fields per match. The
+  matcher's `apply_unique_target_paths` allocator then enforces globally
+  unique final target paths across the entire batch.
+- `retry.rs` — `RetryConfig` struct and `retry_with_backoff()` async
+  function for exponential backoff retry logic
+- `cache.rs` — `AICache` for in-memory TTL caching of analysis results
+
+Each provider reports token accounting by calling
+`crate::core::report::Reporter::ai_usage` on its attached reporter after
+receiving a response, passing a `core::report::AiUsage` value (legacy alias
+`AiUsageStats`) — the seam is documented under the Reporting Seam subsection
+of the Core Engine section; a provider never decides whether to print.
 
 #### VAD Service (`subx-core/src/services/vad/`)
 
@@ -499,9 +565,18 @@ Input: Source subtitle file
 All errors flow through `SubXError`, defined in `subx-core/src/error.rs` using
 `thiserror`. The core crate owns the typed variants, their `Display`
 rendering and the machine-readable contract (`category()`, `machine_code()`,
-`hint()`); the exit-code mapping (1–6) and the user-friendly terminal prose
-are supplied by the `SubXErrorExt` trait in the CLI half
-(`subx_cli::cli::SubXErrorExt`).
+`hint()`) as inherent methods; the exit-code mapping (1–6) and the
+user-friendly terminal prose — `exit_code()` and `user_friendly_message()` —
+are methods of the `SubXErrorExt` extension trait in the CLI half
+(`subx_cli::cli::error_ext::SubXErrorExt`; also re-exported as
+`subx_cli::cli::SubXErrorExt`).
+
+One variant defies the split: `OutputModeUnsupported` stays in the core
+enum even though only the CLI constructs it, so `category()` and
+`machine_code()` keep their wildcard-free exhaustive matches. Its
+`category()` is the generic `"command_execution"` while its `machine_code()`
+is the specific `"E_OUTPUT_MODE_UNSUPPORTED"` — a deliberate asymmetry
+locked by the `error-handling` capability spec.
 
 ```rust
 #[derive(thiserror::Error, Debug)]
@@ -576,163 +651,45 @@ requests where the provider supports it. Exponential backoff retry avoids
 flooding the API on transient failures, and persistent caching prevents
 re-analysis of previously matched files within the same session.
 
-## Dependencies
-
-### Runtime Dependencies
-
-Dependencies are declared across two manifests. `subx-cli/Cargo.toml` keeps
-only what the CLI facade itself uses; everything the engines and services
-need belongs to `subx-core/Cargo.toml` (`subx-core = { path = "subx-core",
-version = "1.0" }` is how the CLI reaches it, and the crate must stay
-buildable standalone — depending on the CLI's feature graph is a defect, not
-a shortcut).
-
-```toml
-# ── subx-cli/Cargo.toml ──
-# CLI framework
-clap = { version = "4.5.40", features = ["derive", "cargo"] }
-clap_complete = "4.5.54"
-
-# Async runtime
-tokio = { version = "1.0", features = [
-    "rt-multi-thread",
-    "macros",
-    "time",
-] }
-
-# Serialization
-serde = { version = "1.0", features = ["derive"] }
-serde_json = "1.0"
-toml = "1"
-
-# Config-directory resolution
-dirs = "6.0"
-
-# UI
-indicatif = "0.18"
-colored = "3.0"
-tabled = "0.20"
-
-# Logging
-log = "0.4"
-env_logger = "0.11"
-
-# ── subx-core/Cargo.toml ──
-# Async runtime
-tokio = { version = "1.0", features = ["rt", "sync", "time", "fs", "macros"] }
-
-# HTTP client
-reqwest = { version = "0.13", features = ["json", "stream", "rustls"] }
-
-# Audio processing
-symphonia = { version = "0.5", default-features = false, features = [
-    "isomp4",
-    "mkv",
-    "ogg",
-    "wav",
-    "aac",
-    "flac",
-    "mp3",
-    "pcm",
-    "vorbis",
-] }
-
-# VAD
-voice_activity_detector = { version = "0.2.1", features = ["async"] }
-rubato = "2.0"
-audioadapter-buffers = "3"
-
-# Subtitle processing
-regex = "1.0"
-encoding_rs = "0.8"
-walkdir = "2.3"
-
-# Configuration
-config = "0.15"
-dirs = "6.0"
-num_cpus = "1.0"
-
-# Error handling
-anyhow = "1.0"
-thiserror = "2.0"
-
-# Concurrency
-futures = "0.3"
-async-trait = "0.1"
-
-# Utilities
-uuid = { version = "1.3", features = ["v7"] }
-url = "2"
-log = "0.4"
-
-# Archive extraction
-zip = "8"
-unrar = { version = "0.5", optional = true }
-tar = "0.4"
-flate2 = "1"
-tempfile = "3.10"
-sevenz-rust2 = "0.22.2"
-```
-
-### Dev Dependencies
-
-```toml
-# WAV fixture generation for VAD and sync integration tests
-hound = "3.5"
-
-# testing frameworks and utilities
-assert_cmd = "2.0"
-predicates = "3.0"
-
-# mock and test case generation
-mockall = "0.13"
-rstest = "0.25"
-test-case = "3.0"
-regex = "1.10" # For test output validation
-
-# coverage and HTTP mocking
-wiremock = "0.6"
-criterion = { version = "0.6.0", features = ["html_reports"] }
-
-# diff-friendly assertions for fixture round-trip harness
-pretty_assertions = "1.4"
-```
-
 ## Testing Strategy
 
 Unit tests live inline in source files as `#[cfg(test)] mod tests`. They
 use `TestConfigService` for configuration and `mockall` for trait mocking.
 Every test is parallel-safe — no global state mutation.
 
-Integration tests are split across the two crates by what each drives: tests
-that spawn the binary or exercise the CLI surface live in `subx-cli/tests/`,
-while the 40 core-bound files live in `subx-core/tests/` and shared fixtures
-in `subx-core/src/test_support/` (behind the `test-support` feature, enabled
-only via `[dev-dependencies]`). AI interactions
+Integration tests follow the ownership rule: a test belongs to the crate
+whose code it drives, not the crate it imports. Tests that spawn the binary
+or exercise the CLI surface live in `subx-cli/tests/`; tests that drive
+engines, config or services live in `subx-core/tests/` even when they import
+both crates. Shared fixtures live in `subx-core/src/test_support/` behind
+the `test-support` feature, which `subx-cli` enables only through
+`[dev-dependencies]` — never `--features`. AI interactions
 use `wiremock` via `MockOpenAITestHelper` (in `subx_core::test_support`), which stubs
 HTTP endpoints and verifies request expectations. File-system tests use
 `tempfile::TempDir` with RAII cleanup.
 
-Performance benchmarks in `benches/` use Criterion. Each benchmark function
-creates a `tokio::runtime::Runtime` for async operations and wraps inputs
-with `std::hint::black_box`.
+Two environment contracts keep the suites relocatable: every fixture or
+asset read resolves from `env!("CARGO_MANIFEST_DIR")` (never a path relative
+to the process working directory, which differs between the two crates'
+`cargo test` invocations), and CLI tests spawn the binary through
+`env!("CARGO_BIN_EXE_subx-cli")` rather than a hand-built path. Nested test
+directories need a harness: Cargo only auto-discovers top-level
+`tests/*.rs`, so every `.rs` file under a `tests/` subdirectory must be
+named by exactly one top-level `#[path = "..."] mod` shim —
+`tests/core_cli_boundary.rs` fails the build on any orphan or duplicate
+(`subx-core/tests/` is flat and therefore has none).
 
-The testing toolchain: `rstest` for parameterized tests, `test-case` for
-data-driven scenarios, `assert_cmd` for CLI integration tests, and
-`wiremock` for HTTP mocking.
+Performance benchmarks live in `subx-core/benches/` and use Criterion. Each
+benchmark function creates a `tokio::runtime::Runtime` for async operations
+and wraps inputs with `std::hint::black_box`.
+
+The testing toolchain splits with the crates: `assert_cmd` and `predicates`
+(plus `regex` for output validation) are `subx-cli`'s; `mockall`,
+`wiremock`, `hound`, `criterion` and `pretty_assertions` are core's.
+Parameterized cases are plain `#[test]` functions over helper loops — there
+is no `rstest`/`test-case` dependency in either manifest.
 
 ## Build and Release
-
-### Release Profile
-
-```toml
-[profile.release]
-opt-level = 3
-lto = true
-codegen-units = 1
-panic = "abort"
-strip = true
-```
 
 ### CI/CD Pipeline
 
@@ -766,18 +723,30 @@ matrix targets, creates a GitHub Release with notes extracted from
 `cargo publish --workspace` run, after asserting Cargo ≥ 1.90, submodule
 cleanliness, a `--workspace --dry-run`, and the registry's current state
 (already-published members are excluded; an already-published tagged
-`subx-cli` version fails the job).
+`subx-cli` version fails the job). The matrix is five targets:
+`x86_64-unknown-linux-gnu`, `aarch64-unknown-linux-gnu`,
+`x86_64-pc-windows-msvc`, `x86_64-apple-darwin`, and
+`aarch64-apple-darwin` — there are no musl artifacts.
 
 ### Distribution
 
-Pre-compiled binaries are available from GitHub Releases. The
-`scripts/install.sh` script automates download and installation on Linux and
-macOS. The crate is also published to crates.io for `cargo install
-subx-cli`.
+The two crates are designed for two install stories, but the release that
+makes them real is still pending: no `v*` tag has been cut since the split,
+so the publish job has never fired, crates.io today carries only the legacy
+single-crate `subx-cli` 1.x releases, `subx-core` has no registry entry at
+all, and neither docs.rs site is live. Meanwhile `subx-core` is consumable
+from its git URL. Once the first `v*` tag is cut: `subx-cli` is the binary —
+pre-compiled binaries from GitHub Releases, `scripts/install.sh` automating
+download and installation on Linux and macOS, and `cargo install subx-cli`
+installing from crates.io. `subx-core` is never installed — a consumer
+wanting the processing engine depends on `subx-core = "1"` as a library and
+never on `subx-cli`, whose library surface exists only as compatibility
+re-exports — and documentation lives on two sites: `docs.rs/subx-cli` for
+the CLI facade, `docs.rs/subx-core` for the library.
 
 ## System Requirements
 
-SubX runs on Linux (x86_64), Windows (x86_64), and macOS (x86_64, ARM64).
+SubX runs on Linux (x86_64, aarch64), Windows (x86_64), and macOS (x86_64, ARM64).
 Recommended: 4 GB RAM, 100 MB disk space (excluding cache). An AI provider
 API key is required for the `match` command. FFmpeg is optional — Symphonia
 handles most audio formats natively.

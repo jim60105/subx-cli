@@ -1,12 +1,18 @@
 ---
 name: update-config-document
-description: Audit and update SubX-CLI's configuration documentation (`docs/config-usage-analysis.md`) so every configuration item is accurately described, linked to its real production usage site, and reflects the current codebase. Use when the user asks to update, refresh, audit, verify, or regenerate the configuration usage analysis doc, when configuration items have been added, renamed, or removed in `subx-core/src/config/`, when call-hierarchy line numbers in the doc are stale, or when the README's configuration/subcommand reference needs to be synced with updated configuration documentation.
+description: Audit SubX-CLI's configuration coverage matrix (`docs/config-usage-analysis.md`) so every configuration key in `subx-core/src/config/` has a row with the correct status. Use when the user asks to audit, verify, or update the configuration usage analysis doc, when configuration items have been added, renamed, or removed in `subx-core/src/config/`, or when the README's configuration/subcommand reference needs to be synced with the configuration documentation.
 ---
 
 # Update Configuration Documentation
 
-Perform a full audit of SubX-CLI's configuration-item documentation and keep
-it synchronized with the real codebase.
+Given a new or changed key in `subx-core/src/config/`, confirm the coverage
+matrix in `docs/config-usage-analysis.md` has a row for it and that the row's
+status is correct.
+
+> **The call-hierarchy line numbers in this document are a dated historical
+> record and are NOT maintained** — the document's own header declares this.
+> Do not re-derive or "refresh" them; doing so reverses the document's
+> declared demotion. Current behaviour lives in `docs/configuration-guide.md`.
 
 ## Target Files
 
@@ -48,22 +54,17 @@ Load `docs/config-usage-analysis.md` first. Treat its existing contents as
    file as soon as it is established. This keeps progress auditable and
    recoverable if the session is interrupted.
 
-### 3. Refresh the Call Hierarchy ("呼叫樹")
-
-Cross-check every line-number reference inside each call-tree block against
-the current source files and update any that have drifted.
-
-### 4. Discover Undocumented Items
+### 3. Discover Undocumented Items
 
 Scan `subx-core/src/config/` for configuration fields that are **not** represented in
 `docs/config-usage-analysis.md`. For every missing item, append a new entry
 following the existing document's format and conventions.
 
-### 5. Sync the README
+### 4. Sync the README
 
 Once every configuration item has been validated and the document fully
 reflects the current code, update `README.md` so the subcommand and
-configuration user-facing documentation matches the refreshed analysis.
+configuration user-facing documentation matches the audited matrix.
 
 ## Rules and Reminders
 
@@ -72,6 +73,7 @@ configuration user-facing documentation matches the refreshed analysis.
 - Do not mark items as deprecated. If a configuration item is no longer used
   in production, report it to the user for removal instead of silently
   keeping a dead entry.
-- Do not rely on memory for line numbers — always re-read the current file
-  before recording a line reference.
+- Never rewrite the call-tree ("呼叫樹") blocks: their line numbers are the
+  dated record described above. A new row records its usage sites by path
+  and function, not by line number.
 - Proceed methodically and incrementally: verify, update the doc, move on.

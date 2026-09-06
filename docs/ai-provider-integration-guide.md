@@ -19,12 +19,15 @@ before starting.
 
 ## Current Provider Landscape
 
-The configuration layer accepts five provider names: `openai`, `openrouter`,
-`azure-openai`, `anthropic`, and `local`
-(see `subx-core/src/config/field_validator.rs:30-35`). However, only three have
+The configuration layer accepts five provider names — `openai`, `openrouter`,
+`azure-openai`, `anthropic`, and `local` — plus the `ollama` alias
+(normalised to `local`) in the `ai.provider` enum
+(see `subx-core/src/config/field_validator.rs:75-88`). Four of them have
 runtime implementations with client code and factory support: **openai**,
-**openrouter**, and **azure-openai**
-(see `subx-core/src/core/factory.rs:189-210`). When adding a new provider, you are
+**openrouter**, **azure-openai**, and **local**
+(see the `create_ai_provider_with_reporter` dispatch at
+`subx-core/src/core/factory.rs:343-371`). `anthropic` is accepted by
+validation but has no client. When adding a new provider, you are
 building both the config acceptance path and the runtime implementation.
 
 ## Step-by-Step Integration
@@ -113,9 +116,9 @@ token counts from the response and build an
 client stores the reporter as an `Arc<dyn Reporter>` field defaulting to
 `crate::core::report::noop()`; callers attach a sink with the
 `with_reporter` builder (the CLI attaches its `TerminalReporter`, which
-renders the block via `ui::display_ai_usage`). Providers must not import
-anything from `src/cli/` — `subx-core/src/services/` may not reference the CLI
-layer.
+applies the output-mode suppression rules and renders the usage block).
+Providers must not import anything from `subx-cli/src/cli/` —
+`subx-core/src/services/` may not reference the CLI layer.
 
 ### Step 2. Register the Module
 
@@ -132,7 +135,7 @@ pub mod {provider};
 
 **File:** `subx-core/src/config/field_validator.rs`
 
-Add the new provider slug to the `validate_enum` call at line 32:
+Add the new provider slug to the `validate_enum` call for `"ai.provider"`:
 
 ```rust
 "ai.provider" => {
@@ -310,7 +313,7 @@ fn test_create_ai_provider_{provider}_success() {
 
 ### Step 9. Update CLI Documentation
 
-**File:** `src/cli/config_args.rs`
+**File:** `subx-cli/src/cli/config_args.rs`
 
 Add the new provider to the rustdoc examples in the config args module so
 that `subx-cli config set ai.provider {provider}` appears in the help text.
@@ -324,7 +327,14 @@ providers.
 
 ### Step 11. Create Integration Tests
 
-**File:** `tests/{provider}_integration_tests.rs` (new)
+**File:** `subx-core/tests/{provider}_integration_tests.rs` (new)
+
+The test lands in `subx-core/tests/` because the ownership rule assigns a
+test by what it drives: this one drives `ComponentFactory` and
+`TestConfigService`, both core code. The example below reaches them through
+`subx_core::` — the `subx_cli::config::…`/`subx_cli::core::…` paths still
+compile as compatibility re-exports, but they are not where a new core test
+should reach.
 
 Write integration tests covering both success and failure paths:
 
@@ -354,13 +364,17 @@ async fn test_{provider}_empty_api_key_rejected() {
 
 ### Step 12. Update Documentation
 
-Three documentation files need updates:
+Four documentation obligations:
 
 - **`docs/configuration-guide.md`** — Add a TOML configuration example for
   the new provider, including all relevant fields.
 - **`README.md`** — Add quick-start setup instructions (env var export +
   `config set` commands).
 - **`README.zh-TW.md`** — Add the same instructions in Traditional Chinese.
+- **`subx-core` rustdoc** — a new provider client is a new public item in
+  the library crate; its module and `from_config` docs are the crate's
+  reference for it, and the crate builds documentation with
+  `broken_intra_doc_links = "deny"`.
 
 ## Azure OpenAI: Provider-Specific Deviations
 
@@ -506,22 +520,22 @@ lockstep across validation and runtime emission sites.
 Every integration touches files across multiple layers. Use this table as a
 checklist before opening a pull request.
 
-| Layer | File | Change |
-|---|---|---|
-| **Client** | `subx-core/src/services/ai/{provider}.rs` | New: provider implementation |
-| **Client** | `subx-core/src/services/ai/mod.rs` | Add module declaration |
-| **Factory** | `subx-core/src/core/factory.rs` | Add match arm + import |
-| **Validation** | `subx-core/src/config/field_validator.rs` | Add to enum list |
-| **Validation** | `subx-core/src/config/validator.rs` | Add validation block |
-| **Config** | `subx-core/src/config/service.rs` | Add env var handling |
-| **Config** | `subx-core/src/config/test_service.rs` | Add provider test |
-| **Config** | `subx-core/src/config/builder.rs` | Add builder test |
-| **Config** | `subx-core/src/config/validation.rs` | Update enum test arrays |
-| **CLI** | `src/cli/config_args.rs` | Add doc examples |
-| **Tests** | `tests/{provider}_integration_tests.rs` | New: integration tests |
-| **Docs** | `docs/configuration-guide.md` | Add config section |
-| **Docs** | `README.md` | Add setup instructions |
-| **Docs** | `README.zh-TW.md` | Add setup instructions (Chinese) |
+| Layer | Repo | File | Change |
+|---|---|---|---|
+| **Client** | `subx-core` | `subx-core/src/services/ai/{provider}.rs` | New: provider implementation |
+| **Client** | `subx-core` | `subx-core/src/services/ai/mod.rs` | Add module declaration |
+| **Factory** | `subx-core` | `subx-core/src/core/factory.rs` | Add match arm + import |
+| **Validation** | `subx-core` | `subx-core/src/config/field_validator.rs` | Add to enum list |
+| **Validation** | `subx-core` | `subx-core/src/config/validator.rs` | Add validation block |
+| **Config** | `subx-core` | `subx-core/src/config/service.rs` | Add env var handling |
+| **Config** | `subx-core` | `subx-core/src/config/test_service.rs` | Add provider test |
+| **Config** | `subx-core` | `subx-core/src/config/builder.rs` | Add builder test |
+| **Config** | `subx-core` | `subx-core/src/config/validation.rs` | Update enum test arrays |
+| **Tests** | `subx-core` | `subx-core/tests/{provider}_integration_tests.rs` | New: integration tests |
+| **CLI** | `subx-cli` | `subx-cli/src/cli/config_args.rs` | Add doc examples |
+| **Docs** | `subx-cli` | `docs/configuration-guide.md` | Add config section |
+| **Docs** | `subx-cli` | `README.md` | Add setup instructions |
+| **Docs** | `subx-cli` | `README.zh-TW.md` | Add setup instructions (Chinese) |
 
 ## Testing
 
@@ -534,10 +548,10 @@ invalid inputs.
 **Factory tests** in `subx-core/src/core/factory.rs` verify that the factory
 dispatches to the correct client and rejects invalid configurations.
 
-**Integration tests** in `tests/{provider}_integration_tests.rs` exercise
+**Integration tests** in `subx-core/tests/{provider}_integration_tests.rs` exercise
 the full path from config to client creation. For tests that call the actual
-API, use wiremock mocks (see `tests/common/mock_openai_helper.rs` for the
-pattern).
+API, use wiremock mocks (the `MockOpenAITestHelper` pattern lives in
+`subx-core/src/test_support/mock_openai.rs`).
 
 Run the following commands to validate:
 
