@@ -2,9 +2,9 @@
 
 ### Requirement: Match Cache Location
 
-**Reason**: Core half of the split. The cache artefact is produced by `save_file_list_cache` in `src/core/matcher/engine.rs`, and the path is joined at `src/core/matcher/engine.rs:2244`; both are in `subx-core` after B2. Re-added verbatim there by `import-split-capability-specs`, at `openspec/specs/cache-management/spec.md`. It leaves this repository's half of the capability; it does not leave the project.
+**Reason**: Core half of the split. The cache artefact is produced by `save_file_list_cache` in `src/core/matcher/engine.rs`, and the path is joined at `src/core/matcher/engine.rs:2544`; both are in `subx-core` after B2. Re-added verbatim there by `import-split-capability-specs`, at `openspec/specs/cache-management/spec.md`. It leaves this repository's half of the capability; it does not leave the project.
 
-**Migration**: `subx-cli` resolves the same path independently at `src/commands/cache_command.rs:224` (via `get_config_dir()` at `:218`), and after the split nothing forces the two resolvers to agree. The agreement obligation is added to this capability's CLI half, in the restated *Cache Clear Subcommand* below. The arriving requirement's prose SHALL name that CLI half as the holder of the agreement obligation, without citing a `subx-cli` path.
+**Migration**: `subx-cli` resolves the same path independently at `src/commands/cache_command.rs:227` (via `get_config_dir()` at `:217`), and after the split nothing forces the two resolvers to agree. The agreement obligation is added to this capability's CLI half, in the restated *Cache Clear Subcommand* below. The arriving requirement's prose SHALL name that CLI half as the holder of the agreement obligation, without citing a `subx-cli` path.
 
 ### Requirement: Configuration-Aware Invalidation
 

@@ -14,6 +14,8 @@
 
 **Reason**: Core half of the split. The per-entry shift and the clamp to `Duration::ZERO` are in `src/core/sync/engine.rs`. Re-added verbatim in `subx-core` by `import-split-capability-specs`.
 
+**Migration**: One citation is self-qualified in the donor text: "the shift SHALL be implemented once, in `shift_subtitle_timing` (`subx-core/src/core/sync/mod.rs`)". On arrival in `subx-core` that is a same-repository path and `spec-governance` forbids the self-qualification, so it SHALL be de-qualified to `src/core/sync/mod.rs`. Everything else arrives verbatim.
+
 ### Requirement: VAD Audio Processing
 
 **Reason**: Core half of the split. The requirement already names "Implemented in `src/services/vad/`", and both test citations — `tests/vad_audio_processor_tests.rs` and `tests/vad_integration_tests.rs` — are core-bound under B3's ownership test and move with it. Re-added verbatim in `subx-core` by `import-split-capability-specs`.
@@ -45,6 +47,12 @@
 **Reason**: Core half of the split. A2 defines `create_default_output_path` in `src/core/sync/mod.rs`, and SDR §2.1 records that the GUI consumes it. Re-added in `subx-core` by `import-split-capability-specs`.
 
 **Migration**: Its second paragraph is a `subx-cli` obligation — that `crate::cli::sync_args::create_default_output_path` remains a legacy re-export documented in rustdoc without `#[deprecated]`, and that in-crate callers reference the core path. It is lifted into bullet 3 of *Sync Argument Struct Is a Thin Adapter Over Core Pairing*. All three scenarios stay with the core half. The in-crate caller `src/commands/sync_command.rs` named there is a `subx-cli` file and SHALL NOT appear unqualified in the arriving requirement.
+
+### Requirement: VAD-Independent Manual Offset Application
+
+**Reason**: Core half of the split, and a late addition folded in per task 1.3: A2's `make-core-engines-thread-safe` added this requirement to the main spec after this change was drafted, and its normative object is the free function `shift_subtitle_timing` in `subx-core/src/core/sync/mod.rs` — a pure-core obligation under `spec-governance`'s ownership test. Re-added in `subx-core` by `import-split-capability-specs`. It leaves this repository's half of the capability; it does not leave the project.
+
+**Migration**: Two de-qualifications on arrival. "`subx-core` SHALL expose `shift_subtitle_timing` … in `subx_core::core::sync` (`subx-core/src/core/sync/mod.rs`)" becomes "The library SHALL expose … in `subx_core::core::sync` (`src/core/sync/mod.rs`)": the crate path `subx_core::` is a Rust path and stays, the file path is a same-repository citation and loses its `subx-core/` prefix per `spec-governance`'s root-relative rule. Everything else — including all three scenarios — arrives verbatim.
 
 ## MODIFIED Requirements
 

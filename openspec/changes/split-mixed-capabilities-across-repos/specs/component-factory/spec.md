@@ -16,6 +16,8 @@
 
 **Reason**: Core half of the split. `create_match_engine`, `MatchConfig` and `MatchEngine::new` are all under `src/core/`. Re-added verbatim in `subx-core` by `import-split-capability-specs`.
 
+**Migration**: One citation is self-qualified in the donor text: "ComponentFactory::match_config (`subx-core/src/core/factory.rs`)". On arrival in `subx-core` that is a same-repository path and `spec-governance` forbids the self-qualification, so it SHALL be de-qualified to `src/core/factory.rs`. Everything else arrives verbatim.
+
 ### Requirement: VAD and Audio Component Creation
 
 **Reason**: Core half of the split. `create_vad_sync_detector`, `create_vad_detector` and `create_audio_processor` construct services under `src/services/vad/`. Re-added verbatim in `subx-core` by `import-split-capability-specs`.

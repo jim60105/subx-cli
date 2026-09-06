@@ -20,7 +20,7 @@
 
 The `config set`, `config list`, and `config get` subcommands SHALL mask the values of sensitive keys in everything they write to stdout, by passing each key and value through the masking helper before display and never printing the raw value alongside the masked one.
 
-Which keys are sensitive and what the masked form looks like — the `api_key` / `token` / `secret` case-insensitive match, the `****<last 4 chars>` form, and the `****` form for values of four characters or fewer — is specified by the `secrets-protection` capability's *Sensitive Value Masking Helper* requirement in `subx-core`, which owns `mask_sensitive_value` in `src/config/masking.rs`. This requirement owns only the obligation that the display sites use it.
+Which keys are sensitive and what the masked form looks like — the `api_key` / `token` / `secret` case-insensitive match, the `****<last 4 chars>` form, and the `****` form for values of four characters or fewer — is specified by the `secrets-protection` capability's *Sensitive Value Masking Helper* requirement in `subx-core`, which owns `mask_sensitive_value` in `subx-core:src/config/masking.rs`. This requirement owns only the obligation that the display sites use it.
 
 This capability and the `configuration-management` capability's *Sensitive value masking in config display* requirement have specified overlapping obligations over these same display sites since both were written. The overlap is preserved unchanged: both stay in `subx-cli`, and deciding which of the two owns config-display masking is left to a later change.
 

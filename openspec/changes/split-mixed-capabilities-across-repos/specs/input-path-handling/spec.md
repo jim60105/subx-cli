@@ -70,6 +70,12 @@
 
 **Migration**: The closing sentence "Call sites such as `DetectEncodingArgs::get_file_paths()` that currently return `Vec<PathBuf>` SHALL be updated accordingly" is a `subx-cli` obligation and SHALL be lifted into bullet 3 of *Input Argument Structs Are Thin Adapters Over Core Collection*.
 
+### Requirement: Archive-Aware Output Location Resolution
+
+**Reason**: Core half of the split, and a late addition folded in per task 1.3: D2's `expose-core-orchestration-apis` added this requirement to the main spec after this change was drafted, and its normative object is the pair of methods `default_output_dir` / `default_output_path` on `CollectedFiles` in `subx-core/src/core/input/mod.rs` — a pure-core obligation under `spec-governance`'s ownership test. It is the core rule that the retained *Output Directory Resolution for Archive Files* requirement makes its commands consult; that requirement stays CLI and is untouched. Re-added in `subx-core` by `import-split-capability-specs`. It leaves this repository's half of the capability; it does not leave the project.
+
+**Migration**: Three de-qualifications on arrival. (1) "Two methods on `CollectedFiles` (`subx-core/src/core/input/mod.rs`)" — the file path is a same-repository citation and loses its `subx-core/` prefix per `spec-governance`'s root-relative rule, becoming `src/core/input/mod.rs`. (2) The sentence "Both are verbatim extractions of the loops their commands have always run, and those commands print the resolved path, so byte-compatibility with the current rendering is the contract" names `subx-cli`'s commands without naming the repository; on arrival it SHALL read "…the loops `subx-cli`'s commands have always run, and those commands print the resolved path, so byte-compatibility with `subx-cli`'s current rendering is the contract". (3) Everything else — the two method signatures, the `Some(\"\")` subtlety paragraphs, the no-filesystem paragraph, the purpose paragraph, and all five scenarios — arrives verbatim.
+
 ## ADDED Requirements
 
 ### Requirement: Input Argument Structs Are Thin Adapters Over Core Collection

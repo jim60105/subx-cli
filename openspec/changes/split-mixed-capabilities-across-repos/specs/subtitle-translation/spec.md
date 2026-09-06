@@ -22,7 +22,7 @@
 
 ### Requirement: Batching and Ordering
 
-**Reason**: Core half of the split — and the requirement most likely to be misfiled. Its second scenario requires the `Processed cues: <processed>/<total>` form, which reads like the progress vocabulary SDR §9 names as a CLI seam, but the string is produced at `src/core/translation/engine.rs:405` and after A1 it reaches the user through the `Reporter` seam rather than a direct write. Batch splitting, reassembly in original order, and the no-partial-output guarantee are all in the same file. Re-added verbatim in `subx-core` by `import-split-capability-specs`.
+**Reason**: Core half of the split — and the requirement most likely to be misfiled. Its second scenario requires the `Processed cues: <processed>/<total>` form, which reads like the progress vocabulary SDR §9 names as a CLI seam, but the string is produced at `src/core/translation/engine.rs:415` and after A1 it reaches the user through the `Reporter` seam rather than a direct write. Batch splitting, reassembly in original order, and the no-partial-output guarantee are all in the same file. Re-added verbatim in `subx-core` by `import-split-capability-specs`.
 
 **Migration**: The *translation progress logs processed cue count* scenario SHALL be carried over with "the command SHALL log" read as the engine emitting the message through its `Reporter`, per the `core-reporting` capability in `subx-core`, so that the arriving requirement does not assert that a library writes to a terminal.
 

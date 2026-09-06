@@ -18,9 +18,9 @@
 
 ### Requirement: AI Environment Variable Overrides
 
-**Reason**: Core half of the split. The requirement already names "Implemented in `src/config/service.rs:222-251`". Re-added in `subx-core` by `import-split-capability-specs`.
+**Reason**: Core half of the split. The requirement already names "Implemented in `src/config/service.rs:222-251`" in the donor text. Re-added in `subx-core` by `import-split-capability-specs`.
 
-**Migration**: The line range `src/config/service.rs:222-251` SHALL be re-verified against the destination tree and corrected if B2's move or any earlier change shifted it, per `spec-governance`'s *A line range is re-verified at the boundary*. The `local-llm-provider` capability in `subx-core` references this requirement's precedence rule and is re-qualified from `subx-cli` to unqualified by `import-split-capability-specs`.
+**Migration**: The line range was re-verified at the boundary per `spec-governance`'s *A line range is re-verified at the boundary*: the SUBX_AI_* partial-load path now spans `src/config/service.rs:287-319` in the `subx-core` tree, and the arriving requirement SHALL cite that range in place of the donor's `222-251`. The `local-llm-provider` capability in `subx-core` references this requirement's precedence rule and is re-qualified from `subx-cli` to unqualified by `import-split-capability-specs`.
 
 ### Requirement: Custom Configuration File Path
 
