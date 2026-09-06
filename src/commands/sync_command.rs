@@ -432,8 +432,9 @@ pub async fn execute(args: SyncArgs, config_service: &dyn ConfigService) -> Resu
         }
     }
 
-    let sync_engine =
-        SyncEngine::new(config.sync.clone())?.with_reporter(crate::cli::terminal_reporter());
+    let sync_engine = SyncEngine::new(config.sync.clone())?.with_reporter(
+        crate::cli::terminal_reporter_with_progress_bar(config.general.enable_progress_bar),
+    );
     let format_manager = FormatManager::new();
     let mode = active_mode();
     let json = matches!(mode, OutputMode::Json);
@@ -509,7 +510,12 @@ pub async fn execute(args: SyncArgs, config_service: &dyn ConfigService) -> Resu
             single_args.recursive = false;
             single_args.video = Some(video_files[0].clone());
             single_args.subtitle = Some(subtitle_files[0].clone());
-            // If subtitle came from an archive, redirect output beside the archive
+            // If subtitle came from an archive, redirect output beside the
+            // archive. Deliberately NOT migrated to
+            // CollectedFiles::default_output_path — this conditionally sets
+            // an Option<PathBuf>; an unconditional query would erase the
+            // None/Some distinction the overwrite handling reads
+            // (expose-core-orchestration-apis design.md Decision 3).
             if single_args.output.is_none() {
                 if let Some(archive_path) = paths.archive_origin(subtitle_files[0]) {
                     if let Some(archive_dir) = archive_path.parent() {
@@ -582,7 +588,9 @@ pub async fn execute(args: SyncArgs, config_service: &dyn ConfigService) -> Resu
                 single_args.recursive = false;
                 single_args.video = Some((*video_path).clone());
                 single_args.subtitle = Some((*sub_path).clone());
-                // If subtitle came from an archive, redirect output beside the archive
+                // If subtitle came from an archive, redirect output beside
+                // the archive. Not migrated for the Decision 3 reason at
+                // the single-pair site above.
                 if single_args.output.is_none() {
                     if let Some(archive_path) = paths.archive_origin(sub_path) {
                         if let Some(archive_dir) = archive_path.parent() {

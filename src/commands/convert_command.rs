@@ -71,7 +71,7 @@
 //! convert_command::execute(batch_args).await?;
 //! ```
 
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 
 use serde::Serialize;
 
@@ -360,16 +360,13 @@ pub async fn execute(args: ConvertArgs, config_service: &dyn ConfigService) -> c
                 }
             }
             p
-        } else if let Some(archive_path) = collected.archive_origin(input_path) {
-            // File came from an archive: write output beside the archive
-            let archive_dir = archive_path.parent().unwrap_or(Path::new("."));
-            let stem = input_path
-                .file_stem()
-                .and_then(|s| s.to_str())
-                .unwrap_or("output");
-            archive_dir.join(format!("{stem}.{fmt}"))
         } else {
-            input_path.with_extension(fmt.clone())
+            // No explicit --output: the archive-aware resolution rule
+            // (output beside the archive of origin, else beside the input)
+            // lives in core as CollectedFiles::default_output_path.
+            // The `--output` arm above keeps the CLI's precedence and
+            // directory-append rules.
+            collected.default_output_path(input_path, &fmt)
         };
 
         match converter.convert_file(input_path, &output_path, &fmt).await {

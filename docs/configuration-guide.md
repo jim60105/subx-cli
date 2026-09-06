@@ -227,6 +227,12 @@ enable_progress_bar = true                    # Show progress indicators
 worker_idle_timeout_seconds = 60              # Worker thread idle timeout in seconds
 ```
 
+`enable_progress_bar` is enforced at a single place: the CLI's reporter
+(`subx-cli/src/cli/reporter.rs`) reads it once where each command constructs
+the reporter, and hides every batch progress bar that reporter renders when
+the value is `false` — commands no longer consult the flag at their own
+construction sites.
+
 ## Translation Configuration (`[translation]`)
 
 This section controls defaults for the `translate` command. Translation

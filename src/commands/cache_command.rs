@@ -775,7 +775,7 @@ pub async fn execute_apply(args: &ApplyArgs, config_service: &dyn ConfigService)
             match apply_cached_operations_with_reporter(
                 &single,
                 &match_config,
-                crate::cli::terminal_reporter(),
+                crate::cli::terminal_reporter_with_progress_bar(config.general.enable_progress_bar),
             )
             .await
             {
@@ -811,7 +811,7 @@ pub async fn execute_apply(args: &ApplyArgs, config_service: &dyn ConfigService)
         apply_cached_operations_with_reporter(
             &cache,
             &match_config,
-            crate::cli::terminal_reporter(),
+            crate::cli::terminal_reporter_with_progress_bar(config.general.enable_progress_bar),
         )
         .await?;
         println!("Apply complete.");

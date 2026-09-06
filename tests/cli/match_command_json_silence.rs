@@ -99,6 +99,19 @@ fn run_match(
     json_mode: bool,
     quiet: bool,
 ) -> assert_cmd::assert::Assert {
+    run_match_with_progress(base_url, workdir, extra_args, json_mode, quiet, "false")
+}
+
+/// Same harness, with `general.enable_progress_bar` pinned explicitly so
+/// the progress-bar characterisation tests can run with the flag `true`.
+fn run_match_with_progress(
+    base_url: &str,
+    workdir: &std::path::Path,
+    extra_args: &[&str],
+    json_mode: bool,
+    quiet: bool,
+    enable_progress_bar: &str,
+) -> assert_cmd::assert::Assert {
     let xdg = workdir.join(".xdg");
     fs::create_dir_all(&xdg).unwrap();
     let mut cmd = Command::new(env!("CARGO_BIN_EXE_subx-cli"));
@@ -107,7 +120,7 @@ fn run_match(
         .env("LOCAL_LLM_BASE_URL", base_url)
         .env("XDG_CONFIG_HOME", &xdg)
         .env("HOME", workdir)
-        .env("SUBX_GENERAL_ENABLE_PROGRESS_BAR", "false");
+        .env("SUBX_GENERAL_ENABLE_PROGRESS_BAR", enable_progress_bar);
     if json_mode {
         cmd.args(["--output", "json"]);
     }
@@ -389,4 +402,79 @@ async fn quiet_text_mode_still_prints_cannot_find_ai_suggested_pair() {
         stderr.contains("⚠️  Cannot find AI-suggested file pair:"),
         "--quiet must not silence matcher warnings:\n{stderr}"
     );
+}
+
+/// indicatif renders every redraw around `\r`, and the shared bar template
+/// fills with `█`; neither byte sequence may appear when a bar is hidden.
+const PROGRESS_FRAME_MARKERS: &[&str] = &["\r", "█"];
+
+fn assert_no_progress_frames(bytes: &[u8], stream: &str) {
+    let s = String::from_utf8_lossy(bytes);
+    for marker in PROGRESS_FRAME_MARKERS {
+        assert!(
+            !s.contains(marker),
+            "{stream} leaked a progress-frame marker {marker:?}:\n{s}"
+        );
+    }
+}
+
+/// D2 §7.7 — with `general.enable_progress_bar = true`, a LIVE JSON-mode
+/// match (the engine opens a real Started/Advanced/Finished stream over
+/// the renamed operation) writes **no** progress frame on stdout or
+/// stderr. This is the assertion the deleted private `create_progress_bar`
+/// in `match_command.rs` would have failed: its bar bypassed
+/// `ui::progress_draw_target_for`, and JSON mode force-hides every bar
+/// constructed through that helper.
+#[tokio::test]
+async fn json_mode_live_run_renders_no_progress_frames_with_flag_true() {
+    let dir = build_pair_dir("Movie.mp4", "random.srt");
+    let server = mock_server_with_echo(1, 0.95).await;
+
+    let assert = run_match_with_progress(
+        &server.uri(),
+        dir.path(),
+        &["--confidence", "80", dir.path().to_str().unwrap()],
+        true,
+        false,
+        "true",
+    );
+    let output = assert.get_output().clone();
+    // The batch really ran: the rename to the video-stem target landed, so
+    // the engine opened and closed a real progress stream in this run.
+    assert!(
+        dir.path().join("Movie.srt").exists() && !dir.path().join("random.srt").exists(),
+        "live match must have renamed random.srt to Movie.srt:\n{:?}",
+        fs::read_dir(dir.path()).map(|rd| rd
+            .filter_map(Result::ok)
+            .map(|e| e.file_name())
+            .collect::<Vec<_>>())
+    );
+    assert_no_progress_frames(&output.stdout, "stdout");
+    assert_no_progress_frames(&output.stderr, "stderr");
+}
+
+/// D2 §7.8 — with `general.enable_progress_bar = false` in **text** mode,
+/// a live match (same real stream) renders no progress frame: the CLI
+/// reporter read the flag once at construction and force-hid the bar it
+/// owns. The rename still happens — hiding is not skipping.
+#[tokio::test]
+async fn text_mode_disabled_progress_bar_renders_no_frames() {
+    let dir = build_pair_dir("Movie.mp4", "random.srt");
+    let server = mock_server_with_echo(1, 0.95).await;
+
+    let assert = run_match(
+        &server.uri(),
+        dir.path(),
+        &["--confidence", "80", dir.path().to_str().unwrap()],
+        false,
+        false,
+    )
+    .success();
+    let output = assert.get_output().clone();
+    assert!(
+        dir.path().join("Movie.srt").exists() && !dir.path().join("random.srt").exists(),
+        "hiding the bar must not skip the work"
+    );
+    assert_no_progress_frames(&output.stdout, "stdout");
+    assert_no_progress_frames(&output.stderr, "stderr");
 }

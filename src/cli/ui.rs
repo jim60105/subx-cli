@@ -187,7 +187,7 @@ pub fn print_warning(message: &str) {
 ///
 /// # Template Format
 /// ```text
-/// ⠋ [00:01:23] [████████████████████████████████████████] 75/100 (00:00:17)
+/// ⠋ [00:01:23] [████████████████████████████████████████] 75/100 (00:00:17) movie.srt
 /// ```
 ///
 /// # Arguments
@@ -223,13 +223,23 @@ pub fn print_warning(message: &str) {
 /// If configuration loading fails, the progress bar will default to visible.
 /// This ensures that progress indication is available even when configuration
 /// is problematic.
+///
+/// # Style contract
+///
+/// The shared template is
+/// `{spinner:.green} [{elapsed_precise}] [{bar:40.cyan/blue}] {pos}/{len} ({eta}) {msg}`:
+/// the trailing `{msg}` segment lets a caller-set message — the parallel
+/// batch's `Active: … | Queued: … | Completed: …` line or any bar message —
+/// render; a bar whose caller never sets a message renders it empty.
+/// This is the CLI's only `ProgressBar` constructor; batch progress bars are
+/// constructed by the reporter in `cli::reporter` on `ProgressEvent::Started`.
 pub fn create_progress_bar(total: u64) -> ProgressBar {
     let pb = ProgressBar::new(total);
     pb.set_draw_target(progress_draw_target_for(output::active_mode()));
     pb.set_style(
         ProgressStyle::default_bar()
             .template(
-                "{spinner:.green} [{elapsed_precise}] [{bar:40.cyan/blue}] {pos}/{len} ({eta})",
+                "{spinner:.green} [{elapsed_precise}] [{bar:40.cyan/blue}] {pos}/{len} ({eta}) {msg}",
             )
             .unwrap(),
     );

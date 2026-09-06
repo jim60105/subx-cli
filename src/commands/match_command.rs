@@ -65,13 +65,11 @@ use crate::Result;
 use crate::cli::MatchArgs;
 use crate::cli::display_match_results;
 use crate::cli::output::{active_mode, emit_success};
-use indicatif::ProgressDrawTarget;
 use serde::Serialize;
 use subx_core::config::ConfigService;
 use subx_core::core::ComponentFactory;
 use subx_core::core::matcher::engine::{
-    FileRelocationMode, MatchOperation, apply_archive_origin_relocation,
-    apply_unique_target_paths,
+    FileRelocationMode, MatchOperation, apply_archive_origin_relocation, apply_unique_target_paths,
 };
 use subx_core::core::matcher::{FileDiscovery, MatchConfig, MatchEngine, MediaFileType};
 use subx_core::core::parallel::{
@@ -283,12 +281,13 @@ pub async fn execute(args: MatchArgs, config_service: &dyn ConfigService) -> Res
     let config = config_service.get_config()?;
 
     // Create AI client using the component factory
-    let factory =
-        ComponentFactory::new(config_service)?.with_reporter(crate::cli::terminal_reporter());
+    let factory = ComponentFactory::new(config_service)?.with_reporter(
+        crate::cli::terminal_reporter_with_progress_bar(config.general.enable_progress_bar),
+    );
     let ai_client = factory.create_ai_provider()?;
 
     // Execute the matching workflow with dependency injection
-    execute_with_client(args, ai_client, &config).await
+    execute_with_client_inner(args, ai_client, &config, Some(&factory)).await
 }
 
 /// Execute the AI-powered subtitle matching operation with injected configuration service.
@@ -320,12 +319,13 @@ pub async fn execute_with_config(
     let config = config_service.get_config()?;
 
     // Create AI client using the component factory
-    let factory = ComponentFactory::new(config_service.as_ref())?
-        .with_reporter(crate::cli::terminal_reporter());
+    let factory = ComponentFactory::new(config_service.as_ref())?.with_reporter(
+        crate::cli::terminal_reporter_with_progress_bar(config.general.enable_progress_bar),
+    );
     let ai_client = factory.create_ai_provider()?;
 
     // Execute the matching workflow with dependency injection
-    execute_with_client(args, ai_client, &config).await
+    execute_with_client_inner(args, ai_client, &config, Some(&factory)).await
 }
 
 /// Execute the matching workflow with dependency-injected AI client.
@@ -415,6 +415,23 @@ pub async fn execute_with_client(
     ai_client: Box<dyn AIProvider>,
     config: &subx_core::config::Config,
 ) -> Result<()> {
+    execute_with_client_inner(args, ai_client, config, None).await
+}
+
+/// Shared body of [`execute_with_client`] and the service-backed entry
+/// points. With a `factory` present, the engine configuration comes from
+/// [`ComponentFactory::match_config`] (the command's three chosen fields
+/// overridden) and the engine inherits the factory's reporter — so the
+/// batch bar honours `general.enable_progress_bar`. Without one (the
+/// public three-argument API may receive a config unrelated to any
+/// service), an equivalent configuration is derived from `config` and a
+/// progress-bar-honouring reporter is attached.
+async fn execute_with_client_inner(
+    args: MatchArgs,
+    ai_client: Box<dyn AIProvider>,
+    config: &subx_core::config::Config,
+    factory: Option<&ComponentFactory>,
+) -> Result<()> {
     // Determine file relocation mode from command line arguments
     let relocation_mode = if args.copy {
         subx_core::core::matcher::engine::FileRelocationMode::Copy
@@ -424,26 +441,26 @@ pub async fn execute_with_client(
         subx_core::core::matcher::engine::FileRelocationMode::None
     };
 
-    // Create matching engine configuration from provided config
-    let match_config = MatchConfig {
-        confidence_threshold: args.confidence as f32 / 100.0,
-        max_sample_length: config.ai.max_sample_length,
-        // Always enable content analysis to generate and cache results even in dry-run mode
-        enable_content_analysis: true,
-        backup_enabled: args.backup || config.general.backup_enabled,
-        relocation_mode,
-        conflict_resolution: subx_core::core::matcher::engine::ConflictResolution::AutoRename,
-        ai_model: config.ai.model.clone(),
-        max_subtitle_bytes: config.general.max_subtitle_bytes,
+    // Engine configuration from the factory's canonical MatchConfig — the
+    // caller-controlled fields are mutated rather than writing an
+    // exhaustive literal (expose-core-orchestration-apis gap 3).
+    let mut match_config = match factory {
+        Some(factory) => factory.match_config(),
+        None => config_derived_match_config(config),
     };
+    match_config.confidence_threshold = args.confidence as f32 / 100.0;
+    match_config.backup_enabled = args.backup || config.general.backup_enabled;
+    match_config.relocation_mode = relocation_mode;
 
     // Initialize the matching engine with AI client and configuration
-    // The AI client already carries the factory's reporter when this is
-    // reached through the command entry points, but execute_with_client may
-    // also be called with an externally supplied client, so the engine
-    // attaches its own.
-    let engine =
-        MatchEngine::new(ai_client, match_config).with_reporter(crate::cli::terminal_reporter());
+    // Through the service-backed paths the engine inherits the factory's
+    // reporter (constructed with enable_progress_bar above); the legacy
+    // three-argument path has no service, so it builds a
+    // progress-bar-honouring reporter from the provided config.
+    let engine = MatchEngine::new(ai_client, match_config).with_reporter(match factory {
+        Some(factory) => factory.reporter(),
+        None => crate::cli::terminal_reporter_with_progress_bar(config.general.enable_progress_bar),
+    });
 
     // Use the get_input_handler method to get all input files
     let input_handler = args.get_input_handler()?;
@@ -689,7 +706,7 @@ pub async fn execute_parallel_match(
     config_service: &dyn ConfigService,
 ) -> Result<()> {
     // Load configuration from injected service
-    let _config = config_service.get_config()?;
+    let config = config_service.get_config()?;
 
     // Create and configure task scheduler for parallel processing
     let scheduler = TaskScheduler::new()?;
@@ -729,16 +746,12 @@ pub async fn execute_parallel_match(
         println!("Preparing to process {} files in parallel", tasks.len());
         println!("Max concurrency: {}", scheduler.get_active_workers());
     }
-    let progress_bar = {
-        let pb = create_progress_bar(tasks.len());
-        // Show or hide progress bar based on configuration
-        let config = config_service.get_config()?;
-        if !config.general.enable_progress_bar {
-            pb.set_draw_target(ProgressDrawTarget::hidden());
-        }
-        pb
-    };
-    let results = monitor_batch_execution(&scheduler, tasks, &progress_bar).await?;
+    // The CLI reporter owns the batch progress bar and the
+    // general.enable_progress_bar flag; this command only opens the
+    // structured stream (expose-core-orchestration-apis gap 6).
+    let reporter =
+        crate::cli::terminal_reporter_with_progress_bar(config.general.enable_progress_bar);
+    let results = monitor_batch_execution(&scheduler, tasks, reporter.as_ref()).await?;
     let (mut ok, mut failed, mut partial) = (0, 0, 0);
     for r in &results {
         match r {
@@ -768,8 +781,9 @@ pub async fn execute_parallel_match(
 async fn monitor_batch_execution(
     scheduler: &TaskScheduler,
     tasks: Vec<Box<dyn Task + Send + Sync>>,
-    progress_bar: &indicatif::ProgressBar,
+    reporter: &dyn subx_core::core::report::Reporter,
 ) -> Result<Vec<TaskResult>> {
+    use subx_core::core::report::ProgressEvent;
     use tokio::time::{Duration, interval};
     let handles: Vec<_> = tasks
         .into_iter()
@@ -781,6 +795,8 @@ async fn monitor_batch_execution(
     let mut ticker = interval(Duration::from_millis(500));
     let mut completed = 0;
     let total = handles.len();
+    let total_u64 = total as u64;
+    reporter.progress(&ProgressEvent::Started { total: total_u64 });
     let mut results = Vec::new();
     for mut h in handles {
         loop {
@@ -792,31 +808,60 @@ async fn monitor_batch_execution(
                         Err(_) => results.push(TaskResult::Cancelled),
                     }
                     completed += 1;
-                    progress_bar.set_position(completed);
+                    // Completion advances the stream; no per-unit item is
+                    // meaningful for scheduler tasks (task 7.5: item None).
+                    reporter.progress(&ProgressEvent::Advanced {
+                        done: completed,
+                        total: total_u64,
+                        item: None,
+                    });
                     break;
                 }
                 _ = ticker.tick() => {
                     let active = scheduler.list_active_tasks().len();
                     let queued = scheduler.get_queue_size();
-                    progress_bar.set_message(format!("Active: {active} | Queued: {queued} | Completed: {completed}/{total}"));
+                    // The 500ms scheduler-status line travels as a
+                    // Message event: while a stream is open the CLI
+                    // reporter renders messages into the bar's {msg}
+                    // segment instead of a stderr line (choice stated
+                    // per task 7.5; the status is not a completed unit,
+                    // so it must not ride on Advanced).
+                    let status = format!(
+                        "Active: {active} | Queued: {queued} | Completed: {completed}/{total}"
+                    );
+                    reporter.progress(&ProgressEvent::Message(&status));
                 }
             }
         }
     }
-    progress_bar.finish_with_message("All tasks completed");
+    // The old terminal "All tasks completed" finish message is
+    // intentionally dropped: Finished ends the bar with the final
+    // {pos}/{len} frame (rendered as an empty {msg} segment).
+    reporter.progress(&ProgressEvent::Finished {
+        done: completed,
+        total: total_u64,
+    });
     Ok(results)
 }
 
-fn create_progress_bar(total: usize) -> indicatif::ProgressBar {
-    use indicatif::ProgressStyle;
-    let pb = indicatif::ProgressBar::new(total as u64);
-    pb.set_style(
-        ProgressStyle::default_bar()
-            .template("{spinner:.green} [{elapsed_precise}] [{bar:40.cyan/blue}] {pos}/{len} {msg}")
-            .unwrap()
-            .progress_chars("#>-"),
-    );
-    pb
+/// Legacy-path engine configuration for [`execute_with_client`], which
+/// receives a bare `Config` with no service to build a
+/// [`ComponentFactory`] from. Field-for-field the configuration
+/// [`ComponentFactory::match_config`] derives from the same `Config`;
+/// the caller overrides `confidence_threshold`, `backup_enabled`, and
+/// `relocation_mode` afterwards exactly as the factory-backed path does.
+fn config_derived_match_config(config: &subx_core::config::Config) -> MatchConfig {
+    MatchConfig {
+        confidence_threshold: 0.8, // Default; overridden by the caller below
+        max_sample_length: config.ai.max_sample_length,
+        // Always enable content analysis to generate and cache results even in dry-run mode
+        enable_content_analysis: true,
+        backup_enabled: config.general.backup_enabled, // Overridden by the caller below
+        relocation_mode: subx_core::core::matcher::engine::FileRelocationMode::None, // Overridden by the caller below
+        conflict_resolution: subx_core::core::matcher::engine::ConflictResolution::AutoRename,
+        ai_model: config.ai.model.clone(),
+        max_subtitle_bytes: config.general.max_subtitle_bytes,
+    }
 }
 
 #[cfg(test)]

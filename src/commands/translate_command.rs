@@ -174,8 +174,9 @@ pub async fn execute(args: TranslateArgs, config_service: &dyn ConfigService) ->
         .map(parse_glossary_text)
         .unwrap_or_default();
 
-    let factory =
-        ComponentFactory::new(config_service)?.with_reporter(crate::cli::terminal_reporter());
+    let factory = ComponentFactory::new(config_service)?.with_reporter(
+        crate::cli::terminal_reporter_with_progress_bar(config.general.enable_progress_bar),
+    );
     let engine = factory.create_translation_engine()?;
     let mut failures = Vec::new();
     let mut items: Vec<TranslatedFile> = Vec::with_capacity(collected.len());
@@ -341,11 +342,7 @@ fn resolve_output_path(
 
     let path = match &args.output {
         Some(output) => explicit_output_path(output, input_path, collected.len(), target_language)?,
-        None => default_output_path(
-            input_path,
-            collected.archive_origin(input_path),
-            target_language,
-        ),
+        None => default_output_path(input_path, collected, target_language),
     };
     Ok(ResolvedOutput {
         path,
@@ -384,16 +381,21 @@ fn explicit_output_path(
 
 fn default_output_path(
     input_path: &Path,
-    archive_origin: Option<&Path>,
+    collected: &subx_core::core::input::CollectedFiles,
     target_language: &str,
 ) -> PathBuf {
-    let base_dir = archive_origin
-        .and_then(Path::parent)
-        .or_else(|| input_path.parent())
-        .unwrap_or_else(|| Path::new("."));
-    base_dir.join(translated_file_name(input_path, target_language))
+    // The archive-origin base-directory chain lives in core as
+    // CollectedFiles::default_output_dir.
+    collected
+        .default_output_dir(input_path)
+        .join(translated_file_name(input_path, target_language))
 }
 
+// Open question recorded by expose-core-orchestration-apis (design.md
+// Open Questions, seventh duplication): `translated_file_name` and
+// `backup_path` below are mirrored almost verbatim in the GUI at
+// ../subx/src-tauri/src/commands/translate.rs:704-708 and :735-742.
+// Candidate for a future core extraction; deliberately not relocated here.
 fn translated_file_name(input_path: &Path, target_language: &str) -> String {
     let stem = input_path
         .file_stem()

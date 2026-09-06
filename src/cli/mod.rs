@@ -54,7 +54,7 @@ pub use error_ext::SubXErrorExt;
 pub use generate_completion_args::GenerateCompletionArgs;
 pub use match_args::MatchArgs;
 pub use output::{OutputMode, SCHEMA_VERSION};
-pub use reporter::{TerminalReporter, terminal_reporter};
+pub use reporter::{TerminalReporter, terminal_reporter, terminal_reporter_with_progress_bar};
 /// Legacy re-export. [`InputPathHandler`] and [`CollectedFiles`] now live in
 /// [`subx_core::core::input`]; prefer that path. These aliases exist so that
 /// consumers written against `subx_cli::cli::…` keep compiling across the
