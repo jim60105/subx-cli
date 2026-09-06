@@ -1,0 +1,48 @@
+====================================================================================================
+### Requirement: Archive-Aware Output Location Resolution
+
+
+`CollectedFiles` SHALL own the rule that decides where an output file belongs when its input may have come out of an archive, so that no caller has to re-derive it. Two methods on `CollectedFiles` (`subx-core/src/core/input/mod.rs`), beside `archive_origin`:
+
+```rust
+pub fn default_output_dir<'a>(&'a self, input: &'a Path) -> &'a Path;
+pub fn default_output_path(&self, input: &Path, extension: &str) -> PathBuf;
+```
+
+`default_output_dir` SHALL return, in order of preference: the parent directory of the archive `input` was extracted from, when `archive_origin(input)` is `Some` and that archive has a parent; otherwise `input`'s own parent; otherwise `Path::new(".")`.
+
+`default_output_path` SHALL return:
+
+- when `archive_origin(input)` is `Some(archive)`: `archive.parent()` (or `Path::new(".")` when the archive has no parent) joined with `<stem>.<extension>`, where `<stem>` is `input`'s file stem or the literal `output` when it has none;
+- otherwise: `input.with_extension(extension)`.
+
+The two methods SHALL NOT be defined in terms of one another, and `default_output_path` SHALL NOT be rewritten as `default_output_dir(input).join(..)`. Both are verbatim extractions of the loops their commands have always run, and those commands print the resolved path, so byte-compatibility with the current rendering is the contract; deriving one from the other breaks it. The load-bearing subtlety is that `Path::new("movie.srt").parent()` is `Some("")`, not `None`: `default_output_dir` returns the empty path for a single-component input, and joining onto the empty path keeps the name bare (`movie.zh.srt`), so the empty result MUST NOT be "tidied" to `Path::new(".")` — that rewrite renders `./movie.zh.srt`, a CLI-visible text change. The same `Some("")` semantics carry through the archive arms of both methods (a relative archive path resolves through the empty path, joining to a bare name); each method's `unwrap_or(Path::new("."))` fallback is the verbatim behaviour of the loop it was extracted from and is reachable only for a literally-empty path. Both rustdoc entries SHALL state the empty-path rule.
+
+Neither method SHALL touch the filesystem, and neither SHALL create a directory.
+
+The purpose is to prevent output from being written into a temporary extraction directory, which is deleted when the `CollectedFiles` is dropped.
+
+#### Scenario: Archive-extracted output resolves beside the archive
+- **GIVEN** a `CollectedFiles` in which `/tmp/subx-XXXX/movie.srt` has `archive_origin` `/data/subs.zip`
+- **WHEN** `default_output_path(Path::new("/tmp/subx-XXXX/movie.srt"), "vtt")` is called
+- **THEN** it SHALL return `/data/movie.vtt`, not a path under `/tmp/subx-XXXX/`
+
+#### Scenario: Non-archive output resolves beside the input
+- **GIVEN** a `CollectedFiles` in which `/data/movie.srt` was supplied directly
+- **WHEN** `default_output_path(Path::new("/data/movie.srt"), "vtt")` is called
+- **THEN** it SHALL return `/data/movie.vtt`
+
+#### Scenario: Bare filename keeps its bare form
+- **GIVEN** a `CollectedFiles` in which the relative path `movie.srt` was supplied directly
+- **WHEN** `default_output_path(Path::new("movie.srt"), "vtt")` is called
+- **THEN** it SHALL return exactly `movie.vtt` and SHALL NOT return `./movie.vtt`
+
+#### Scenario: Directory query follows the archive
+- **GIVEN** a `CollectedFiles` in which `/tmp/subx-XXXX/movie.srt` has `archive_origin` `/data/subs.zip`
+- **WHEN** `default_output_dir(Path::new("/tmp/subx-XXXX/movie.srt"))` is called
+- **THEN** it SHALL return `/data`
+
+#### Scenario: Directory query falls back to the input's parent
+- **GIVEN** a `CollectedFiles` in which `/data/movie.srt` was supplied directly
+- **WHEN** `default_output_dir(Path::new("/data/movie.srt"))` is called
+- **THEN** it SHALL return `/data`, and for a single-component relative input such as `movie.srt` it SHALL return the empty path `Path::new("")` (because `Path::parent` of a single-component path is `Some("")`, and joining onto the empty path keeps the joined name bare), and for an input with no parent component at all such as `/` it SHALL return `.`

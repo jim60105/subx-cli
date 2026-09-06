@@ -1,0 +1,249 @@
+
+==========================================================================================
+[1] cache-management|REMOVED|Match Cache Location
+------------------------------------------------------------------------------------------
+`subx-cli` resolves the same path independently at `src/commands/cache_command.rs:224` (via `get_config_dir()` at `:218`), and after the split nothing forces the two resolvers to agree. The agreement obligation is added to this capability's CLI half, in the restated *Cache Clear Subcommand* below. The arriving requirement's prose SHALL name that CLI half as the holder of the agreement obligation, without citing a `subx-cli` path.
+
+==========================================================================================
+[2] cache-management|REMOVED|Cache Reuse Preserves Relocation Mode
+------------------------------------------------------------------------------------------
+Its two test citations are CLI-bound under B3's ownership test — `tests/match_cache_reuse_tests.rs` and `tests/match_cache_target_directory_tests.rs` both import `subx_cli::cli::MatchArgs` and `subx_cli::commands::match_command`, so B3 rule 2 fires and they stay here. Both SHALL be qualified as `subx-cli:tests/match_cache_reuse_tests.rs` and `subx-cli:tests/match_cache_target_directory_tests.rs` on arrival.
+
+==========================================================================================
+[3] cache-management|REMOVED|Dry-Run Cache Reuse Without AI Calls
+------------------------------------------------------------------------------------------
+The citation `tests/match_cache_reuse_tests.rs` is CLI-bound (see above) and SHALL be qualified as `subx-cli:tests/match_cache_reuse_tests.rs` on arrival.
+
+==========================================================================================
+[4] cache-management|REMOVED|Cache Scoped To File-List Directory Key
+------------------------------------------------------------------------------------------
+The citation `tests/match_cache_target_directory_tests.rs` is CLI-bound and SHALL be qualified as `subx-cli:tests/match_cache_target_directory_tests.rs` on arrival.
+
+## MODIFIED Requirements
+
+==========================================================================================
+[5] component-factory|REMOVED|Tests Use TestConfigService via TestConfigBuilder
+------------------------------------------------------------------------------------------
+One citation crosses the line. `docs/testing-guidelines.md` is a `subx-cli` file and SHALL be qualified as `subx-cli:docs/testing-guidelines.md` on arrival. The three `tests/` citations SHALL be carried over unqualified, because B3 preserves their basenames when it flattens them into `subx-core/tests/`. If B3 or B4 re-files `tests/dependency_injection_integration_tests.rs` to `subx-cli` — its `subx_cli::App` import makes B3's own rule 3 fire only loosely — that one citation becomes `subx-cli:tests/dependency_injection_integration_tests.rs` and nothing else changes.
+
+==========================================================================================
+[6] configuration-management|REMOVED|AI Environment Variable Overrides
+------------------------------------------------------------------------------------------
+The line range `src/config/service.rs:222-251` SHALL be re-verified against the destination tree and corrected if B2's move or any earlier change shifted it, per `spec-governance`'s *A line range is re-verified at the boundary*. The `local-llm-provider` capability in `subx-core` references this requirement's precedence rule and is re-qualified from `subx-cli` to unqualified by `import-split-capability-specs`.
+
+==========================================================================================
+[7] configuration-management|REMOVED|AI Provider Identifier Canonicalization
+------------------------------------------------------------------------------------------
+Enumerated call sites 1 and 2 are phrased as `subx config set ai.provider <value>` and `subx config get ai.provider`; both are narrative framing over the field validator and SHALL be carried over with the invocation named as `subx-cli`'s command surface, leaving the field validator as the normative subject — the same treatment C2a applied to `media-discovery`'s `--recursive` sentence. The `local-llm-provider` capability in `subx-core` references this requirement and is re-qualified from `subx-cli` to unqualified by `import-split-capability-specs`.
+
+==========================================================================================
+[8] configuration-management|REMOVED|Local Provider Validation Rules
+------------------------------------------------------------------------------------------
+This requirement carries C2a's edit and supersedes it, and the distinction matters because C2a recorded the risk that this change would silently revert it. C2a restated the requirement so that its reference reads "the HTTPS-required rule documented for hosted providers in the `ai-provider-integration` capability **in `subx-core`**", and added a scenario *The cross-repository reference resolves* asserting that the qualification reads correctly to someone holding only a `subx-cli` checkout. On arrival: (1) the qualification **in `subx-core`** SHALL be removed, because `ai-provider-integration` is in the same repository as the arriving requirement and `spec-governance` reads an unqualified capability reference as a same-repository reference; (2) C2a's added scenario SHALL be retired with it, because its GIVEN — "a reader of this requirement holding only a `subx-cli` checkout" — can no longer occur. The five original scenarios are carried over verbatim. The arriving text therefore differs from both the pre-C2a and the post-C2a text, which is what distinguishes this from the reversion C2a warned against.
+
+==========================================================================================
+[9] error-handling|REMOVED|Typed Error Taxonomy
+------------------------------------------------------------------------------------------
+Its first scenario is phrased over "any SubX subcommand entry point under `src/commands/`". The obligation — that a recoverable failure returns `Err(SubXError::…)` rather than panicking — is a property of the library's callers, and the command-entry-point half of it is stated by this capability's *No Panics On Recoverable Errors* requirement, which stays in `subx-cli`. On arrival the scenario SHALL be re-phrased over any caller of a fallible library function, with `subx-cli`'s command entry points named as one such caller and qualified, so that the arriving requirement does not cite an unqualified `src/commands/` path.
+
+==========================================================================================
+[10] error-handling|REMOVED|API Error Source Enumeration
+------------------------------------------------------------------------------------------
+The sentence "both `Api` and `AiService` SHALL share exit code `3`" refers to a mapping that A2 moved to `SubXErrorExt::exit_code()` in `src/cli/error_ext.rs`. On arrival it SHALL be re-phrased to name the *category* both variants share and to attribute the numeric mapping to this capability's *Process Exit Code Mapping* requirement in `subx-cli`, so that the arriving requirement does not assert an obligation over a `subx-cli` file. The scenario's `exit_code()` assertion SHALL be re-phrased the same way.
+
+==========================================================================================
+[11] error-handling|REMOVED|No sensitive data in error chains
+------------------------------------------------------------------------------------------
+The `local-llm-provider` capability in `subx-core` cites this requirement's URL clause, and C2a qualified that citation as being in `subx-cli`. `import-split-capability-specs` SHALL re-qualify it to unqualified form, because after this change both capabilities are in `subx-core`.
+
+==========================================================================================
+[12] error-handling|REMOVED|Stable Machine-Readable Category and Code
+------------------------------------------------------------------------------------------
+Its closing sentence — "SHALL NOT change `Display`, `SubXErrorExt::exit_code`, or `SubXErrorExt::user_friendly_message`" — names two items that live in `src/cli/error_ext.rs`. On arrival the two `SubXErrorExt` names SHALL be qualified as belonging to `subx-cli`, and the *Category and exit code mapping are consistent* scenario's `exit_code()` assertion SHALL be attributed to this capability's `subx-cli` half in the same way as *API Error Source Enumeration* above.
+
+==========================================================================================
+[13] error-handling|REMOVED|Library and Binary Error Surface Split
+------------------------------------------------------------------------------------------
+The clause-by-clause allocation, which SHALL be applied exactly so that no obligation is lost and none is stated twice:
+- To `subx-core`: the enum, all variants, every `From` conversion, every helper constructor, `ApiErrorSource`, `category()`, `machine_code()`, `hint()`; the prohibition on `src/core/` and `src/services/` calling `exit_code()` or `user_friendly_message()` or importing the trait, together with the instruction to use `Display` (optionally with `hint()`) instead; the `hint()` rustdoc obligation; and the `OutputModeUnsupported` retention with its rustdoc note. Scenarios *Machine contracts need no import*, *Core does not depend on presentation* and *Core renders operation errors through Display*. The core half additionally carries the narrow guarantee that `Display` is unchanged by the split.
+- To `subx-cli`: `SubXErrorExt` and its two methods, the "bodies unchanged, so that no exit code, message, prefix, or `Hint:` line differs from before the split" guarantee, and the import sites. Scenario *Presentation methods require the extension trait*.
+- The `subx-core` half's citation of `src/cli/error_ext.rs` SHALL be qualified as `subx-cli:src/cli/error_ext.rs` wherever the prohibition needs to name the trait's location.
+
+## MODIFIED Requirements
+
+==========================================================================================
+[14] format-conversion|REMOVED|Parser/serializer round-trip stability
+------------------------------------------------------------------------------------------
+Every `tests/fixtures/formats/<format>/` citation is correct verbatim inside `subx-core` under `spec-governance`'s identity rule and SHALL NOT be rewritten. The requirement's phrase "across this refactor" refers to the format-module reorganization that predates the crate split and SHALL be carried over unchanged; it is not a reference to this change.
+
+==========================================================================================
+[15] format-conversion|REMOVED|Public format API stability across module reorganization
+------------------------------------------------------------------------------------------
+The sentence "Downstream crates and other modules in `subx-cli` MUST continue to compile without import path changes" is the one clause that does not survive verbatim. Inside `subx-core` the paths are `crate::core::formats::<Item>` and are correct as written; the `subx-cli` guarantee is now provided by the D11 re-exports in `subx-cli`'s `lib.rs`. On arrival the sentence SHALL be re-phrased so that the obligation is on `subx-core`'s own public paths, with the `subx-cli` compatibility named as a consequence of the re-export surface specified by the `crate-topology` capability in `subx-cli`. The scenario's `cargo build` / `cargo clippy` / `cargo test --doc --all-features` commands SHALL be read as `subx-core`'s own, per C1 Decision 4.
+
+## MODIFIED Requirements
+
+==========================================================================================
+[16] input-path-handling|REMOVED|Core-Owned Input Collection
+------------------------------------------------------------------------------------------
+Three of its clauses name `crate::cli`. The legacy re-export obligation ("`crate::cli` SHALL continue to re-export both types"), the in-crate call-site rule, and the *Legacy CLI alias still resolves* scenario all constrain `subx-cli` files. They SHALL be lifted into this capability's `subx-cli` half — bullet 5 of *Input Argument Structs Are Thin Adapters Over Core Collection*, added below — and the arriving requirement SHALL retain only the module-definition, no-clap-coupling and rustdoc-example clauses, with the re-export named as `subx-cli`'s obligation in prose. Scenarios *Core module has no argument-parser coupling* and *In-crate call sites use the core path* stay with the core half, the latter re-phrased over `subx-core`'s own `src/` tree.
+
+==========================================================================================
+[17] input-path-handling|REMOVED|Unified Path Merging
+------------------------------------------------------------------------------------------
+The closing clause "the CLI's `*Args::get_input_handler` methods SHALL be thin adapters that extract those slices from their clap structs" is a `subx-cli` obligation and SHALL be lifted into bullet 4 of *Input Argument Structs Are Thin Adapters Over Core Collection*. The *Positional and `-i` paths merged* scenario reaches the function through `MatchArgs::get_input_handler`; on arrival the invocation SHALL be named as `subx-cli`'s match command, leaving `merge_paths_from_multiple_sources` as the normative subject.
+
+==========================================================================================
+[18] input-path-handling|REMOVED|Extension Filtering
+------------------------------------------------------------------------------------------
+The clause "each command SHALL apply the whitelist appropriate to its domain (for example `match` uses video + subtitle extensions, `convert` uses subtitle extensions, `detect-encoding` uses subtitle + `txt`)" is a `subx-cli` obligation and SHALL be lifted into bullet 2 of *Input Argument Structs Are Thin Adapters Over Core Collection*. The sole scenario is phrased over `ConvertArgs::get_input_handler().collect_files()`; because the core half would otherwise carry no scenario, it SHALL be re-phrased over a handler built directly with `with_extensions(&["srt", "ass", "vtt", "sub", "ssa"])`, and the CLI-invocation form appears as the gathered requirement's scenario.
+
+==========================================================================================
+[19] input-path-handling|REMOVED|Recursive vs Flat Traversal
+------------------------------------------------------------------------------------------
+Both scenarios say "`--recursive` passed". The flag is `subx-cli`'s and the traversal is core's, so on arrival the flag SHALL be named as `subx-cli`'s option and the recursion mode named as the handler's own state — the treatment C2a applied to `media-discovery`'s *Recursion Controlled by Scan Flag*. The flag definition and its forwarding are bullet 1 of the gathered CLI requirement.
+
+==========================================================================================
+[20] input-path-handling|REMOVED|Direct File Inputs Pass Through
+------------------------------------------------------------------------------------------
+Four of its five scenarios are phrased as `subx convert <path>` invocations whose THEN is entirely about `collect_files`'s return value; they SHALL be carried over with the invocation named as `subx-cli`'s convert command. The fifth, *Archive file with --no-extract is skipped*, is the flag's scenario and SHALL be carried over the same way, because its THEN is also purely about the returned list; the flag's own definition is bullet 1 of the gathered CLI requirement.
+
+==========================================================================================
+[21] input-path-handling|REMOVED|Mixed File And Directory Inputs
+------------------------------------------------------------------------------------------
+Both test citations are CLI-bound under B3's ownership test — `tests/match_combined_paths_tests.rs` and `tests/unified_path_handling_tests.rs` both name `subx_cli::cli` types, and B3's design records the second explicitly as staying in `subx-cli` because it also imports `ConvertArgs`, `MatchArgs`, `SyncArgs`, `DetectEncodingArgs`, `OutputSubtitleFormat` and `SyncMethodArg`. Both SHALL be qualified as `subx-cli:tests/match_combined_paths_tests.rs` and `subx-cli:tests/unified_path_handling_tests.rs` on arrival.
+
+==========================================================================================
+[22] input-path-handling|REMOVED|Directory Deduplication
+------------------------------------------------------------------------------------------
+The citation `tests/unified_path_handling_tests.rs::test_get_directories` is CLI-bound (see above) and SHALL be qualified as `subx-cli:tests/unified_path_handling_tests.rs::test_get_directories` on arrival.
+
+==========================================================================================
+[23] input-path-handling|REMOVED|Invalid Path Surfacing
+------------------------------------------------------------------------------------------
+The requirement's rationale clause "so that the CLI caller can surface a clear error instead of silently producing an empty result" describes a consumer, not an obligation on a `subx-cli` file. On arrival "the CLI caller" SHALL be generalised to "the caller", because after the split the GUI is a caller too and the error is returned to whoever asked.
+
+==========================================================================================
+[24] input-path-handling|REMOVED|No-Extract CLI Flag
+------------------------------------------------------------------------------------------
+Scenario allocation: *Non-CLI caller selects the same behaviour* goes to the core half; *--no-extract disables archive expansion* goes to the gathered CLI requirement. A2's closing sentence "The flag definition remains a CLI concern; the behaviour it selects remains a core concern" is the split's own statement and SHALL be dropped from both halves, because after the split it describes the two requirements rather than constraining either.
+
+==========================================================================================
+[25] input-path-handling|REMOVED|Archive Origin Mapping
+------------------------------------------------------------------------------------------
+Its rationale clause "enabling commands to resolve output directories relative to the original archive location" names a consumer whose obligation is this capability's *Output Directory Resolution for Archive Files* requirement, which stays in `subx-cli`. On arrival the clause SHALL name that requirement as being in `subx-cli` rather than describing the command behaviour, so that the arriving requirement stops at the query API.
+
+==========================================================================================
+[26] input-path-handling|REMOVED|CollectedFiles Additional APIs
+------------------------------------------------------------------------------------------
+The closing sentence "Call sites such as `DetectEncodingArgs::get_file_paths()` that currently return `Vec<PathBuf>` SHALL be updated accordingly" is a `subx-cli` obligation and SHALL be lifted into bullet 3 of *Input Argument Structs Are Thin Adapters Over Core Collection*.
+
+## ADDED Requirements
+
+==========================================================================================
+[27] parallel-processing|REMOVED|Task Scheduler Entry Point
+------------------------------------------------------------------------------------------
+Both scenarios contain CLI obligations, and they are lifted into *Parallel Match Reports Task Count and Handles an Empty Input Set*, added below. *Parallel match over a directory* is the one scenario in this change restated on both sides: the core half keeps "each video SHALL be processed by the scheduler" and drops the reporting clause; the CLI half keeps the reporting clause. *Empty task list exits early* is wholly CLI — `execute_parallel_match` and the `println!("No video files found to process")` are at `src/commands/match_command.rs:682` and `:718` — and moves entirely.
+
+==========================================================================================
+[28] parallel-processing|REMOVED|Batch Task Submission
+------------------------------------------------------------------------------------------
+B4 renames the moved `tests/parallel/integration_tests.rs` to `parallel_integration_tests.rs`. That is a different file from the top-level `tests/parallel_processing_integration_tests.rs` this requirement cites, which B3 flattens under its existing basename; the citation SHALL be carried over verbatim, and SHALL be re-checked against `subx-core/tests/` at import time so that the two similarly-named files are not confused.
+
+==========================================================================================
+[29] parallel-processing|REMOVED|Non-blocking I/O in async executor
+------------------------------------------------------------------------------------------
+The `async-runtime-safety` capability, which C2a moved wholesale to `subx-core`, states a broader form of the same invariant. The overlap is pre-existing and intra-repository once both are in `subx-core`; it is carried over unchanged, because deleting a requirement is not a decision this change has a mandate to make.
+
+==========================================================================================
+[30] parallel-processing|REMOVED|UUIDv7 Worker and Task Identifiers
+------------------------------------------------------------------------------------------
+Two edits. The path `crate::core::uuidv7::Uuidv7Generator` is correct verbatim inside `subx-core` and SHALL NOT be rewritten. The `Cargo.toml` clause — "the `uuid` crate's `v4` feature SHALL NOT be enabled in `Cargo.toml`", with the *uuid v4 feature is disabled* scenario — SHALL be read as `subx-core`'s own manifest, which is the only one of the two that declares `uuid` at all under SDR §4; on arrival the citation SHALL name that manifest unambiguously so the scenario is not checked against the superproject's.
+
+## ADDED Requirements
+
+==========================================================================================
+[31] secrets-protection|REMOVED|Restrict config file permissions
+------------------------------------------------------------------------------------------
+The `configuration-management` capability's *Config file permissions enforcement* requirement states a stricter form of the same obligation and also migrates in this change, so the pre-existing overlap between the two moves intact rather than being split across the boundary. Both arrive in `subx-core`; de-duplicating them is not this change's decision to make.
+
+==========================================================================================
+[32] subtitle-matching|REMOVED|AI-Based File Pairing
+------------------------------------------------------------------------------------------
+The *No input files available* scenario is CLI: the literal `No files found to process` is constructed at `src/commands/match_command.rs:446`, before the engine is reached. It is lifted into *Match Command Argument Surface and Input Preconditions*, added below. The *Successful match with sufficient confidence* scenario stays with the core half; its reference to `InputPathHandler` resolves inside `subx-core` after A2, and its `subx match <path>` phrasing SHALL be named as `subx-cli`'s invocation.
+
+==========================================================================================
+[33] subtitle-matching|REMOVED|Confidence Threshold Enforcement
+------------------------------------------------------------------------------------------
+The clause naming the range 0–100, the default 80 and the `--confidence` flag is a `subx-cli` obligation — the field and its clap range are at `src/cli/match_args.rs:23-25` — and is lifted into bullet 1 of *Match Command Argument Surface and Input Preconditions*, together with the *Confidence outside valid range is rejected* scenario, whose THEN is a `clap` validation failure. The arriving requirement SHALL state the threshold as a 0.0–1.0 value supplied by the caller, with the percentage surface named as `subx-cli`'s.
+
+==========================================================================================
+[34] subtitle-matching|REMOVED|File Relocation Modes
+------------------------------------------------------------------------------------------
+The mutual-exclusion obligation and its exact message — `Cannot use --copy and --move together. Please choose one operation mode.`, produced by `MatchArgs::validate` at `src/cli/match_args.rs:53` — is a `subx-cli` obligation and is lifted into bullet 2 of *Match Command Argument Surface and Input Preconditions*, together with the *Copy and move are mutually exclusive* scenario. The arriving requirement SHALL state the three relocation modes as values of `FileRelocationMode`, with the `--copy` / `--move` / neither surface named as `subx-cli`'s.
+
+==========================================================================================
+[35] subtitle-matching|REMOVED|Optional Backup Before Move
+------------------------------------------------------------------------------------------
+Both scenarios are phrased as `subx match --move --backup <path>` invocations whose THEN is about whether a backup task is scheduled — narrative framing over core behaviour. They SHALL be carried over with the invocation named as `subx-cli`'s match command; the `--backup` flag's definition and forwarding are bullet 3 of *Match Command Argument Surface and Input Preconditions*.
+
+==========================================================================================
+[36] subtitle-matching|REMOVED|Per-Scan Unique UUIDv7 File Identifiers for Matching
+------------------------------------------------------------------------------------------
+The path `crate::core::uuidv7::Uuidv7Generator` is correct verbatim inside `subx-core`. The sentence about cross-invocation correlation "between the match cache and a later `cache apply`" references a `subx-cli` subcommand; on arrival `cache apply` SHALL be named as `subx-cli`'s subcommand, leaving canonical filesystem paths as the normative correlation key.
+
+==========================================================================================
+[37] subtitle-matching|REMOVED|AI-Driven Language and Globally-Unique Target Naming
+------------------------------------------------------------------------------------------
+The requirement states its allocator obligation as running "After all operations have been generated **and** `match_command` has applied any archive-origin forced relocation". That ordering is a `subx-cli` obligation — `apply_unique_target_paths` is called at `src/commands/match_command.rs:470`, immediately after the archive-origin rewrite at `:459` — and the core allocator cannot enforce it, because a function cannot require its caller to have done something first. It is lifted into *Match Command Applies Archive-Origin Relocation Before Uniqueness Allocation*, added below, together with the *Allocator runs after archive-origin forced relocation* scenario. On arrival the core half SHALL state the ordering as a **precondition on its input** — that the operations passed to the allocator already carry their final relocation targets — rather than as an obligation on a caller it cannot name, and SHALL name the `subx-cli` requirement that discharges it. The *Cross-video duplicates in the same target directory are disambiguated* scenario mentions the same rewrite in its GIVEN and SHALL be carried over with `match_command` named as `subx-cli`'s.
+
+## MODIFIED Requirements
+
+==========================================================================================
+[38] subtitle-translation|REMOVED|AI Provider Translation
+------------------------------------------------------------------------------------------
+Its *malformed AI response is rejected* scenario says "the command SHALL return a typed AI service error for that file" and "SHALL NOT write a partial translated subtitle for that file". Both are properties of the translation engine's return value, not of the command loop; the loop's obligation to keep going is this capability's *Per-File Error Isolation* requirement, which stays in `subx-cli`. On arrival "the command" SHALL be read as the translation of a single file, so that the arriving requirement stops at the engine boundary.
+
+==========================================================================================
+[39] subtitle-translation|REMOVED|Two-Pass Terminology Consistency
+------------------------------------------------------------------------------------------
+Its *explicit glossary overrides generated terminology* scenario says "the user-provided glossary" without naming a flag; the glossary's *content* reaches the engine as parsed entries, and the file reading is `subx-cli`'s. On arrival "the user-provided glossary" SHALL be read as the glossary entries supplied by the caller, which is what the engine actually receives.
+
+==========================================================================================
+[40] subtitle-translation|REMOVED|Batching and Ordering
+------------------------------------------------------------------------------------------
+The *translation progress logs processed cue count* scenario SHALL be carried over with "the command SHALL log" read as the engine emitting the message through its `Reporter`, per the `core-reporting` capability in `subx-core`, so that the arriving requirement does not assert that a library writes to a terminal.
+
+==========================================================================================
+[41] subtitle-translation|REMOVED|Translation Configuration
+------------------------------------------------------------------------------------------
+The *configured batch size is used* scenario is phrased as `subx translate movie.srt --target-language fr`; the invocation is narrative framing over the batching the engine performs and SHALL be named as `subx-cli`'s translate command on arrival.
+
+## MODIFIED Requirements
+
+==========================================================================================
+[42] timeline-sync|REMOVED|Sync Method Selection
+------------------------------------------------------------------------------------------
+The `--method` flag and the *Manual mode requires an explicit offset* scenario — whose message `Manual method requires --offset parameter.` is produced by `SyncArgs::validate` in `src/cli/sync_args.rs` — are `subx-cli` obligations and are lifted into bullet 1 of *Sync Argument Struct Is a Thin Adapter Over Core Pairing*, added below. The arriving requirement SHALL state the two methods as values the caller selects, with the `--method` surface named as `subx-cli`'s, and SHALL keep the *VAD detector is required unconditionally* scenario.
+
+==========================================================================================
+[43] timeline-sync|REMOVED|VAD Audio Processing
+------------------------------------------------------------------------------------------
+B3 preserves both basenames when it flattens them into `subx-core/tests/`, and neither is among the three files B4 renames, so both citations are correct verbatim and SHALL NOT be rewritten. The `hound` dev-dependency those tests need moves to `subx-core`'s `[dev-dependencies]` with them, per A0 and B3.
+
+==========================================================================================
+[44] timeline-sync|REMOVED|First-Sentence Offset Annotation
+------------------------------------------------------------------------------------------
+The scenario's "real audio+subtitle asset pair" is the `assets/SubX - The Subtitle Revolution.{srt,mp3}` pair, which B3 moves to `subx-core/assets/` and re-resolves from `CARGO_MANIFEST_DIR`. The citation is a test file, not an asset path, so it is carried over verbatim; the asset relocation is recorded here only so that a reader who follows the test does not conclude the spec is stale.
+
+==========================================================================================
+[45] timeline-sync|REMOVED|Core-Owned Sync Pairing Resolution
+------------------------------------------------------------------------------------------
+Its penultimate paragraph is entirely a `subx-cli` obligation — that `SyncArgs::get_sync_mode` becomes a thin adapter translating `Option<Option<PathBuf>>` into `BatchRequest` and `is_manual_mode()` into `manual`, containing no filesystem access and no pairing logic, and that `crate::cli::SyncMode` remains a legacy re-export without `#[deprecated]`. It is lifted into bullets 2 and 4 of *Sync Argument Struct Is a Thin Adapter Over Core Pairing*, together with the *The CLI adapter adds no behaviour* scenario. The final paragraph — that the batch pairing performed afterwards inside `src/commands/sync_command.rs` is a separate command-level concern — SHALL be carried over with the path qualified as `subx-cli:src/commands/sync_command.rs` and the three requirements that specify it (*Batch Prefix-Match Pairing*, *Batch Skip Directories Without Videos*, *Batch Single-Pair Override*) named as being in `subx-cli`. The other seven scenarios stay with the core half.
+
+==========================================================================================
+[46] timeline-sync|REMOVED|Core-Owned Default Output Path Derivation
+------------------------------------------------------------------------------------------
+Its second paragraph is a `subx-cli` obligation — that `crate::cli::sync_args::create_default_output_path` remains a legacy re-export documented in rustdoc without `#[deprecated]`, and that in-crate callers reference the core path. It is lifted into bullet 3 of *Sync Argument Struct Is a Thin Adapter Over Core Pairing*. All three scenarios stay with the core half. The in-crate caller `src/commands/sync_command.rs` named there is a `subx-cli` file and SHALL NOT appear unqualified in the arriving requirement.
+
+## MODIFIED Requirements

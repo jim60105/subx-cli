@@ -1,0 +1,476 @@
+
+####################################################################################################
+# CAP cache-management MODIFIED
+####################################################################################################
+### Requirement: Cache Clear Subcommand
+
+The system SHALL expose `subx cache clear` as the only cache subcommand (`CacheAction::Clear`); executing it SHALL delete the match cache file if it exists and SHALL report a user-visible confirmation message.
+
+The path the subcommand deletes SHALL be the same path the cache producer writes. `subx-cli` resolves it independently in `src/commands/cache_command.rs` (`cache_path()`, over `get_config_dir()`), and the producer resolves it in `subx-core` under the `cache-management` capability's *Match Cache Location* requirement in that repository. Because the two resolvers are now in different repositories, with no compiler and no shared constant binding them, this requirement SHALL be treated as an agreement obligation on the CLI side: a change to either resolver SHALL be accompanied by a check that the other still produces the identical path, and the `XDG_CONFIG_HOME` override honoured by `get_config_dir()` SHALL be honoured by the producer too. A divergence is silent — `cache clear` reports `No cache file found` while a cache remains on disk — so it SHALL NOT be left to be discovered by a user.
+
+#### Scenario: Clear existing cache
+- **GIVEN** `$CONFIG_DIR/subx/match_cache.json` exists
+- **WHEN** the user runs `subx cache clear`
+- **THEN** the file SHALL be removed and the command SHALL print `Cache file cleared: <path>`
+
+#### Scenario: Clear when no cache exists
+- **GIVEN** no match cache file exists
+- **WHEN** the user runs `subx cache clear`
+- **THEN** the command SHALL print `No cache file found` and exit successfully without creating any file
+
+#### Scenario: The two resolvers agree across the repository boundary
+- **GIVEN** a run of `subx match` that wrote a match cache, and any value of `$XDG_CONFIG_HOME` in effect for both invocations
+- **WHEN** the user then runs `subx cache clear`
+- **THEN** the path `subx-cli` resolves SHALL be byte-identical to the path the producer in `subx-core` wrote, so that the file is found and removed rather than reported absent
+
+####################################################################################################
+# CAP cache-management ADDED
+####################################################################################################
+
+####################################################################################################
+# CAP component-factory MODIFIED
+####################################################################################################
+
+####################################################################################################
+# CAP component-factory ADDED
+####################################################################################################
+
+####################################################################################################
+# CAP configuration-management MODIFIED
+####################################################################################################
+### Requirement: Repair Path For Strict-Invalid Configuration
+
+The system SHALL allow `subx config set <key> <value>`, `subx config get <key>`, and `subx config list` to operate on a `config.toml` whose contents fail cross-section (strict) validation, so long as the file parses as TOML and each individual field passes field-level validation.
+
+The tolerant load these three subcommands use, its exclusion of environment-variable overlays, the post-mutation strict validation performed before the file is written, the cache invariant, and the unchanged strict load path used by every other entry point are specified by the `configuration-management` capability's *Tolerant Configuration Load Path* requirement in `subx-core`. This requirement governs only what the three subcommands do with the result.
+
+For `subx config set`, when the post-mutation configuration fails cross-section validation the command SHALL fail, SHALL NOT print a success confirmation, and the on-disk file SHALL remain unchanged. When it is strict-valid the command SHALL report success.
+
+For `subx config get` and `subx config list`, the command SHALL produce its normal output and SHALL additionally surface a non-fatal warning when the on-disk configuration is strict-invalid. In text mode the warning SHALL be a single line on stderr beginning with `warning: configuration is currently invalid:` followed by the validator's message. When the global `--output json` flag is in effect, the warning SHALL be appended to the existing `Envelope::warnings` array (a `Vec<String>` per the machine-readable-output capability); when the configuration is strict-valid the `warnings` field SHALL remain absent from the JSON document, matching today's shape. The exit code SHALL remain `0` for successful reads even when the warning is emitted.
+
+The advisory SHALL track on-disk state, not the environment-merged effective view, which follows from the tolerant load's exclusion of environment overlays.
+
+#### Scenario: Repair via provider switch from a strict-invalid pairing
+
+- **GIVEN** `~/.config/subx/config.toml` contains `ai.provider = "openai"` and `ai.base_url = "http://localhost:1234/v1"`, which fails cross-section validation because hosted providers require `https://`
+- **WHEN** the user runs `subx config set ai.provider local`
+- **THEN** the command SHALL exit with status `0`, the on-disk file SHALL contain `ai.provider = "local"`, the existing `ai.base_url` and `ai.api_key` values SHALL be preserved verbatim, and the resulting file SHALL pass strict cross-section validation
+
+#### Scenario: Repair via base_url switch from a strict-invalid pairing
+
+- **GIVEN** `~/.config/subx/config.toml` contains `ai.provider = "openai"` and `ai.base_url = "http://localhost:1234/v1"`
+- **WHEN** the user runs `subx config set ai.base_url https://api.openai.com/v1`
+- **THEN** the command SHALL exit with status `0`, the on-disk file SHALL contain the new `https://` URL, the existing `ai.provider` value SHALL be preserved, and the resulting file SHALL pass strict cross-section validation
+
+#### Scenario: Non-repair edit on a strict-invalid file is rejected
+
+- **GIVEN** `~/.config/subx/config.toml` contains `ai.provider = "openai"` and `ai.base_url = "http://localhost:1234/v1"`
+- **WHEN** the user runs `subx config set general.backup_enabled true` (an unrelated key whose mutation does not heal the cross-section error)
+- **THEN** the command SHALL fail with the standard cross-section error naming the offending `ai.base_url` scheme, the on-disk file SHALL remain byte-identical to its prior contents, and the in-memory cache SHALL NOT be populated
+
+#### Scenario: Field-level invalid new value is still rejected on a strict-invalid file
+
+- **GIVEN** `~/.config/subx/config.toml` is strict-invalid for any reason
+- **WHEN** the user runs `subx config set sync.max_offset_seconds -5` (a value the field validator rejects)
+- **THEN** the command SHALL fail with the field-level error explaining the acceptable range, and the on-disk file SHALL remain unchanged
+
+#### Scenario: `config get` on a strict-invalid file emits the value plus an advisory
+
+- **GIVEN** `~/.config/subx/config.toml` is strict-invalid because of the `provider=openai + http://` pairing
+- **WHEN** the user runs `subx config get ai.base_url`
+- **THEN** the command SHALL exit with status `0`, stdout SHALL contain `http://localhost:1234/v1`, and stderr SHALL contain a single-line advisory beginning with `warning: configuration is currently invalid:` followed by the validator's message
+
+#### Scenario: `config list` JSON output on a strict-invalid file populates `warnings`
+
+- **GIVEN** `~/.config/subx/config.toml` is strict-invalid
+- **WHEN** the user runs `subx-cli --output json config list`
+- **THEN** the command SHALL exit with status `0`, stdout SHALL be valid JSON, and the JSON SHALL include a top-level `warnings` array containing at least one non-empty string reproducing the validator's error
+
+#### Scenario: `config list` JSON output on a strict-valid file omits `warnings`
+
+- **GIVEN** `~/.config/subx/config.toml` is strict-valid
+- **WHEN** the user runs `subx-cli --output json config list`
+- **THEN** the JSON output SHALL NOT include a `warnings` field (or SHALL include `warnings: null`, matching today's `Option::is_none` serialization), and the document SHALL otherwise be byte-equivalent to the pre-change output for the same file
+
+#### Scenario: Advisory reflects file state, not env-merged state
+
+- **GIVEN** `~/.config/subx/config.toml` is strict-valid (e.g. `ai.provider = "local"` with `ai.base_url = "http://localhost:1234/v1"`) but environment variables would create a strict-invalid effective view (e.g. `SUBX_AI_PROVIDER=openai` is exported)
+- **WHEN** the user runs `subx config get ai.base_url`
+- **THEN** the command SHALL exit with status `0`, stdout SHALL contain the file's `ai.base_url`, and stderr SHALL NOT contain an "configuration is currently invalid" advisory (because the file itself is valid; advisories track on-disk state)
+
+####################################################################################################
+# CAP configuration-management ADDED
+####################################################################################################
+
+####################################################################################################
+# CAP encoding-detection MODIFIED
+####################################################################################################
+### Requirement: Robust Handling of Empty and Binary Files
+
+The `detect-encoding` command SHALL complete for each supplied file without terminating the whole batch when the file is empty or contains binary (non-text) bytes; it SHALL either emit a normal detection report for the file or surface a per-file error while still processing subsequent inputs, and it SHALL exit successfully when at least one input was processed.
+
+The detector's own obligation not to panic on empty or binary input is specified by the `encoding-detection` capability's *Detector Tolerates Empty and Binary Input* requirement in `subx-core`. This requirement governs only the batch loop's resilience and the process exit status; the two are separable because a detector that returns an error rather than panicking still leaves the command free to abort the batch, which is what this requirement forbids.
+
+#### Scenario: Empty file
+- **GIVEN** a zero-byte subtitle file supplied to `subx detect-encoding`
+- **WHEN** the command runs
+- **THEN** the command SHALL not panic and SHALL exit successfully after recording a per-file outcome
+
+#### Scenario: Binary file
+- **GIVEN** a file containing binary (non-text) bytes supplied to `subx detect-encoding`
+- **WHEN** the command runs
+- **THEN** the command SHALL not panic and SHALL exit successfully, emitting either a best-effort detection result or a per-file error message without aborting subsequent inputs
+
+####################################################################################################
+# CAP encoding-detection ADDED
+####################################################################################################
+
+####################################################################################################
+# CAP error-handling MODIFIED
+####################################################################################################
+### Requirement: User-Facing Error Formatting
+
+`SubXErrorExt::user_friendly_message()` — defined in `src/cli/error_ext.rs` and implemented for `SubXError` — SHALL append to the error's `Display` output a newline and a `Hint:` line with remediation guidance for the major categories (`Config`, `Api`, `AiService`, `SubtitleFormat`, `AudioProcessing`, `FileMatching`, `Other`). All messages, prefixes, and hints SHALL be written in English. The process entry point in `src/main.rs` SHALL import `SubXErrorExt` and render failures via `eprintln!("{}", e.user_friendly_message())` — i.e. the multi-line, hinted form.
+
+`Display`'s own contract — a concise single-line English message prefixed by the error category, inherent on `SubXError` and available without importing any trait — is specified by the `error-handling` capability's *Display Is the Library's Error Rendering* requirement in `subx-core`. `user_friendly_message()` is a binary-side capability and is unavailable to callers that have not imported the trait.
+
+The English-language rule is deliberately stated in both halves. It is a project-wide editorial constraint rather than an obligation on a particular function, and dropping it from either half would let that side's prose drift without violating anything. It SHALL NOT be treated as a duplication to be removed.
+
+#### Scenario: Configuration error includes remediation hint
+- **GIVEN** `SubXError::config("missing key")`
+- **WHEN** `user_friendly_message()` is called
+- **THEN** the returned string SHALL contain `Configuration error:` on the first line and `Hint: run 'subx-cli config --help' for details` on a subsequent line
+
+#### Scenario: AI service error advises checking network and API key
+- **GIVEN** `SubXError::ai_service("network failure")`
+- **WHEN** `user_friendly_message()` is called
+- **THEN** the returned string SHALL contain `AI service error:` and `check network connection` and `API key`
+
+#### Scenario: File-operation failures render identically either way
+- **GIVEN** `SubXError::FileOperationFailed("could not rename".into())`
+- **WHEN** both `to_string()` and `user_friendly_message()` are called
+- **THEN** the two strings SHALL be equal, so that library-side rendering of this variant matches binary-side rendering exactly
+
+### Requirement: No Panics On Recoverable Errors
+
+SubX subcommands under `src/commands/` SHALL NOT panic, `unwrap`, or `expect` on conditions that represent user-facing recoverable failures (invalid configuration, missing or unreadable files, unsupported formats, network failures, AI response errors, empty inputs, etc.); every such failure SHALL instead be returned as an appropriately typed `SubXError` up to the process entry point, which renders it per this capability's *Top-Level Error Rendering* requirement.
+
+The equivalent obligation on library code — that the configuration loader and the match engine surface invalid input as `SubXError::Config` / `SubXError::FileMatching` rather than aborting — is specified by the `error-handling` capability's *Library Code Surfaces Recoverable Failures as Errors* requirement in `subx-core`. Verified here by `tests/match_engine_error_handling_integration_tests.rs`, which is CLI-bound under B3's ownership test.
+
+#### Scenario: Match-engine failure renders through the unified pipeline
+- **GIVEN** a match-engine call that fails (e.g. no matching files)
+- **WHEN** the error reaches `main`
+- **THEN** stderr SHALL contain the category-prefixed message (e.g. `File matching error: …`) and the process SHALL exit with the mapped code (`6` for `FileMatching`)
+
+####################################################################################################
+# CAP error-handling ADDED
+####################################################################################################
+### Requirement: Binary Error Surface Adds Presentation Through an Extension Trait
+
+The binary's presentation contracts SHALL be added to `SubXError` from outside the library, through an extension trait, and SHALL NOT be inherent methods on the type.
+
+- `pub trait SubXErrorExt`, defined in `src/cli/error_ext.rs` and implemented for `SubXError`, SHALL provide exactly `fn exit_code(&self) -> i32` and `fn user_friendly_message(&self) -> String`.
+- Both methods SHALL carry the bodies they had as inherent methods before A2's split, unchanged, so that no exit code, message, prefix, or `Hint:` line differs from the pre-split behaviour.
+- Callers SHALL import the trait (`use crate::cli::error_ext::SubXErrorExt;`) at the sites that need it: `src/main.rs` and `ErrorEnvelope::from_error` in `src/cli/output.rs`.
+- The trait SHALL NOT be re-exported in a way that makes either method reachable without an explicit import, because the import is what documents that a presentation contract is being used.
+- The library-side half of this contract — which items remain inherent on `SubXError`, that library code may not call these two methods, and that `hint()` and `OutputModeUnsupported` stay in the core enum — is specified by the `error-handling` capability's *Library Error Surface Holds Only Machine Contracts* requirement in `subx-core`.
+
+#### Scenario: Presentation methods require the extension trait
+- **GIVEN** a module that holds a `SubXError` value and does not import `SubXErrorExt`
+- **WHEN** it calls `err.exit_code()` or `err.user_friendly_message()`
+- **THEN** compilation SHALL fail, because neither is an inherent method
+
+#### Scenario: The trait lives in the binary crate
+- **GIVEN** a consumer that depends on `subx-core` and not on `subx-cli`
+- **WHEN** it searches the library's public API for `exit_code` and `user_friendly_message`
+- **THEN** neither SHALL be present, and the consumer SHALL be able to obtain a rendered message only through `Display`, optionally combined with `hint()`
+
+####################################################################################################
+# CAP format-conversion MODIFIED
+####################################################################################################
+### Requirement: Supported Output Formats
+
+The system SHALL accept `--format` values `srt`, `ass`, `vtt`, and `sub`, defined by the `OutputSubtitleFormat` enum in `src/cli/convert_args.rs`, and SHALL write output files with the file extension matching the selected value. When `--format` is omitted the command SHALL resolve the target format from `formats.default_output` in configuration.
+
+`OutputSubtitleFormat` is a clap-derived enum and stays in `subx-cli` permanently under SDR D8, so the accepted value set and the extension mapping are CLI-owned. What each target format's output must look like — that an SRT-to-VTT conversion produces a `WEBVTT` header and dot timecodes, and equivalently for the other targets — is specified by the `format-conversion` capability's *Target Format Conversion Semantics* requirement in `subx-core`.
+
+#### Scenario: Default output format from configuration
+- **GIVEN** the user omits `--format` and `formats.default_output` is `srt` in configuration
+- **WHEN** the command runs
+- **THEN** every input file SHALL be converted to SRT
+
+####################################################################################################
+# CAP format-conversion ADDED
+####################################################################################################
+
+####################################################################################################
+# CAP input-path-handling MODIFIED
+####################################################################################################
+
+####################################################################################################
+# CAP input-path-handling ADDED
+####################################################################################################
+### Requirement: Input Argument Structs Are Thin Adapters Over Core Collection
+
+The argument-parsing layer SHALL own the flag surface for input collection and nothing else. Every collection behaviour is specified by the `input-path-handling` capability in `subx-core`; this requirement states what remains on the `subx-cli` side, and it is written as one requirement rather than five because each item below is the same kind of obligation — declare a flag, forward its value, add no logic.
+
+1. **Flag definitions and forwarding.** Each command that uses `InputPathHandler` (`match`, `convert`, `sync`, `detect-encoding`) SHALL accept a `--no-extract` boolean flag (default `false`) and a `--recursive` boolean flag, and SHALL forward their values to `InputPathHandler::with_no_extract` and to the handler's recursion mode when building the handler. Neither flag SHALL be interpreted in `src/cli/` or `src/commands/` beyond that forwarding.
+2. **Domain extension whitelists.** Each command SHALL supply the extension whitelist appropriate to its domain when building its handler — `match` video + subtitle extensions, `convert` subtitle extensions, `detect-encoding` subtitle extensions plus `txt` — through `with_extensions`. The whitelist contents are a CLI decision; the filtering they select is not.
+3. **Value-consuming call sites.** Call sites that consume collected paths by value, such as `DetectEncodingArgs::get_file_paths()`, SHALL use `CollectedFiles::into_paths()` or the `AsRef<[PathBuf]>` impl rather than reconstructing a `Vec<PathBuf>` by hand.
+4. **Adapters contain no logic.** Every `*Args::get_input_handler` method SHALL be a thin adapter that extracts plain `&[Option<PathBuf>]`, `&[PathBuf]` and `&[String]` slices from its clap struct and passes them to `InputPathHandler::merge_paths_from_multiple_sources`. It SHALL NOT read the filesystem, SHALL NOT filter, and SHALL NOT deduplicate.
+5. **Legacy aliases.** `crate::cli` SHALL continue to re-export `InputPathHandler` and `CollectedFiles` so that consumers written against `crate::cli::{InputPathHandler, CollectedFiles}` keep compiling. The re-export SHALL be documented in rustdoc as a legacy alias naming the type's real location in `subx-core`, and SHALL NOT carry a `#[deprecated]` attribute, because the project forbids introducing new ones. No in-crate call site SHALL reach the types through the alias; every `use` inside this crate's `src/` SHALL name the `subx-core` path.
+
+#### Scenario: `--no-extract` disables archive expansion
+- **GIVEN** the user runs `subx match -i subs.zip --no-extract`
+- **WHEN** `collect_files()` runs
+- **THEN** `subs.zip` SHALL NOT be extracted and SHALL be subject to the normal extension filter
+
+#### Scenario: Non-subtitle files ignored by convert
+- **GIVEN** a directory containing `movie.srt`, `movie.mp4`, and `notes.txt`, and the convert command
+- **WHEN** `ConvertArgs::get_input_handler().collect_files()` runs
+- **THEN** the returned list SHALL include `movie.srt` and SHALL NOT include `movie.mp4` or `notes.txt`
+
+#### Scenario: The adapter adds no behaviour
+- **GIVEN** any `*Args` value belonging to `match`, `convert`, `sync` or `detect-encoding`
+- **WHEN** `get_input_handler` is called on it
+- **THEN** the resulting handler SHALL equal the handler produced by calling `merge_paths_from_multiple_sources`, `with_extensions`, `with_no_extract` and the recursion setter directly with the same values, and the method body SHALL contain no filesystem access
+
+#### Scenario: Legacy CLI alias still resolves
+- **GIVEN** a consumer that writes `use subx_cli::cli::{CollectedFiles, InputPathHandler};`
+- **WHEN** the crate is compiled
+- **THEN** the import SHALL resolve to the `subx-core` types and SHALL produce no deprecation warning
+
+####################################################################################################
+# CAP parallel-processing MODIFIED
+####################################################################################################
+
+####################################################################################################
+# CAP parallel-processing ADDED
+####################################################################################################
+### Requirement: Parallel Match Reports Task Count and Handles an Empty Input Set
+
+The `match` command's parallel execution path SHALL make the batch visible to the user before it starts and SHALL exit cleanly when there is nothing to do.
+
+- Before submitting tasks to the scheduler, `execute_parallel_match` SHALL report to the user the number of tasks to be processed and the maximum concurrency in effect.
+- When file discovery yields no video files, `execute_parallel_match` SHALL print `No video files found to process` and return successfully without constructing a scheduler or submitting any task.
+- Both obligations are the command's, not the scheduler's: the scheduler's contract is specified by the `parallel-processing` capability's *Task Scheduler Entry Point* requirement in `subx-core`, which says nothing about reporting because a library that reports to a terminal is what the `core-reporting` capability exists to forbid.
+
+#### Scenario: Parallel match over a directory
+- **GIVEN** a directory containing N video files and `subx match` uses the parallel execution path
+- **WHEN** the command prepares the generated `FileProcessingTask` set
+- **THEN** before execution the command SHALL report the number of tasks to be processed and the maximum concurrency to the user
+
+#### Scenario: Empty task list exits early
+- **GIVEN** no video files are discovered
+- **WHEN** `execute_parallel_match` runs
+- **THEN** the command SHALL print `No video files found to process` and return successfully without scheduling any work
+
+####################################################################################################
+# CAP secrets-protection MODIFIED
+####################################################################################################
+### Requirement: Mask sensitive config values in CLI output
+
+The `config set`, `config list`, and `config get` subcommands SHALL mask the values of sensitive keys in everything they write to stdout, by passing each key and value through the masking helper before display and never printing the raw value alongside the masked one.
+
+Which keys are sensitive and what the masked form looks like — the `api_key` / `token` / `secret` case-insensitive match, the `****<last 4 chars>` form, and the `****` form for values of four characters or fewer — is specified by the `secrets-protection` capability's *Sensitive Value Masking Helper* requirement in `subx-core`, which owns `mask_sensitive_value` in `src/config/masking.rs`. This requirement owns only the obligation that the display sites use it.
+
+This capability and the `configuration-management` capability's *Sensitive value masking in config display* requirement have specified overlapping obligations over these same display sites since both were written. The overlap is preserved unchanged: both stay in `subx-cli`, and deciding which of the two owns config-display masking is left to a later change.
+
+#### Scenario: config set echoes masked value
+
+- **WHEN** user runs `config set ai.api_key "sk-abc123def456"`
+- **THEN** stdout shows `****f456` not the full key
+
+#### Scenario: config list masks api_key
+
+- **WHEN** user runs `config list`
+- **THEN** the `api_key` field displays `****<last4>` instead of the plaintext value
+
+####################################################################################################
+# CAP secrets-protection ADDED
+####################################################################################################
+
+####################################################################################################
+# CAP subtitle-matching MODIFIED
+####################################################################################################
+### Requirement: Dry-Run and Execution Modes
+
+The `match` command SHALL support a `--dry-run` mode that displays planned operations and persists them to the match cache without mutating files, and a default live mode that executes the operations.
+
+The two mechanisms this requirement selects between belong to `subx-core`: cache persistence and reuse are specified by the `cache-management` capability's *Dry-Run Cache Reuse Without AI Calls* and *Cache Reuse Preserves Relocation Mode* requirements in that repository, and the execution of an operation set — including the backup, conflict-resolution and atomicity guarantees — by the `file-operation-safety` capability there. This requirement owns the mode selection, the display of planned operations, and the guarantee that dry-run mutates nothing on disk.
+
+#### Scenario: Dry-run preserves files
+- **GIVEN** the user runs `subx match --dry-run <path>`
+- **WHEN** the command completes
+- **THEN** the planned operations SHALL be printed to the user and saved to the cache, and no file on disk SHALL be created, renamed, copied, moved, or deleted
+
+#### Scenario: Live mode applies operations
+- **GIVEN** the user runs `subx match <path>` without `--dry-run`
+- **WHEN** the command completes successfully
+- **THEN** the engine SHALL execute each operation, renaming subtitle files to match the paired video's base name plus the subtitle extension
+
+####################################################################################################
+# CAP subtitle-matching ADDED
+####################################################################################################
+### Requirement: Match Command Argument Surface and Input Preconditions
+
+The `match` command SHALL own its flag surface and the preconditions it checks before reaching the engine. Every behaviour these flags select is specified by the `subtitle-matching` capability in `subx-core`; this requirement states only what `src/cli/match_args.rs` and `src/commands/match_command.rs` must declare and check.
+
+1. **Confidence.** The command SHALL accept `--confidence` as an integer in the inclusive range 0–100, defaulting to 80, and SHALL convert it to the 0.0–1.0 threshold the engine consumes. A value outside the range SHALL be rejected by argument parsing, not by the engine.
+2. **Relocation flags.** The command SHALL expose `--copy` (`-c`) and `--move` (`-m`) as mutually exclusive flags, and SHALL map the selected one — or neither — to the corresponding `FileRelocationMode` value. Supplying both SHALL fail validation with the message `Cannot use --copy and --move together. Please choose one operation mode.`
+3. **Backup flag.** The command SHALL expose `--backup` and SHALL forward its value, or `general.backup_enabled` when the flag is absent, into the engine's configuration. Whether a backup is then taken is the engine's decision.
+4. **Empty input precondition.** When the resolved input paths contain no video or subtitle files, the command SHALL return an error whose message is `No files found to process` and SHALL NOT call the AI provider.
+
+#### Scenario: Confidence outside valid range is rejected
+- **GIVEN** the user passes `--confidence 150`
+- **WHEN** the CLI parses the arguments
+- **THEN** argument parsing SHALL fail with a validation error from `clap`
+
+#### Scenario: Copy and move are mutually exclusive
+- **GIVEN** the user passes both `--copy` and `--move`
+- **WHEN** the CLI runs `MatchArgs::validate`
+- **THEN** validation SHALL fail with the message `Cannot use --copy and --move together. Please choose one operation mode.`
+
+#### Scenario: No input files available
+- **GIVEN** the resolved input paths contain no video or subtitle files
+- **WHEN** the match command executes
+- **THEN** the command SHALL return an error `No files found to process` without calling the AI provider
+
+### Requirement: Match Command Applies Archive-Origin Relocation Before Uniqueness Allocation
+
+When the `match` command rewrites an operation's relocation target because the subtitle originated from an extracted archive, it SHALL complete every such rewrite **before** invoking the global uniqueness allocator, and SHALL invoke the allocator exactly once over the fully rewritten operation set.
+
+- The rewrite is the `archive_origin` branch in `src/commands/match_command.rs`; the allocator is `apply_unique_target_paths`, specified by the `subtitle-matching` capability's *AI-Driven Language and Globally-Unique Target Naming* requirement in `subx-core`.
+- This ordering SHALL NOT be assumed to be enforced by the allocator. The allocator is a free function over a mutable operation slice and has no way to require that its caller has finished rewriting; if it runs first, its uniqueness guarantee holds over the pre-rewrite candidate paths and two operations can still collide at their real destinations.
+- The command SHALL NOT rewrite a relocation target after the allocator has run, and SHALL NOT invoke the allocator twice, because the allocator's numeric-suffix probing is stable only over a single pass across one operation set.
+
+#### Scenario: Allocator runs after archive-origin forced relocation
+- **GIVEN** an archive-origin scenario where the match command rewrites `relocation_target_path` for one or more operations after the engine returns
+- **WHEN** the global uniqueness allocator runs
+- **THEN** it SHALL operate on the rewritten relocation paths so the uniqueness guarantee holds at the actual destination paths, not at the engine's pre-rewrite candidates
+
+#### Scenario: The allocator is invoked once, after all rewrites
+- **GIVEN** an operation set in which some operations are archive-originated and some are not
+- **WHEN** the command prepares the set for execution
+- **THEN** every archive-origin rewrite SHALL have been applied before the single allocator invocation, and no relocation target SHALL be modified afterwards
+
+####################################################################################################
+# CAP subtitle-translation MODIFIED
+####################################################################################################
+### Requirement: Translation Guidance Options
+
+The `translate` command SHALL expose optional `--source-language`, `--glossary <FILE>` and `--context <TEXT>` options, SHALL read the glossary file, and SHALL pass the resulting values to the translation engine without changing subtitle timing or file discovery behavior.
+
+- `--glossary <FILE>` SHALL be read as a UTF-8 text file at `src/commands/translate_command.rs` before any AI request is made. A missing or unreadable file SHALL be reported as an invalid path or input error and SHALL NOT result in an AI translation request.
+- The file's contents SHALL be turned into glossary entries through `parse_glossary_text`, and both the raw text and the parsed entries SHALL be handed to the engine.
+- `--context <TEXT>` SHALL be passed through verbatim and SHALL NOT be interpreted as a filesystem path.
+- What the engine then does with these three inputs — that they appear in the translation prompt as terminology and tone guidance, that an explicit glossary outranks the generated terminology map, and that an omitted source language becomes a detected-or-unspecified source — is specified by the `subtitle-translation` capability's *Translation Prompt Guidance Inputs* requirement in `subx-core`.
+
+#### Scenario: glossary file is included in prompt
+
+- **GIVEN** the user provides `--glossary glossary.txt`
+- **WHEN** the command builds the translation request
+- **THEN** the command SHALL read `glossary.txt` as a UTF-8 text file
+- **AND** the file content SHALL be handed to the engine as terminology guidance
+- **AND** the command SHALL still require the AI response to use the structured cue ID mapping
+
+#### Scenario: missing glossary file is rejected
+
+- **GIVEN** the user provides `--glossary missing.txt`
+- **WHEN** the command validates translation inputs
+- **THEN** the command SHALL return an invalid path or input error
+- **AND** SHALL NOT send an AI translation request
+
+####################################################################################################
+# CAP subtitle-translation ADDED
+####################################################################################################
+
+####################################################################################################
+# CAP supply-chain-hardening MODIFIED
+####################################################################################################
+### Requirement: Replace unmaintained md5 crate
+
+No manifest this project publishes SHALL declare the unmaintained `md5` crate. Where a maintained hash implementation is needed, `md-5` (the RustCrypto-maintained crate) or an equivalent maintained crate SHALL be used, and a hash computed from standard-library facilities SHALL be treated as satisfying this requirement as well.
+
+This rule applies **per manifest**, in the same sense as the "Every Declared Dependency Has a Use Site" requirement: once the project spans more than one crate, each crate's manifest SHALL satisfy it independently. Neither the superproject's manifest nor a submodule member's is exempt, and a re-introduction in either is a violation.
+
+At the time of writing no manifest declares `md5` or `md-5`. The cache-key hashing this requirement was originally written about is computed with `std::collections::hash_map::DefaultHasher` at `subx-core:src/services/ai/cache.rs:177` and in `subx-core:src/core/matcher/engine.rs`, both of which are in the library crate. The scenario below is retained so that the rule has a referent if a hash crate is ever added back.
+
+#### Scenario: cache hashing uses maintained crate
+
+- **WHEN** a cache key hash is computed in `subx-core`
+- **THEN** it SHALL use `std`'s hashing facilities or the `md-5` crate (or an equivalent maintained crate), and SHALL NOT use `md5`
+
+#### Scenario: neither manifest re-introduces the unmaintained crate
+
+- **WHEN** the manifests of every crate the project publishes are inspected
+- **THEN** none SHALL declare `md5` in `[dependencies]`, `[dev-dependencies]`, or any `[target.'cfg(…)'.dependencies]` table
+
+### Requirement: Narrow dependency feature flags
+
+Every dependency declaration SHALL enable only the features its declaring crate actually uses. Aggregate feature values that pull in a whole crate — `tokio`'s `"full"`, `symphonia`'s `"all"` — SHALL NOT be used.
+
+This rule applies **per manifest**, and after the crate split the two manifests are constrained separately rather than jointly:
+
+- `tokio` is declared in both. Each declaration SHALL list only the features its own crate's use sites require, and the two lists SHALL be allowed to differ — the library needs the runtime, synchronisation, timer, filesystem and macro features; the binary needs the multi-threaded runtime, the macros, and the timer. A feature enabled in one manifest SHALL NOT be treated as justification for enabling it in the other, because Cargo's feature unification means an over-broad declaration in either widens the graph for both.
+- `symphonia` is declared only by the library crate, which is the only one with audio-decoding use sites. Its declaration SHALL list specific codec features. The superproject's manifest SHALL NOT declare it at all.
+
+#### Scenario: tokio features are minimal in every manifest
+
+- **WHEN** each crate's `Cargo.toml` is inspected
+- **THEN** every `tokio` declaration SHALL list specific features and SHALL NOT list `"full"`, and each listed feature SHALL have a use site in that crate's own source trees
+
+#### Scenario: symphonia features are minimal and declared once
+
+- **WHEN** the manifests are inspected
+- **THEN** `symphonia` SHALL appear in exactly one of them, SHALL list specific codec features, and SHALL NOT list `"all"`
+
+####################################################################################################
+# CAP supply-chain-hardening ADDED
+####################################################################################################
+
+####################################################################################################
+# CAP timeline-sync MODIFIED
+####################################################################################################
+### Requirement: Single-File and Batch Modes
+
+The `sync` command SHALL support a single-pair mode (via `--video` + `--subtitle`, positional paths, or manual mode with only a subtitle) and a batch mode (via `--batch [DIR]` combined with `-i`, positional paths, or an explicit directory) that pairs videos with subtitles inside the same directory.
+
+The decision between the two modes, and the auto-pairing that backs single-pair mode, SHALL be performed by the `timeline-sync` capability's *Core-Owned Sync Pairing Resolution* requirement in `subx-core`, whose `resolve_sync_pairing` is reachable from this crate as `subx_cli::core::sync::resolve_sync_pairing` through the re-export surface the `crate-topology` capability specifies. The `sync` command's clap struct SHALL contribute only the flag definitions and the field-to-request adaptation; it SHALL NOT read the filesystem.
+
+#### Scenario: Batch mode without any input
+- **GIVEN** the user passes `--batch` with no directory, no `-i`, no positional path, and no `--video` or `--subtitle`
+- **WHEN** argument validation runs
+- **THEN** validation SHALL fail with a message explaining that batch mode requires at least one input source
+
+#### Scenario: Mode selection is reproducible outside the CLI
+- **GIVEN** a caller that constructs a `SyncPairingRequest` directly, without parsing a command line
+- **WHEN** it calls `resolve_sync_pairing`
+- **THEN** it SHALL receive the same `SyncMode` the `sync` command would have resolved for the equivalent arguments
+
+####################################################################################################
+# CAP timeline-sync ADDED
+####################################################################################################
+### Requirement: Sync Argument Struct Is a Thin Adapter Over Core Pairing
+
+`SyncArgs` and the `sync` command SHALL own the flag surface and the legacy aliases, and nothing else. Every pairing and path-derivation behaviour is specified by the `timeline-sync` capability in `subx-core`; this requirement states what remains in `src/cli/sync_args.rs`.
+
+1. **Method flag and its validation.** The command SHALL accept `--method` with the values `vad` and `manual`, and SHALL omit the option to select the configured `sync.default_method`. When `--method manual` is supplied without `--offset`, `SyncArgs::validate` SHALL fail with the message `Manual method requires --offset parameter.` This is argument validation, not engine behaviour: no core file is consulted to produce it.
+2. **Pairing adapter.** `SyncArgs::get_sync_mode` SHALL populate a `SyncPairingRequest` from its own fields — translating clap's `Option<Option<PathBuf>>` for `--batch` into `BatchRequest`, and `is_manual_mode()` into `manual` — and SHALL return `resolve_sync_pairing`'s result unchanged. It SHALL contain no filesystem access and no pairing logic of its own.
+3. **Output-path adapter.** `SyncArgs::get_output_path` SHALL derive its default through the core `create_default_output_path`, and SHALL NOT reimplement the `<file_stem>_synced.<extension>` derivation. In-crate callers, including `src/commands/sync_command.rs`, SHALL reference the core path rather than the legacy alias.
+4. **Legacy aliases.** `crate::cli::SyncMode` and `crate::cli::sync_args::create_default_output_path` SHALL remain available as legacy re-exports of their `subx-core` originals, documented as such in rustdoc, without a `#[deprecated]` attribute, so that existing consumers keep compiling.
+
+#### Scenario: Manual mode requires an explicit offset
+- **GIVEN** the user passes `--method manual` without `--offset`
+- **WHEN** argument validation runs
+- **THEN** validation SHALL fail with the message `Manual method requires --offset parameter.`
+
+#### Scenario: The CLI adapter adds no behaviour
+- **GIVEN** any `SyncArgs` value
+- **WHEN** `SyncArgs::get_sync_mode` is called
+- **THEN** the result SHALL equal `resolve_sync_pairing` applied to the `SyncPairingRequest` built from that value's fields
+
+#### Scenario: Legacy sync aliases still resolve
+- **GIVEN** a consumer that writes `use subx_cli::cli::SyncMode;` or `use subx_cli::cli::sync_args::create_default_output_path;`
+- **WHEN** the crate is compiled
+- **THEN** both imports SHALL resolve to their `subx-core` originals and SHALL produce no deprecation warning

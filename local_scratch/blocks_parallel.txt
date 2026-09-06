@@ -1,0 +1,15 @@
+====================================================================================================
+### Requirement: Task Scheduler Entry Point
+
+
+The system SHALL expose `TaskScheduler::new()` as the primary entry point for batch execution, and the scheduler SHALL accept a collection of boxed `Task + Send + Sync` values and return a corresponding `Vec<TaskResult>`.
+
+#### Scenario: Parallel match over a directory
+- **GIVEN** a directory containing N video files and `subx match` uses the parallel execution path
+- **WHEN** the scheduler runs the generated `FileProcessingTask` set
+- **THEN** each video SHALL be processed by the scheduler and, before execution, the command SHALL report the number of tasks to be processed and the maximum concurrency to the user
+
+#### Scenario: Empty task list exits early
+- **GIVEN** no video files are discovered
+- **WHEN** `execute_parallel_match` runs
+- **THEN** the command SHALL print `No video files found to process` and return successfully without scheduling any work

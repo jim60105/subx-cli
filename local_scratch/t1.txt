@@ -1,0 +1,8 @@
+### Requirement: Match Cache Location
+
+The system SHALL persist the match cache as a JSON file at `$CONFIG_DIR/subx/match_cache.json`, where `$CONFIG_DIR` is resolved via the standard platform configuration directory (`dirs::config_dir()`).
+
+#### Scenario: Cache persisted after a match run
+- **GIVEN** `subx match` executes successfully and produces at least one match operation
+- **WHEN** the run finishes
+- **THEN** a file at `$CONFIG_DIR/subx/match_cache.json` SHALL contain the serialized `CacheData` including file snapshot, match operations, and a configuration hash

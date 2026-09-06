@@ -1,0 +1,26 @@
+====================================================================================================
+### Requirement: VAD-Independent Manual Offset Application
+
+
+The manual-offset timing transform SHALL be reachable without constructing a `SyncEngine`, so that a caller who never performs detection is not subject to the engine's VAD precondition.
+
+- `subx-core` SHALL expose `shift_subtitle_timing(subtitle: &mut Subtitle, offset_seconds: f32) -> Result<SyncResult>` as a free function in `subx_core::core::sync` (`subx-core/src/core/sync/mod.rs`), alongside `resolve_sync_pairing` and `create_default_output_path`.
+- The function SHALL apply the offset to every entry with the semantics defined by *Subtitle Timing Application* and SHALL return the `SyncResult` defined there.
+- The function SHALL NOT read `sync.max_offset_seconds` and SHALL NOT require, construct, or consult a VAD detector, an audio processor, a `SyncConfig`, or a `ConfigService`. Its only inputs are the subtitle and the offset.
+- `SyncEngine::apply_manual_offset` SHALL delegate to this function after performing its own guard, so that exactly one implementation of the transform exists. The two entry points SHALL produce identical `SyncResult` field values and identical entry timings for any input the guard admits.
+- The function's rustdoc SHALL state that `sync.max_offset_seconds` is not enforced and SHALL name `SyncEngine::apply_manual_offset` as the entry point that enforces it, so a caller choosing between them is told which obligation it is taking on.
+
+#### Scenario: A caller with no VAD available applies a manual offset
+- **GIVEN** a host with `sync.vad.enabled = false`, for which `SyncEngine::new` returns a configuration error
+- **WHEN** the host calls `shift_subtitle_timing` with a parsed subtitle and an offset
+- **THEN** the offset SHALL be applied and a `SyncResult` with `method_used = SyncMethod::Manual` SHALL be returned, with no engine constructed and no VAD detector involved
+
+#### Scenario: The free function does not enforce the configured maximum
+- **GIVEN** `sync.max_offset_seconds = 60` in configuration and a call to `shift_subtitle_timing` with an offset of 120 seconds
+- **WHEN** the function runs
+- **THEN** it SHALL apply the 120-second offset and SHALL NOT return a configuration error, because the guard belongs to `SyncEngine::apply_manual_offset` and the function is documented as unguarded
+
+#### Scenario: The two entry points cannot drift
+- **GIVEN** a subtitle and an offset within `sync.max_offset_seconds`
+- **WHEN** the same input is passed to `SyncEngine::apply_manual_offset` and to `shift_subtitle_timing`
+- **THEN** the resulting entry timings SHALL be identical and the returned `SyncResult`'s `offset_seconds`, `confidence`, `method_used`, `correlation_peak`, `additional_info` and `warnings` SHALL be identical
