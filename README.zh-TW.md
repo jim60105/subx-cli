@@ -110,6 +110,14 @@ chmod +x subx-cli && sudo mv subx-cli /usr/local/bin/
 | macOS   | aarch64  | `subx-macos-aarch64`        | Apple Silicon（M1/M2/M3/M4） |
 | Windows | x86_64   | `subx-windows-x86_64.exe`   | 64 位元 Windows |
 
+> **使用 musl 的 Linux 發行版（Alpine、Void musl）不在安裝腳本的支援範圍。**
+> 發行流程不發布 musl 資產，`scripts/install.sh` 也會以離開碼 2 拒絕
+> `SUBX_LIBC=musl` 與 `--musl`。這類主機請改為從原始碼建構，並自行提供
+> musl 適用的 ONNX Runtime：在 `cargo install subx-cli` 之前，先 export
+> `ORT_LIB_LOCATION`（或 `ort` 等效的建構期設定）指向它。單純執行
+> `cargo install subx-cli` 並不會成功，因為 `ort` 預設的
+> `download-binaries` 特性同樣沒有 musl 預編譯檔。
+
 ### 從原始碼建構（所有平台）
 
 ```bash

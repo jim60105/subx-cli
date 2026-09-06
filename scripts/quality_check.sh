@@ -395,9 +395,9 @@ main() {
     doc_output=$(mktemp)
 
     if [[ "${VERBOSE}" == "true" ]]; then
-        cargo doc --all-features ${cargo_features} --no-deps --document-private-items 2>&1 | tee "$doc_output"
+        cargo doc --workspace --all-features ${cargo_features} --no-deps --document-private-items 2>&1 | tee "$doc_output"
     else
-        cargo doc --all-features ${cargo_features} --no-deps --document-private-items > "$doc_output" 2>&1
+        cargo doc --workspace --all-features ${cargo_features} --no-deps --document-private-items > "$doc_output" 2>&1
     fi
 
     # Check for critical errors (excluding known lint warnings).

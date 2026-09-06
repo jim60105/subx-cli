@@ -134,6 +134,15 @@ and downloads the matching pre-built binary from the latest GitHub Release.
 | macOS    | aarch64      | `subx-macos-aarch64`        | Apple Silicon (M1/M2/M3/M4) |
 | Windows  | x86_64       | `subx-windows-x86_64.exe`   | 64-bit Windows |
 
+> **musl-based Linux distributions (Alpine, Void musl) are not served by the
+> installer.** No musl artifacts are published, and `scripts/install.sh`
+> rejects both `SUBX_LIBC=musl` and `--musl` with exit code 2. Build from
+> source instead, against a locally provisioned ONNX Runtime: export
+> `ORT_LIB_LOCATION` (or the equivalent `ort` build-time configuration) at a
+> musl-compatible ONNX Runtime before `cargo install subx-cli` — a plain
+> `cargo install subx-cli` will not work, because `ort`'s default
+> `download-binaries` feature has no musl prebuilts either.
+
 ### From Source (any platform)
 
 ```bash

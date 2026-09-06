@@ -379,10 +379,10 @@ $script:TotalChecks++
 $docOut = New-TemporaryFile
 try {
     if ($VerboseOutput) {
-        & cargo doc --all-features @cargoFeatureArgs --no-deps --document-private-items 2>&1 |
+        & cargo doc --workspace --all-features @cargoFeatureArgs --no-deps --document-private-items 2>&1 |
             Tee-Object -FilePath $docOut.FullName | ForEach-Object { Write-Host $_ }
     } else {
-        & cargo doc --all-features @cargoFeatureArgs --no-deps --document-private-items *> $docOut.FullName
+        & cargo doc --workspace --all-features @cargoFeatureArgs --no-deps --document-private-items *> $docOut.FullName
     }
 
     $docLines = Get-Content -LiteralPath $docOut.FullName
