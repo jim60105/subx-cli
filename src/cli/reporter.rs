@@ -271,4 +271,34 @@ mod tests {
         let sinks: Vec<std::sync::Arc<dyn Reporter>> = vec![noop(), terminal_reporter()];
         assert_eq!(sinks.len(), 2);
     }
+
+    #[test]
+    fn disabled_flag_hides_the_bar_instead_of_skipping_the_lifecycle() {
+        // `enable_progress_bar = false` is enforced through the draw target,
+        // never by skipping construction: the bar must still exist (so
+        // Advanced/Finished keep working against it) but be hidden, so it
+        // can render no frames on any target.
+        let reporter = TerminalReporter::new(false);
+        reporter.progress(&ProgressEvent::Started { total: 2 });
+        {
+            let slot = reporter.bar.lock().unwrap();
+            let bar = slot.as_ref().expect("Started builds the bar even when disabled");
+            assert!(bar.is_hidden(), "disabled flag must hide the draw target");
+        }
+        // The rest of the stream contract proceeds unchanged.
+        reporter.progress(&ProgressEvent::Advanced {
+            done: 1,
+            total: 2,
+            item: None,
+        });
+        {
+            let slot = reporter.bar.lock().unwrap();
+            assert_eq!(slot.as_ref().expect("bar still open").position(), 1);
+        }
+        reporter.progress(&ProgressEvent::Finished { done: 2, total: 2 });
+        assert!(
+            reporter.bar.lock().unwrap().is_none(),
+            "Finished ends the hidden bar and clears the slot"
+        );
+    }
 }

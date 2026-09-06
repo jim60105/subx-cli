@@ -449,4 +449,21 @@ mod tests {
         assert!(table.contains("└ New name 1"));
         assert!(table.contains("movie1.srt"));
     }
+
+    /// The force-hide rule the deleted private `create_progress_bar`
+    /// bypassed: JSON mode must yield a hidden draw target whatever
+    /// `general.enable_progress_bar` says, so the reporter's bar can render
+    /// no frames in machine-readable mode.
+    #[test]
+    fn json_mode_draw_target_is_hidden_text_mode_is_not() {
+        assert!(
+            progress_draw_target_for(OutputMode::Json).is_hidden(),
+            "JSON mode must force-hide every bar"
+        );
+        // The text branch returns the stderr target, whose `is_hidden()`
+        // mirrors `!is_term()` and is therefore environment-dependent
+        // inside a test harness. Text mode drawing is characterised
+        // end-to-end by the assert_cmd tests in
+        // `tests/cli/match_command_json_silence.rs` (7.7/7.8).
+    }
 }
