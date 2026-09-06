@@ -20,3 +20,4 @@ junit.xml
 target/nextest/*/junit.xml
 
 tmp/
+.worktrees/
