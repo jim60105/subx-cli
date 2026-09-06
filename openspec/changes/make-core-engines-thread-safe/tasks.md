@@ -67,3 +67,62 @@
 - [x] 8.2 Run `cargo nextest run --filter-expr 'test(shift_subtitle_timing) + test(manual_offset) + test(format_manager) + test(thread_safety) + test(sync)' || true` and confirm the targeted modules pass
 - [ ] 8.3 Run `scripts/quality_check.sh` once at the end (main agent only — do not invoke from sub-agents) and ensure it is green
 - [x] 8.4 Run `cargo test --doc --all-features` to confirm rustdoc examples still compile
+
+## Completion Notes (apply stage)
+
+**Task 5.5 — downstream verification outcome:** the scratch worktree was created outside
+both repositories (`git worktree add /tmp/subx-d1-verify` of `../subx`, detached at
+c79db44). One deviation from the task text: that checkout's `src-tauri/Cargo.toml`
+depends on `subx-cli = "1.9.1"` (crates.io), not on `subx-core` — SDR §8's post-B2 world
+had not reached the GUI manifest yet — so the patch pointed `subx-cli` at the local
+patched worktree (whose `src/lib.rs` re-exports the whole `subx_core::core` surface per
+D11); the exercised types and the new function are core's either way. A
+`dist/index.html` stub was needed only because `tauri::generate_context!` requires the
+frontend build output; unrelated to this change. With that setup: **5.2**
+`convert_off_thread` deleted and `convert_one` awaiting `FormatConverter::convert_file`
+directly — `cargo check` green. **5.3** `translate_batch_off_thread`'s `spawn_blocking`
++ `new_current_thread` + `block_on` wrapper deleted with its per-item loop lifted into
+`run_batch` — `cargo check` green (this is Tauri's `Send`-future bound satisfied at the
+consumer, which no in-crate assertion can prove). **5.4** the mirrored `shift_subtitle`
+replaced by a call to `shift_subtitle_timing`, keeping the GUI's whole-millisecond guard
+— `cargo check` green and all 18 `commands::sync` tests passed against core's
+implementation, including both drift guards
+(`a_negative_offset_clamps_at_zero_exactly_as_the_crate_does`,
+`a_positive_offset_beyond_the_representable_range_is_rejected`) — Decision 8's "the two
+implementations agree today" claim is measured, not argued. Worktree discarded;
+`git status` in `../subx` clean; nothing committed there.
+
+**Task 6.4 — C2a/C2b hand-off (design.md Migration Plan step 6):**
+- **C2a** (moves `async-runtime-safety` wholesale to `subx-core/openspec/specs/`): the
+  import carries **four** requirements, not three — the three pre-existing ones plus
+  *Library Engine Types Are `Send` and `Sync`* (added by this change, see
+  `specs/async-runtime-safety/spec.md`), with its `subx-core/src/**` citations
+  un-prefixed per `spec-governance`.
+- **C2b** (splits `format-conversion` / `timeline-sync`): its `format-conversion`
+  table's *Public format API stability across module reorganization* restatement is
+  sourced from **this change's delta text** (`specs/format-conversion/spec.md`), which
+  carries the supertrait clauses on top of the migration note C2b was already going to
+  make for the same requirement; its `timeline-sync` table gains *VAD-Independent Manual
+  Offset Application* as a fifth **C** entry, moving that capability from 9 C / 10 L to
+  **10 C / 10 L**, together with this change's restatements of *Sync Method Selection*,
+  *Offset Clamping Against Maximum* and *Subtitle Timing Application*.
+
+**Deviation records (for the archive stage):** task 1.3 (baseline `quality_check.sh`)
+and task 8.3 (final `quality_check.sh`) are main-agent-owned per the session
+coordination directive — 1.3 is intentionally left unchecked; its substance was covered:
+B2/C1/C2a/tag/publication preconditions (1.1/1.2) and both censuses (1.4/1.5/1.6) were
+verified directly, and the pre-change baseline is known green at parent ec06779. The
+scoped equivalents run at the apply stage were green: `cargo check --workspace
+--all-targets --all-features`, workspace lib-gate `cargo clippy -- -D warnings`,
+`cargo fmt --check`, scoped nextest across both crates (formats/sync/matcher, 767
+tests), the `shift_subtitle_timing` doctest, `cargo doc` under
+`broken_intra_doc_links = "deny"`, `openspec validate --strict`, and the task-3.4 `Rc`
+probe (assertion confirmed naming `FormatConverter`/`Send`, then reverted). The
+`|| true` in task 8.2's literal command was deliberately not used — failures must fail.
+Rubber-Duck ran twice (plan stage: import-arrangement errors and the GUI-manifest
+mismatch fixed before implementing, the proposed debug-prefix change reverted to the
+verbatim `[SyncEngine]` text; changes stage: no blocking findings — the changelog
+pre-publication wording reconciled with the dated `## [1.0.0]` section, and this
+completion-notes section added). No tag created or pushed in either repository; no
+`cargo publish` run. Commits: `subx-core` 7eea9a9 pushed to origin main; worktree root
+dbe9a16 with the gitlink bump.
