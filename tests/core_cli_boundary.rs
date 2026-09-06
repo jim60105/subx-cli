@@ -77,6 +77,210 @@ fn collect_rs_files(dir: &Path, out: &mut Vec<PathBuf>) {
     }
 }
 
+/// Normalise a path for comparison without requiring it to exist (Cargo
+/// resolves `#[path]` targets relative to the declaring file's directory —
+/// here always the test-tree root). Drops `.` components and collapses
+/// `..` against the preceding normal component; the paths compared never
+/// traverse symlinks, so lexical folding is sufficient.
+fn normalise(path: &Path) -> PathBuf {
+    let mut out = Vec::new();
+    for comp in path.components() {
+        match comp {
+            std::path::Component::CurDir => {}
+            std::path::Component::ParentDir => {
+                out.pop();
+            }
+            other => out.push(other),
+        }
+    }
+    out.iter().collect()
+}
+
+/// Collect `.rs` files under `dir` recursively, skipping nested module
+/// directories (any directory with its own `mod.rs` is reached through
+/// `mod <dir>;` chains, not shims) and never following symlinks.
+fn collect_orphan_candidates(dir: &Path, out: &mut Vec<PathBuf>) {
+    let entries =
+        fs::read_dir(dir).unwrap_or_else(|e| panic!("failed to read {}: {e}", dir.display()));
+    for entry in entries {
+        let entry = entry.expect("readable dirent");
+        let path = entry.path();
+        let meta = entry
+            .file_type()
+            .unwrap_or_else(|e| panic!("failed to stat {}: {e}", path.display()));
+        if meta.is_symlink() {
+            continue;
+        }
+        if meta.is_dir() {
+            if path.join("mod.rs").is_file() {
+                continue;
+            }
+            collect_orphan_candidates(&path, out);
+        } else if meta.is_file() && path.extension().is_some_and(|ext| ext == "rs") {
+            out.push(path);
+        }
+    }
+}
+
+/// Extract the target of a genuine `#[path = "…"] mod <name>;` shim from a
+/// harness file, or `None` if the file declares none. Line-oriented and
+/// deliberately strict: the `#[path = "<target>"]` must sit on its own
+/// trimmed line, the next non-blank line must be `mod <ident>;`, and any
+/// `cfg`/`cfg_attr` stacked on the same declaration is rejected outright —
+/// a conditionally compiled shim's target is not reliably compiled and must
+/// not be counted as covering the file. Doc/line comments can never satisfy
+/// the grammar because their `///`/`//`/`/*`/`*` prefixes make the trimmed
+/// line differ.
+fn shim_target(text: &str) -> Option<Result<String, String>> {
+    let mut lines = text.lines().map(str::trim);
+    while let Some(line) = lines.next() {
+        let Some(rest) = line.strip_prefix("#[path = \"") else {
+            continue;
+        };
+        let Some(target) = rest.strip_suffix("\"]") else {
+            continue;
+        };
+        // Gather the attribute stack directly above the #[path] line.
+        let mut stack: Vec<&str> = Vec::new();
+        {
+            let mut seen = text.lines().map(str::trim);
+            let mut prev: Vec<&str> = Vec::new();
+            for l in seen.by_ref() {
+                if l == line {
+                    break;
+                }
+                prev.push(l);
+            }
+            for l in prev.iter().rev() {
+                if l.starts_with("#[") {
+                    stack.push(l);
+                } else {
+                    break;
+                }
+            }
+        }
+        if stack.iter().any(|a| a.starts_with("#[cfg")) {
+            return Some(Err(format!(
+                "declares a cfg-bearing #[path] shim (`{line}` under {}) — \
+                 conditionally compiled shims cannot be verified as always-on \
+                 coverage; give the target an unconditional shim or remove the cfg",
+                stack.len()
+            )));
+        }
+        // The next non-blank line must be the mod declaration.
+        let next = lines.by_ref().find(|l| !l.is_empty())?;
+        let Some(mod_part) = next.strip_prefix("mod ") else {
+            continue;
+        };
+        let Some(name) = mod_part.strip_suffix(';') else {
+            continue;
+        };
+        if name.is_empty() || !name.chars().all(|c| c.is_ascii_alphanumeric() || c == '_') {
+            continue;
+        }
+        return Some(Ok(target.to_string()));
+    }
+    None
+}
+
+/// Cargo auto-discovers only `tests/*.rs`. Every `.rs` file under a
+/// subdirectory of either crate's test tree is therefore compiled only if a
+/// top-level harness declares `#[path = "<subdir>/<file>.rs"] mod <name>;`
+/// for it — exactly once, because a second shim would run the same tests
+/// twice. Module directories (containing their own `mod.rs`, like
+/// `tests/common/`) are reached by plain `mod <dir>;` declarations from the
+/// crate root and are exempt; data directories (`fixtures/`) hold no `.rs`
+/// files and pass vacuously. This guard walks both test trees from
+/// `CARGO_MANIFEST_DIR` — never the working directory — and fails naming
+/// every file with zero or more than one declaring shim, so an orphan can
+/// never again hide uncompiled in a subdirectory.
+#[test]
+fn every_subdirectory_test_file_has_exactly_one_harness_shim() {
+    use std::collections::BTreeMap;
+
+    let root = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let mut offenders: Vec<String> = Vec::new();
+
+    for tree in [root.join("tests"), root.join("subx-core").join("tests")] {
+        assert!(
+            tree.is_dir(),
+            "test tree {} missing — path resolution is broken",
+            tree.display()
+        );
+
+        // Map each shim target (normalised absolute path) to the top-level
+        // harness files declaring it.
+        let mut declared: BTreeMap<PathBuf, Vec<PathBuf>> = BTreeMap::new();
+        let entries = fs::read_dir(&tree)
+            .unwrap_or_else(|e| panic!("failed to read {}: {e}", tree.display()));
+        for entry in entries {
+            let path = entry.expect("readable dirent").path();
+            if !path.is_file() || path.extension().is_none_or(|e| e != "rs") {
+                continue;
+            }
+            let text = fs::read_to_string(&path)
+                .unwrap_or_else(|e| panic!("failed to read {}: {e}", path.display()));
+            if let Some(result) = shim_target(&text) {
+                let target = result.unwrap_or_else(|reason| {
+                    panic!(
+                        "{}: {reason}",
+                        path.strip_prefix(&root).unwrap_or(&path).display()
+                    )
+                });
+                let resolved = normalise(&path.join("..").join(target));
+                declared.entry(resolved).or_default().push(path.clone());
+            }
+        }
+
+        // Every .rs under a non-module subdirectory of the tree must be
+        // declared exactly once.
+        let entries = fs::read_dir(&tree)
+            .unwrap_or_else(|e| panic!("failed to read {}: {e}", tree.display()));
+        for entry in entries {
+            let entry = entry.expect("readable dirent");
+            let dir = entry.path();
+            let meta = entry
+                .file_type()
+                .unwrap_or_else(|e| panic!("failed to stat {}: {e}", dir.display()));
+            if !meta.is_dir() || meta.is_symlink() || dir.join("mod.rs").is_file() {
+                continue;
+            }
+            let mut nested = Vec::new();
+            collect_orphan_candidates(&dir, &mut nested);
+            for file in nested {
+                let file = normalise(&file);
+                let relative = file.strip_prefix(&root).unwrap_or(&file).display();
+                match declared.get(&file).map(Vec::len) {
+                    None => offenders.push(format!(
+                        "{relative}: no #[path] shim in {} reaches this file",
+                        tree.strip_prefix(&root).unwrap_or(&tree).display(),
+                    )),
+                    Some(1) => {}
+                    Some(count) => offenders.push(format!(
+                        "{relative}: declared by {count} shims ({}) — exactly one is required",
+                        declared[&file]
+                            .iter()
+                            .map(|s| s.strip_prefix(&root).unwrap_or(s).display().to_string())
+                            .collect::<Vec<_>>()
+                            .join(", "),
+                    )),
+                }
+            }
+        }
+    }
+
+    assert!(
+        offenders.is_empty(),
+        "every .rs under a subdirectory of either crate's tests/ tree must be \
+         reached by exactly one top-level #[path] shim (module directories \
+         with a mod.rs are reached by `mod <dir>;` and exempt). Orphan test \
+         files are never compiled and silently inflate the impression of \
+         coverage; wire each up, relocate it to the top level, or delete it. \
+         \nOffenders:\n{}",
+        offenders.join("\n")
+    );
+}
+
 #[test]
 fn subx_core_never_references_the_cli_crate() {
     let root = PathBuf::from(env!("CARGO_MANIFEST_DIR"));

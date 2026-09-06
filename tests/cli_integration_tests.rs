@@ -5,7 +5,7 @@ use predicates::prelude::*;
 /// CLI main integration tests: version, help and error command behavior validation
 #[tokio::test]
 async fn test_version_display() {
-    let mut cmd = Command::cargo_bin("subx-cli").unwrap();
+    let mut cmd = Command::new(env!("CARGO_BIN_EXE_subx-cli"));
     cmd.arg("--version")
         .assert()
         .success()
@@ -14,7 +14,7 @@ async fn test_version_display() {
 
 #[tokio::test]
 async fn test_help_display() {
-    let mut cmd = Command::cargo_bin("subx-cli").unwrap();
+    let mut cmd = Command::new(env!("CARGO_BIN_EXE_subx-cli"));
     cmd.arg("--help")
         .assert()
         .success()
@@ -25,7 +25,7 @@ async fn test_help_display() {
 
 #[tokio::test]
 async fn test_invalid_command() {
-    let mut cmd = Command::cargo_bin("subx-cli").unwrap();
+    let mut cmd = Command::new(env!("CARGO_BIN_EXE_subx-cli"));
     cmd.arg("invalid-command")
         .assert()
         .failure()

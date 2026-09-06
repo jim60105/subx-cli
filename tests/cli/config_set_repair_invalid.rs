@@ -79,7 +79,7 @@ fn isolated_cmd(workdir: &Path) -> Command {
     let cfg_dir = config_dir_for(workdir);
     fs::create_dir_all(&cfg_dir).unwrap();
     let cfg_path = config_path_for(workdir);
-    let mut cmd = Command::cargo_bin("subx-cli").unwrap();
+    let mut cmd = Command::new(env!("CARGO_BIN_EXE_subx-cli"));
     // Pin the config file via `SUBX_CONFIG_PATH` (honored by both the
     // load and save paths in `ProductionConfigService`). This keeps the
     // test cross-platform: `XDG_CONFIG_HOME` is ignored by the `dirs`

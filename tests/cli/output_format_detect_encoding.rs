@@ -69,7 +69,7 @@ fn write_gbk(path: &std::path::Path, body: &str) {
 }
 
 fn run_detect_encoding<S: AsRef<std::ffi::OsStr>>(args: &[S]) -> Vec<u8> {
-    let mut cmd = Command::cargo_bin("subx-cli").unwrap();
+    let mut cmd = Command::new(env!("CARGO_BIN_EXE_subx-cli"));
     cmd.arg("--output").arg("json").arg("detect-encoding");
     for a in args {
         cmd.arg(a);
@@ -228,8 +228,7 @@ fn detect_encoding_single_missing_path_emits_top_level_error() {
     let dir = TempDir::new().unwrap();
     let missing = dir.path().join("missing.srt");
 
-    let assert = Command::cargo_bin("subx-cli")
-        .unwrap()
+    let assert = Command::new(env!("CARGO_BIN_EXE_subx-cli"))
         .args([
             "--output",
             "json",

@@ -72,7 +72,7 @@ fn translate_validation_failure_emits_error_envelope() {
     let input = dir.path().join("a.srt");
     fs::write(&input, SAMPLE_SRT).unwrap();
 
-    let mut cmd = Command::cargo_bin("subx-cli").unwrap();
+    let mut cmd = Command::new(env!("CARGO_BIN_EXE_subx-cli"));
     isolated_env(&mut cmd, dir.path());
     let assert = cmd
         .args([
@@ -112,7 +112,7 @@ fn translate_no_inputs_emits_empty_success_envelope() {
     let empty = dir.path().join("empty");
     fs::create_dir(&empty).unwrap();
 
-    let mut cmd = Command::cargo_bin("subx-cli").unwrap();
+    let mut cmd = Command::new(env!("CARGO_BIN_EXE_subx-cli"));
     isolated_env(&mut cmd, dir.path());
     let assert = cmd
         .args([
