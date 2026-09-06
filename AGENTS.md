@@ -250,7 +250,8 @@ docs/               Technical documentation
   ├── config-usage-analysis.md           Configuration usage analysis
   ├── configuration-guide.md             Configuration reference
   └── tech-architecture.md               Technical architecture overview
-openspec/           OpenSpec changes, specs, and workflow config
+openspec/           subx-cli's OpenSpec changes, specs, and workflow config
+subx-core/openspec/  subx-core's own, independent OpenSpec root (changes, specs, config)
 scripts/            Build, quality, and CI shell scripts (both crates' gate)
 subx-core/scripts/  quality_check.sh — standalone-clone local gate for subx-core
   ├── quality_check.sh                   Full QA (lint, format, tests; Linux/macOS)
@@ -489,6 +490,29 @@ project-scoped skills under `.github/skills/`. Use the OpenSpec skills for
 proposal/change workflows when the user asks to propose, apply, verify, sync,
 or archive changes. Use the `update-config-document` skill when configuration
 items or configuration documentation need to be audited or refreshed.
+
+**Two OpenSpec roots.** `openspec/` at this root specifies `subx-cli`;
+`subx-core/openspec/` is a second, independent root that specifies the
+`subx-core` crate. The parent's tooling never descends into the submodule:
+`openspec validate`/`list` at this root reports only this root's specs, and the
+same commands run inside `subx-core/` resolve the nested root. A change resolves
+against exactly one root — run its commands from inside that repository. Work
+spanning both repositories is authored as one change per repository, each
+change's `## Why` naming the other as its other half (see
+`openspec/specs/spec-governance/` for the capability-assignment and citation
+rules).
+
+**Manual-archive procedure.** A delta that removes every requirement of a
+capability makes `openspec archive` refuse atomically
+(`archive_spec_validation_failed` — a rebuilt spec with zero requirements fails
+validation), and that refusal skips the change's other deltas. Such a change is
+archived with `--skip-specs`, after which **every** delta — removals, additions
+and modifications alike — is applied by hand (deleting the emptied capability
+directories, writing new-capability main specs, and substituting MODIFIED
+requirement blocks). Corollary: a newly created capability's H1 and `## Purpose`
+must be replaced after any archive, because `openspec archive` writes
+`# <capability> Specification` plus a `TBD` Purpose that passes
+`validate --strict` while being wrong.
 
 ## CI/CD Pipeline
 

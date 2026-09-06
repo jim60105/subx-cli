@@ -18,7 +18,9 @@ It spans both repositories. Its `subx-core` half is a separate change, **`import
 - **`parallel-processing` is not wholesale core.** *Aggregated Result Reporting* and *Progress Reporting Opt-Out* both describe code at `src/commands/match_command.rs:725-760` and are satisfiable only through `indicatif`, a permanently CLI-only dependency (SDR D8, §4). They move to C2b's list.
 - **`core-reporting` is wholesale core and SDR §9 does not mention it,** because A1 created it after the SDR was written. Its five requirements cite `src/core/` and `src/services/` and nothing else. It joins this change's list.
 
-The net is **13 capabilities, 93 requirements, 239 scenarios**, not 14.
+The net is **13 capabilities, 96 requirements, 254 scenarios**, not 14.
+
+> **Amendment 2026-09-06.** The census above was re-measured at apply time. D1 (`make-core-engines-thread-safe`) added *Library Engine Types Are `Send` and `Sync`* to `async-runtime-safety` and D2 (`expose-core-orchestration-apis`) added *Structured Progress Stream Semantics* and *Cooperative Cancellation Through the Reporter* to `core-reporting`, after this proposal was authored. The proposal's claim that the thirteen are untouched by A0 through C1 remains literally true — D1 and D2 ran after C1 — but the counts are 96/254, not 93/239, and the three D2-line requirements arrive carrying self-qualified `subx-core/src/...` citations that must be de-qualified on arrival (Decision 7 class (e)). The deltas, table and totals below are corrected accordingly.
 
 ## What Changes
 
@@ -30,8 +32,8 @@ The net is **13 capabilities, 93 requirements, 239 scenarios**, not 14.
 |---|---:|---:|---:|
 | `ai-provider-integration` | 12 | 40 | 286 |
 | `archive-extraction` | 10 | 36 | 267 |
-| `async-runtime-safety` | 3 | 7 | 61 |
-| `core-reporting` | 5 | 18 | — |
+| `async-runtime-safety` | 4 | 11 | 104 |
+| `core-reporting` | 7 | 29 | 255 |
 | `file-operation-safety` | 4 | 10 | 77 |
 | `file-organization` | 7 | 13 | 96 |
 | `input-size-guards` | 3 | 7 | 58 |
@@ -41,15 +43,15 @@ The net is **13 capabilities, 93 requirements, 239 scenarios**, not 14.
 | `subtitle-parser-hardening` | 8 | 26 | 270 |
 | `subtitle-styling` | 11 | 16 | 131 |
 | `vad-speech-detection` | 10 | 17 | 132 |
-| **Total** | **93** | **239** | **~1,930** |
+| **Total** | **96** | **254** | **~2,071** |
 
-Twelve of the thirteen are measured from `openspec/specs/` today; `core-reporting` is measured from A1's delta, because it enters the main tree only when A1 archives. None of the thirteen is touched by A0–C1, so the counts are stable through the series.
+All thirteen are measured from `openspec/specs/` today — `core-reporting` entered the main tree when A1 archived, and its two D2 additions are included. The counts include the three D1/D2 requirements and are stable from this amendment through the moment this change runs.
 
-**3. `subx-cli`'s side of the move is fifteen delta files.** Thirteen `## REMOVED Requirements` deltas naming all 93 requirements by exact title; one `## ADDED Requirements` delta creating `spec-governance`; one `## MODIFIED Requirements` delta repairing `configuration-management`'s now-cross-repository reference to `ai-provider-integration`.
+**3. `subx-cli`'s side of the move is sixteen delta files.** Thirteen `## REMOVED Requirements` deltas naming all 96 requirements by exact title; one `## ADDED Requirements` delta creating `spec-governance`; and two `## MODIFIED Requirements` deltas repairing now-cross-repository capability references that this move breaks — `configuration-management`'s reference to `ai-provider-integration`, and `machine-readable-output`'s two references to `core-reporting`.
 
 **4. `subx-core`'s side is one change, `import-core-specs`,** with `.openspec.yaml`, `proposal.md`, `design.md`, thirteen `## ADDED Requirements` delta specs carrying the full text, and `tasks.md`. Its artifact set is specified requirement by requirement in `design.md` Decisions 3, 4 and 5, because a change with thirteen ADDED capability files and no behaviour change is unusual enough that guessing at it would produce something wrong.
 
-**5. Citations are resolved against the owning repository, and the rewrite rule is narrower than it looks.** B2 relocated the core sources at *identical relative paths*, so `src/core/…`, `src/services/…`, `src/config/…` and `src/error.rs` are already correct verbatim inside `subx-core` and are carried over untouched. Only four classes of citation are edited: the fourteen enumerated in the REMOVED deltas' `**Migration**` notes — three stale-risk line ranges in `language-detection`, one CLI-bound test file in `file-organization`, the `fuzz/` and quality-script citations in `subtitle-parser-hardening`, three cross-capability references in `local-llm-provider`, the `-i` and feature-gate framing in `archive-extraction`, the `--recursive` sentence in `media-discovery`, and the two `crate::`-path readings in `core-reporting`.
+**5. Citations are resolved against the owning repository, and the rewrite rule is narrower than it looks.** B2 relocated the core sources at *identical relative paths*, so `src/core/…`, `src/services/…`, `src/config/…` and `src/error.rs` are already correct verbatim inside `subx-core` and are carried over untouched. Only five classes of citation are edited, across the seventeen receiving-side `**Migration**` scopes enumerated in the REMOVED deltas — three stale-risk line ranges in `language-detection`, one CLI-bound test file in `file-organization`, the `fuzz/` and quality-script citations in `subtitle-parser-hardening`, three cross-capability references in `local-llm-provider`, the `-i` and feature-gate framing in `archive-extraction`, the `--recursive` sentence in `media-discovery`, the two `crate::`-path readings and the crate-topology pointer in `core-reporting`, and (new class (e), the three D1/D2 additions) the eleven `subx-core/` self-qualification prefixes stripped in `async-runtime-safety` (8), `core-reporting` (2 + 1). Two further `**Migration**` scopes belong to the donor side, in the `configuration-management` and `machine-readable-output` MODIFIED deltas.
 
 **6. `spec-governance` is created** — eight requirements: how a requirement is assigned to a repository and what is not evidence for it; how a capability moves wholesale, splits or stays, and why it is never duplicated or left as a pointer; what happens when a capability later grows a requirement on the other side of the line; where the capabilities that govern the *relationship* live; how path citations are resolved against the owning repository; how cross-capability references are qualified and re-qualified when their target moves; how a change spanning both repositories is authored and archived; and how the two trees are kept from drifting.
 
@@ -65,8 +67,9 @@ No source file, test, manifest, workflow or script is edited in either repositor
 
 ### Modified Capabilities
 
-- `ai-provider-integration`, `archive-extraction`, `async-runtime-safety`, `core-reporting`, `file-operation-safety`, `file-organization`, `input-size-guards`, `language-detection`, `local-llm-provider`, `media-discovery`, `subtitle-parser-hardening`, `subtitle-styling`, `vad-speech-detection` — each as a `## REMOVED Requirements` delta naming every requirement by exact title with a reason, and with a `**Migration**` note on the fourteen requirements whose text is edited on arrival. The full text is re-added verbatim in `subx-core` by `import-core-specs`; the archive's own convention for removals is a title plus a reason, not a restatement, and restating 93 requirements twice would be an audit trail nobody could read.
+- `ai-provider-integration`, `archive-extraction`, `async-runtime-safety`, `core-reporting`, `file-operation-safety`, `file-organization`, `input-size-guards`, `language-detection`, `local-llm-provider`, `media-discovery`, `subtitle-parser-hardening`, `subtitle-styling`, `vad-speech-detection` — each as a `## REMOVED Requirements` delta naming every requirement by exact title with a reason, and with a `**Migration**` note on the seventeen requirements whose text is edited on arrival. The full text is re-added verbatim in `subx-core` by `import-core-specs`; the archive's own convention for removals is a title plus a reason, not a restatement, and restating 96 requirements twice would be an audit trail nobody could read.
 - `configuration-management` — one requirement, *Local Provider Validation Rules*, restated in full so that its reference to the `ai-provider-integration` capability names `subx-core`. This change creates that dangling reference and therefore repairs it; leaving it would put a `spec-governance` violation in the tree on the day `spec-governance` lands.
+- `machine-readable-output` — two requirements, *Quiet Flag* and *Stdout/Stderr Discipline in JSON Mode*, each restated in full with its reference to the `core-reporting` capability qualified as being in `subx-core` and each carrying a *The cross-repository reference resolves* scenario. Same rationale as `configuration-management`: this move breaks the reference, so this change repairs it.
 
 ## Impact
 
@@ -75,4 +78,4 @@ No source file, test, manifest, workflow or script is edited in either repositor
 - **APIs:** None.
 - **Dependencies:** None. `openspec` is a development tool, already in use, at version 1.6.0; no crate, feature or lockfile entry changes.
 - **Documentation:** `AGENTS.md:157` ("`openspec/` OpenSpec changes, specs, and workflow config") and its "OpenSpec and Project Skills" section (`:379-383`) gain the two-root rule and the manual-archive procedure. `subx-core` gains the same paragraphs in its own `AGENTS.md`, which C3 authors — this change writes the paragraph into `subx-cli`'s and hands the core copy forward with the text fixed. `CHANGELOG.md` in both repositories gains `[Unreleased]` entries under `### Added`, `### Changed`, `### Removed` and `### Documentation`.
-- **Specifications:** `subx-cli/openspec/specs/` goes from 32 capabilities to 20 — the 13 leave, `spec-governance` arrives. `subx-core/openspec/specs/` goes from not existing to 13 capabilities, 93 requirements and 239 scenarios. The union is unchanged in content: no requirement is added, deleted, weakened or strengthened by this change.
+- **Specifications:** `subx-cli/openspec/specs/` goes from 32 capabilities to 20 — the 13 leave, `spec-governance` arrives. `subx-core/openspec/specs/` goes from not existing to 13 capabilities, 96 requirements and 254 scenarios. The union is unchanged in content: no requirement is added, deleted, weakened or strengthened by this change.
