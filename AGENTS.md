@@ -358,8 +358,10 @@ Which manifest owns each gate:
   contain any bracketed `[subx_cli::...]` link. The CLI is not a core
   dependency, so the deny'd broken intra-doc link turns the standalone core
   documentation build into a build failure. Core documentation may mention
-  CLI behaviour only as backticked prose (`subx_cli`) or a plain GitHub
-  URL, never as an intra-doc link.
+  CLI behaviour only as backticked prose — the hyphen form `subx-cli`; the
+  underscore spelling `subx_cli` is rejected by the layering guard even
+  inside core comments and doctests — or a plain GitHub URL, never as an
+  intra-doc link.
 - **Verify the shared documentation boundary with
   `cargo doc --workspace --all-features`** — not `--no-deps`.
   `cargo doc --no-deps` documents only the local crates without building
@@ -394,7 +396,8 @@ parallel work. Subagents and worker sessions MUST NOT run these themselves:
 needs full-suite or coverage validation, request it from the main agent, who
 runs it once after all sub-agent work is consolidated and before every
 `git commit`. `cargo check` is fine for quick validation. CI generates
-coverage reports on every push, so local coverage is usually unnecessary.
+coverage reports when its workflow runs (note both workflows' `paths-ignore`
+skips documentation-only changes), so local coverage is usually unnecessary.
 
 ## subx-core Manifest Prohibitions
 
@@ -404,8 +407,9 @@ inheritance (`version.workspace = true`, `authors.workspace = true`,
 tables. The superproject root manifest owns the `[profile.release]` settings
 and the shared dependency versions; a workspace table or inheritance in the
 member would stop `cargo build` from working in a standalone clone of the
-library repository, which is a supported workflow (crates.io, docs.rs, and
-the Tauri GUI all consume it that way).
+library repository, which is a supported workflow — the Tauri GUI consumes
+it through a git dependency today, and after the first publication crates.io
+and docs.rs will consume exactly that same standalone tree.
 
 ## Testing Conventions
 
