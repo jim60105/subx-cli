@@ -2,7 +2,7 @@
 
 ## Purpose
 
-Identify the character encoding of one or more subtitle files so users can diagnose display issues or plan conversions. Implemented in `src/commands/detect_encoding_command.rs`, `src/cli/detect_encoding_args.rs`, and `src/core/formats/encoding/`.
+Hold the CLI half of the encoding-detection agreement: the per-file encoding report, input source selection, verbose sample output, batch-level robustness framing for empty and binary files, legacy positional file paths, and the structured JSON payload of `detect-encoding`. Implemented in `src/commands/detect_encoding_command.rs` and `src/cli/detect_encoding_args.rs`. The detector's tolerance of empty and binary input and its low-confidence default-encoding fallback are specified by the same-named `encoding-detection` capability in `subx-core`.
 
 ## Requirements
 
@@ -45,7 +45,9 @@ The system SHALL, when `--verbose` is passed, print the full sample text; otherw
 
 ### Requirement: Robust Handling of Empty and Binary Files
 
-The system SHALL complete encoding detection for each supplied file without terminating the whole batch when the file is empty or contains binary (non-text) bytes; it SHALL either emit a normal detection report for the file or surface a per-file error while still processing subsequent inputs.
+The `detect-encoding` command SHALL complete for each supplied file without terminating the whole batch when the file is empty or contains binary (non-text) bytes; it SHALL either emit a normal detection report for the file or surface a per-file error while still processing subsequent inputs, and it SHALL exit successfully when at least one input was processed.
+
+The detector's own obligation not to panic on empty or binary input is specified by the `encoding-detection` capability's *Detector Tolerates Empty and Binary Input* requirement in `subx-core`. This requirement governs only the batch loop's resilience and the process exit status; the two are separable because a detector that returns an error rather than panicking still leaves the command free to abort the batch, which is what this requirement forbids.
 
 #### Scenario: Empty file
 - **GIVEN** a zero-byte subtitle file supplied to `subx detect-encoding`
@@ -56,21 +58,6 @@ The system SHALL complete encoding detection for each supplied file without term
 - **GIVEN** a file containing binary (non-text) bytes supplied to `subx detect-encoding`
 - **WHEN** the command runs
 - **THEN** the command SHALL not panic and SHALL exit successfully, emitting either a best-effort detection result or a per-file error message without aborting subsequent inputs
-
-### Requirement: Low-Confidence Fallback To Default Encoding
-
-When no encoding candidate scores above `formats.encoding_detection_confidence`, the detector SHALL fall back to the configured default encoding (e.g. UTF-8), SHALL report a fixed fallback confidence of `0.5`, and SHALL prefix the sample text with a `Low confidence detection, using default:` marker. When there are no candidates at all, the fallback SHALL instead use confidence `0.1` and prefix the sample with `Unable to detect encoding, using default:`. Implemented in `src/core/formats/encoding/detector.rs::select_best_encoding`.
-
-#### Scenario: Best candidate below threshold
-- **GIVEN** a byte sequence whose highest-scoring encoding candidate has a confidence strictly less than `formats.encoding_detection_confidence`
-- **WHEN** the encoding detector selects a result
-- **THEN** the returned `EncodingInfo.charset` SHALL be the configured default encoding, `EncodingInfo.confidence` SHALL equal `0.5`, and `EncodingInfo.sample_text` SHALL start with `Low confidence detection, using default:`
-
-#### Scenario: No viable candidates at all
-- **GIVEN** a byte sequence for which no charset yields a confidence above the internal lower bound
-- **WHEN** the encoding detector selects a result
-- **THEN** the returned `EncodingInfo.confidence` SHALL equal `0.1` and `EncodingInfo.sample_text` SHALL start with `Unable to detect encoding, using default:`
-
 ### Requirement: Legacy Positional File Paths Accepted
 
 The system SHALL accept file paths passed through the legacy `file_paths: Vec<String>` argument on `DetectEncodingArgs` in addition to the newer `input_paths: Vec<PathBuf>` field, processing both sources equivalently. Exercised by `tests/detect_encoding_command_comprehensive_tests.rs::test_detect_encoding_command_with_legacy_file_paths`.

@@ -2,22 +2,15 @@
 
 ## Purpose
 
-Store and invalidate the subtitle-matching cache that allows `subx match` to skip repeated AI calls and to apply previously computed dry-run results. Implemented in `src/commands/cache_command.rs`, `src/cli/cache_args.rs`, and `src/core/matcher/cache.rs`.
+Hold the CLI half of the subtitle-matching cache agreement: the `cache clear` subcommand and its independent canonical-path resolver (which must keep producing the path the core half defines, honouring `XDG_CONFIG_HOME`), and the structured JSON payloads of the cache subcommands. Implemented in `src/commands/cache_command.rs` and `src/cli/cache_args.rs`. The cache location, JSON format, configuration-aware invalidation, cache reuse, dry-run reuse without AI calls, and the scoping key are specified by the same-named `cache-management` capability in `subx-core`.
 
 ## Requirements
-
-### Requirement: Match Cache Location
-
-The system SHALL persist the match cache as a JSON file at `$CONFIG_DIR/subx/match_cache.json`, where `$CONFIG_DIR` is resolved via the standard platform configuration directory (`dirs::config_dir()`).
-
-#### Scenario: Cache persisted after a match run
-- **GIVEN** `subx match` executes successfully and produces at least one match operation
-- **WHEN** the run finishes
-- **THEN** a file at `$CONFIG_DIR/subx/match_cache.json` SHALL contain the serialized `CacheData` including file snapshot, match operations, and a configuration hash
 
 ### Requirement: Cache Clear Subcommand
 
 The system SHALL expose `subx cache clear` as the only cache subcommand (`CacheAction::Clear`); executing it SHALL delete the match cache file if it exists and SHALL report a user-visible confirmation message.
+
+The path the subcommand deletes SHALL be the same path the cache producer writes. `subx-cli` resolves it independently in `src/commands/cache_command.rs` (`cache_path()`, over `get_config_dir()`), and the producer resolves it in `subx-core` under the `cache-management` capability's *Match Cache Location* requirement in that repository. Because the two resolvers are now in different repositories, with no compiler and no shared constant binding them, this requirement SHALL be treated as an agreement obligation on the CLI side: a change to either resolver SHALL be accompanied by a check that the other still produces the identical path, and the `XDG_CONFIG_HOME` override honoured by `get_config_dir()` SHALL be honoured by the producer too. A divergence is silent — `cache clear` reports `No cache file found` while a cache remains on disk — so it SHALL NOT be left to be discovered by a user.
 
 #### Scenario: Clear existing cache
 - **GIVEN** `$CONFIG_DIR/subx/match_cache.json` exists
@@ -29,56 +22,10 @@ The system SHALL expose `subx cache clear` as the only cache subcommand (`CacheA
 - **WHEN** the user runs `subx cache clear`
 - **THEN** the command SHALL print `No cache file found` and exit successfully without creating any file
 
-### Requirement: Configuration-Aware Invalidation
-
-The cache SHALL record the configuration hash and relocation settings under which its entries were generated so that changes in matching-relevant configuration invalidate prior results.
-
-#### Scenario: Config hash stored with cache
-- **GIVEN** a cache is written by `save_file_list_cache`
-- **WHEN** the JSON file is inspected
-- **THEN** it SHALL contain a `config_hash` field, an `original_relocation_mode` field, and an `original_backup_enabled` field reflecting the settings in effect during the producing run
-
-### Requirement: Cache Reuse Preserves Relocation Mode
-
-When a cached match result is reused on a subsequent `subx match` run with the same relocation mode, the system SHALL apply operations using the relocation mode and target directories that were in effect when the cache was produced, without issuing a new AI request. Implemented in `src/core/matcher/engine.rs` and exercised by `tests/match_cache_reuse_tests.rs` and `tests/match_cache_target_directory_tests.rs`.
-
-#### Scenario: Copy mode cache reused without a second AI call
-- **GIVEN** `subx match --copy <dir>` has populated the cache for a given set of files
-- **WHEN** the user runs `subx match --copy <dir>` again on the same files and configuration
-- **THEN** the cached match operations SHALL be reused, no additional AI provider call SHALL be made, and the subtitle SHALL be copied to the video's directory preserving the original subtitle at its source
-
-#### Scenario: Target directory consistency between dry-run and actual execution
-- **GIVEN** `subx match --copy --dry-run <dir>` has populated the cache for a given file set
-- **WHEN** the user runs `subx match --copy <dir>` (actual execution) on the same files and configuration
-- **THEN** the files written to disk SHALL land in the same target directories that the dry-run preview reported
-
-### Requirement: Dry-Run Cache Reuse Without AI Calls
-
-When a `subx match` invocation (including `--dry-run`) has populated the match cache for a given set of files, subsequent invocations with the same input files, relocation mode, backup setting, and configuration hash SHALL reuse the cached match operations and SHALL NOT call the AI provider again. Implemented in `src/core/matcher/engine.rs` (via `check_file_list_cache` / `save_file_list_cache`) and exercised by `tests/match_cache_reuse_tests.rs`.
-
-#### Scenario: Repeated dry-run does not call the AI provider
-- **GIVEN** the user has run `subx match --copy --dry-run <dir>` once against a mock AI provider and the cache has been populated
-- **WHEN** the user runs the same `subx match --copy --dry-run <dir>` command a second time with no file or configuration changes
-- **THEN** the mock AI provider SHALL have received exactly one chat-completion request in total across both invocations
-
-### Requirement: Cache Invalidation On Relocation-Affecting Config Change
-
-The `CacheData.config_hash` SHALL be derived from the configuration values that affect file-operation planning — specifically `relocation_mode` and `backup_enabled` — such that a change to either of those values on a subsequent run SHALL cause the cache entry to be treated as stale and a fresh AI call SHALL be performed. Implemented in `src/core/matcher/engine.rs::calculate_config_hash`.
-
-#### Scenario: Relocation mode change invalidates cache
-- **GIVEN** the cache was produced by a run with `relocation_mode = None`
-- **WHEN** the user re-runs `subx match --copy <dir>` on the same files (relocation mode `Copy`)
-- **THEN** the cached operations SHALL NOT be reused verbatim for the new relocation mode and the run SHALL either recompute or re-derive operations consistent with the new mode
-
-### Requirement: Cache Scoped To File-List Directory Key
-
-The cache SHALL be keyed on the sorted set of canonicalized input file paths (with size and modification time) combined with the configuration hash, so that cache reuse applies only when the same target file set is supplied on a subsequent run. Implemented by the `filelist_<hash>` key computed in `src/core/matcher/engine.rs` and exercised by `tests/match_cache_target_directory_tests.rs`.
-
-#### Scenario: Different input file set misses the cache
-- **GIVEN** a cache produced for file set `{A.mp4, A.srt}` in directory `videos/`
-- **WHEN** the user runs `subx match` on a different file set `{B.mp4, B.srt}`
-- **THEN** the new run SHALL compute a different cache key and SHALL NOT reuse the cached operations from the first file set
-
+#### Scenario: The two resolvers agree across the repository boundary
+- **GIVEN** a run of `subx match` that wrote a match cache, and any value of `$XDG_CONFIG_HOME` in effect for both invocations
+- **WHEN** the user then runs `subx cache clear`
+- **THEN** the path `subx-cli` resolves SHALL be byte-identical to the path the producer in `subx-core` wrote, so that the file is found and removed rather than reported absent
 ### Requirement: Cache Subcommands Emit Structured JSON Payloads
 
 When any `cache` subcommand runs with the global output mode set to `json`, it SHALL emit a single JSON envelope on stdout (per the `machine-readable-output` capability) and SHALL NOT print free-form confirmation messages or status symbols on stdout. The envelope's `data` object SHALL be shaped according to the active subcommand:

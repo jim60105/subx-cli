@@ -1,0 +1,12 @@
+cache-management
+component-factory
+configuration-management
+encoding-detection
+error-handling
+format-conversion
+input-path-handling
+parallel-processing
+secrets-protection
+subtitle-matching
+subtitle-translation
+timeline-sync

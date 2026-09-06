@@ -33,6 +33,7 @@ for cap in cache-management component-factory configuration-management encoding-
   rc=$(titles "$D" REMOVED | wc -l | tr -d ' '); mc=$(titles "$D" MODIFIED | wc -l | tr -d ' '); ac=$(titles "$D" ADDED | wc -l | tr -d ' ')
   # guard: no title may appear in two sections of the same delta
   for a in REMOVED MODIFIED; do for b in MODIFIED ADDED; do
+    if [ "$a" = "$b" ]; then continue; fi
     o=$(comm -12 <(titles "$D" $a | sort) <(titles "$D" $b | sort) | wc -l | tr -d ' ')
     [ "$o" = 0 ] || { echo "GUARD1 $cap: '$a'/'$b' overlap"; titles "$D" $a | sort > /tmp/a1; titles "$D" $b | sort > /tmp/b1; comm -12 /tmp/a1 /tmp/b1; exit 1; }
   done; done
@@ -70,6 +71,7 @@ for cap in cache-management component-factory configuration-management encoding-
   nrec=0
   while IFS= read -r -d $'\037' blk; do
     [ -n "$blk" ] || continue
+    blk=${blk#$'\n'}
     nrec=$((nrec+1))
     t=$(printf '%s' "$blk" | sed -n '1s/^### Requirement: //p')
     printf '%s' "$blk" > /tmp/oneblk
@@ -92,6 +94,7 @@ for cap in cache-management component-factory configuration-management encoding-
     : > /tmp/app.txt
     while IFS= read -r -d $'\037' blk; do
       [ -n "$blk" ] || continue
+      blk=${blk#$'\n'}
       printf '\n%s' "${blk%"${blk##*[![:space:]]}"}" >> /tmp/app.txt
     done < /tmp/add.$cap
     # trim trailing whitespace of file, append blocks, single trailing newline

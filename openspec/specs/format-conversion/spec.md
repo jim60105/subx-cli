@@ -2,24 +2,20 @@
 
 ## Purpose
 
-Convert subtitle files between the four supported output formats (SRT, ASS, VTT, SUB) while preserving timing, text, and — where possible — styling, supporting both single files and batch directories. Implemented in `src/commands/convert_command.rs`, `src/cli/convert_args.rs`, and `src/core/formats/`.
+Hold the CLI half of the format-conversion agreement: the supported `--format` value surface, input/output path resolution, the command-level original-file preservation and per-file error-isolation framing, and the structured JSON payload of `convert`. Implemented in `src/commands/convert_command.rs` and `src/cli/convert_args.rs`. The per-format conversion semantics, parser robustness, round-trip stability, and public format API are specified by the same-named `format-conversion` capability in `subx-core`.
 
 ## Requirements
 
 ### Requirement: Supported Output Formats
 
-The system SHALL accept `--format` values `srt`, `ass`, `vtt`, and `sub`, defined by the `OutputSubtitleFormat` enum, and SHALL produce output files with the matching file extension.
+The system SHALL accept `--format` values `srt`, `ass`, `vtt`, and `sub`, defined by the `OutputSubtitleFormat` enum in `src/cli/convert_args.rs`, and SHALL write output files with the file extension matching the selected value. When `--format` is omitted the command SHALL resolve the target format from `formats.default_output` in configuration.
 
-#### Scenario: Convert SRT to VTT
-- **GIVEN** an input SRT file and `--format vtt`
-- **WHEN** the convert command runs
-- **THEN** the output file SHALL contain a `WEBVTT` header and SRT-style comma timecodes SHALL be converted to dot timecodes (for example `00:00:01.000 --> 00:00:02.000`)
+`OutputSubtitleFormat` is a clap-derived enum and stays in `subx-cli` permanently under SDR D8, so the accepted value set and the extension mapping are CLI-owned. What each target format's output must look like — that an SRT-to-VTT conversion produces a `WEBVTT` header and dot timecodes, and equivalently for the other targets — is specified by the `format-conversion` capability's *Target Format Conversion Semantics* requirement in `subx-core`.
 
 #### Scenario: Default output format from configuration
 - **GIVEN** the user omits `--format` and `formats.default_output` is `srt` in configuration
 - **WHEN** the command runs
 - **THEN** every input file SHALL be converted to SRT
-
 ### Requirement: Input and Output Path Resolution
 
 The system SHALL accept input files or directories via a positional path and/or repeated `-i/--input` flags, filter inputs to subtitle extensions (`srt`, `ass`, `vtt`, `sub`, `ssa`), and compute the output path either from `--output` or by replacing the input file's extension with the target format extension.
@@ -56,186 +52,6 @@ The system SHALL report conversion errors on a per-file basis and SHALL continue
 - **GIVEN** a batch of three input files where one is corrupt
 - **WHEN** the command runs
 - **THEN** the two valid files SHALL be converted successfully and the corrupt file SHALL produce an error message on stderr while the command exits without failing the whole batch
-
-### Requirement: File size check before parsing
-
-Before reading a subtitle file for format conversion, the system SHALL check the file size against the configured `general.max_subtitle_bytes` limit. If the file exceeds the limit, the system SHALL return an error without reading the file, preventing unbounded memory allocation from malicious or malformed oversized inputs.
-
-#### Scenario: oversized file rejected before conversion
-- **WHEN** a 100 MiB subtitle file is submitted for conversion and the limit is 50 MiB
-- **THEN** the system SHALL return an error without reading the file
-
-#### Scenario: normal file converted
-- **WHEN** a 500 KiB subtitle file is submitted
-- **THEN** conversion SHALL proceed normally
-
-### Requirement: Parser robustness on malformed input
-
-All subtitle format parsers SHALL return `SubXError` values instead of panicking when encountering malformed input. No parser SHALL use `.unwrap()` on data derived from file content.
-
-#### Scenario: malformed ASS file returns error
-- **WHEN** an ASS file has an invalid Format line
-- **THEN** the parser SHALL return `SubXError::SubtitleFormat` instead of panicking
-
-#### Scenario: malformed SRT block is skipped
-- **WHEN** an SRT file has one malformed block among many
-- **THEN** the parser SHALL skip the bad block and parse the rest
-
-### Requirement: Parser/serializer round-trip stability
-
-The system SHALL guarantee that, for every canonical input fixture stored
-under `tests/fixtures/formats/<format>/`, parsing the input via the
-registered `SubtitleFormat` impl and re-serializing the resulting
-`Subtitle` produces output that is byte-identical to the corresponding
-checked-in `<fixture>.expected` file. The `<fixture>.expected` files are
-generated from the *current* serializer's canonical output (not from the
-original input) and serve to lock serializer behavior across this
-refactor; they do NOT assert that the serializer reproduces the original
-input bytes. Refactoring the format module internals MUST NOT change the
-bytes a serializer emits for any fixture covering SRT, ASS, VTT, or SUB.
-
-#### Scenario: SRT round-trip is byte-stable
-
-- **GIVEN** a canonical SRT fixture in `tests/fixtures/formats/srt/`
-- **WHEN** the round-trip integration test parses the fixture and
-  re-serializes the resulting `Subtitle`
-- **THEN** the re-serialized output SHALL be byte-identical to the
-  matching `.expected` file (which captures the current serializer's
-  canonical output, not the original input)
-
-#### Scenario: ASS round-trip is byte-stable
-
-- **GIVEN** a canonical ASS fixture in `tests/fixtures/formats/ass/`
-  including at least one styled cue
-- **WHEN** the round-trip integration test parses and re-serializes the
-  fixture
-- **THEN** the output SHALL be byte-identical to the corresponding
-  `.expected` file. The `.expected` file reflects the serializer's
-  canonical emission of `[Script Info]`, `[V4+ Styles]`, and `[Events]`
-  sections (whose order, whitespace, and field formatting are decided by
-  the serializer, not copied from the original input). The refactor
-  MUST NOT change those emitted bytes.
-
-#### Scenario: VTT round-trip is byte-stable
-
-- **GIVEN** a canonical VTT fixture in `tests/fixtures/formats/vtt/`
-- **WHEN** the round-trip integration test parses and re-serializes the
-  fixture
-- **THEN** the output SHALL be byte-identical to the corresponding
-  `.expected` file (which includes the `WEBVTT` header as emitted by the
-  current serializer)
-
-#### Scenario: SUB round-trip is byte-stable
-
-- **GIVEN** a canonical SUB (MicroDVD) fixture in
-  `tests/fixtures/formats/sub/`
-- **WHEN** the round-trip integration test parses and re-serializes the
-  fixture
-- **THEN** the output SHALL be byte-identical to the corresponding
-  `.expected` file
-
-#### Scenario: CRLF inputs are tolerated and locked by fixtures
-
-- **GIVEN** a CRLF-line-ending fixture (suffix `.crlf.<ext>`) for each
-  format under `tests/fixtures/formats/<format>/`
-- **WHEN** the round-trip integration test parses the CRLF fixture and
-  re-serializes the resulting `Subtitle`
-- **THEN** parsing SHALL NOT panic, the parse call SHALL return `Ok(_)`
-  for every CRLF fixture, and the re-serialized output SHALL be
-  byte-identical to the matching `.expected` file. The CRLF fixtures
-  lock the *current* serializer output bytes for behavior preservation;
-  they do NOT assert semantic equivalence to the LF-equivalent fixtures
-  and they do NOT promise the same in-memory entry count
-- **AND** the following pre-existing CRLF parser quirks are explicitly
-  acknowledged and frozen by the fixtures rather than fixed in this
-  refactor:
-  - SRT: `content.split("\n\n")` does not split blocks separated by
-    `"\r\n\r\n"`, so a CRLF SRT file is treated as a single block whose
-    text payload embeds the remaining cues. The serializer happens to
-    re-emit byte-stable output because the embedded payload, when
-    re-parsed by the same algorithm on LF output, reconstructs cues.
-    The in-memory `Subtitle` from a CRLF SRT input contains fewer
-    entries than its LF counterpart
-  - VTT: the same block splitter combined with the trailing `\r` on the
-    cue marker line causes CRLF VTT files to parse to zero cue entries;
-    the `WEBVTT` header is still recognized so the parse succeeds with
-    an empty `entries` vector
-  - ASS and SUB: parsing is line-based and is unaffected by CRLF; their
-    CRLF and LF fixtures parse to identical `Subtitle` values
-- **AND** addressing the SRT and VTT CRLF semantics is deferred to a
-  follow-up change; this refactor must not alter those parsers' output
-
-### Requirement: Public format API stability across module reorganization
-
-The system SHALL preserve every existing public path under
-`crate::core::formats` (including `Subtitle`, `SubtitleEntry`,
-`SubtitleMetadata`, `StylingInfo`, `SubtitleFormatType`,
-`SubtitleFormat`, `SrtFormat`, `AssFormat`, `VttFormat`, `SubFormat`,
-`FormatManager`, and `FormatConverter`) while internal modules are
-reorganized. The full method signatures of the `SubtitleFormat` trait
-(`parse`, `serialize`, `detect`, `format_name`, `file_extensions`,
-`supports_styling`, `uses_frame_timing`) SHALL remain unchanged in
-arity, parameter types, return types, and default-method semantics.
-Downstream crates and other modules in `subx-cli` MUST continue to
-compile without import path changes.
-
-The trait's **supertrait list** is part of this frozen surface:
-
-- `SubtitleFormat` SHALL declare `Send + Sync` as supertraits, so that
-  `Box<dyn SubtitleFormat>`, `&dyn SubtitleFormat` and any container of
-  either carry the auto traits without naming them at the storage site.
-- Every implementor SHALL therefore be `Send + Sync`. The four
-  registered implementors — `AssFormat`, `VttFormat`, `SrtFormat`,
-  `SubFormat` — are field-less structs and satisfy this without
-  synchronisation.
-- An implementor SHALL NOT hold `Rc`, `RefCell`, `Cell`, a raw pointer,
-  or any other non-thread-safe state in order to satisfy the trait. A
-  format handler is a parser: it is stateless, or it holds
-  configuration.
-- Removing either supertrait SHALL be treated as a breaking change
-  requiring a major version, on the same footing as changing a method
-  signature. Adding a supertrait to an already-published trait is
-  likewise a major change, and SHALL be sequenced accordingly.
-- The obligation SHALL be stated in the trait's own rustdoc under
-  `# Implementation Notes`, so an implementor learns it from the item
-  rather than from this specification.
-
-#### Scenario: Existing import paths still resolve
-
-- **GIVEN** any pre-existing `use crate::core::formats::<Item>;`
-  statement in the codebase or in published rustdoc examples
-- **WHEN** the format module is reorganized into per-format submodules
-- **THEN** the import SHALL still resolve and `cargo build`,
-  `cargo clippy -- -D warnings`, and `cargo test --doc --all-features`
-  SHALL pass
-
-#### Scenario: FormatManager registration remains complete
-
-- **GIVEN** a default `FormatManager::new()` instance after the refactor
-- **WHEN** `detect_format` is called on a path with extension `srt`,
-  `ass`, `ssa`, `vtt`, or `sub`
-- **THEN** the manager SHALL return the corresponding
-  `SubtitleFormatType` exactly as before the refactor
-
-#### Scenario: The trait object is thread-safe without a storage-site bound
-
-- **GIVEN** `FormatManager`'s registry field written as
-  `Vec<Box<dyn SubtitleFormat>>`, with no `+ Send + Sync` at the
-  storage site
-- **WHEN** the enclosing type is required to be `Send + Sync`
-- **THEN** the bound SHALL be satisfied by the trait's supertraits, and
-  `get_format` and `get_format_by_extension` SHALL keep returning
-  `Option<&dyn SubtitleFormat>` with no cast at the call site
-
-#### Scenario: A non-thread-safe format handler is rejected
-
-- **GIVEN** a proposed fifth `SubtitleFormat` implementor holding a
-  `Rc<RefCell<_>>` parser cache
-- **WHEN** it is registered in `FormatManager::new`
-- **THEN** compilation SHALL fail at the registration site with the
-  unsatisfied `Send`/`Sync` bound, and the resolution SHALL be to make
-  the handler's state thread-safe or stateless — not to relax the
-  trait
 
 ### Requirement: Convert Command Emits Structured JSON Payload
 

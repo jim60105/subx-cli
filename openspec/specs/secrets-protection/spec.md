@@ -2,17 +2,17 @@
 
 ## Purpose
 
-Keep API keys, tokens, and other sensitive configuration values out of
-terminal output, `Debug` formatting, log files, and disk paths that
-third parties could read. This includes masking secrets in CLI output,
-redacting them in `Debug` impls, restricting on-disk permissions, and
-warning when secrets would be transmitted over plaintext HTTP.
+Hold the display-site half of the secrets-protection agreement: `config set`, `config list`, and `config get` SHALL mask sensitive configuration values in CLI output by calling the core masking helper and SHALL never print raw values. Implemented in `src/commands/config_command.rs` against `subx-core:src/config/masking.rs`. The masking helper itself, API-key `Debug` redaction, the permission check, and the insecure-HTTP warning are specified by the same-named `secrets-protection` capability in `subx-core`.
 
 ## Requirements
 
 ### Requirement: Mask sensitive config values in CLI output
 
-The system SHALL mask values for config keys matching `api_key`, `token`, or `secret` (case-insensitive) when displaying them via `config set`, `config list`, or `config get`. Masked format: `****<last 4 chars>` (or `****` if value is ≤4 chars).
+The `config set`, `config list`, and `config get` subcommands SHALL mask the values of sensitive keys in everything they write to stdout, by passing each key and value through the masking helper before display and never printing the raw value alongside the masked one.
+
+Which keys are sensitive and what the masked form looks like — the `api_key` / `token` / `secret` case-insensitive match, the `****<last 4 chars>` form, and the `****` form for values of four characters or fewer — is specified by the `secrets-protection` capability's *Sensitive Value Masking Helper* requirement in `subx-core`, which owns `mask_sensitive_value` in `subx-core:src/config/masking.rs`. This requirement owns only the obligation that the display sites use it.
+
+This capability and the `configuration-management` capability's *Sensitive value masking in config display* requirement have specified overlapping obligations over these same display sites since both were written. The overlap is preserved unchanged: both stay in `subx-cli`, and deciding which of the two owns config-display masking is left to a later change.
 
 #### Scenario: config set echoes masked value
 
@@ -23,50 +23,3 @@ The system SHALL mask values for config keys matching `api_key`, `token`, or `se
 
 - **WHEN** user runs `config list`
 - **THEN** the `api_key` field displays `****<last4>` instead of the plaintext value
-
-#### Scenario: short secret is fully masked
-
-- **WHEN** the api_key value is 3 characters
-- **THEN** the display shows `****`
-
-### Requirement: Redact API keys in Debug output
-
-All structs holding API keys (OpenAIClient, OpenRouterClient, AzureOpenAIClient, AIConfig) SHALL NOT expose the `api_key` field via `Debug` formatting. The Debug output MUST show `[REDACTED]` for the api_key field.
-
-#### Scenario: Debug format redacts key
-
-- **WHEN** `format!("{:?}", client)` is called on an AI client struct
-- **THEN** the output contains `[REDACTED]` instead of the actual API key
-
-### Requirement: Restrict config file permissions
-
-On Unix systems, the system SHALL set file permissions to `0o600` on the config file after every write operation. The config directory SHALL be set to `0o700`.
-
-#### Scenario: new config file has restricted permissions
-
-- **WHEN** `config set` writes a new config file
-- **THEN** the file permission mode is `0o600` on Unix
-
-#### Scenario: existing config file permissions corrected
-
-- **WHEN** `save_config` writes to an existing config file
-- **THEN** the file permission mode is set to `0o600`
-
-### Requirement: Warn on insecure HTTP endpoint
-
-When an AI client is constructed with a `http://` (non-HTTPS) base URL and a non-empty API key, the system SHALL emit a warning log message indicating that the API key will be transmitted in plaintext.
-
-#### Scenario: HTTP endpoint with key triggers warning
-
-- **WHEN** the base URL is `http://example.com` and api_key is set
-- **THEN** a warning is logged about plaintext transmission
-
-#### Scenario: HTTPS endpoint produces no warning
-
-- **WHEN** the base URL is `https://api.openai.com` and api_key is set
-- **THEN** no insecure-transport warning is logged
-
-#### Scenario: HTTP localhost produces no warning
-
-- **WHEN** the base URL is `http://127.0.0.1:8080` and api_key is set
-- **THEN** no insecure-transport warning is logged (localhost is acceptable for development)
