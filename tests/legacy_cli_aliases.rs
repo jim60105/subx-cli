@@ -18,11 +18,11 @@ fn legacy_cli_paths_resolve_to_core_types() {
 
     // The aliases name the very same types as the core paths.
     fn assert_input_core(_: &CollectedFiles, _: &InputPathHandler) {}
-    let _: fn(&subx_cli::core::input::CollectedFiles, &subx_cli::core::input::InputPathHandler) =
+    let _: fn(&subx_core::core::input::CollectedFiles, &subx_core::core::input::InputPathHandler) =
         assert_input_core;
 
     let mode: SyncMode =
-        subx_cli::core::sync::resolve_sync_pairing(&subx_cli::core::sync::SyncPairingRequest {
+        subx_core::core::sync::resolve_sync_pairing(&subx_core::core::sync::SyncPairingRequest {
             video: Some(PathBuf::from("v.mp4")),
             subtitle: Some(PathBuf::from("s.srt")),
             ..Default::default()

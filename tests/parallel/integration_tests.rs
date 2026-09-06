@@ -2,9 +2,9 @@
 //! Parallel processing integration tests
 //! Testing cross-module parallel workflows and coordination
 
-use subx_cli::core::parallel::{TaskScheduler, WorkerPool};
-use subx_cli::core::parallel::task::{Task, TaskResult, TaskStatus, ProcessingOperation, FileProcessingTask};
-use subx_cli::core::parallel::scheduler::TaskPriority;
+use subx_core::core::parallel::{TaskScheduler, WorkerPool};
+use subx_core::core::parallel::task::{Task, TaskResult, TaskStatus, ProcessingOperation, FileProcessingTask};
+use subx_core::core::parallel::scheduler::TaskPriority;
 use tempfile::TempDir;
 use std::sync::{Arc, atomic::{AtomicUsize, Ordering}};
 use std::time::{Duration, Instant};

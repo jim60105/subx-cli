@@ -4,11 +4,10 @@ use log::debug;
 use std::fs;
 use subx_cli::cli::MatchArgs;
 use subx_cli::commands::match_command;
-use subx_cli::config::TestConfigBuilder;
+use subx_core::config::TestConfigBuilder;
+use subx_core::test_support::mock_openai::MockOpenAITestHelper;
+use subx_core::test_support::responses::MatchResponseGenerator;
 use tempfile::TempDir;
-mod common;
-use common::mock_openai_helper::MockOpenAITestHelper;
-use common::test_data_generators::MatchResponseGenerator;
 
 // Using async mutex to avoid environment variable race conditions while avoiding clippy::await_holding_lock warning
 static TEST_MUTEX: tokio::sync::Mutex<()> = tokio::sync::Mutex::const_new(());
@@ -52,7 +51,7 @@ async fn test_cache_reuse_preserves_copy_mode() {
     );
 
     // Scan files to get actual file IDs (non-recursive to match the command args)
-    use subx_cli::core::matcher::FileDiscovery;
+    use subx_core::core::matcher::FileDiscovery;
     let discovery = FileDiscovery::new();
     let files = discovery.scan_directory(test_root, false).unwrap();
     debug!("Scanned directory, found {} files", files.len());
@@ -171,7 +170,7 @@ async fn test_cache_reuse_preserves_move_mode() {
     );
 
     // Scan files to get actual file IDs (non-recursive to match the command args)
-    use subx_cli::core::matcher::FileDiscovery;
+    use subx_core::core::matcher::FileDiscovery;
     let discovery = FileDiscovery::new();
     let files = discovery.scan_directory(test_root, false).unwrap();
     debug!("Scanned directory, found {} files", files.len());

@@ -40,7 +40,7 @@ mod debug_path_tests {
         assert!(directories.contains(&root.to_path_buf()));
 
         // Now test FileDiscovery directly
-        let discovery = subx_cli::core::matcher::FileDiscovery::new();
+        let discovery = subx_core::core::matcher::FileDiscovery::new();
         let files = discovery.scan_directory(root, true).unwrap();
         println!("Files found: {:?}", files.len());
         for file in &files {
@@ -49,14 +49,14 @@ mod debug_path_tests {
 
         let videos: Vec<_> = files
             .iter()
-            .filter(|f| matches!(f.file_type, subx_cli::core::matcher::MediaFileType::Video))
+            .filter(|f| matches!(f.file_type, subx_core::core::matcher::MediaFileType::Video))
             .collect();
         let subtitles: Vec<_> = files
             .iter()
             .filter(|f| {
                 matches!(
                     f.file_type,
-                    subx_cli::core::matcher::MediaFileType::Subtitle
+                    subx_core::core::matcher::MediaFileType::Subtitle
                 )
             })
             .collect();

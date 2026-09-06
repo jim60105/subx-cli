@@ -1,6 +1,6 @@
 //! Integration tests for `subx sync --output json`.
 //!
-//! These tests use the shared [`CLITestHelper`] to invoke the binary in a
+//! These tests use the shared [`TestWorkspace`] to invoke the binary in a
 //! subprocess with `--output json` and assert that:
 //!
 //! - exactly one JSON document is written to stdout (terminated by `\n`);
@@ -14,12 +14,13 @@
 //! - a batch where every item fails produces a top-level error envelope
 //!   instead of a success envelope wrapping all-error items.
 //!
-//! [`CLITestHelper`]: crate::common::cli_helpers::CLITestHelper
+//! [`TestWorkspace`]: crate::subx_core::test_support::workspace::TestWorkspace
 //! [`SyncPayload`]: subx_cli::commands::sync_command::SyncPayload
 
-use crate::common::cli_helpers::CLITestHelper;
+use crate::common::cli_helpers::CliRun;
 use serde_json::Value;
 use std::fs;
+use subx_core::test_support::workspace::TestWorkspace;
 
 const SRT_VALID: &str = "1\n00:00:01,000 --> 00:00:03,000\nHello world\n\n\
                         2\n00:00:04,000 --> 00:00:06,000\nSecond cue\n\n";
@@ -74,7 +75,7 @@ fn assert_envelope_error(env: &Value, expected_command: &str) {
 
 #[tokio::test]
 async fn manual_offset_single_emits_sync_payload() {
-    let mut helper = CLITestHelper::new();
+    let mut helper = TestWorkspace::new();
     let subtitle = helper
         .create_subtitle_file("manual.srt", SRT_VALID)
         .await
@@ -136,7 +137,7 @@ async fn manual_offset_single_emits_sync_payload() {
 
 #[tokio::test]
 async fn manual_offset_dry_run_reports_not_applied() {
-    let mut helper = CLITestHelper::new();
+    let mut helper = TestWorkspace::new();
     let subtitle = helper
         .create_subtitle_file("dry.srt", SRT_VALID)
         .await
@@ -176,7 +177,7 @@ async fn manual_offset_dry_run_reports_not_applied() {
 
 #[tokio::test]
 async fn batch_mixed_success_and_failure_emits_inputs_and_operations() {
-    let helper = CLITestHelper::new();
+    let helper = TestWorkspace::new();
     let workspace = helper.temp_dir_path().to_path_buf();
 
     // Two subdirectories, each with a 1:1 video+subtitle pair so the
@@ -271,7 +272,7 @@ async fn batch_with_zero_successful_items_emits_top_level_error_envelope() {
     // Reproduces Issue B: a batch where every input fails (because no
     // companion video files exist) MUST surface as a top-level error
     // envelope, not a success envelope wrapping all-error items.
-    let helper = CLITestHelper::new();
+    let helper = TestWorkspace::new();
     let workspace = helper.temp_dir_path().to_path_buf();
 
     // Two subtitle files but ZERO video files anywhere — the batch
@@ -320,7 +321,7 @@ async fn vad_mode_emits_vad_metadata() {
         return;
     }
 
-    let mut helper = CLITestHelper::new();
+    let mut helper = TestWorkspace::new();
     let subtitle = helper
         .create_subtitle_file("vad.srt", SRT_VALID)
         .await

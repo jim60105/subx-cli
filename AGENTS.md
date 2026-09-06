@@ -24,7 +24,7 @@ or produce errors.
 | Release build | `cargo build --release` |
 | Format | `cargo fmt` |
 | Lint | `cargo clippy -- -D warnings` |
-| Run tests | `cargo nextest run \|\| true` |
+| Run tests | `cargo nextest run --workspace \|\| true` |
 | **Full quality check** | `scripts/quality_check.sh` (Linux/macOS) or `scripts/quality_check.ps1` (Windows, PowerShell) |
 | Full QA (verbose) | `scripts/quality_check.sh -v` or `scripts/quality_check.ps1 -VerboseOutput` |
 | Coverage report | `scripts/check_coverage.sh -T` (Linux/macOS) or `scripts/check_coverage.ps1 -Table` (Windows, PowerShell) |
@@ -38,10 +38,39 @@ or produce errors.
   formatting, linting, doc checks, and all tests. Use `-v` for verbose
   output if debugging failures. On Unix, you may optionally wrap it with
   `timeout 240` to prevent hangs.
-- **Use `cargo nextest run || true` for tests**, never `cargo test` (except
-  for doc tests). The `|| true` prevents shell abort due to a known nextest
-  issue in this project — **you must still inspect the output and treat any
-  test failure as a real failure**.
+- **Use `cargo nextest run --workspace || true` for tests**, never bare
+  `cargo test` (except for doc tests). The `|| true` prevents shell abort due
+  to a known nextest issue in this project — **you must still inspect the
+  output and treat any test failure as a real failure**. **Always pass
+  `--workspace`**: `default-members` is unset, so a bare `cargo nextest run`
+  acts on the root package alone and silently skips the 40-plus test files
+  under `subx-core/tests/`.
+- **Which crate does my test belong to?** Decide in this order:
+  1. It spawns the binary (`assert_cmd` / `run_command_*`) → `subx-cli/tests/`.
+  2. It names `subx_cli::cli`, `subx_cli::commands` or `subx_cli::App` →
+     `subx-cli/tests/`.
+  3. It names only library segments (`config`, `core`, `error`, `services`,
+     the crate-root macros) → `subx-core/tests/`.
+  4. Shared helpers with a cross-boundary consumer live in
+     `subx_core::test_support` behind the `test-support` feature; helpers only
+     one crate's tests want belong in that crate's `tests/`.
+- **The `test-support` mechanism:** `subx_core::test_support` (workspace
+  builder, file managers, mock OpenAI/Azure helpers, response generators) is
+  gated by the `test-support` feature. `subx-cli` enables it only through
+  `[dev-dependencies]` — never `--features` — and `subx-core` reaches it via a
+  path-only self dev-dependency, so `cargo build --release` can never see the
+  module or its optional `wiremock`/`hound` dependencies.
+- **Harness shims:** Cargo auto-discovers only `tests/*.rs`; a test file under
+  `tests/cli/` etc. needs exactly one top-level `#[path = "..."] mod` shim.
+  `subx-core/tests/` is flat and therefore has none. A shim's target must not
+  declare `mod common;` itself (the shim crate root does); a plain `mod
+  common;` never needs a `#[path = "common/mod.rs"]` attribute. Twelve files
+  are still unwired; proposal B4 triages them.
+- **Every fixture/asset read resolves from `env!("CARGO_MANIFEST_DIR")`**,
+  never the working directory: Cargo sets a test binary's CWD to the *package*
+  root, so a relative path that resolved before a module moved between
+  packages silently stops resolving. See `subx-core/AGENTS.md` for the
+  mirrored rules.
 - **Always run `cargo fmt` and `cargo clippy -- -D warnings`** and fix every
   warning before submitting code.
 - Coverage threshold is **75%** line coverage.

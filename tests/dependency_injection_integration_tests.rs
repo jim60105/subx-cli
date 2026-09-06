@@ -5,14 +5,14 @@
 //! configurations and supports parallel test execution.
 
 use std::sync::Arc;
-use subx_cli::config::{
+use subx_cli::App;
+use subx_core::Result;
+use subx_core::config::{
     ConfigService, ProductionConfigService, TestConfigService, TestEnvironmentProvider,
 };
-use subx_cli::{App, Result};
 use tokio::fs;
 
-mod common;
-use common::cli_helpers::{CLITestHelper, OutputValidator};
+use subx_core::test_support::workspace::{OutputValidator, TestWorkspace};
 
 #[tokio::test]
 async fn test_app_with_production_config_service() -> Result<()> {
@@ -79,7 +79,7 @@ async fn test_config_service_isolation() -> Result<()> {
 #[tokio::test]
 async fn test_cli_helper_with_dependency_injection() -> Result<()> {
     // Create CLI test helper with custom configuration
-    let mut helper = CLITestHelper::with_ai_settings("test-ai", "test-model");
+    let mut helper = TestWorkspace::with_ai_settings("test-ai", "test-model");
 
     // Create test workspace
     let workspace = helper.create_isolated_test_workspace().await?;
@@ -174,7 +174,7 @@ async fn test_production_config_service_creation() -> Result<()> {
 
 #[tokio::test]
 async fn test_cli_helper_file_creation() -> Result<()> {
-    let mut helper = CLITestHelper::new();
+    let mut helper = TestWorkspace::new();
 
     // Test subtitle file creation
     let subtitle_content = r#"1

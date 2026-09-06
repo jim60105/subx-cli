@@ -4,12 +4,11 @@ use log::debug;
 use std::fs;
 use subx_cli::cli::MatchArgs;
 use subx_cli::commands::match_command;
-use subx_cli::config::TestConfigBuilder;
+use subx_core::config::TestConfigBuilder;
 use tempfile::TempDir;
 
-mod common;
-use common::mock_openai_helper::MockOpenAITestHelper;
-use common::test_data_generators::MatchResponseGenerator;
+use subx_core::test_support::mock_openai::MockOpenAITestHelper;
+use subx_core::test_support::responses::MatchResponseGenerator;
 
 // Using async mutex to avoid environment variable race conditions
 static TEST_MUTEX: tokio::sync::Mutex<()> = tokio::sync::Mutex::const_new(());
@@ -119,7 +118,7 @@ async fn test_match_command_simple_execution_with_combined_paths() {
     }
 
     // Scan to get actual file IDs
-    use subx_cli::core::matcher::FileDiscovery;
+    use subx_core::core::matcher::FileDiscovery;
     let discovery = FileDiscovery::new();
     let files = discovery.scan_directory(&main_dir, false).unwrap();
 

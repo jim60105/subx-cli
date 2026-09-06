@@ -668,7 +668,6 @@ sevenz-rust2 = "0.22.2"
 hound = "3.5"
 
 # testing frameworks and utilities
-tokio-test = "0.4"
 assert_cmd = "2.0"
 predicates = "3.0"
 
@@ -692,8 +691,12 @@ Unit tests live inline in source files as `#[cfg(test)] mod tests`. They
 use `TestConfigService` for configuration and `mockall` for trait mocking.
 Every test is parallel-safe — no global state mutation.
 
-Integration tests in `tests/` cover full command workflows. AI interactions
-use `wiremock` via `MockOpenAITestHelper` (in `tests/common/`), which stubs
+Integration tests are split across the two crates by what each drives: tests
+that spawn the binary or exercise the CLI surface live in `subx-cli/tests/`,
+while the 40 core-bound files live in `subx-core/tests/` and shared fixtures
+in `subx-core/src/test_support/` (behind the `test-support` feature, enabled
+only via `[dev-dependencies]`). AI interactions
+use `wiremock` via `MockOpenAITestHelper` (in `subx_core::test_support`), which stubs
 HTTP endpoints and verifies request expectations. File-system tests use
 `tempfile::TempDir` with RAII cleanup.
 

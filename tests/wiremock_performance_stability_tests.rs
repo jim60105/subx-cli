@@ -1,12 +1,11 @@
-mod common;
-use common::{
-    mock_openai_helper::MockOpenAITestHelper, test_data_generators::MatchResponseGenerator,
+use subx_core::test_support::{
+    mock_openai::MockOpenAITestHelper, responses::MatchResponseGenerator,
 };
 
 use std::fs;
 use subx_cli::cli::MatchArgs;
 use subx_cli::commands::match_command;
-use subx_cli::config::TestConfigBuilder;
+use subx_core::config::TestConfigBuilder;
 use tempfile::TempDir;
 
 /// Load test: Simulate processing many files and verify performance

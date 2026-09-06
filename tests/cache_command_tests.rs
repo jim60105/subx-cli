@@ -8,7 +8,7 @@
 use std::sync::Arc;
 use subx_cli::cli::{CacheAction, CacheArgs, ClearArgs, ClearType};
 use subx_cli::commands::cache_command;
-use subx_cli::config::{ConfigService, TestConfigService};
+use subx_core::config::{ConfigService, TestConfigService};
 use tempfile::TempDir;
 
 /// Prepare an isolated config directory and return paths to the cache and
@@ -260,7 +260,7 @@ async fn test_cache_status_via_execute_with_config() {
 
 use std::path::PathBuf;
 use subx_cli::cli::RollbackArgs;
-use subx_cli::core::matcher::journal::{
+use subx_core::core::matcher::journal::{
     JournalData, JournalEntry, JournalEntryStatus, JournalOperationType,
 };
 

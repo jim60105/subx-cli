@@ -1,6 +1,6 @@
 use subx_cli::cli::ui::{create_progress_bar, display_ai_usage};
 use subx_cli::cli::table::{MatchDisplayRow, create_match_table};
-use subx_cli::services::ai::AiUsageStats;
+use subx_core::services::ai::AiUsageStats;
 
 #[test]
 fn test_table_formatting_cli() {

@@ -3,7 +3,6 @@
 //! discovery (Cargo only auto-discovers `tests/*.rs`, not nested
 //! directories).
 
-#[path = "common/mod.rs"]
 mod common;
 
 #[path = "cli/output_format_sync.rs"]

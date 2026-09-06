@@ -1,14 +1,13 @@
-use subx_cli::config::TestConfigBuilder;
-use subx_cli::core::parallel::{
+use subx_core::config::TestConfigBuilder;
+use subx_core::core::parallel::{
     FileProcessingTask, ProcessingOperation, TaskResult, TaskScheduler,
 };
 use tempfile::TempDir;
 
-mod common;
-use common::{
+use subx_core::test_support::{
     mock_generators::{SubtitleFormat, SubtitleGenerator},
-    mock_openai_helper::MockOpenAITestHelper,
-    test_data_generators::MatchResponseGenerator,
+    mock_openai::MockOpenAITestHelper,
+    responses::MatchResponseGenerator,
 };
 
 #[tokio::test]
@@ -30,11 +29,11 @@ async fn test_batch_file_processing() {
     }
 
     let scheduler = TaskScheduler::new_with_defaults();
-    let mut tasks: Vec<Box<dyn subx_cli::core::parallel::Task + Send + Sync>> = Vec::new();
+    let mut tasks: Vec<Box<dyn subx_core::core::parallel::Task + Send + Sync>> = Vec::new();
 
     for name in &test_files {
         let path = temp.path().join(name);
-        let task: Box<dyn subx_cli::core::parallel::Task + Send + Sync> =
+        let task: Box<dyn subx_core::core::parallel::Task + Send + Sync> =
             Box::new(FileProcessingTask {
                 input_path: path,
                 output_path: None,

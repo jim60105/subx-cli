@@ -1,6 +1,7 @@
 //! 參數組合整合測試：覆蓋 README 中記錄的 sync 用法
+use subx_core::test_support::workspace::TestWorkspace;
 mod common;
-use common::cli_helpers::CLITestHelper;
+use common::cli_helpers::CliRun;
 use std::path::PathBuf;
 use tokio::fs;
 
@@ -8,10 +9,12 @@ use tokio::fs;
 #[cfg(feature = "slow-tests")]
 #[tokio::test]
 async fn test_basic_video_subtitle_sync() {
-    let helper = CLITestHelper::new();
+    let helper = TestWorkspace::new();
     let ws = helper.temp_dir_path().to_path_buf();
-    let src_video = PathBuf::from("assets/SubX - The Subtitle Revolution.mp4");
-    let src_srt = PathBuf::from("assets/SubX - The Subtitle Revolution.srt");
+    let src_video =
+        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("assets/SubX - The Subtitle Revolution.mp4");
+    let src_srt =
+        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("assets/SubX - The Subtitle Revolution.srt");
     fs::copy(&src_video, ws.join("video.mp4")).await.unwrap();
     fs::copy(&src_srt, ws.join("subtitle.srt")).await.unwrap();
     helper
@@ -23,9 +26,10 @@ async fn test_basic_video_subtitle_sync() {
 /// subx-cli sync --offset 2.5 subtitle.srt
 #[tokio::test]
 async fn test_manual_offset_sync() {
-    let helper = CLITestHelper::new();
+    let helper = TestWorkspace::new();
     let ws = helper.temp_dir_path().to_path_buf();
-    let src_srt = PathBuf::from("assets/SubX - The Subtitle Revolution.srt");
+    let src_srt =
+        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("assets/SubX - The Subtitle Revolution.srt");
     fs::copy(&src_srt, ws.join("subtitle.srt")).await.unwrap();
     helper
         .run_command_expect_success(&["sync", "--offset", "2.5", "subtitle.srt"])
@@ -37,10 +41,12 @@ async fn test_manual_offset_sync() {
 #[cfg(feature = "slow-tests")]
 #[tokio::test]
 async fn test_vad_sensitivity_sync() {
-    let helper = CLITestHelper::new();
+    let helper = TestWorkspace::new();
     let ws = helper.temp_dir_path().to_path_buf();
-    let src_video = PathBuf::from("assets/SubX - The Subtitle Revolution.mp4");
-    let src_srt = PathBuf::from("assets/SubX - The Subtitle Revolution.srt");
+    let src_video =
+        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("assets/SubX - The Subtitle Revolution.mp4");
+    let src_srt =
+        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("assets/SubX - The Subtitle Revolution.srt");
     fs::copy(&src_video, ws.join("video.mp4")).await.unwrap();
     fs::copy(&src_srt, ws.join("subtitle.srt")).await.unwrap();
     helper
@@ -59,10 +65,10 @@ async fn test_vad_sensitivity_sync() {
 #[cfg(feature = "slow-tests")]
 #[tokio::test]
 async fn test_batch_directory_sync() {
-    let helper = CLITestHelper::new();
+    let helper = TestWorkspace::new();
     let ws = helper.temp_dir_path().to_path_buf();
     // copy assets folder to temp
-    let src_dir = PathBuf::from("assets");
+    let src_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("assets");
     fs::create_dir_all(ws.join("media")).await.unwrap();
     fs::copy(
         &src_dir.join("SubX - The Subtitle Revolution.mp4"),
@@ -86,10 +92,10 @@ async fn test_batch_directory_sync() {
 #[cfg(feature = "slow-tests")]
 #[tokio::test]
 async fn test_batch_input_path_sync() {
-    let helper = CLITestHelper::new();
+    let helper = TestWorkspace::new();
     let ws = helper.temp_dir_path().to_path_buf();
     fs::create_dir_all(ws.join("movies")).await.unwrap();
-    let src_dir = PathBuf::from("assets");
+    let src_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("assets");
     fs::copy(
         &src_dir.join("SubX - The Subtitle Revolution.mp4"),
         ws.join("movies/video.mp4"),
@@ -112,11 +118,11 @@ async fn test_batch_input_path_sync() {
 #[cfg(feature = "slow-tests")]
 #[tokio::test]
 async fn test_batch_recursive_sync() {
-    let helper = CLITestHelper::new();
+    let helper = TestWorkspace::new();
     let ws = helper.temp_dir_path().to_path_buf();
     let nested = ws.join("dir/a");
     fs::create_dir_all(&nested).await.unwrap();
-    let src_dir = PathBuf::from("assets");
+    let src_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("assets");
     fs::copy(
         &src_dir.join("SubX - The Subtitle Revolution.mp4"),
         nested.join("video.mp4"),
@@ -139,13 +145,15 @@ async fn test_batch_recursive_sync() {
 #[cfg(feature = "slow-tests")]
 #[tokio::test]
 async fn test_multiple_input_batch_recursive_vad_sync() {
-    let helper = CLITestHelper::new();
+    let helper = TestWorkspace::new();
     let ws = helper.temp_dir_path().to_path_buf();
     for d in &["m1", "m2", "tv"] {
         let subdir = ws.join(d);
         fs::create_dir_all(&subdir).await.unwrap();
-        let src = PathBuf::from("assets/SubX - The Subtitle Revolution.mp4");
-        let ss = PathBuf::from("assets/SubX - The Subtitle Revolution.srt");
+        let src = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("assets/SubX - The Subtitle Revolution.mp4");
+        let ss = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("assets/SubX - The Subtitle Revolution.srt");
         fs::copy(&src, subdir.join("video.mp4")).await.unwrap();
         fs::copy(&ss, subdir.join("subtitle.srt")).await.unwrap();
     }
@@ -173,12 +181,14 @@ async fn test_multiple_input_batch_recursive_vad_sync() {
 #[cfg(feature = "slow-tests")]
 #[tokio::test]
 async fn test_batch_recursive_dry_run_verbose_sync() {
-    let helper = CLITestHelper::new();
+    let helper = TestWorkspace::new();
     let ws = helper.temp_dir_path().to_path_buf();
     let nested = ws.join("media");
     fs::create_dir_all(&nested).await.unwrap();
-    let src = PathBuf::from("assets/SubX - The Subtitle Revolution.mp4");
-    let ss = PathBuf::from("assets/SubX - The Subtitle Revolution.srt");
+    let src =
+        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("assets/SubX - The Subtitle Revolution.mp4");
+    let ss =
+        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("assets/SubX - The Subtitle Revolution.srt");
     fs::copy(&src, nested.join("video.mp4")).await.unwrap();
     fs::copy(&ss, nested.join("subtitle.srt")).await.unwrap();
     let result = helper
@@ -199,10 +209,12 @@ async fn test_batch_recursive_dry_run_verbose_sync() {
 
 #[tokio::test]
 async fn test_maximal_parameter_combinations() {
-    let helper = CLITestHelper::new();
+    let helper = TestWorkspace::new();
     let ws = helper.temp_dir_path().to_path_buf();
-    let src = PathBuf::from("assets/SubX - The Subtitle Revolution.mp4");
-    let ss = PathBuf::from("assets/SubX - The Subtitle Revolution.srt");
+    let src =
+        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("assets/SubX - The Subtitle Revolution.mp4");
+    let ss =
+        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("assets/SubX - The Subtitle Revolution.srt");
     fs::copy(&src, ws.join("video.mp4")).await.unwrap();
     fs::copy(&ss, ws.join("subtitle.srt")).await.unwrap();
     let args = [
@@ -227,7 +239,7 @@ async fn test_maximal_parameter_combinations() {
 /// 測試衝突參數處理
 #[tokio::test]
 async fn test_conflicting_parameter_handling() {
-    let helper = CLITestHelper::new();
+    let helper = TestWorkspace::new();
     // 同時指定 --offset 與 --method vad 可能為衝突組合
     let result = helper
         .run_command_with_config(&["sync", "--offset", "2.0", "--method", "vad", "subtitle.srt"])

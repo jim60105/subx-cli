@@ -3,7 +3,7 @@ use std::path::Path;
 use tempfile::TempDir;
 
 use subx_cli::cli::{SyncArgs, SyncMethodArg};
-use subx_cli::core::sync::SyncMethod;
+use subx_core::core::sync::SyncMethod;
 
 /// Test comprehensive integration functionality of the new sync architecture
 ///

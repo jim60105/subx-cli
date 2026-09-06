@@ -7,12 +7,11 @@ use std::fs;
 use std::path::PathBuf;
 use subx_cli::cli::MatchArgs;
 use subx_cli::commands::match_command;
-use subx_cli::config::TestConfigBuilder;
-use tempfile::TempDir;
-mod common;
-use common::{
-    mock_openai_helper::MockOpenAITestHelper, test_data_generators::MatchResponseGenerator,
+use subx_core::config::TestConfigBuilder;
+use subx_core::test_support::{
+    mock_openai::MockOpenAITestHelper, responses::MatchResponseGenerator,
 };
+use tempfile::TempDir;
 
 /// Test basic copy operation functionality
 #[tokio::test]

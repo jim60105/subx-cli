@@ -14,12 +14,13 @@
 //! Wired into the test crate via
 //! `tests/output_format_cross_command_tests.rs`.
 
-use crate::common::cli_helpers::CLITestHelper;
+use crate::common::cli_helpers::CliRun;
 use crate::common::json_output::{assert_envelope, assert_json_stdout_clean};
 use assert_cmd::Command;
 use serde_json::json;
 use std::fs;
-use subx_cli::core::matcher::FileDiscovery;
+use subx_core::core::matcher::FileDiscovery;
+use subx_core::test_support::workspace::TestWorkspace;
 use tempfile::TempDir;
 use wiremock::matchers::{method, path as wmpath};
 use wiremock::{Mock, MockServer, ResponseTemplate};
@@ -166,7 +167,7 @@ fn generate_completion_json_mode_emits_clean_error_envelope() {
 
 #[tokio::test]
 async fn sync_manual_offset_json_mode_is_clean_and_well_formed() {
-    let mut helper = CLITestHelper::new();
+    let mut helper = TestWorkspace::new();
     let subtitle = helper
         .create_subtitle_file("manual.srt", SAMPLE_SRT)
         .await

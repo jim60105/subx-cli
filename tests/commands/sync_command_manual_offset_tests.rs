@@ -4,7 +4,7 @@ use std::sync::Arc;
 use tempfile::TempDir;
 use subx_cli::cli::SyncArgs;
 use subx_cli::commands::sync_command;
-use subx_cli::config::test_service::TestConfigService;
+use subx_core::config::test_service::TestConfigService;
 
 #[tokio::test]
 async fn test_manual_sync_without_video_file() {

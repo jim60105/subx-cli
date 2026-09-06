@@ -1,17 +1,19 @@
+use subx_core::test_support::workspace::TestWorkspace;
 mod common;
-use common::cli_helpers::CLITestHelper;
+use common::cli_helpers::CliRun;
 use std::path::PathBuf;
 use tokio::fs;
 
 /// 測試批次模式下只有字幕文件時顯示跳過消息
 #[tokio::test]
 async fn test_batch_mode_subtitle_only_skip_message() {
-    let helper = CLITestHelper::new();
+    let helper = TestWorkspace::new();
     let workspace = helper.temp_dir_path().to_path_buf();
 
     // 創建只有字幕文件的目錄
     fs::create_dir_all(workspace.join("media")).await.unwrap();
-    let src_srt = PathBuf::from("assets/SubX - The Subtitle Revolution.srt");
+    let src_srt =
+        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("assets/SubX - The Subtitle Revolution.srt");
     fs::copy(&src_srt, workspace.join("media/subtitle.srt"))
         .await
         .unwrap();
@@ -51,15 +53,17 @@ async fn test_batch_mode_subtitle_only_skip_message() {
 #[cfg(feature = "slow-tests")]
 #[tokio::test]
 async fn test_batch_mode_mixed_files_correct_behavior() {
-    let helper = CLITestHelper::new();
+    let helper = TestWorkspace::new();
     let workspace = helper.temp_dir_path().to_path_buf();
 
     // 創建混合文件的目錄
     fs::create_dir_all(workspace.join("media")).await.unwrap();
 
     // 添加有對應視頻的字幕
-    let src_video = PathBuf::from("assets/SubX - The Subtitle Revolution.mp4");
-    let src_srt = PathBuf::from("assets/SubX - The Subtitle Revolution.srt");
+    let src_video =
+        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("assets/SubX - The Subtitle Revolution.mp4");
+    let src_srt =
+        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("assets/SubX - The Subtitle Revolution.srt");
     fs::copy(&src_video, workspace.join("media/video.mp4"))
         .await
         .unwrap();
@@ -107,12 +111,13 @@ async fn test_batch_mode_mixed_files_correct_behavior() {
 /// 測試批次模式下多個只有字幕文件的處理
 #[tokio::test]
 async fn test_batch_mode_multiple_subtitle_only_files() {
-    let helper = CLITestHelper::new();
+    let helper = TestWorkspace::new();
     let workspace = helper.temp_dir_path().to_path_buf();
 
     // 創建只有多個字幕文件的目錄
     fs::create_dir_all(workspace.join("media")).await.unwrap();
-    let src_srt = PathBuf::from("assets/SubX - The Subtitle Revolution.srt");
+    let src_srt =
+        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("assets/SubX - The Subtitle Revolution.srt");
 
     for i in 1..=3 {
         fs::copy(
@@ -159,7 +164,7 @@ async fn test_batch_mode_multiple_subtitle_only_files() {
 /// 測試不同字幕格式的跳過行為
 #[tokio::test]
 async fn test_batch_mode_different_subtitle_formats_skip() {
-    let helper = CLITestHelper::new();
+    let helper = TestWorkspace::new();
     let workspace = helper.temp_dir_path().to_path_buf();
 
     // 創建目錄

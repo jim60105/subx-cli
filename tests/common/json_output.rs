@@ -7,6 +7,9 @@
 //! written. Returns the parsed [`serde_json::Value`] so callers can
 //! perform further per-command assertions on the envelope.
 
+// Shared by several CLI harnesses; not every harness crate uses every helper.
+#![allow(dead_code)]
+
 use serde_json::Value;
 
 /// ANSI / `indicatif` redraw byte/sequence patterns that MUST NEVER

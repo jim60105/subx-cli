@@ -20,19 +20,18 @@ use std::sync::Arc;
 use serde_json::json;
 use subx_cli::cli::MatchArgs;
 use subx_cli::commands::match_command;
-use subx_cli::config::{
+use subx_core::config::{
     Config, ProductionConfigService, TestConfigBuilder, TestConfigService, TestEnvironmentProvider,
     service::ConfigService, validator::validate_ai_config,
 };
-use subx_cli::core::factory::ComponentFactory;
-use subx_cli::services::ai::AIProvider;
-use subx_cli::services::ai::local::LocalLLMClient;
+use subx_core::core::factory::ComponentFactory;
+use subx_core::services::ai::AIProvider;
+use subx_core::services::ai::local::LocalLLMClient;
 use tempfile::TempDir;
 use wiremock::matchers::{method, path as wm_path};
 use wiremock::{Mock, MockServer, ResponseTemplate};
 
-mod common;
-use common::test_data_generators::MatchResponseGenerator;
+use subx_core::test_support::responses::MatchResponseGenerator;
 
 /// Serialize tests that touch `XDG_CONFIG_HOME` (for the match cache
 /// directory) so they don't race against each other or other suites.
@@ -112,7 +111,7 @@ async fn s4_1_match_flow_end_to_end_via_local_provider() {
     fs::write(tmp.path().join("movie.mp4"), b"video").unwrap();
     fs::write(tmp.path().join("movie.srt"), b"sub").unwrap();
 
-    use subx_cli::core::matcher::FileDiscovery;
+    use subx_core::core::matcher::FileDiscovery;
     let files = FileDiscovery::new()
         .scan_directory(tmp.path(), false)
         .unwrap();
@@ -495,7 +494,7 @@ async fn s4_10_text_mode_hosted_provider_non_openai_body_emits_hint() {
     // around `endpoint`/`deployment_id`. However, the validator now
     // rejects http:// for all hosted providers, so we drive the client
     // directly rather than through the factory.
-    use subx_cli::services::ai::openai::OpenAIClient;
+    use subx_core::services::ai::openai::OpenAIClient;
 
     let server = MockServer::start().await;
     Mock::given(method("POST"))
