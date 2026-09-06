@@ -8,7 +8,7 @@ This document is the authoritative reference for that contract.
 
 The default text mode is unchanged. JSON mode is strictly opt-in and
 the existing exit-code contract (1–6, mapped through
-`SubXErrorExt::exit_code` from `src/cli/error_ext.rs`) is preserved across
+`SubXErrorExt::exit_code` from `subx-cli/src/cli/error_ext.rs`) is preserved across
 both modes.
 
 ## Table of Contents
