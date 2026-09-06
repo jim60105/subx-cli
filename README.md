@@ -155,6 +155,25 @@ cargo build --release
 > does not apply to the initial `git clone` itself, which is why
 > `--recurse-submodules` is documented separately.
 
+### Using SubX as a Library
+
+The processing engine behind `subx-cli` is a standalone crate,
+[`subx-core`](https://github.com/jim60105/subx-core): subtitle parsing and
+conversion, AI matching, VAD timeline sync, translation, and configuration
+with no terminal presentation code. Depend on `subx-core` — never on
+`subx-cli`, whose library surface exists only as compatibility re-exports
+of `subx-core`.
+
+```toml
+[dependencies]
+subx-core = { git = "https://github.com/jim60105/subx-core" }  # the crate has no
+                  # crates.io release yet; once the two-crate release publishes,
+                  # this becomes: subx-core = "1"
+```
+
+The API reference is `docs.rs/subx-core` once the crate is first published;
+the repository README and rustdoc are authoritative meanwhile.
+
 ## Supported Formats
 
 | Format | Read | Write | Notes |
@@ -195,6 +214,11 @@ explicitly rejects JSON mode.
   and design decisions
 - [AI Provider Integration](docs/ai-provider-integration-guide.md) — how to
   add a new AI provider
+- [`subx-core` API reference](https://docs.rs/subx-core) — the library's
+  rustdoc (canonical reference for the processing engine; live once the
+  crate is first published)
+- [`subx-core` repository](https://github.com/jim60105/subx-core) — the
+  library half of this project, mounted here as a git submodule
 
 ## License
 

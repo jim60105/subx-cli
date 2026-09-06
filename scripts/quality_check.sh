@@ -229,22 +229,39 @@ run_test_with_conditional_output() {
 #      is byte-identical (marker-inclusive; the tool-managed CODEGRAPH
 #      block lives outside the region in both files).
 #
-# Extraction writes marker-inclusive bytes straight to temporary files
-# (no command substitution, which would strip trailing newlines) and the
-# comparison is a raw-byte cmp; a textual diff runs only as a diagnostic
-# after a byte mismatch.
+# Extraction writes marker-inclusive content straight to temporary files
+# (no command substitution, which would strip trailing newlines) with
+# carriage returns stripped, so the compared bytes are LF-normalised
+# content — the same contract as Extract-SharedRegion in
+# quality_check.ps1, whose [IO.File]::ReadAllLines drops CR as it splits
+# lines. The comparison is a raw-byte cmp of those normalised bytes; a
+# textual diff runs only as a diagnostic after a byte mismatch.
 # ---------------------------------------------------------------------------
 extract_shared_region() {
     local file=$1
     local out=$2
-    local starts ends
-    starts=$(grep -c '^<!-- SHARED_CONVENTIONS_START -->$' "$file" || true)
-    ends=$(grep -c '^<!-- SHARED_CONVENTIONS_END -->$' "$file" || true)
+    local starts ends start_line end_line clean
+    # LF-normalise once up front so marker matching and extraction see the
+    # same content the PowerShell port sees (its [IO.File]::ReadAllLines
+    # splits on CRLF or LF and re-joins with LF).
+    clean=$(mktemp)
+    tr -d '\r' < "$file" > "$clean"
+    starts=$(grep -c '^<!-- SHARED_CONVENTIONS_START -->$' "$clean" || true)
+    ends=$(grep -c '^<!-- SHARED_CONVENTIONS_END -->$' "$clean" || true)
     if [ "${starts}" -ne 1 ] || [ "${ends}" -ne 1 ]; then
+        rm -f "$clean"
         print_status "$RED" "   $file: expected exactly one SHARED_CONVENTIONS_START and one SHARED_CONVENTIONS_END marker, found ${starts} start / ${ends} end"
         return 1
     fi
-    sed -n '/^<!-- SHARED_CONVENTIONS_START -->$/,/^<!-- SHARED_CONVENTIONS_END -->$/p' "$file" > "$out"
+    start_line=$(grep -n '^<!-- SHARED_CONVENTIONS_START -->$' "$clean" | cut -d: -f1)
+    end_line=$(grep -n '^<!-- SHARED_CONVENTIONS_END -->$' "$clean" | cut -d: -f1)
+    if [ "${end_line}" -le "${start_line}" ]; then
+        rm -f "$clean"
+        print_status "$RED" "   $file: SHARED_CONVENTIONS_END appears before SHARED_CONVENTIONS_START"
+        return 1
+    fi
+    sed -n '/^<!-- SHARED_CONVENTIONS_START -->$/,/^<!-- SHARED_CONVENTIONS_END -->$/p' "$clean" > "$out"
+    rm -f "$clean"
 }
 
 check_spec_governance() {

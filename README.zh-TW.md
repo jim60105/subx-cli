@@ -130,6 +130,23 @@ cargo build --release
 > 每個複製各自的設定，對最初的 `git clone` 本身無效，因此
 > `--recurse-submodules` 須另行使用。
 
+### 以函式庫方式使用 SubX
+
+`subx-cli` 背後的處理引擎是獨立發行的 crate
+[`subx-core`](https://github.com/jim60105/subx-core)：字幕解析與轉換、AI
+匹配、VAD 時間軸校正、翻譯與設定管理，不含任何終端機呈現程式碼。請直接依賴
+`subx-core`，**切勿**依賴 `subx-cli`——後者的函式庫介面僅作為 `subx-core`
+的相容性 re-export 而存在。
+
+```toml
+[dependencies]
+subx-core = { git = "https://github.com/jim60105/subx-core" }  # 該 crate 目前尚無
+                  # crates.io 發行版；雙 crate 發行版上線後可改用：subx-core = "1"
+```
+
+API 參考文件為 `docs.rs/subx-core`（自該 crate 首次發佈起可用）；發佈前請以
+儲存庫 README 與 rustdoc 為準。
+
 ## 支援格式
 
 | 格式 | 讀取 | 寫入 | 說明 |
@@ -158,6 +175,10 @@ subx-cli --output json match --dry-run ./media \
 - [機器可讀輸出](docs/machine-readable-output.md)——`--output json` 契約，提供腳本與自動化使用
 - [技術架構](docs/tech-architecture.md)——程式碼結構與設計決策
 - [AI 供應商整合指南](docs/ai-provider-integration-guide.md)——如何新增 AI 供應商
+- [`subx-core` API 參考](https://docs.rs/subx-core)——函式庫的 rustdoc，
+  處理引擎的正統參考文件（自該 crate 首次發佈起可用）
+- [`subx-core` 儲存庫](https://github.com/jim60105/subx-core)——本專案的
+  函式庫一半，以 git 子模組形式掛載於此
 
 ## 授權條款
 

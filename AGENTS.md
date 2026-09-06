@@ -220,7 +220,7 @@ In this table, `src/…` rows prefixed `subx-core` are paths inside the
 | Add/change CLI arguments | `subx-cli/src/cli/*_args.rs` (the collection algorithm lives in `subx-core/src/core/input/mod.rs`) |
 | Add/change command logic | `subx-cli/src/commands/*_command.rs` |
 | Change command routing | `subx-cli/src/commands/dispatcher.rs` |
-| Add/change config keys | `subx-core/src/config/mod.rs`, `service.rs`, `field_validator.rs`, `validator.rs` |
+| Add/change config keys | `subx-core/src/config/mod.rs`, `subx-core/src/config/service.rs`, `subx-core/src/config/field_validator.rs`, `subx-core/src/config/validator.rs` |
 | Add AI provider | `subx-core/src/services/ai/`, `subx-core/src/core/factory.rs`, `subx-core/src/config/` |
 | Add subtitle format | `subx-core/src/core/formats/`, register in `FormatManager::new()` |
 | Add/change translation behavior | `subx-cli/src/cli/translate_args.rs`, `subx-cli/src/commands/translate_command.rs`, `subx-core/src/core/translation/`, AI prompt helpers in `subx-core/src/services/ai/` |

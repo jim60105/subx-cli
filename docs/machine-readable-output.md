@@ -637,7 +637,7 @@ fully successful batch always returns `status == "ok"`.
 
 ## CLI Parsing Flow
 
-The process boundary in `src/main.rs` guarantees that every JSON-mode
+The process boundary in `subx-cli/src/main.rs` guarantees that every JSON-mode
 invocation produces exactly one JSON document on stdout, including the
 case where clap rejects argv before any subcommand runs:
 
@@ -746,7 +746,7 @@ releases.
 ## `cache status --json` Legacy Alias
 
 The legacy `cache status --json` flag (defined on `StatusArgs` in
-`src/cli/cache_args.rs`) predates the global output mode. It is
+`subx-cli/src/cli/cache_args.rs`) predates the global output mode. It is
 preserved as a thin, backward-compatible alias that forwards to the
 global JSON renderer:
 
@@ -855,16 +855,23 @@ What requires a major bump:
 
 ## References
 
-- OpenSpec capability: `openspec/changes/add-machine-readable-output/specs/machine-readable-output/spec.md`
-- Error-handling additions: `openspec/changes/add-machine-readable-output/specs/error-handling/spec.md`
+- OpenSpec capability: `openspec/changes/archive/2026-04-26-add-machine-readable-output/specs/machine-readable-output/spec.md`
+- Error-handling additions: `openspec/changes/archive/2026-04-26-add-machine-readable-output/specs/error-handling/spec.md`
 - Per-command additions: the `cache-management`, `encoding-detection`,
   `format-conversion`, `progress-reporting`, `subtitle-matching`, and
-  `timeline-sync` spec files under the same change directory.
+  `timeline-sync` spec files under the same change directory. Of the
+  capabilities named in this section, `error-handling`, `cache-management`,
+  `encoding-detection`, `format-conversion`, `subtitle-matching`, and
+  `timeline-sync` are now **split capabilities**: each exists in two halves
+  along the crate boundary, with the core half in
+  `subx-core/openspec/specs/` and the CLI half in `openspec/specs/` (record
+  in `openspec/split-capabilities.txt`). `progress-reporting` and
+  `machine-readable-output` stay wholly in `subx-cli`.
 - Source of truth for the envelope and error mapping:
-  - `src/cli/output.rs` (envelope, renderer, schema-version constant)
+  - `subx-cli/src/cli/output.rs` (envelope, renderer, schema-version constant)
   - `subx-core/src/error.rs` (`SubXError::category`, `machine_code`, `hint` — the
     library-half machine contracts)
-  - `src/cli/error_ext.rs` (`SubXErrorExt::exit_code`,
+  - `subx-cli/src/cli/error_ext.rs` (`SubXErrorExt::exit_code`,
     `SubXErrorExt::user_friendly_message` — the binary-half presentation
     contract; callers import the trait)
 - Command reference: [`command-reference.md`](command-reference.md)
