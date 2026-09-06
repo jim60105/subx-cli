@@ -51,7 +51,10 @@ fn test_convert_command(dir: &Path) {
         .success();
     // Check output file and content
     assert!(output.exists(), "Converted VTT file does not exist");
-    assert!(subtitle.exists(), "--keep-original must preserve the source");
+    assert!(
+        subtitle.exists(),
+        "--keep-original must preserve the source"
+    );
     let content = fs::read_to_string(output).unwrap();
     assert!(
         content.contains("WEBVTT"),

@@ -122,8 +122,8 @@ fn collect_orphan_candidates(dir: &Path, out: &mut Vec<PathBuf>) {
     }
 }
 
-/// Extract the target of a genuine `#[path = "…"] mod <name>;` shim from a
-/// harness file, or `None` if the file declares none. Line-oriented and
+/// Extract the targets of every genuine `#[path = "…"] mod <name>;` shim in a
+/// harness file (empty when it declares none). Line-oriented and
 /// deliberately strict: the `#[path = "<target>"]` must sit on its own
 /// trimmed line, the next non-blank line must be `mod <ident>;`, and any
 /// `cfg`/`cfg_attr` stacked on the same declaration is rejected outright —
@@ -131,7 +131,8 @@ fn collect_orphan_candidates(dir: &Path, out: &mut Vec<PathBuf>) {
 /// not be counted as covering the file. Doc/line comments can never satisfy
 /// the grammar because their `///`/`//`/`/*`/`*` prefixes make the trimmed
 /// line differ.
-fn shim_target(text: &str) -> Option<Result<String, String>> {
+fn shim_targets(text: &str) -> Vec<Result<String, String>> {
+    let mut found = Vec::new();
     let mut lines = text.lines().map(str::trim);
     while let Some(line) = lines.next() {
         let Some(rest) = line.strip_prefix("#[path = \"") else {
@@ -160,15 +161,18 @@ fn shim_target(text: &str) -> Option<Result<String, String>> {
             }
         }
         if stack.iter().any(|a| a.starts_with("#[cfg")) {
-            return Some(Err(format!(
+            found.push(Err(format!(
                 "declares a cfg-bearing #[path] shim (`{line}` under {}) — \
                  conditionally compiled shims cannot be verified as always-on \
                  coverage; give the target an unconditional shim or remove the cfg",
                 stack.len()
             )));
+            continue;
         }
         // The next non-blank line must be the mod declaration.
-        let next = lines.by_ref().find(|l| !l.is_empty())?;
+        let Some(next) = lines.by_ref().find(|l| !l.is_empty()) else {
+            break;
+        };
         let Some(mod_part) = next.strip_prefix("mod ") else {
             continue;
         };
@@ -178,9 +182,9 @@ fn shim_target(text: &str) -> Option<Result<String, String>> {
         if name.is_empty() || !name.chars().all(|c| c.is_ascii_alphanumeric() || c == '_') {
             continue;
         }
-        return Some(Ok(target.to_string()));
+        found.push(Ok(target.to_string()));
     }
-    None
+    found
 }
 
 /// Cargo auto-discovers only `tests/*.rs`. Every `.rs` file under a
@@ -220,7 +224,7 @@ fn every_subdirectory_test_file_has_exactly_one_harness_shim() {
             }
             let text = fs::read_to_string(&path)
                 .unwrap_or_else(|e| panic!("failed to read {}: {e}", path.display()));
-            if let Some(result) = shim_target(&text) {
+            for result in shim_targets(&text) {
                 let target = result.unwrap_or_else(|reason| {
                     panic!(
                         "{}: {reason}",

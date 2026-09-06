@@ -91,7 +91,14 @@ or produce errors.
   mirrored rules.
 - **Always run `cargo fmt` and `cargo clippy -- -D warnings`** and fix every
   warning before submitting code.
-- Coverage threshold is **75%** line coverage.
+- **Coverage floors** (line coverage, measured once on the split suite —
+  workspace 91.77%, `subx-core` 93.54%, `subx-cli` 85.93%): workspace
+  **75%**, `subx-core` **90%**, `subx-cli` **82%**. Floors are derived as
+  `floor(measured − 3)` clamped to ≥75 (core) / ≥65 (cli); they may be
+  **raised** as coverage improves and may only be **lowered through a
+  proposal**. `harden-split-test-suite` (C1) wires the per-crate thresholds
+  into `scripts/check_coverage.sh` / `.ps1` and CI; until then CI enforces
+  only the 75% workspace gate.
 - Required tooling: Rust stable, `rustfmt`, `clippy`, `cargo-nextest`.
   For coverage: `cargo-llvm-cov`, plus `jq` and `bc` on Linux/macOS (the
   Windows port `scripts/check_coverage.ps1` parses JSON natively in

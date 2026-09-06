@@ -118,7 +118,7 @@ fn generate_completion_text_mode_emits_shell_script() {
             || stdout.contains("complete ")
             || stdout.contains("COMPREPLY"),
         "expected bash completion script tokens in stdout: first 200 bytes = {:?}",
-        &stdout.chars().take(200).collect::<String>()
+        stdout.chars().take(200).collect::<String>()
     );
     // Default mode must NOT emit a JSON envelope.
     assert!(
