@@ -176,33 +176,39 @@ location rather than the temp directory.
 
 ### Requirement: Output Directory Resolution for Archive Files
 
-For mutating commands (`convert`, `sync`), when a source file originates
-from an archive extraction and no explicit output directory is specified,
-the system SHALL resolve the output directory to the parent directory of
-the original archive file. For `match`, when a subtitle file originates
-from an archive extraction, the system SHALL relocate the renamed subtitle
-to the matched video file's parent directory (following pairing semantics).
-This prevents output from being written into the temporary extraction
-directory (which is deleted on drop).
+For mutating commands (`convert`, `sync`, `translate`), when a source file originates from an archive extraction and no explicit output location is specified, the command SHALL resolve the output location through `CollectedFiles`' archive-aware queries rather than computing it inline. Specifically:
 
-#### Scenario: Convert output goes beside archive
-- **GIVEN** the user runs `subx convert subs.zip` containing `movie.srt`
-- **WHEN** conversion completes with no `-o` flag
-- **THEN** the converted file SHALL be written to the same directory as
-  `subs.zip`, not to the temp extraction directory
+- `convert` SHALL obtain its per-file output path from `CollectedFiles::default_output_path(input, &format)` whenever `--output` is absent (`subx-cli/src/commands/convert_command.rs`).
+- `translate` SHALL obtain its default output directory from `CollectedFiles::default_output_dir(input)` and join its own language-suffixed filename onto it (`subx-cli/src/commands/translate_command.rs`).
+- `sync`'s batch paths SHALL keep their conditional form: they SHALL redirect the output beside the archive **only** when the subtitle has an `archive_origin`, and SHALL otherwise leave the output location unset so it is derived downstream by `create_default_output_path` (`subx-cli/src/commands/sync_command.rs`). Rewriting these two sites to compute a path unconditionally SHALL NOT be done, because the distinction between an unset and a set output location governs the command's overwrite handling.
+
+The command layer SHALL retain the obligations that are its own and that no core query can discharge:
+
+- An explicit `--output` / `-o` value SHALL take precedence over the archive-aware default.
+- When `--output` names a directory and the run has more than one input file — from multiple inputs, from a directory input, or from archive expansion — the command SHALL append the per-file name to it.
+- `translate --replace` SHALL be refused for a subtitle that has an `archive_origin`, because replacing a file inside a temporary extraction directory writes to a location that is about to be deleted.
+
+This prevents output from being written into the temporary extraction directory, which is deleted on drop.
 
 #### Scenario: Explicit -o overrides archive origin
 - **GIVEN** the user runs `subx convert subs.zip -o /output/`
 - **WHEN** conversion completes
 - **THEN** the converted file SHALL be written to `/output/`
 
-#### Scenario: Match relocates archive subtitle beside video
-- **GIVEN** the user runs `subx match -i subs.zip -i /media/` where
-  `subs.zip` contains `movie.srt` and `/media/` contains `movie.mp4`
-- **WHEN** matching completes
-- **THEN** the renamed subtitle SHALL be copied to `/media/` (the video's
-  parent directory), not the temp extraction directory or the archive's
-  parent directory
+#### Scenario: Convert with no -o defers to the core query
+- **GIVEN** the user runs `subx convert subs.zip` containing `movie.srt`
+- **WHEN** the command resolves the output path for `movie.srt`
+- **THEN** it SHALL do so by calling `CollectedFiles::default_output_path` and SHALL NOT compute the archive parent directory itself, and the converted file SHALL be written beside `subs.zip`
+
+#### Scenario: Replace mode refuses an archive-extracted subtitle
+- **GIVEN** the user runs `subx translate --replace subs.zip` containing `movie.srt`
+- **WHEN** the command resolves the output location for `movie.srt`
+- **THEN** it SHALL fail with a command-execution error stating that `--replace` cannot be used for subtitles extracted from archives, and SHALL NOT write into the extraction directory
+
+#### Scenario: Sync leaves a non-archive output unset
+- **GIVEN** a batch `sync` run in which the paired subtitle was supplied directly rather than extracted from an archive, and no `--output` was given
+- **WHEN** the command prepares the single-pair arguments
+- **THEN** the output location SHALL remain unset so it is derived by `create_default_output_path`, and the command SHALL NOT substitute a computed path
 
 ### Requirement: CollectedFiles Additional APIs
 
@@ -240,3 +246,50 @@ The input collection algorithm SHALL be owned by the core library, not by the ar
 - **GIVEN** the source tree under `src/`
 - **WHEN** it is searched for `cli::InputPathHandler` and `cli::CollectedFiles`
 - **THEN** the only matches SHALL be the legacy re-export declarations themselves
+
+### Requirement: Archive-Aware Output Location Resolution
+
+`CollectedFiles` SHALL own the rule that decides where an output file belongs when its input may have come out of an archive, so that no caller has to re-derive it. Two methods on `CollectedFiles` (`subx-core/src/core/input/mod.rs`), beside `archive_origin`:
+
+```rust
+pub fn default_output_dir<'a>(&'a self, input: &'a Path) -> &'a Path;
+pub fn default_output_path(&self, input: &Path, extension: &str) -> PathBuf;
+```
+
+`default_output_dir` SHALL return, in order of preference: the parent directory of the archive `input` was extracted from, when `archive_origin(input)` is `Some` and that archive has a parent; otherwise `input`'s own parent; otherwise `Path::new(".")`.
+
+`default_output_path` SHALL return:
+
+- when `archive_origin(input)` is `Some(archive)`: `archive.parent()` (or `Path::new(".")` when the archive has no parent) joined with `<stem>.<extension>`, where `<stem>` is `input`'s file stem or the literal `output` when it has none;
+- otherwise: `input.with_extension(extension)`.
+
+The two methods SHALL NOT be defined in terms of one another, and `default_output_path` SHALL NOT be rewritten as `default_output_dir(input).join(..)`. Both are verbatim extractions of the loops their commands have always run, and those commands print the resolved path, so byte-compatibility with the current rendering is the contract; deriving one from the other breaks it. The load-bearing subtlety is that `Path::new("movie.srt").parent()` is `Some("")`, not `None`: `default_output_dir` returns the empty path for a single-component input, and joining onto the empty path keeps the name bare (`movie.zh.srt`), so the empty result MUST NOT be "tidied" to `Path::new(".")` — that rewrite renders `./movie.zh.srt`, a CLI-visible text change. The same `Some("")` semantics carry through the archive arms of both methods (a relative archive path resolves through the empty path, joining to a bare name); each method's `unwrap_or(Path::new("."))` fallback is the verbatim behaviour of the loop it was extracted from and is reachable only for a literally-empty path. Both rustdoc entries SHALL state the empty-path rule.
+
+Neither method SHALL touch the filesystem, and neither SHALL create a directory.
+
+The purpose is to prevent output from being written into a temporary extraction directory, which is deleted when the `CollectedFiles` is dropped.
+
+#### Scenario: Archive-extracted output resolves beside the archive
+- **GIVEN** a `CollectedFiles` in which `/tmp/subx-XXXX/movie.srt` has `archive_origin` `/data/subs.zip`
+- **WHEN** `default_output_path(Path::new("/tmp/subx-XXXX/movie.srt"), "vtt")` is called
+- **THEN** it SHALL return `/data/movie.vtt`, not a path under `/tmp/subx-XXXX/`
+
+#### Scenario: Non-archive output resolves beside the input
+- **GIVEN** a `CollectedFiles` in which `/data/movie.srt` was supplied directly
+- **WHEN** `default_output_path(Path::new("/data/movie.srt"), "vtt")` is called
+- **THEN** it SHALL return `/data/movie.vtt`
+
+#### Scenario: Bare filename keeps its bare form
+- **GIVEN** a `CollectedFiles` in which the relative path `movie.srt` was supplied directly
+- **WHEN** `default_output_path(Path::new("movie.srt"), "vtt")` is called
+- **THEN** it SHALL return exactly `movie.vtt` and SHALL NOT return `./movie.vtt`
+
+#### Scenario: Directory query follows the archive
+- **GIVEN** a `CollectedFiles` in which `/tmp/subx-XXXX/movie.srt` has `archive_origin` `/data/subs.zip`
+- **WHEN** `default_output_dir(Path::new("/tmp/subx-XXXX/movie.srt"))` is called
+- **THEN** it SHALL return `/data`
+
+#### Scenario: Directory query falls back to the input's parent
+- **GIVEN** a `CollectedFiles` in which `/data/movie.srt` was supplied directly
+- **WHEN** `default_output_dir(Path::new("/data/movie.srt"))` is called
+- **THEN** it SHALL return `/data`, and for a single-component relative input such as `movie.srt` it SHALL return the empty path `Path::new("")` (because `Path::parent` of a single-component path is `Some("")`, and joining onto the empty path keeps the joined name bare), and for an input with no parent component at all such as `/` it SHALL return `.`

@@ -144,7 +144,19 @@ The naming precedence in `MatchEngine::generate_subtitle_name` SHALL be:
 
 Language-code normalization SHALL pass the AI value through `LanguageDetector`'s code map so that synonyms (`english`/`eng`/`EN` → `en`; `cht`/`繁中`/`traditional-chinese` → `tc`; `chs`/`简中` → `sc`) collapse to the canonical short code; unrecognized but otherwise valid `[A-Za-z0-9_-]{1,16}` tokens SHALL be passed through verbatim after lower-casing.
 
-After all operations have been generated **and** `match_command` has applied any archive-origin forced relocation, the engine SHALL run a deterministic global uniqueness allocator:
+The archive-origin forced relocation SHALL be a named public function of `subx-core`, not inline command logic:
+
+```rust
+// subx-core/src/core/matcher/engine.rs
+pub fn apply_archive_origin_relocation(
+    operations: &mut [MatchOperation],
+    collected: &CollectedFiles,
+);
+```
+
+For each operation whose `subtitle_file.path` has an `archive_origin` in `collected` and whose `requires_relocation` is still `false`, it SHALL set `relocation_target_path` to the matched video's parent directory joined with `new_subtitle_name`, set `requires_relocation` to `true`, and set `relocation_mode` to `FileRelocationMode::Copy`. An operation whose subtitle did not come from an archive, or which already requires relocation, SHALL be left untouched, and an operation whose video path has no parent SHALL be left untouched. It SHALL live beside `apply_unique_target_paths` in the same module, and each function's rustdoc SHALL name the other, because the two are only correct when called in order.
+
+After all operations have been generated **and** `apply_archive_origin_relocation` has been applied by the caller, the engine SHALL run a deterministic global uniqueness allocator:
 
 1. Sort operations ascending by `(target_directory, subtitle_file.relative_path)` for stability across reruns.
 2. Maintain a `claimed: HashSet<PathBuf>` of already-allocated final target paths.
@@ -152,6 +164,8 @@ After all operations have been generated **and** `match_command` has applied any
 4. Insert the resolved path into `claimed` before processing the next operation.
 
 The allocator SHALL produce stable results across reruns of the same input set and SHALL probe past pre-existing files-on-disk patterns (e.g. an input that already contains `movie.2.srt`) when those filenames appear among the candidates.
+
+Neither function SHALL be folded into the other, and `apply_unique_target_paths`' signature SHALL NOT gain a `CollectedFiles` parameter: the allocator is meaningful for operations that never touched an archive, and its current arity is part of the published library surface.
 
 #### Scenario: AI-supplied suffix wins over filename heuristic
 - **GIVEN** a `FileMatch` whose `target_filename_suffix` is `Some("tc")` and whose subtitle path is `subs/movie.srt` (no language tag detectable from the path)
@@ -200,10 +214,21 @@ The allocator SHALL produce stable results across reruns of the same input set a
 
 #### Scenario: Cross-video duplicates in the same target directory are disambiguated
 - **GIVEN** two different videos `a.mkv` and `b.mkv` whose AI-paired subtitles both relocate via `--copy` into a shared target directory and both happen to produce the same candidate filename `subs.srt` after step 1-4
-- **WHEN** the engine runs the global uniqueness allocator after `match_command` applies the relocation rewrite
+- **WHEN** the engine runs the global uniqueness allocator after `apply_archive_origin_relocation` has been applied
 - **THEN** the two final target paths SHALL differ — sorted by canonical subtitle path, the first keeps `subs.srt` and the second becomes `subs.2.srt`
 
 #### Scenario: Allocator runs after archive-origin forced relocation
-- **GIVEN** an archive-origin scenario where `match_command.rs` rewrites `relocation_target_path` for one or more operations after the engine returns
+- **GIVEN** an archive-origin scenario in which `apply_archive_origin_relocation` has rewritten `relocation_target_path` for one or more operations after the engine returned them
 - **WHEN** the global uniqueness allocator runs
 - **THEN** it SHALL operate on the rewritten relocation paths so the uniqueness guarantee holds at the actual destination paths, not at the engine's pre-rewrite candidates
+
+#### Scenario: Archive-extracted subtitle is forced to copy beside its video
+- **GIVEN** a `CollectedFiles` in which the matched subtitle `/tmp/subx-XXXX/movie.srt` has `archive_origin` `/data/subs.zip`, an operation pairing it with `/media/movie.mp4`, and `requires_relocation == false`
+- **WHEN** `apply_archive_origin_relocation(&mut operations, &collected)` is called
+- **THEN** that operation SHALL have `requires_relocation == true`, `relocation_mode == FileRelocationMode::Copy`, and `relocation_target_path == Some(PathBuf::from("/media/movie.srt"))` — the video's parent directory, not the temporary extraction directory and not the archive's parent directory
+
+#### Scenario: Directly supplied subtitle is left alone
+- **GIVEN** a `CollectedFiles` in which the matched subtitle was supplied directly and has no `archive_origin`, and an operation with `requires_relocation == false`
+- **WHEN** `apply_archive_origin_relocation(&mut operations, &collected)` is called
+- **THEN** that operation SHALL be unchanged in `requires_relocation`, `relocation_mode` and `relocation_target_path`
+

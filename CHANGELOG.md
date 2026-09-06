@@ -8,7 +8,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- `--output json` rendered progress frames on the parallel match path: `match_command.rs` defined a private `create_progress_bar` whose `ProgressBar` bypassed `ui::progress_draw_target_for`, so JSON mode's force-hide rule never applied to it. The duplicate constructor is deleted; the CLI reporter is now the only batch progress-bar owner and every bar goes through `ui::create_progress_bar`.
+
 ### Changed
+- The shared progress-bar template gains a trailing `{msg}` segment (so caller-set messages — the parallel batch's `Active: … | Queued: … | Completed: …` line — render), and `cli::reporter::TerminalReporter` is now the single owner of the batch progress bar: it constructs the bar on `ProgressEvent::Started` (honouring `general.enable_progress_bar`, read once per reporter construction), advances on `Advanced`, and finishes on `Finished`; commands stopped constructing bars of their own.
 - The re-exported `subx_cli::core::formats::SubtitleFormat` now carries `Send + Sync` supertraits (making `FormatManager`, `FormatConverter` and `TranslationEngine` `Send + Sync`), and `subx_cli::core::sync::shift_subtitle_timing` — the VAD-independent manual-offset entry point — is reachable through the same re-export. No `subx-cli` source file changes; the library surface does.
 
 ## [2.0.0] - 2026-09-06

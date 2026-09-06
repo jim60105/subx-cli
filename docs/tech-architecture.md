@@ -358,6 +358,13 @@ suppression matrix and is attached at command boundaries. Layering rule:
 `subx-cli` crate at all (the dependency is one-way and an upward reference
 cannot resolve); enforced by `tests/core_cli_boundary.rs`.
 
+Batch progress and cooperative cancellation cross the crate boundary
+through the same seam: engines stream structured
+`core::report::ProgressEvent::{Started, Advanced, Finished}` values and
+poll `Reporter::cancelled()`, and no engine knows what transport renders
+or answers them. *(Flag for C3: relocate this documentation to
+`subx-core`'s own docs if C3 splits them.)*
+
 #### VAD Service (`subx-core/src/services/vad/`)
 
 The VAD module handles local voice activity detection using the

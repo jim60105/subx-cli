@@ -16,7 +16,7 @@ pub fn default_output_path(&self, input: &Path, extension: &str) -> PathBuf;
 - when `archive_origin(input)` is `Some(archive)`: `archive.parent()` (or `Path::new(".")` when the archive has no parent) joined with `<stem>.<extension>`, where `<stem>` is `input`'s file stem or the literal `output` when it has none;
 - otherwise: `input.with_extension(extension)`.
 
-The two methods SHALL NOT be defined in terms of one another, and `default_output_path` SHALL NOT be rewritten as `default_output_dir(input).join(..)`. For a bare relative input with no parent — for example `movie.srt` — `with_extension` yields `movie.vtt` while `default_output_dir` yields `.` and a join would yield `./movie.vtt`. The two name the same file but render differently, and the rendered form appears in CLI output, so the distinction is load-bearing. Both rustdoc entries SHALL state this.
+The two methods SHALL NOT be defined in terms of one another, and `default_output_path` SHALL NOT be rewritten as `default_output_dir(input).join(..)`. Both are verbatim extractions of the loops their commands have always run, and those commands print the resolved path, so byte-compatibility with the current rendering is the contract; deriving one from the other breaks it. The load-bearing subtlety is that `Path::new("movie.srt").parent()` is `Some("")`, not `None`: `default_output_dir` returns the empty path for a single-component input, and joining onto the empty path keeps the name bare (`movie.zh.srt`), so the empty result MUST NOT be "tidied" to `Path::new(".")` — that rewrite renders `./movie.zh.srt`, a CLI-visible text change. The same `Some("")` semantics carry through the archive arms of both methods (a relative archive path resolves through the empty path, joining to a bare name); each method's `unwrap_or(Path::new("."))` fallback is the verbatim behaviour of the loop it was extracted from and is reachable only for a literally-empty path. Both rustdoc entries SHALL state the empty-path rule.
 
 Neither method SHALL touch the filesystem, and neither SHALL create a directory.
 
@@ -47,7 +47,7 @@ The purpose is to prevent output from being written into a temporary extraction 
 #### Scenario: Directory query falls back to the input's parent
 - **GIVEN** a `CollectedFiles` in which `/data/movie.srt` was supplied directly
 - **WHEN** `default_output_dir(Path::new("/data/movie.srt"))` is called
-- **THEN** it SHALL return `/data`, and for a parentless relative input it SHALL return `.`
+- **THEN** it SHALL return `/data`, and for a single-component relative input such as `movie.srt` it SHALL return the empty path `Path::new("")` (because `Path::parent` of a single-component path is `Some("")`, and joining onto the empty path keeps the joined name bare), and for an input with no parent component at all such as `/` it SHALL return `.`
 
 ## MODIFIED Requirements
 
