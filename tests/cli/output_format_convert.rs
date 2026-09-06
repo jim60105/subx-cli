@@ -17,7 +17,7 @@ use tempfile::TempDir;
 fn isolated_subx_cli(workdir: &std::path::Path) -> Command {
     let xdg = workdir.join(".xdg");
     fs::create_dir_all(&xdg).unwrap();
-    let mut cmd = Command::cargo_bin("subx-cli").unwrap();
+    let mut cmd = Command::new(env!("CARGO_BIN_EXE_subx-cli"));
     cmd.env("HOME", workdir)
         .env("XDG_CONFIG_HOME", &xdg)
         .env("SUBX_GENERAL_ENABLE_PROGRESS_BAR", "false")

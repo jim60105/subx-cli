@@ -726,10 +726,15 @@ strip = true
 GitHub Actions runs on every push and pull request to `master`. The
 `build-test-audit-coverage` workflow tests across Ubuntu, Windows, and macOS
 with Rust stable. It runs `scripts/quality_check.sh`, `cargo audit` for
-dependency security, and the coverage check with a 75% line coverage
-threshold — `scripts/check_coverage.sh` on Linux/macOS and the PowerShell
-port `scripts/check_coverage.ps1` on Windows. Results are uploaded to
-Codecov.
+dependency security, and the coverage check — one instrumented
+`cargo llvm-cov nextest` run over the whole workspace
+(`scripts/check_coverage.sh` on Linux/macOS, the PowerShell port
+`scripts/check_coverage.ps1` on Windows), with per-crate line-coverage
+floors derived as `floor(measured − 3)` from the split-suite baseline:
+workspace 75%, `subx-core` 90%, `subx-cli` 82% (measured 91.77 / 93.54 /
+85.93). Floors ratchet upward with coverage and are only lowered through a
+proposal; per-crate threshold plumbing in the scripts and CI is the
+`harden-split-test-suite` (C1) handoff. Results are uploaded to Codecov.
 
 The `release` workflow triggers on `v*` tags. It cross-compiles for four
 targets (Linux x86_64, Windows x86_64, macOS x86_64, macOS ARM64), creates

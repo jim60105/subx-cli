@@ -64,8 +64,26 @@ or produce errors.
   `tests/cli/` etc. needs exactly one top-level `#[path = "..."] mod` shim.
   `subx-core/tests/` is flat and therefore has none. A shim's target must not
   declare `mod common;` itself (the shim crate root does); a plain `mod
-  common;` never needs a `#[path = "common/mod.rs"]` attribute. Twelve files
-  are still unwired; proposal B4 triages them.
+  common;` never needs a `#[path = "common/mod.rs"]` attribute. The
+  `every_subdirectory_test_file_has_exactly_one_harness_shim` guard in
+  `tests/core_cli_boundary.rs` walks both crates' test trees and **fails the
+  build** if any subdirectory `.rs` file has zero shims (an orphan that is
+  never compiled) or more than one (the same tests running twice); module
+  directories with their own `mod.rs` are exempt.
+- **Revive or delete — never leave an orphan:** revive a dead test file when
+  its imports already resolve, or resolve after rewriting to `subx_core::…`
+  paths; delete it when reviving would require authoring production code that
+  does not exist (record the deletion and what it asserted in `CHANGELOG.md`).
+  When a revived test's assertion fails because behaviour legitimately
+  changed, update the **assertion** to characterise current behaviour — never
+  change production code to satisfy a test that has never executed.
+- **Spawning the binary in tests:** use
+  `assert_cmd::Command::new(env!("CARGO_BIN_EXE_subx-cli"))`.
+  `Command::cargo_bin("…")` is prohibited: a wrong binary name is a runtime
+  panic that only fires when the test runs (and silently never fires in an
+  orphan), while the `CARGO_BIN_EXE_<name>` env var is resolved by Cargo at
+  compile time — a typo becomes a build error, and the value names the
+  artefact actually built for this package in the two-package workspace.
 - **Every fixture/asset read resolves from `env!("CARGO_MANIFEST_DIR")`**,
   never the working directory: Cargo sets a test binary's CWD to the *package*
   root, so a relative path that resolved before a module moved between
@@ -73,7 +91,14 @@ or produce errors.
   mirrored rules.
 - **Always run `cargo fmt` and `cargo clippy -- -D warnings`** and fix every
   warning before submitting code.
-- Coverage threshold is **75%** line coverage.
+- **Coverage floors** (line coverage, measured once on the split suite —
+  workspace 91.77%, `subx-core` 93.54%, `subx-cli` 85.93%): workspace
+  **75%**, `subx-core` **90%**, `subx-cli` **82%**. Floors are derived as
+  `floor(measured − 3)` clamped to ≥75 (core) / ≥65 (cli); they may be
+  **raised** as coverage improves and may only be **lowered through a
+  proposal**. `harden-split-test-suite` (C1) wires the per-crate thresholds
+  into `scripts/check_coverage.sh` / `.ps1` and CI; until then CI enforces
+  only the 75% workspace gate.
 - Required tooling: Rust stable, `rustfmt`, `clippy`, `cargo-nextest`.
   For coverage: `cargo-llvm-cov`, plus `jq` and `bc` on Linux/macOS (the
   Windows port `scripts/check_coverage.ps1` parses JSON natively in

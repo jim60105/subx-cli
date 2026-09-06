@@ -58,7 +58,7 @@ fn run_match(
 ) -> assert_cmd::assert::Assert {
     let xdg = workdir.join(".xdg");
     fs::create_dir_all(&xdg).unwrap();
-    let mut cmd = Command::cargo_bin("subx-cli").unwrap();
+    let mut cmd = Command::new(env!("CARGO_BIN_EXE_subx-cli"));
     cmd.env("SUBX_AI_PROVIDER", "local")
         .env("LOCAL_LLM_API_KEY", "sk-mock-test-key")
         .env("LOCAL_LLM_BASE_URL", base_url)

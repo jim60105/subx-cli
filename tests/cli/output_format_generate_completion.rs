@@ -37,8 +37,7 @@ fn parse_single_envelope(stdout: &[u8]) -> Value {
 
 #[test]
 fn generate_completion_with_output_json_emits_error_envelope() {
-    let output = Command::cargo_bin("subx-cli")
-        .unwrap()
+    let output = Command::new(env!("CARGO_BIN_EXE_subx-cli"))
         .arg("--output")
         .arg("json")
         .arg("generate-completion")
@@ -86,8 +85,7 @@ fn generate_completion_with_output_json_emits_error_envelope() {
 
 #[test]
 fn generate_completion_with_subx_output_env_emits_error_envelope() {
-    let output = Command::cargo_bin("subx-cli")
-        .unwrap()
+    let output = Command::new(env!("CARGO_BIN_EXE_subx-cli"))
         .env("SUBX_OUTPUT", "json")
         .arg("generate-completion")
         .arg("zsh")
@@ -105,8 +103,7 @@ fn generate_completion_with_subx_output_env_emits_error_envelope() {
 
 #[test]
 fn generate_completion_text_mode_emits_shell_script() {
-    let output = Command::cargo_bin("subx-cli")
-        .unwrap()
+    let output = Command::new(env!("CARGO_BIN_EXE_subx-cli"))
         .env_remove("SUBX_OUTPUT")
         .arg("generate-completion")
         .arg("bash")
@@ -121,7 +118,7 @@ fn generate_completion_text_mode_emits_shell_script() {
             || stdout.contains("complete ")
             || stdout.contains("COMPREPLY"),
         "expected bash completion script tokens in stdout: first 200 bytes = {:?}",
-        &stdout.chars().take(200).collect::<String>()
+        stdout.chars().take(200).collect::<String>()
     );
     // Default mode must NOT emit a JSON envelope.
     assert!(

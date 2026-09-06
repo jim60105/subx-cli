@@ -45,7 +45,7 @@ fn assert_envelope_shape(env: &Value, status: &str) {
 fn isolated_cmd(workdir: &std::path::Path) -> Command {
     let xdg = workdir.join(".xdg");
     fs::create_dir_all(&xdg).unwrap();
-    let mut cmd = Command::cargo_bin("subx-cli").unwrap();
+    let mut cmd = Command::new(env!("CARGO_BIN_EXE_subx-cli"));
     cmd.env("XDG_CONFIG_HOME", &xdg)
         .env("HOME", workdir)
         .env_remove("SUBX_OUTPUT")
