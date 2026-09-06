@@ -24,8 +24,20 @@ set -euo pipefail # Strict mode: exit immediately on error
 # Default configuration
 DEFAULT_THRESHOLD=75.0
 COVERAGE_THRESHOLD=${COVERAGE_THRESHOLD:-$DEFAULT_THRESHOLD}
+DEFAULT_THRESHOLD_CORE=90.0
+COVERAGE_THRESHOLD_CORE=${COVERAGE_THRESHOLD_CORE:-$DEFAULT_THRESHOLD_CORE}
+DEFAULT_THRESHOLD_CLI=82.0
+COVERAGE_THRESHOLD_CLI=${COVERAGE_THRESHOLD_CLI:-$DEFAULT_THRESHOLD_CLI}
 DEFAULT_NEXTEST_PROFILE="default"
 NEXTEST_PROFILE=${NEXTEST_PROFILE:-$DEFAULT_NEXTEST_PROFILE}
+
+# Reporting exclusion set (normative value fixed by the
+# cross-crate-testing spec). Every `cargo llvm-cov report` invocation in this
+# script MUST receive it via --ignore-filename-regex — the lcov file uploaded
+# to Codecov and the JSON the thresholds are computed from MUST describe the
+# same codebase, or the gated number and the displayed number are different
+# measurements.
+LLVM_COV_IGNORE='(^|/)(tests|benches)/|(^|/)src/main\.rs$|(^|/)src/test_support/'
 
 # Full tests mode
 FULL_TESTS=false
@@ -48,6 +60,8 @@ usage() {
     echo "Usage: $0 [options]"
     echo "Options:"
     echo "  -t, --threshold PERCENT   Set coverage threshold (default: ${DEFAULT_THRESHOLD}%)"
+    echo "  --threshold-core PERCENT  Set subx-core crate floor (default: ${DEFAULT_THRESHOLD_CORE}%)"
+    echo "  --threshold-cli PERCENT   Set subx-cli crate floor (default: ${DEFAULT_THRESHOLD_CLI}%)"
     echo "  -p, --profile PROFILE     Set nextest profile (default: ${DEFAULT_NEXTEST_PROFILE})"
     echo "  --full                   Run full tests including slow tests (uses full profile unless -p is set)"
     echo "  -T, --table              Show coverage table for all files"
@@ -58,6 +72,8 @@ usage() {
     echo ""
     echo "Environment variables:"
     echo "  COVERAGE_THRESHOLD       Coverage threshold (default: ${DEFAULT_THRESHOLD}%)"
+    echo "  COVERAGE_THRESHOLD_CORE  subx-core crate floor (default: ${DEFAULT_THRESHOLD_CORE}%)"
+    echo "  COVERAGE_THRESHOLD_CLI   subx-cli crate floor (default: ${DEFAULT_THRESHOLD_CLI}%)"
     echo "  NEXTEST_PROFILE          Nextest profile (default: ${DEFAULT_NEXTEST_PROFILE})"
     echo ""
     echo "Available nextest profiles: default, ci, quick, full"
@@ -129,6 +145,14 @@ parse_args() {
         case $1 in
         -t | --threshold)
             COVERAGE_THRESHOLD="$2"
+            shift 2
+            ;;
+        --threshold-core)
+            COVERAGE_THRESHOLD_CORE="$2"
+            shift 2
+            ;;
+        --threshold-cli)
+            COVERAGE_THRESHOLD_CLI="$2"
             shift 2
             ;;
         -p | --profile)
@@ -240,17 +264,113 @@ show_coverage_table() {
     show_overall_coverage "$coverage_json"
 }
 
-# Display overall coverage summary and check threshold
+# Partition the JSON file list into the two crates and derive one line
+# coverage percentage per crate.
+#
+# Rules:
+#   - filenames are normalised backslash -> slash before any path test, so a
+#     Windows-resident workspace (C:\\...\\subx-core\\src\\...) is attributed
+#     to the same crate as a POSIX one;
+#   - a file is `subx-core` iff its path contains `/subx-core/src/`;
+#   - otherwise it is `subx-cli` iff it starts with "<workspace root>/src/";
+#   - anything else is `unexpected` — it is reported and makes the run fail,
+#     because silently crediting a file outside both source roots to the CLI
+#     group would let one crate's floor gate the other's lines.
+# Percentages are derived from summed covered/count lines, NEVER as a mean of
+# per-file percentages (that would weight a 3-line module like a 900-line
+# engine). The group line counts MUST sum to the report total (task 4.10):
+# a mis-filed or dropped file makes the sums disagree.
+show_per_crate_coverage() {
+    local coverage_json="$1"
+    local root_prefix="${PWD}/src/"
+
+    # One jq pass producing five numbers:
+    #   core_covered core_count cli_covered cli_count unexpected_count
+    local sums
+    if ! sums=$(echo "$coverage_json" | jq -r --arg root "$root_prefix" '
+        def norm: gsub("\\\\"; "/");
+        def nroot: $root | gsub("\\\\"; "/");
+        def iscore: .filename | norm | contains("/subx-core/src/");
+        def iscli: (.filename | norm | startswith(nroot)) and (iscore | not);
+        (.data[0].files // []) as $files
+        | [ $files, ($files | map(select(iscore))) ] as [$all, $core]
+        | ($all | map(select(iscli))) as $cli
+        | [
+            ($core | map(.summary.lines.covered) | add // 0),
+            ($core | map(.summary.lines.count) | add // 0),
+            ($cli | map(.summary.lines.covered) | add // 0),
+            ($cli | map(.summary.lines.count) | add // 0),
+            ($all | map(select((iscore or iscli) | not)) | length)
+          ]
+        | @tsv
+    ' 2>/dev/null); then
+        echo -e "${RED}❌ Unable to partition coverage data per crate${NC}" >&2
+        return 1
+    fi
+
+    IFS=$'\t' read -r core_covered core_count cli_covered cli_count unexpected_count <<<"$sums"
+
+    local total_lines_count
+    total_lines_count=$(echo "$coverage_json" | jq -r '.data[0].totals.lines.count // 0' 2>/dev/null)
+
+    if [[ "$unexpected_count" -gt 0 ]]; then
+        echo -e "${RED}❌ Coverage partition found $unexpected_count file(s) outside both source roots:${NC}" >&2
+        echo "$coverage_json" | jq -r --arg root "$root_prefix" '
+            def norm: gsub("\\\\"; "/");
+            def nroot: $root | gsub("\\\\"; "/");
+            (.data[0].files // [])[]
+            | select(((.filename | norm | contains("/subx-core/src/")) or (.filename | norm | startswith(nroot))) | not)
+            | "   - " + .filename
+        ' | head -10 >&2
+        return 1
+    fi
+
+    # Partition-completeness assertion: every reported line belongs to exactly
+    # one crate group.
+    if [[ $((core_count + cli_count)) -ne "$total_lines_count" ]]; then
+        echo -e "${RED}❌ Coverage partition incomplete: core($core_count) + cli($cli_count) != total($total_lines_count)${NC}" >&2
+        return 1
+    fi
+
+    local core_pct cli_pct
+    core_pct=$(jq -rn --argjson c "$core_covered" --argjson t "$core_count" 'if $t == 0 then 0 else (($c * 10000 / $t | round) / 100) end')
+    cli_pct=$(jq -rn --argjson c "$cli_covered" --argjson t "$cli_count" 'if $t == 0 then 0 else (($c * 10000 / $t | round) / 100) end')
+
+    echo -e "\n${BLUE}📦 Per-crate line coverage (workspace-attributed):${NC}"
+    echo -e "  subx-core: ${BLUE}${core_pct}%${NC} (${core_covered}/${core_count}) — floor: ${BLUE}${COVERAGE_THRESHOLD_CORE}%${NC}"
+    echo -e "  subx-cli:  ${BLUE}${cli_pct}%${NC} (${cli_covered}/${cli_count}) — floor: ${BLUE}${COVERAGE_THRESHOLD_CLI}%${NC}"
+
+    local rc=0
+    if (($(echo "${core_pct} >= ${COVERAGE_THRESHOLD_CORE}" | bc -l))); then
+        echo -e "  ${GREEN}✅ subx-core meets its floor${NC}"
+    else
+        local core_deficit
+        core_deficit=$(echo "${COVERAGE_THRESHOLD_CORE} - ${core_pct}" | bc -l)
+        echo -e "  ${RED}❌ subx-core below its floor (deficit: ${core_deficit}%)${NC}"
+        rc=1
+    fi
+    if (($(echo "${cli_pct} >= ${COVERAGE_THRESHOLD_CLI}" | bc -l))); then
+        echo -e "  ${GREEN}✅ subx-cli meets its floor${NC}"
+    else
+        local cli_deficit
+        cli_deficit=$(echo "${COVERAGE_THRESHOLD_CLI} - ${cli_pct}" | bc -l)
+        echo -e "  ${RED}❌ subx-cli below its floor (deficit: ${cli_deficit}%)${NC}"
+        rc=1
+    fi
+    return $rc
+}
+
+# Display overall coverage summary and check all three floors
 show_overall_coverage() {
     local coverage_json="$1"
     local show_header="${2:-true}"
-    
+
     if [[ "$show_header" == "true" ]]; then
         echo ""
         echo -e "${BLUE}📈 Overall Coverage Summary${NC}"
         echo ""
     fi
-    
+
     # Parse overall coverage data
     local current_coverage
     if ! current_coverage=$(echo "$coverage_json" | jq -r "$(get_percentage_filter)"'format_pct(.data[0].totals.lines.percent)' 2>/dev/null); then
@@ -279,16 +399,25 @@ show_overall_coverage() {
         '
     fi
 
-    # Compare coverage with threshold
+    local rc=0
+
+    # Compare combined coverage with the workspace threshold
     if (($(echo "${current_coverage} >= ${COVERAGE_THRESHOLD}" | bc -l))); then
-        echo -e "\n${GREEN}✅ Coverage meets requirements${NC}"
-        return 0
+        echo -e "\n${GREEN}✅ Combined coverage meets requirements${NC}"
     else
         local deficit
         deficit=$(echo "${COVERAGE_THRESHOLD} - ${current_coverage}" | bc -l)
-        echo -e "\n${RED}❌ Coverage below threshold (deficit: ${deficit}%)${NC}"
-        return 1
+        echo -e "\n${RED}❌ Combined coverage below threshold (deficit: ${deficit}%)${NC}"
+        rc=1
     fi
+
+    # Gate the two per-crate floors. All three numbers are printed
+    # regardless of outcome; any one below its floor fails the run.
+    if ! show_per_crate_coverage "$coverage_json"; then
+        rc=1
+    fi
+
+    return $rc
 }
 
 # Search and display coverage for specific file
@@ -386,10 +515,15 @@ check_coverage() {
         echo -e "${YELLOW}⚠️  Continuing with coverage report generation...${NC}"
     fi
     
-    # Generate LCOV output if requested, using report to avoid re-running tests
+    # Generate LCOV output if requested, using report to avoid re-running
+    # tests. BOTH report invocations below MUST carry the identical
+    # --ignore-filename-regex "${LLVM_COV_IGNORE}": the lcov.info uploaded to
+    # Codecov and the JSON the thresholds are computed from MUST describe the
+    # same codebase, or the number CI enforces and the number Codecov
+    # displays are different measurements.
     if [[ -n "${LCOV_OUTPUT_PATH}" ]]; then
         echo -e "${BLUE}📄 Generating LCOV output at: ${LCOV_OUTPUT_PATH}${NC}"
-        if ! cargo llvm-cov report --lcov --output-path "${LCOV_OUTPUT_PATH}" >/dev/null 2>&1; then
+        if ! cargo llvm-cov report --lcov --output-path "${LCOV_OUTPUT_PATH}" --ignore-filename-regex "${LLVM_COV_IGNORE}" >/dev/null 2>&1; then
             echo -e "${RED}❌ Unable to generate LCOV coverage report${NC}" >&2
             exit 1
         fi
@@ -397,7 +531,7 @@ check_coverage() {
     fi
     
     # Generate JSON output for analysis, using report to avoid re-running tests
-    if ! coverage_cmd_output=$(cargo llvm-cov report --json --summary-only 2>&1); then
+    if ! coverage_cmd_output=$(cargo llvm-cov report --json --summary-only --ignore-filename-regex "${LLVM_COV_IGNORE}" 2>&1); then
         echo -e "${RED}❌ Unable to extract JSON coverage data${NC}" >&2
         echo -e "${YELLOW}Error message: ${coverage_cmd_output}${NC}" >&2
         exit 1

@@ -42,25 +42,25 @@ jobs:
       uses: actions/cache@v5
       with:
         path: ~/.cargo/registry
-        key: ${{ runner.os }}-cargo-registry-${{ hashFiles('**/Cargo.lock') }}
+        key: ${{ runner.os }}-cargo-registry-${{ hashFiles('Cargo.lock') }}
 
     - name: Cache cargo index
       uses: actions/cache@v5
       with:
         path: ~/.cargo/git
-        key: ${{ runner.os }}-cargo-index-${{ hashFiles('**/Cargo.lock') }}
+        key: ${{ runner.os }}-cargo-index-${{ hashFiles('Cargo.lock') }}
 
     - name: Cache cargo build
       uses: actions/cache@v5
       with:
         path: target
-        key: ${{ runner.os }}-cargo-build-target-${{ hashFiles('**/Cargo.lock') }}
+        key: ${{ runner.os }}-cargo-build-target-${{ hashFiles('Cargo.lock') }}
 
     - name: Check formatting
       run: cargo fmt -- --check
 
     - name: Check clippy
-      run: cargo clippy -- -D warnings
+      run: cargo clippy --workspace -- -D warnings
 
     - name: Comprehensive Code Quality Check with tests (Linux/macOS)
       if: runner.os != 'Windows'
@@ -119,28 +119,28 @@ jobs:
       uses: actions/cache@v5
       with:
         path: ~/.cargo/registry
-        key: ${{ runner.os }}-cargo-registry-archive-rar-${{ hashFiles('**/Cargo.lock') }}
+        key: ${{ runner.os }}-cargo-registry-archive-rar-${{ hashFiles('Cargo.lock') }}
 
     - name: Cache cargo index
       uses: actions/cache@v5
       with:
         path: ~/.cargo/git
-        key: ${{ runner.os }}-cargo-index-archive-rar-${{ hashFiles('**/Cargo.lock') }}
+        key: ${{ runner.os }}-cargo-index-archive-rar-${{ hashFiles('Cargo.lock') }}
 
     - name: Cache cargo build
       uses: actions/cache@v5
       with:
         path: target
-        key: ${{ runner.os }}-cargo-build-target-archive-rar-${{ hashFiles('**/Cargo.lock') }}
+        key: ${{ runner.os }}-cargo-build-target-archive-rar-${{ hashFiles('Cargo.lock') }}
 
     - name: Cargo check with archive-rar feature
-      run: cargo check --features archive-rar
+      run: cargo check --workspace --features archive-rar
 
     - name: Run tests with archive-rar feature
       # Use the CI profile (300s slow-timeout) — the default profile's 60s
       # cap terminates the bundled-asset VAD test (vad_mode_emits_vad_metadata)
       # on GitHub Actions runners.
-      run: cargo nextest run --profile ci --features archive-rar
+      run: cargo nextest run --workspace --profile ci --features archive-rar
 
   security:
     name: Security Audit
@@ -194,6 +194,8 @@ jobs:
         ./scripts/check_coverage.sh -T -p ci --full --lcov lcov.info
       env:
         COVERAGE_THRESHOLD: 75
+        COVERAGE_THRESHOLD_CORE: 90
+        COVERAGE_THRESHOLD_CLI: 82
 
     - name: Generate code coverage and check threshold (Windows)
       if: runner.os == 'Windows'
@@ -204,6 +206,8 @@ jobs:
         ./scripts/check_coverage.ps1 -Table -Profile ci -Full -Lcov lcov.info
       env:
         COVERAGE_THRESHOLD: 75
+        COVERAGE_THRESHOLD_CORE: 90
+        COVERAGE_THRESHOLD_CLI: 82
 
     - name: Upload to codecov.io
       uses: codecov/codecov-action@v6
@@ -222,3 +226,103 @@ jobs:
         flags: coverage-${{ matrix.os }}
         report_type: test_results
         fail_ci_if_error: false
+
+  # Guards the subx-core submodule pointer. The gitlink is an untyped
+  # dependency edge: nothing else in CI checks that the commit it names
+  # exists on the remote, that the recorded branch referent is what
+  # Dependabot needs, or that the two manifests' versions still agree.
+  submodule-pointer:
+    name: Submodule Pointer
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v6
+      with:
+        submodules: recursive
+        fetch-depth: 0
+
+    - name: Install Rust
+      uses: dtolnay/rust-toolchain@stable
+
+    - name: Assert the two manifests' versions agree
+      # One `cargo metadata` call reads both sides of the edge: core's own
+      # version, and subx-cli's requirement string for it. `cargo metadata`
+      # normalises `version = "1.0"` to the caret requirement `^1.0`; the
+      # comparison below implements the caret rule directly (same major,
+      # core minor >= required minor) rather than being a general semver
+      # solver, which is sufficient for the caret range this pair uses.
+      run: |
+        set -euo pipefail
+        META=$(cargo metadata --no-deps --format-version 1)
+        CORE_VER=$(echo "$META" | jq -r '.packages[] | select(.name=="subx-core") | .version')
+        # .kind == null: cargo metadata reports a normal dependency with kind
+        # null; subx-cli also carries a dev-kind subx-core
+        # requirement (enabling `test-support`); the version pin that
+        # publishes must be the normal one. `unique` + the length check make a
+        # duplicated normal declaration an error rather than a silent
+        # multi-line $REQ.
+        REQ=$(echo "$META" | jq -r '[.packages[] | select(.name=="subx-cli") | .dependencies[] | select(.name=="subx-core" and .kind == null) | .req] | unique | if length == 1 then .[0] else error("expected exactly one normal subx-core requirement, got " + tostring) end')
+        echo "subx-core version: $CORE_VER; subx-cli requirement: $REQ"
+        # Strip a leading caret/tilde if present; this check implements the
+        # caret rule for the `^major.minor[.patch]` form the manifest uses.
+        REQ_BASE="${REQ#^}"; REQ_BASE="${REQ_BASE#~}"
+        REQ_MAJOR="${REQ_BASE%%.*}"
+        REQ_REST="${REQ_BASE#*.}"
+        REQ_MINOR="${REQ_REST%%.*}"
+        CORE_MAJOR="${CORE_VER%%.*}"
+        CORE_REST="${CORE_VER#*.}"
+        CORE_MINOR="${CORE_REST%%.*}"
+        # Fail loudly on anything non-numeric: a failed numeric comparison
+        # inside `if [ ... ]` evaluates as false, it does not trip set -e.
+        case "$CORE_MAJOR$CORE_MINOR$REQ_MAJOR$REQ_MINOR" in
+          (*[!0-9]* | '')
+            echo "::error::could not parse versions ($CORE_VER vs $REQ)"
+            exit 1;;
+        esac
+        if [ "$CORE_MAJOR" != "$REQ_MAJOR" ]; then
+          echo "::error::subx-core major ($CORE_VER) does not match subx-cli's requirement ($REQ)"
+          exit 1
+        fi
+        if [ "$CORE_MINOR" -lt "$REQ_MINOR" ]; then
+          echo "::error::subx-core minor ($CORE_VER) is below the minor subx-cli requires ($REQ)"
+          exit 1
+        fi
+
+    - name: Assert the pointer names a commit reachable from origin/main
+      # Advisory on pull_request: the matching subx-core commit may
+      # legitimately still be in review, so the PR branch pointing at an
+      # unmerged core SHA is a normal state. Blocking on push to master: a
+      # master gitlink naming a commit that is not on origin/main makes the
+      # clone-and-build promise false and the publish tree unreproducible.
+      env:
+        EVENT_NAME: ${{ github.event_name }}
+        REF_NAME: ${{ github.ref_name }}
+      run: |
+        set -uo pipefail
+        git -C subx-core fetch origin main
+        if git -C subx-core merge-base --is-ancestor HEAD origin/main; then
+          echo "submodule pointer is an ancestor of origin/main."
+          exit 0
+        fi
+        MSG="subx-core pointer $(git -C subx-core rev-parse HEAD) is not reachable from origin/main"
+        if [ "$EVENT_NAME" = "pull_request" ]; then
+          echo "::warning::$MSG (advisory on pull_request)"
+          exit 0
+        fi
+        if [ "$EVENT_NAME" = "push" ] && [ "$REF_NAME" = "master" ]; then
+          echo "::error::$MSG"
+          exit 1
+        fi
+        # Any other push context (tags, other branches) is advisory too.
+        echo "::warning::$MSG"
+
+    - name: Assert .gitmodules records the tracked branch
+      # Dependabot's gitsubmodules ecosystem and `git submodule update
+      # --remote` both need a referent; without `branch = main` the update
+      # machinery silently does nothing.
+      run: |
+        set -euo pipefail
+        BRANCH=$(git config -f .gitmodules submodule.subx-core.branch || true)
+        if [ "$BRANCH" != "main" ]; then
+          echo "::error::.gitmodules must record branch = main for submodule.subx-core (found: '${BRANCH}')"
+          exit 1
+        fi

@@ -733,13 +733,27 @@ dependency security, and the coverage check — one instrumented
 floors derived as `floor(measured − 3)` from the split-suite baseline:
 workspace 75%, `subx-core` 90%, `subx-cli` 82% (measured 91.77 / 93.54 /
 85.93). Floors ratchet upward with coverage and are only lowered through a
-proposal; per-crate threshold plumbing in the scripts and CI is the
-`harden-split-test-suite` (C1) handoff. Results are uploaded to Codecov.
+proposal; the plumbing landed with 2.0.0: `--threshold-core` /
+`--threshold-cli` flags and `COVERAGE_THRESHOLD_CORE` /
+`COVERAGE_THRESHOLD_CLI` environment variables in both scripts, and the env
+values on every CI coverage matrix entry. Reporting exclusions are a single
+`--ignore-filename-regex` passed to both report invocations — the
+`.llvm-cov.toml` files that used to sit in both repositories were deleted
+with 2.0.0 (nothing ever read them). A `submodule-pointer` job asserts the
+version/requirement agreement, the gitlink's reachability from `subx-core`'s
+`main`, and `.gitmodules`' `branch = main` referent (kept fresh by
+Dependabot's `gitsubmodules` entry). `subx-core` also runs its own CI in its
+own repository — three-OS test job, own-lockfile audit, and an ungated
+standalone coverage upload (workspace-derived floors do not transfer to a
+standalone run). Results are uploaded to Codecov.
 
-The `release` workflow triggers on `v*` tags. It cross-compiles for four
-targets (Linux x86_64, Windows x86_64, macOS x86_64, macOS ARM64), creates
-a GitHub Release with notes extracted from `CHANGELOG.md`, and publishes to
-crates.io.
+The `release` workflow triggers on `v*` tags. It cross-compiles for the
+matrix targets, creates a GitHub Release with notes extracted from
+`CHANGELOG.md`, and publishes **both crates** to crates.io from one
+`cargo publish --workspace` run, after asserting Cargo ≥ 1.90, submodule
+cleanliness, a `--workspace --dry-run`, and the registry's current state
+(already-published members are excluded; an already-published tagged
+`subx-cli` version fails the job).
 
 ### Distribution
 

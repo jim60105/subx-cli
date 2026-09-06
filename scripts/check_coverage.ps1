@@ -30,6 +30,17 @@
     Minimum required line-coverage percentage. Defaults to 75.0 or to the
     `COVERAGE_THRESHOLD` environment variable when set.
 
+.PARAMETER ThresholdCore
+    Minimum required line-coverage percentage for the subx-core crate
+    (per-crate attribution of the single workspace-attributed run). Defaults
+    to 90.0 or to the `COVERAGE_THRESHOLD_CORE` environment variable when
+    set.
+
+.PARAMETER ThresholdCli
+    Minimum required line-coverage percentage for the subx-cli crate.
+    Defaults to 82.0 or to the `COVERAGE_THRESHOLD_CLI` environment variable
+    when set.
+
 .PARAMETER Profile
     nextest profile to use. One of: default, ci, quick, full. Defaults to
     `default` or to the `NEXTEST_PROFILE` environment variable when set.
@@ -64,6 +75,10 @@
 param(
     [double]$Threshold,
 
+    [double]$ThresholdCore,
+
+    [double]$ThresholdCli,
+
     [ValidateSet('default', 'ci', 'quick', 'full')]
     [string]$Profile,
 
@@ -86,6 +101,8 @@ $PSNativeCommandUseErrorActionPreference = $false
 # -----------------------------------------------------------------------------
 
 $DefaultThreshold = 75.0
+$DefaultThresholdCore = 90.0
+$DefaultThresholdCli = 82.0
 $DefaultNextestProfile = 'default'
 
 if (-not $PSBoundParameters.ContainsKey('Threshold')) {
@@ -96,6 +113,31 @@ if (-not $PSBoundParameters.ContainsKey('Threshold')) {
         $Threshold = $DefaultThreshold
     }
 }
+
+if (-not $PSBoundParameters.ContainsKey('ThresholdCore')) {
+    $envThresholdCore = $env:COVERAGE_THRESHOLD_CORE
+    if ($envThresholdCore) {
+        $ThresholdCore = [double]$envThresholdCore
+    } else {
+        $ThresholdCore = $DefaultThresholdCore
+    }
+}
+
+if (-not $PSBoundParameters.ContainsKey('ThresholdCli')) {
+    $envThresholdCli = $env:COVERAGE_THRESHOLD_CLI
+    if ($envThresholdCli) {
+        $ThresholdCli = [double]$envThresholdCli
+    } else {
+        $ThresholdCli = $DefaultThresholdCli
+    }
+}
+
+# Reporting exclusion set — byte-identical to LLVM_COV_IGNORE in
+# scripts/check_coverage.sh. Every `cargo llvm-cov report` invocation below
+# MUST receive it via --ignore-filename-regex, and both scripts MUST pass the
+# same value: the lcov file uploaded to Codecov and the JSON the thresholds
+# are computed from MUST describe the same codebase.
+$LlvmCovIgnore = '(^|/)(tests|benches)/|(^|/)src/main\.rs$|(^|/)src/test_support/'
 
 $profileExplicitlySet = $PSBoundParameters.ContainsKey('Profile')
 if (-not $profileExplicitlySet) {
@@ -222,6 +264,85 @@ function Show-CoverageTable {
     return Show-OverallCoverage -Coverage $Coverage -ShowHeader:$true
 }
 
+# Partition the JSON file list into the two crates and derive one line
+# coverage percentage per crate. Mirrors show_per_crate_coverage in
+# scripts/check_coverage.sh:
+#   - filenames are normalised backslash -> slash before any path test, and
+#     so is the workspace root prefix, so a Windows-resident workspace
+#     (C:\...\subx-core\src\...) attributes files to the same crate as a
+#     POSIX one;
+#   - a file is `subx-core` iff its normalised path contains "/subx-core/src/";
+#   - otherwise it is `subx-cli` iff its normalised path starts with
+#     "<workspace root>/src/";
+#   - anything else is unexpected: it is named and the run fails, because
+#     silently crediting a file outside both source roots to one crate's
+#     group would let that floor gate the other crate's lines.
+# Percentages come from summed covered/count lines, NEVER a mean of per-file
+# percentages. The group line counts must sum to the report total; a
+# mis-filed or dropped file makes the sums disagree.
+function Show-PerCrateCoverage {
+    param([Parameter(Mandatory)]$Coverage)
+
+    $rootPrefix = ($PWD.Path -replace '\\', '/') + '/src/'
+    $files = @($Coverage.data[0].files)
+
+    $core = @(); $cli = @(); $unexpected = @()
+    foreach ($file in $files) {
+        $norm = $file.filename -replace '\\', '/'
+        if ($norm.Contains('/subx-core/src/')) {
+            $core += $file
+        } elseif ($norm.StartsWith($rootPrefix)) {
+            $cli += $file
+        } else {
+            $unexpected += $file
+        }
+    }
+
+    if ($unexpected.Count -gt 0) {
+        Write-ErrMsg "❌ Coverage partition found $($unexpected.Count) file(s) outside both source roots:"
+        foreach ($file in $unexpected | Select-Object -First 10) {
+            Write-ErrMsg "   - $($file.filename)"
+        }
+        return 1
+    }
+
+    $coreCovered = [double](@($core | ForEach-Object { $_.summary.lines.covered } | Measure-Object -Sum).Sum)
+    $coreCount   = [double](@($core | ForEach-Object { $_.summary.lines.count } | Measure-Object -Sum).Sum)
+    $cliCovered  = [double](@($cli | ForEach-Object { $_.summary.lines.covered } | Measure-Object -Sum).Sum)
+    $cliCount    = [double](@($cli | ForEach-Object { $_.summary.lines.count } | Measure-Object -Sum).Sum)
+
+    $totalLines = [double]$Coverage.data[0].totals.lines.count
+    if (($coreCount + $cliCount) -ne $totalLines) {
+        Write-ErrMsg "❌ Coverage partition incomplete: core($coreCount) + cli($cliCount) != total($totalLines)"
+        return 1
+    }
+
+    $corePct = if ($coreCount -gt 0) { [math]::Round(100.0 * $coreCovered / $coreCount, 2) } else { 0.0 }
+    $cliPct  = if ($cliCount  -gt 0) { [math]::Round(100.0 * $cliCovered  / $cliCount,  2) } else { 0.0 }
+
+    Write-Host ''
+    Write-Info '📦 Per-crate line coverage (workspace-attributed):'
+    Write-Host "  subx-core: $corePct% ($coreCovered/$coreCount) - floor: $ThresholdCore%"
+    Write-Host "  subx-cli:  $cliPct% ($cliCovered/$cliCount) - floor: $ThresholdCli%"
+
+    $rc = 0
+    if ($corePct -ge $ThresholdCore) {
+        Write-Success '  ✅ subx-core meets its floor'
+    } else {
+        $deficit = [math]::Round($ThresholdCore - $corePct, 2)
+        Write-ErrMsg "  ❌ subx-core below its floor (deficit: $deficit%)"
+        $rc = 1
+    }
+    if ($cliPct -ge $ThresholdCli) {
+        Write-Success '  ✅ subx-cli meets its floor'
+    } else {
+        $deficit = [math]::Round($ThresholdCli - $cliPct, 2)
+        Write-ErrMsg "  ❌ subx-cli below its floor (deficit: $deficit%)"
+        $rc = 1
+    }
+    return $rc
+}
+
 function Show-OverallCoverage {
     param(
         [Parameter(Mandatory)]$Coverage,
@@ -258,14 +379,21 @@ function Show-OverallCoverage {
 
     if ($current -ge $Threshold) {
         Write-Host ''
-        Write-Success '✅ Coverage meets requirements'
-        return 0
+        Write-Host ''
+        Write-Success '✅ Combined coverage meets requirements'
+        $rc = 0
     } else {
         $deficit = [math]::Round($Threshold - $current, 2)
         Write-Host ''
-        Write-ErrMsg "❌ Coverage below threshold (deficit: $deficit%)"
-        return 1
+        Write-ErrMsg "❌ Combined coverage below threshold (deficit: $deficit%)"
+        $rc = 1
     }
+
+    # Gate the two per-crate floors. All three numbers are printed regardless
+    # of outcome; any one below its floor fails the run.
+    $perCrateRc = Show-PerCrateCoverage -Coverage $Coverage
+    if ($perCrateRc -ne 0) { $rc = 1 }
+    return $rc
 }
 
 function Show-FileCoverage {
@@ -353,7 +481,7 @@ function Invoke-CoverageCheck {
 
     if ($Lcov) {
         Write-Info "📄 Generating LCOV output at: $Lcov"
-        & cargo llvm-cov report --lcov --output-path $Lcov *> $null
+        & cargo llvm-cov report --lcov --output-path $Lcov --ignore-filename-regex $LlvmCovIgnore *> $null
         if ($LASTEXITCODE -ne 0) {
             Write-ErrMsg '❌ Unable to generate LCOV coverage report'
             exit 1
@@ -361,7 +489,7 @@ function Invoke-CoverageCheck {
         Write-Success '✅ LCOV coverage report generated successfully'
     }
 
-    $jsonOutput = & cargo llvm-cov report --json --summary-only 2>&1
+    $jsonOutput = & cargo llvm-cov report --json --summary-only --ignore-filename-regex $LlvmCovIgnore 2>&1
     $jsonExit = $LASTEXITCODE
     if ($jsonExit -ne 0) {
         Write-ErrMsg '❌ Unable to extract JSON coverage data'

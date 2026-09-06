@@ -3,11 +3,18 @@
 # `git submodule update --init --recursive` after cloning subx-cli.
 [workspace]
 members = [".", "subx-core"]
+# Cover both crates for bare cargo commands typed in this directory
+# (`cargo nextest run`, `cargo clippy`): without this key the default
+# member set is the root package alone and a bare command silently skips
+# the subx-core crate and its test suite. CI scripts additionally pass
+# `--workspace` explicitly, so the manifest key protects the human and the
+# flag protects the gate.
+default-members = [".", "subx-core"]
 resolver = "3"
 
 [package]
 name = "subx-cli"
-version = "1.9.1"
+version = "2.0.0"
 edition = "2024"
 authors = ["Jim Chen <Jim@ChenJ.im>"]
 description = "AI subtitle processing CLI tool, which automatically matches, renames, and converts subtitle files."

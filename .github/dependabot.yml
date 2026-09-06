@@ -1,0 +1,19 @@
+# Submodule pointer assertions for dependabot.
+
+version: 2
+updates:
+  # Keeps the subx-core gitlink moving when core's main advances. cargo
+  # cannot express a minimum version on a path dependency, so Dependabot
+  # opening a pointer-bump PR is the mechanism that advances the pin.
+  # The referent branch is recorded in .gitmodules (`branch = main`), which
+  # the submodule-pointer CI job asserts.
+  #
+  # Deliberately absent: `cargo` and `github-actions` ecosystems — the
+  # repository has never had a dependabot.yml before, and adding two
+  # unrelated auto-update streams to a change about the submodule pointer
+  # would create a flood of unrelated PRs on the first run. Both are
+  # recorded as open questions in openspec's release-distribution spec.
+  - package-ecosystem: gitsubmodules
+    directory: "/"
+    schedule:
+      interval: weekly
