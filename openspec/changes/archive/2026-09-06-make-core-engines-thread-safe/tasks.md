@@ -1,0 +1,128 @@
+> **Path and citation convention.** Every source path is post-B2: the library lives in `subx-core/src/**` at the same relative path it had under `subx-cli/src/**` (B2 `crate-topology`, *Module Ownership Between the Two Crates*). Line numbers are against the tree as it stands today; A1 inserts `Reporter` fields and A2 adds items to `core/sync/mod.rs`, so where a line has moved the **symbol** is the anchor, not the number.
+
+## 1. Preconditions and Baseline
+
+- [x] 1.1 Confirm the four prerequisites from `design.md` Decision 6: B2 landed (`subx-core/src/core/formats/manager.rs` exists); C1 landed (`subx-core/CHANGELOG.md` and `subx-core/scripts/quality_check.sh` exist, `Cargo.toml` declares `default-members = [".", "subx-core"]`, and `scripts/quality_check.sh` passes `--workspace`); C2a has **not** archived (`openspec/specs/async-runtime-safety/spec.md` still exists in this repository). If C2a has archived, stop and re-target the three delta files into a change under `subx-core/openspec/changes/` per Decision 6's last paragraph
+- [x] 1.2 Confirm the release has not been cut, because `design.md` Decision 5 makes it the one unrecoverable precondition: `git tag --list 'v*'` in both repositories returns nothing for the 2.0.0 / 1.0.0 line, and `cargo search subx-core` shows the crate is not published. If either shows otherwise, stop and re-propose as a `subx-core` 2.0.0 change with C1's dependency line (`version = "1.0"` → `"2.0"`) and its submodule-pointer version-match job in scope
+- [ ] 1.3 Run `scripts/quality_check.sh` once to record the pre-change verdict, and confirm it now covers `subx-core` (the run compiles `subx-core` lints and tests — this is what C1's `--workspace` additions bought and what phase 8 depends on)
+- [x] 1.4 Re-verify the implementor census against the post-B2 tree: `grep -rn "impl SubtitleFormat for" subx-core/src/` SHALL return exactly four hits — `AssFormat` (`subx-core/src/core/formats/ass/mod.rs:101`), `SubFormat` (`sub/mod.rs:37`), `SrtFormat` (`srt/mod.rs:27`), `VttFormat` (`vtt/mod.rs:37`) — and each named struct SHALL still be a unit struct (`ass/mod.rs:99`, `sub/mod.rs:35`, `srt/mod.rs:25`, `vtt/mod.rs:35`). A fifth implementor, or a non-unit struct, changes `design.md` Decision 2 and must be resolved before proceeding
+- [x] 1.5 Re-verify the holder census: `grep -rn ": FormatManager" subx-core/src/` SHALL return exactly `subx-core/src/core/formats/converter.rs:29` and `subx-core/src/core/translation/engine.rs:36`. A third holder joins the contracted set of task 3.2
+- [x] 1.6 Confirm there is no `impl SubtitleFormat for` anywhere under `subx-core/tests/`, `subx-cli/tests/`, or `../subx/src-tauri/src/` — the check that makes the supertrait addition free rather than breaking
+
+## 2. Thread-Safe Format Handlers
+
+- [x] 2.1 Change `pub trait SubtitleFormat {` to `pub trait SubtitleFormat: Send + Sync {` at `subx-core/src/core/formats/types.rs:835`. No method signature, default body, or implementor block changes
+- [x] 2.2 Add an `# Implementation Notes` clause to the trait's rustdoc (`types.rs:790-833`) stating that an implementor must be `Send + Sync`, that the four registered handlers are field-less structs, and that a handler holding `Rc`, `RefCell`, `Cell` or a raw pointer is a defect rather than a reason to relax the bound — the wording required by the `format-conversion` delta
+- [x] 2.3 Update the trait's `rust,ignore` example (`types.rs:796-832`) with a line noting that `struct MyFormat;` satisfies `Send + Sync` by being field-less. The block stays `rust,ignore`; do not promote it to a compiled doctest in this change
+- [x] 2.4 Leave `FormatManager`'s field at `subx-core/src/core/formats/manager.rs:23` written exactly as `formats: Vec<Box<dyn SubtitleFormat>>`, and leave `get_format` (`:59-66`) and `get_format_by_extension` (`:68-73`) returning `Option<&dyn SubtitleFormat>` with their `.map(|f| f.as_ref())` bodies unchanged. `design.md` Decision 1 records the E0308 that the storage-site alternative would have produced here; the point of the supertrait is that neither accessor needs a cast
+- [x] 2.5 Confirm `FormatConverter` (`converter.rs:28-31`) and `TranslationEngine` (`translation/engine.rs:34-38`) need **no** edit — `Arc<dyn AIProvider>` is already covered by `AIProvider: Send + Sync` (`subx-core/src/services/ai/mod.rs:153`) and every other field is plain data
+- [x] 2.6 Run `cargo check --workspace --all-targets --all-features` and `cargo clippy --workspace --all-targets -- -D warnings`. Expected fallout: none. Any error is a census miss from phase 1 and must be reconciled with `design.md` Decision 2 before it is fixed
+
+## 3. Lock the Guarantee
+
+- [x] 3.1 Add a `#[cfg(test)] mod thread_safety` block to `subx-core/src/core/mod.rs` containing `const fn assert_send_sync<T: Send + Sync + 'static>() {}` and one `const _: () = assert_send_sync::<…>();` line per contracted type. No `#[test]` function, no runtime body — the check must fail at compile time, not report as a passing test
+- [x] 3.2 Populate it with the eight entries the `async-runtime-safety` delta names: `formats::manager::FormatManager`, `formats::converter::FormatConverter`, `translation::TranslationEngine`, `matcher::MatchEngine`, `sync::SyncEngine`, `ComponentFactory`, `file_manager::FileManager`, and `Box<dyn formats::SubtitleFormat>`. The last four are already `Send + Sync` and are included deliberately (`design.md` Decision 4)
+- [x] 3.3 Add a module-level doc comment to `thread_safety` stating that the list is the contract, that a new engine type must be added to it, and that a compile failure here means a field lost its auto traits — not that the assertion is wrong
+- [x] 3.4 Verify the assertion actually bites: temporarily add `_probe: std::rc::Rc<()>` to `FormatConverter`, confirm `cargo check --workspace --all-targets` fails naming `FormatConverter` and `Send`, then revert. A silent pass here would mean the module is not being compiled
+- [x] 3.5 Do **not** add `static_assertions` to `subx-core/Cargo.toml`. SDR §4 fixes core's dependency list and A0 removed five zero-use-site dependencies; four lines of `const fn` do not justify reversing that
+
+## 4. VAD-Independent Manual Offset
+
+- [x] 4.1 Add `pub fn shift_subtitle_timing(subtitle: &mut Subtitle, offset_seconds: f32) -> Result<SyncResult>` to `subx-core/src/core/sync/mod.rs`, beside A2's `resolve_sync_pairing` and `create_default_output_path`. Move the body of `SyncEngine::apply_manual_offset` (`subx-core/src/core/sync/engine.rs:186-204`) into it **verbatim**: the `Instant::now()`, the per-entry loop with `checked_add` on the positive branch and the `if entry.start_time > offset_dur { … } else { Duration::ZERO }` clamp on the negative branch, the `debug!` line, and the whole `SyncResult` literal including `additional_info`'s `applied_offset` and `entries_modified` keys
+- [x] 4.2 Rewrite `SyncEngine::apply_manual_offset` (`engine.rs:148-204`) as its existing `offset_seconds.abs() > self.config.max_offset_seconds` guard (`:158-170`, including the `warn!` and the exact error string) followed by `shift_subtitle_timing(subtitle, offset_seconds)`. Keep the entry `debug!` at `:153-157`. The method's signature, visibility and rustdoc contract are unchanged
+- [x] 4.3 Write `shift_subtitle_timing`'s rustdoc with `# Arguments`, `# Returns`, `# Errors` and `# Examples` per AGENTS.md. `# Errors` SHALL state that `sync.max_offset_seconds` is **not** enforced and name `SyncEngine::apply_manual_offset` as the guarded entry point; the prose SHALL state that the function exists because `SyncEngine::new` requires a VAD detector even for manual offsets. The `# Examples` block must compile — it needs only a `Subtitle` and an `f32`, no config and no engine
+- [x] 4.4 Add `shift_subtitle_timing` to `subx-core/src/core/sync/mod.rs`'s `# Core Components` rustdoc list (`mod.rs:6-10`), and re-export nothing new — the function is already public at `subx_core::core::sync::shift_subtitle_timing` and B2's *Public API Path Stability* forbids a second path
+- [x] 4.5 Add `SyncEngine::new` rustdoc (`engine.rs:27-35`) stating that the VAD requirement is unconditional — it fires when `config.vad.enabled` is false as well as on an initialisation failure — and naming `shift_subtitle_timing` for manual-offset-only callers. This is the wording the `timeline-sync` *Sync Method Selection* delta requires
+- [x] 4.6 Add unit tests for `shift_subtitle_timing` in `subx-core/src/core/sync/mod.rs`'s test module: positive shift moves both times by the offset; negative shift clamps an entry at `start_time = 1s` with a `-5s` offset to `Duration::ZERO`; negative shift where `start_time == offset_dur` also yields `Duration::ZERO` (the boundary the GUI's `saturating_sub` mirror also hits); `Duration::MAX` plus a positive offset returns `SubXError::audio_processing`; an empty `Subtitle` returns `entries_modified: 0` without error; an offset of 120s succeeds with **no** configuration error, proving the guard is absent
+- [x] 4.7 Add a delegation-equivalence test asserting that `SyncEngine::apply_manual_offset` and `shift_subtitle_timing` produce identical entry timings and identical `SyncResult.offset_seconds`, `.confidence`, `.method_used`, `.correlation_peak`, `.additional_info` and `.warnings` for the same input within the guard — the check that keeps the two entry points from drifting
+- [x] 4.8 Leave the two existing tests at `subx-core/src/core/sync/engine.rs:357` and `:375` calling `apply_manual_offset` **unmodified**. They are the regression check that the extraction did not change behaviour; retargeting them at the free function would remove the only test that covers the delegation path end to end
+- [x] 4.9 Do not touch `SyncEngine::new`'s body (`engine.rs:36-68`), and do not delete the dead private `auto_detect_sync_offset` (`:113-131`) — both are named as out of scope in `design.md`'s Non-Goals and Open Questions
+
+## 5. Downstream Verification Against `../subx`
+
+- [x] 5.1 Create a scratch worktree of `../subx` outside both repositories and point its `subx-core` dependency at the local patched checkout. Nothing in this phase is committed to `../subx`; the worktree is discarded at 5.5
+- [x] 5.2 In the scratch worktree, remove `convert_off_thread` (`src-tauri/src/commands/convert.rs:394-423`) and call `FormatConverter::convert_file` directly from `convert_one` (`:342`), then `cargo check`. This is the only real test of gap 1 — Tauri's `Send` bound is a property of the consumer's future and cannot be asserted from inside `subx-core`
+- [x] 5.3 In the scratch worktree, remove `translate_batch_off_thread`'s `spawn_blocking` + `new_current_thread` wrapper (`src-tauri/src/commands/translate.rs:482-487`, `:552-554`), lift the per-item loop into `run_batch` (`:390`), and `cargo check`
+- [x] 5.4 In the scratch worktree, replace `shift_subtitle` (`src-tauri/src/commands/sync.rs:286-300`) with a call to `subx_core::core::sync::shift_subtitle_timing` at `:269`, keeping the millisecond guard at `:241-244`, and confirm the two drift-guard tests at `:604-630` still pass against core's implementation before they are deleted. This is the check that `design.md` Decision 8's "the two implementations agree today" claim is true rather than argued
+- [x] 5.5 Record the outcome in this change's completion notes, discard the worktree, and confirm `git status` in `../subx` is clean. If this phase runs long it is **cut**, not extended (`design.md` Decision 12)
+
+## 6. Specifications
+
+- [x] 6.1 Confirm the three delta files are the complete set and that every requirement they touch is C2b-classified **C**: `async-runtime-safety` (wholesale core per SDR §9), `format-conversion`'s *Public format API stability across module reorganization*, and `timeline-sync`'s *Sync Method Selection*, *Offset Clamping Against Maximum* and *Subtitle Timing Application*
+- [x] 6.2 Verify each `## MODIFIED Requirements` restatement carries every unchanged scenario verbatim against `openspec/specs/{format-conversion,timeline-sync}/spec.md` — two scenarios for *Public format API stability*, two for *Sync Method Selection*, two for *Offset Clamping Against Maximum*, two for *Subtitle Timing Application*. A `diff` of the carried-over scenario blocks against the main spec must be empty
+- [x] 6.3 Run `openspec validate make-core-engines-thread-safe --strict` and fix everything it reports
+- [x] 6.4 Write the C2a/C2b hand-off note required by `design.md`'s Migration Plan step 6 into this change's completion notes: C2a's `async-runtime-safety` import carries **four** requirements; C2b's `format-conversion` restatement is sourced from this change's text; C2b's `timeline-sync` table gains *VAD-Independent Manual Offset Application* as a fifth **C** entry, moving that capability from 9 C / 10 L to 10 C / 10 L
+
+## 7. Documentation
+
+- [x] 7.1 Add `[Unreleased]` entries to **`subx-core/CHANGELOG.md`** (created by C1 task 8.7): `### Added` — `subx_core::core::sync::shift_subtitle_timing`, a VAD-independent manual-offset entry point, with the note that `SyncEngine::apply_manual_offset` now delegates to it; `### Changed` — `SubtitleFormat` declares `Send + Sync` supertraits, making `FormatManager`, `FormatConverter` and `TranslationEngine` `Send + Sync`, with an explicit line that this is a `trait_added_supertrait` major change that is landing inside the 1.0.0 surface rather than against it
+- [x] 7.2 Add one `### Changed` line to `subx-cli/CHANGELOG.md`'s `[Unreleased]` section recording that the re-exported `subx_cli::core::formats::SubtitleFormat` now carries `Send + Sync`, and that `subx_cli::core::sync::shift_subtitle_timing` is reachable through the same re-export. No `subx-cli` source file changes, but its library surface does
+- [x] 7.3 Add one sentence to `docs/configuration-guide.md`'s `sync.max_offset_seconds` entry noting that the limit is enforced by `SyncEngine::apply_manual_offset` and is deliberately not enforced by the free function, so a library caller knows which entry point carries the guard
+- [x] 7.4 Add one sentence to `docs/tech-architecture.md`'s format-system paragraph recording that format handlers are `Send + Sync` by supertrait and that the guarantee is asserted in `subx-core/src/core/mod.rs`. Flag it for C3 (`design.md` Open Questions) in case C3 relocates it to `subx-core`'s own documentation
+- [x] 7.5 Confirm no rustdoc added in this change contains an intra-doc link crossing the crate boundary — B2's *`subx-core` Never References `subx-cli`* makes `[`subx_cli::…`]` a hard build failure under `broken_intra_doc_links = "deny"`, and phase 4's new rustdoc is the only place that could introduce one
+
+## 8. Quality Gate
+
+- [x] 8.1 Run `cargo fmt` and `cargo clippy -- -D warnings` and fix all warnings
+- [x] 8.2 Run `cargo nextest run --filter-expr 'test(shift_subtitle_timing) + test(manual_offset) + test(format_manager) + test(thread_safety) + test(sync)' || true` and confirm the targeted modules pass
+- [ ] 8.3 Run `scripts/quality_check.sh` once at the end (main agent only — do not invoke from sub-agents) and ensure it is green
+- [x] 8.4 Run `cargo test --doc --all-features` to confirm rustdoc examples still compile
+
+## Completion Notes (apply stage)
+
+**Task 5.5 — downstream verification outcome:** the scratch worktree was created outside
+both repositories (`git worktree add /tmp/subx-d1-verify` of `../subx`, detached at
+c79db44). One deviation from the task text: that checkout's `src-tauri/Cargo.toml`
+depends on `subx-cli = "1.9.1"` (crates.io), not on `subx-core` — SDR §8's post-B2 world
+had not reached the GUI manifest yet — so the patch pointed `subx-cli` at the local
+patched worktree (whose `src/lib.rs` re-exports the whole `subx_core::core` surface per
+D11); the exercised types and the new function are core's either way. A
+`dist/index.html` stub was needed only because `tauri::generate_context!` requires the
+frontend build output; unrelated to this change. With that setup: **5.2**
+`convert_off_thread` deleted and `convert_one` awaiting `FormatConverter::convert_file`
+directly — `cargo check` green. **5.3** `translate_batch_off_thread`'s `spawn_blocking`
++ `new_current_thread` + `block_on` wrapper deleted with its per-item loop lifted into
+`run_batch` — `cargo check` green (this is Tauri's `Send`-future bound satisfied at the
+consumer, which no in-crate assertion can prove). **5.4** the mirrored `shift_subtitle`
+replaced by a call to `shift_subtitle_timing`, keeping the GUI's whole-millisecond guard
+— `cargo check` green and all 18 `commands::sync` tests passed against core's
+implementation, including both drift guards
+(`a_negative_offset_clamps_at_zero_exactly_as_the_crate_does`,
+`a_positive_offset_beyond_the_representable_range_is_rejected`) — Decision 8's "the two
+implementations agree today" claim is measured, not argued. Worktree discarded;
+`git status` in `../subx` clean; nothing committed there.
+
+**Task 6.4 — C2a/C2b hand-off (design.md Migration Plan step 6):**
+- **C2a** (moves `async-runtime-safety` wholesale to `subx-core/openspec/specs/`): the
+  import carries **four** requirements, not three — the three pre-existing ones plus
+  *Library Engine Types Are `Send` and `Sync`* (added by this change, see
+  `specs/async-runtime-safety/spec.md`), with its `subx-core/src/**` citations
+  un-prefixed per `spec-governance`.
+- **C2b** (splits `format-conversion` / `timeline-sync`): its `format-conversion`
+  table's *Public format API stability across module reorganization* restatement is
+  sourced from **this change's delta text** (`specs/format-conversion/spec.md`), which
+  carries the supertrait clauses on top of the migration note C2b was already going to
+  make for the same requirement; its `timeline-sync` table gains *VAD-Independent Manual
+  Offset Application* as a fifth **C** entry, moving that capability from 9 C / 10 L to
+  **10 C / 10 L**, together with this change's restatements of *Sync Method Selection*,
+  *Offset Clamping Against Maximum* and *Subtitle Timing Application*.
+
+**Deviation records (for the archive stage):** task 1.3 (baseline `quality_check.sh`)
+and task 8.3 (final `quality_check.sh`) are main-agent-owned per the session
+coordination directive — 1.3 is intentionally left unchecked; its substance was covered:
+B2/C1/C2a/tag/publication preconditions (1.1/1.2) and both censuses (1.4/1.5/1.6) were
+verified directly, and the pre-change baseline is known green at parent ec06779. The
+scoped equivalents run at the apply stage were green: `cargo check --workspace
+--all-targets --all-features`, workspace lib-gate `cargo clippy -- -D warnings`,
+`cargo fmt --check`, scoped nextest across both crates (formats/sync/matcher, 767
+tests), the `shift_subtitle_timing` doctest, `cargo doc` under
+`broken_intra_doc_links = "deny"`, `openspec validate --strict`, and the task-3.4 `Rc`
+probe (assertion confirmed naming `FormatConverter`/`Send`, then reverted). The
+`|| true` in task 8.2's literal command was deliberately not used — failures must fail.
+Rubber-Duck ran twice (plan stage: import-arrangement errors and the GUI-manifest
+mismatch fixed before implementing, the proposed debug-prefix change reverted to the
+verbatim `[SyncEngine]` text; changes stage: no blocking findings — the changelog
+pre-publication wording reconciled with the dated `## [1.0.0]` section, and this
+completion-notes section added). No tag created or pushed in either repository; no
+`cargo publish` run. Commits: `subx-core` 7eea9a9 pushed to origin main; worktree root
+dbe9a16 with the gitlink bump.

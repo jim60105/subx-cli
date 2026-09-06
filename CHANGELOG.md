@@ -8,6 +8,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+- The re-exported `subx_cli::core::formats::SubtitleFormat` now carries `Send + Sync` supertraits (making `FormatManager`, `FormatConverter` and `TranslationEngine` `Send + Sync`), and `subx_cli::core::sync::shift_subtitle_timing` — the VAD-independent manual-offset entry point — is reachable through the same re-export. No `subx-cli` source file changes; the library surface does.
+
 ## [2.0.0] - 2026-09-06
 
 The two-crate release: `subx-cli` 2.0.0 and `subx-core` 1.0.0, published together from the tag by a single `cargo publish --workspace`. This section folds in everything A0–C1 accumulated under `[Unreleased]`.
