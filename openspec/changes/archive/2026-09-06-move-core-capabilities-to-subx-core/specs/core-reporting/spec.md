@@ -24,3 +24,14 @@
 
 **Migration**: This requirement and B2's `crate-topology` requirement "`subx-core` Never References `subx-cli`" state overlapping invariants. `crate-topology` stays in `subx-cli` (it governs the relationship between the repositories), so the moved copy SHALL note that the enforced, post-split form of the boundary lives there, and SHALL NOT be deleted here — it is the reason the `Reporter` seam exists and it is the invariant `subx-core`'s own guard test enforces.
 
+### Requirement: Structured Progress Stream Semantics
+
+**Reason**: The whole capability moves to `subx-core`. This requirement is re-added verbatim there by the `import-core-specs` change, at `openspec/specs/core-reporting/spec.md` in that repository. It leaves this repository's tree; it does not leave the project.
+
+**Migration**: This requirement was added by D2 (`expose-core-orchestration-apis`) after this proposal's census, and its two citations are self-qualified as `subx-core/src/...`. Inside `subx-core` a path naming one's own repository is root-relative and unqualified, so on arrival the `subx-core/` prefix is stripped from both (`src/core/matcher/engine.rs`, `src/core/translation/engine.rs`). No other text changes.
+
+### Requirement: Cooperative Cancellation Through the Reporter
+
+**Reason**: The whole capability moves to `subx-core`. This requirement is re-added verbatim there by the `import-core-specs` change, at `openspec/specs/core-reporting/spec.md` in that repository. It leaves this repository's tree; it does not leave the project.
+
+**Migration**: This requirement was added by D2 (`expose-core-orchestration-apis`) after this proposal's census, and its one citation is self-qualified as `subx-core/src/core/matcher/engine.rs`. Inside `subx-core` a path naming one's own repository is root-relative and unqualified, so on arrival the `subx-core/` prefix is stripped. No other text changes.

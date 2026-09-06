@@ -8,6 +8,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- `spec-governance` capability (`openspec/specs/spec-governance/`, 8 requirements): the rules by which capabilities are assigned between `subx-cli` and `subx-core`, how they move or split, and how path and capability citations resolve across the two OpenSpec roots. Its specified cross-tree drift check is recorded as unimplemented, with C3 owning where it runs.
+
+### Changed
+- Two OpenSpec roots: `openspec/` specifies `subx-cli`, `subx-core/openspec/` specifies the `subx-core` crate, and the parent's OpenSpec tooling never descends into the submodule. `AGENTS.md` gains the two-root rule and the manual-archive procedure (`--skip-specs` plus hand-applied deltas for whole-capability removals; placeholder H1/Purpose repair after any new-capability archive).
+- `configuration-management`'s *Local Provider Validation Rules* and `machine-readable-output`'s *Quiet Flag* and *Stdout/Stderr Discipline in JSON Mode* now qualify their cross-repository capability references as being in `subx-core` (`core-reporting`), under the new `spec-governance` citation rules.
+
+### Removed
+- Thirteen pure-core capabilities migrated wholesale to `subx-core/openspec/specs/` (96 requirements, 254 scenarios, verbatim; provenance in `subx-core/openspec/changes/archive/2026-09-06-import-core-specs/` and, across the submodule boundary, in `subx-core`'s history read with `git log --full-history -- openspec/specs/…` or `git log --follow` — the spec-history merge resolves its add/add to ours, so the filtered donor commits sit on the merge's second parent and the default history simplification hides them): `ai-provider-integration`, `archive-extraction`, `async-runtime-safety`, `core-reporting`, `file-operation-safety`, `file-organization`, `input-size-guards`, `language-detection`, `local-llm-provider`, `media-discovery`, `subtitle-parser-hardening`, `subtitle-styling`, `vad-speech-detection`.
+
 ### Fixed
 - `--output json` rendered progress frames on the parallel match path: `match_command.rs` defined a private `create_progress_bar` whose `ProgressBar` bypassed `ui::progress_draw_target_for`, so JSON mode's force-hide rule never applied to it. The duplicate constructor is deleted; the CLI reporter is now the only batch progress-bar owner and every bar goes through `ui::create_progress_bar`.
 
