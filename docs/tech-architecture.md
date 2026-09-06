@@ -222,6 +222,12 @@ encoding-aware file reading. `FormatConverter` handles cross-format
 conversion, and `encoding/` provides `EncodingDetector` for automatic
 character encoding detection using `encoding_rs`.
 
+Format handlers are `Send + Sync` by supertrait (`SubtitleFormat: Send + Sync`),
+which makes `FormatManager`, `FormatConverter` and `TranslationEngine`
+thread-safe; the guarantee is asserted at compile time in
+`subx-core/src/core/mod.rs`. *(C3: this sentence may relocate to `subx-core`'s
+own documentation when that file is rewritten for the two-crate world.)*
+
 #### Sync Engine (`subx-core/src/core/sync/`)
 
 The sync engine computes timing offsets between audio and subtitles using

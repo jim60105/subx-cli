@@ -187,6 +187,10 @@ default_method = "auto"                      # Sync method: auto, vad
 max_offset_seconds = 60.0                    # Maximum allowed time offset in seconds
 ```
 
+The limit is enforced by `SyncEngine::apply_manual_offset` and is deliberately
+**not** enforced by the library function `subx_core::core::sync::shift_subtitle_timing`,
+so a library caller knows which entry point carries the guard.
+
 ### VAD Configuration (`[sync.vad]`)
 
 VAD performs on-device speech detection to calculate subtitle timing offsets.
