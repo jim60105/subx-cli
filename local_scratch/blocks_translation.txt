@@ -1,0 +1,37 @@
+====================================================================================================
+### Requirement: Translation Guidance Options
+
+
+The translate command SHALL support optional source language, glossary file, and
+inline context guidance that is included in the translation prompt without
+changing subtitle timing or file discovery behavior.
+
+#### Scenario: glossary file is included in prompt
+
+- **GIVEN** the user provides `--glossary glossary.txt`
+- **WHEN** the command builds the translation prompt
+- **THEN** the command SHALL read `glossary.txt` as a UTF-8 text file
+- **AND** the prompt SHALL include the file content as terminology guidance
+- **AND** the command SHALL still require the AI response to use the structured
+  cue ID mapping
+
+#### Scenario: missing glossary file is rejected
+
+- **GIVEN** the user provides `--glossary missing.txt`
+- **WHEN** the command validates translation inputs
+- **THEN** the command SHALL return an invalid path or input error
+- **AND** SHALL NOT send an AI translation request
+
+#### Scenario: inline context is included in prompt
+
+- **GIVEN** the user provides `--context "Use formal business tone"`
+- **WHEN** the command builds the translation prompt
+- **THEN** the prompt SHALL include that text as domain or tone guidance
+- **AND** SHALL NOT interpret the context value as a filesystem path
+
+#### Scenario: source language is optional
+
+- **GIVEN** the user omits `--source-language`
+- **WHEN** the command builds the translation prompt
+- **THEN** the prompt SHALL request translation from the detected or unspecified
+  source language into the target language

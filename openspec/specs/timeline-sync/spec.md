@@ -2,115 +2,15 @@
 
 ## Purpose
 
-Align subtitle timing to a video's audio track by applying either an automatic offset derived from local Voice Activity Detection (VAD) or a user-supplied manual offset, for single pairs or batch directories. Implemented in `src/commands/sync_command.rs`, `src/cli/sync_args.rs` (thin CLI adapter), `src/core/sync/` (pairing resolution, default output paths, engine), and `src/services/vad/`.
+Hold the CLI half of the timeline-sync agreement: single-file and batch modes, dry-run mode, manual-offset-without-video framing, force-overwrite behavior, batch pairing heuristics (prefix matching, skip-without-videos, single-pair override), CLI VAD parameter overrides, the structured JSON payload of `sync`, and the rule that the sync argument struct is a thin adapter over core pairing. Implemented in `src/commands/sync_command.rs` and `src/cli/sync_args.rs`. The sync engine, pairing resolution, default output paths, offset clamping, timing application, and VAD processing rules are specified by the same-named `timeline-sync` capability in `subx-core`.
 
 ## Requirements
 
-### Requirement: Sync Method Selection
-
-The system SHALL support two sync methods selected via `--method`: `vad` (local Voice Activity Detection) and `manual` (user-supplied offset). When `--method` is omitted the engine SHALL fall back to the method declared by `sync.default_method` in configuration.
-
-`SyncEngine`'s VAD precondition SHALL apply to engine construction only, and SHALL NOT be the gate on the manual-offset transform:
-
-- `SyncEngine::new` SHALL retain its current signature and its current behaviour, including the unconditional VAD requirement. Relaxing it is a separate change with the command surface on the other side of it.
-- A caller that needs only the manual-offset transform SHALL use `shift_subtitle_timing` (see *VAD-Independent Manual Offset Application*) rather than constructing an engine, and SHALL NOT reimplement the transform.
-- `SyncEngine::new`'s rustdoc SHALL state that the VAD requirement is unconditional and SHALL name the free function as the entry point for manual-offset-only callers.
-
-#### Scenario: Manual mode requires an explicit offset
-- **GIVEN** the user passes `--method manual` without `--offset`
-- **WHEN** argument validation runs
-- **THEN** validation SHALL fail with the message `Manual method requires --offset parameter.`
-
-#### Scenario: VAD detector is required unconditionally
-- **GIVEN** VAD is disabled in configuration or the VAD detector fails to initialize
-- **WHEN** `SyncEngine::new` is called
-- **THEN** engine construction SHALL unconditionally return a configuration error stating that the VAD detector is required but unavailable, regardless of which sync method the user ultimately selects
-
-#### Scenario: The construction precondition does not reach the manual transform
-- **GIVEN** the same configuration on which `SyncEngine::new` returns the configuration error above
-- **WHEN** a manual offset is applied through `shift_subtitle_timing`
-- **THEN** the transform SHALL succeed, and no caller SHALL be required to duplicate the transform in order to reach it
-
-### Requirement: Offset Clamping Against Maximum
-
-The system SHALL enforce `sync.max_offset_seconds`: manual offsets exceeding this absolute value SHALL be rejected with an error, and VAD-detected offsets exceeding it SHALL be clamped (preserving sign) and accompanied by a warning in the sync result.
-
-The guard's location is normative, because the transform it guards is reachable independently:
-
-- The manual-offset guard SHALL live on `SyncEngine::apply_manual_offset`, which reads `self.config.max_offset_seconds` and returns the configuration error before any entry is modified.
-- The guard SHALL NOT be moved into `shift_subtitle_timing`. That function is specified as unguarded (*VAD-Independent Manual Offset Application*) so that a host which validates the offset against its own presentation of `sync.max_offset_seconds` — for example in whole milliseconds, to keep its own pre-check and the library's check on the same side of a rounding boundary — is not subjected to a second, differently-rounded check.
-- A caller reaching the transform directly SHALL be responsible for its own bound. This division SHALL be stated in both items' rustdoc.
-
-#### Scenario: Manual offset exceeds maximum
-- **GIVEN** `sync.max_offset_seconds = 60` and the user supplies `--offset 120`
-- **WHEN** `apply_manual_offset` runs
-- **THEN** the call SHALL return a configuration error referencing `sync.max_offset_seconds` and the subtitle entries SHALL remain unchanged
-
-#### Scenario: VAD offset clamping
-- **GIVEN** `sync.max_offset_seconds = 30` and VAD detects an offset of 45s
-- **WHEN** `vad_detect_sync_offset` returns
-- **THEN** the resulting `SyncResult.offset_seconds` SHALL equal 30 (sign preserved), `SyncResult.warnings` SHALL contain a message explaining the clamping, and `additional_info` SHALL record the original and clamped values
-
-#### Scenario: The guard is not duplicated into the free function
-- **GIVEN** a proposal to add the `sync.max_offset_seconds` check to `shift_subtitle_timing`
-- **WHEN** it is evaluated against this requirement
-- **THEN** it SHALL be rejected, because the free function has no `SyncConfig` and adding one would restore the construction-time configuration dependency the function exists to avoid
-
-### Requirement: Subtitle Timing Application
-
-The system SHALL shift every subtitle entry's start and end time by the applied offset, clamping negative results to zero rather than producing negative timestamps.
-
-The transform SHALL have exactly one implementation:
-
-- The shift SHALL be implemented once, in `shift_subtitle_timing` (`subx-core/src/core/sync/mod.rs`). A positive offset SHALL use a checked addition and SHALL return an audio-processing error if any entry's time would overflow; a negative offset SHALL saturate at `Duration::ZERO` rather than erroring.
-- The returned `SyncResult` SHALL carry `offset_seconds` as supplied, `confidence = 1.0`, `method_used = SyncMethod::Manual`, `correlation_peak = 1.0`, an `additional_info` object recording the applied offset and the number of entries modified, and the measured processing duration.
-- `SyncEngine::apply_manual_offset` SHALL obtain both the shift and the `SyncResult` from that function and SHALL NOT construct either itself.
-
-#### Scenario: Positive offset delays subtitles
-- **GIVEN** a subtitle entry with `start_time = 10s` and the engine applies a +2.5s offset
-- **WHEN** `apply_manual_offset` runs
-- **THEN** the entry's new `start_time` SHALL be 12.5s
-
-#### Scenario: Negative offset clamps to zero
-- **GIVEN** a subtitle entry with `start_time = 1s` and the engine applies a -5s offset within the maximum
-- **WHEN** `apply_manual_offset` runs
-- **THEN** the entry's new `start_time` SHALL be `Duration::ZERO` rather than a negative value
-
-#### Scenario: Positive offset beyond the representable range is rejected
-- **GIVEN** a subtitle entry whose `end_time` is `Duration::MAX` and a positive offset within `sync.max_offset_seconds`
-- **WHEN** the shift is applied through either entry point
-- **THEN** an audio-processing error SHALL be returned rather than a wrapped or truncated timestamp
-
-### Requirement: VAD-Independent Manual Offset Application
-
-The manual-offset timing transform SHALL be reachable without constructing a `SyncEngine`, so that a caller who never performs detection is not subject to the engine's VAD precondition.
-
-- `subx-core` SHALL expose `shift_subtitle_timing(subtitle: &mut Subtitle, offset_seconds: f32) -> Result<SyncResult>` as a free function in `subx_core::core::sync` (`subx-core/src/core/sync/mod.rs`), alongside `resolve_sync_pairing` and `create_default_output_path`.
-- The function SHALL apply the offset to every entry with the semantics defined by *Subtitle Timing Application* and SHALL return the `SyncResult` defined there.
-- The function SHALL NOT read `sync.max_offset_seconds` and SHALL NOT require, construct, or consult a VAD detector, an audio processor, a `SyncConfig`, or a `ConfigService`. Its only inputs are the subtitle and the offset.
-- `SyncEngine::apply_manual_offset` SHALL delegate to this function after performing its own guard, so that exactly one implementation of the transform exists. The two entry points SHALL produce identical `SyncResult` field values and identical entry timings for any input the guard admits.
-- The function's rustdoc SHALL state that `sync.max_offset_seconds` is not enforced and SHALL name `SyncEngine::apply_manual_offset` as the entry point that enforces it, so a caller choosing between them is told which obligation it is taking on.
-
-#### Scenario: A caller with no VAD available applies a manual offset
-- **GIVEN** a host with `sync.vad.enabled = false`, for which `SyncEngine::new` returns a configuration error
-- **WHEN** the host calls `shift_subtitle_timing` with a parsed subtitle and an offset
-- **THEN** the offset SHALL be applied and a `SyncResult` with `method_used = SyncMethod::Manual` SHALL be returned, with no engine constructed and no VAD detector involved
-
-#### Scenario: The free function does not enforce the configured maximum
-- **GIVEN** `sync.max_offset_seconds = 60` in configuration and a call to `shift_subtitle_timing` with an offset of 120 seconds
-- **WHEN** the function runs
-- **THEN** it SHALL apply the 120-second offset and SHALL NOT return a configuration error, because the guard belongs to `SyncEngine::apply_manual_offset` and the function is documented as unguarded
-
-#### Scenario: The two entry points cannot drift
-- **GIVEN** a subtitle and an offset within `sync.max_offset_seconds`
-- **WHEN** the same input is passed to `SyncEngine::apply_manual_offset` and to `shift_subtitle_timing`
-- **THEN** the resulting entry timings SHALL be identical and the returned `SyncResult`'s `offset_seconds`, `confidence`, `method_used`, `correlation_peak`, `additional_info` and `warnings` SHALL be identical
-
 ### Requirement: Single-File and Batch Modes
 
-The system SHALL support a single-pair mode (via `--video` + `--subtitle`, positional paths, or manual mode with only a subtitle) and a batch mode (via `--batch [DIR]` combined with `-i`, positional paths, or an explicit directory) that pairs videos with subtitles inside the same directory.
+The `sync` command SHALL support a single-pair mode (via `--video` + `--subtitle`, positional paths, or manual mode with only a subtitle) and a batch mode (via `--batch [DIR]` combined with `-i`, positional paths, or an explicit directory) that pairs videos with subtitles inside the same directory.
 
-The decision between the two modes, and the auto-pairing that backs single-pair mode, SHALL be performed by `crate::core::sync::resolve_sync_pairing` per the "Core-Owned Sync Pairing Resolution" requirement. The `sync` command's clap struct SHALL contribute only the flag definitions and the field-to-request adaptation; it SHALL NOT read the filesystem.
+The decision between the two modes, and the auto-pairing that backs single-pair mode, SHALL be performed by the `timeline-sync` capability's *Core-Owned Sync Pairing Resolution* requirement in `subx-core`, whose `resolve_sync_pairing` is reachable from this crate as `subx_cli::core::sync::resolve_sync_pairing` through the re-export surface the `crate-topology` capability specifies. The `sync` command's clap struct SHALL contribute only the flag definitions and the field-to-request adaptation; it SHALL NOT read the filesystem.
 
 #### Scenario: Batch mode without any input
 - **GIVEN** the user passes `--batch` with no directory, no `-i`, no positional path, and no `--video` or `--subtitle`
@@ -195,57 +95,6 @@ The system SHALL accept per-invocation overrides `--vad-sensitivity <0.0-1.0>` a
 - **WHEN** the VAD detector runs for this invocation
 - **THEN** it SHALL use sensitivity 0.8 and the on-disk configuration SHALL remain unchanged
 
-### Requirement: VAD Audio Processing
-
-The system SHALL provide `VadAudioProcessor` that loads an audio or video file, downmixes multi-channel audio to mono, preserves the file's original sample rate in the returned `AudioInfo`, and converts f32 PCM samples to i16. An invalid or non-existent path SHALL return an error rather than panic. Implemented in `src/services/vad/` and exercised by `tests/vad_audio_processor_tests.rs` and `tests/vad_integration_tests.rs`.
-
-#### Scenario: Multi-channel input downmixed and sample rate preserved
-- **GIVEN** a WAV input with sample rate 44100 Hz and two channels
-- **WHEN** `VadAudioProcessor::load_and_prepare_audio_direct` processes it
-- **THEN** the returned `AudioData.info.sample_rate` SHALL equal 44100 and `AudioData.info.channels` SHALL equal 1
-
-#### Scenario: Float32 PCM converted to i16
-- **GIVEN** a WAV file with one f32 sample equal to `0.5`
-- **WHEN** the processor loads and prepares the file
-- **THEN** the returned `samples[0]` SHALL be an `i16` value within 10 of `i16::MAX / 2`
-
-#### Scenario: Non-existent audio path errors
-- **GIVEN** a path that does not exist
-- **WHEN** `load_and_prepare_audio_direct` is called
-- **THEN** the call SHALL return an error rather than panic
-
-### Requirement: VAD Detector Behavior
-
-`LocalVadDetector` SHALL detect speech segments whose `start_time < end_time` and whose durations are bounded below by the configured `min_speech_duration_ms`; higher `sensitivity` SHALL produce at least as many segments as lower sensitivity on the same input. `VadSyncDetector::detect_sync_offset` SHALL return an error when the provided subtitle has no entries, and SHALL return `SyncMethod::LocalVad` as the method used.
-
-#### Scenario: Sensitivity monotonicity
-- **GIVEN** the same audio input processed by two detectors configured with `sensitivity = 0.1` and `sensitivity = 0.9`
-- **WHEN** both detectors run
-- **THEN** the segment count at low sensitivity SHALL be less than or equal to the segment count at high sensitivity (tolerating a difference of at most 1)
-
-#### Scenario: Empty subtitle rejected
-- **GIVEN** a subtitle with zero entries
-- **WHEN** `VadSyncDetector::detect_sync_offset` is awaited
-- **THEN** it SHALL return an error whose message contains `No subtitle entries found`
-
-### Requirement: First-Sentence Offset Annotation
-
-When VAD-assisted sync computes an offset by aligning the first detected speech segment with the first subtitle entry, the resulting `SyncResult` SHALL populate `additional_info` with both `first_speech_start` and `expected_subtitle_start`, such that `offset_seconds == first_speech_start - expected_subtitle_start` (within a small tolerance). Exercised by `tests/sync_first_sentence_offset_integration_tests.rs`.
-
-#### Scenario: Offset equals first-speech minus expected-start
-- **GIVEN** a real audio+subtitle asset pair and a VAD-enabled `SyncEngine`
-- **WHEN** `detect_sync_offset(..., Some(SyncMethod::Auto))` returns a result
-- **THEN** `additional_info.first_speech_start - additional_info.expected_subtitle_start` SHALL equal `offset_seconds` within ±0.01
-
-### Requirement: VAD Padding Chunks Configuration
-
-The system SHALL apply `sync.vad.padding_chunks` (default `3`) as the number of non-speech chunks included before and after each detected speech segment when `LocalVadDetector` labels audio via the VAD backend. A change in `padding_chunks` SHALL be passed through to the VAD labeling step without requiring any other configuration change. Implemented in `src/services/vad/detector.rs` (the `vad.label(..., padding_chunks, ...)` call) and defined in `src/config/mod.rs::VadConfig`.
-
-#### Scenario: Configured padding is applied to the VAD backend
-- **GIVEN** `sync.vad.padding_chunks = 5` in configuration
-- **WHEN** `LocalVadDetector` runs VAD labeling over an audio buffer
-- **THEN** it SHALL invoke the underlying VAD label function with the padding-chunks argument equal to `5`
-
 ### Requirement: Sync Command Emits Structured JSON Payload
 
 When the `sync` command runs with the global output mode set to `json`, it SHALL emit a single JSON envelope on stdout (per the `machine-readable-output` capability) and SHALL NOT print free-form progress chatter or status symbols on stdout. The envelope's `data` object SHALL contain:
@@ -273,93 +122,26 @@ In `text` mode (the default) the sync command's existing UX is unchanged.
 - **WHEN** the command runs with `--output json`
 - **THEN** the envelope SHALL satisfy `status == "error"` and `error.category == "invalid_sync_configuration"`, and the process exit code SHALL match `SubXError::exit_code` for that variant
 
-### Requirement: Core-Owned Sync Pairing Resolution
+### Requirement: Sync Argument Struct Is a Thin Adapter Over Core Pairing
 
-Deciding whether a `sync` invocation is a single pair or a batch, and auto-pairing a lone video or subtitle with its sibling on disk, SHALL be a documented core API rather than implicit behaviour of an argument-parser struct.
+`SyncArgs` and the `sync` command SHALL own the flag surface and the legacy aliases, and nothing else. Every pairing and path-derivation behaviour is specified by the `timeline-sync` capability in `subx-core`; this requirement states what remains in `src/cli/sync_args.rs`.
 
-The core module `crate::core::sync` (`src/core/sync/mod.rs`) SHALL expose:
+1. **Method flag and its validation.** The command SHALL accept `--method` with the values `vad` and `manual`, and SHALL omit the option to select the configured `sync.default_method`. When `--method manual` is supplied without `--offset`, `SyncArgs::validate` SHALL fail with the message `Manual method requires --offset parameter.` This is argument validation, not engine behaviour: no core file is consulted to produce it.
+2. **Pairing adapter.** `SyncArgs::get_sync_mode` SHALL populate a `SyncPairingRequest` from its own fields — translating clap's `Option<Option<PathBuf>>` for `--batch` into `BatchRequest`, and `is_manual_mode()` into `manual` — and SHALL return `resolve_sync_pairing`'s result unchanged. It SHALL contain no filesystem access and no pairing logic of its own.
+3. **Output-path adapter.** `SyncArgs::get_output_path` SHALL derive its default through the core `create_default_output_path`, and SHALL NOT reimplement the `<file_stem>_synced.<extension>` derivation. In-crate callers, including `src/commands/sync_command.rs`, SHALL reference the core path rather than the legacy alias.
+4. **Legacy aliases.** `crate::cli::SyncMode` and `crate::cli::sync_args::create_default_output_path` SHALL remain available as legacy re-exports of their `subx-core` originals, documented as such in rustdoc, without a `#[deprecated]` attribute, so that existing consumers keep compiling.
 
-- `pub enum SyncMode { Single { video: PathBuf, subtitle: PathBuf }, Batch(InputPathHandler) }` — the resolved outcome.
-- `pub enum BatchRequest { Off, Auto, Directory(PathBuf) }` — a parser-agnostic encoding of the `--batch [DIR]` tri-state, replacing clap's `Option<Option<PathBuf>>`.
-- `pub struct SyncPairingRequest` with the fields `positional_paths: Vec<PathBuf>`, `input_paths: Vec<PathBuf>`, `video: Option<PathBuf>`, `subtitle: Option<PathBuf>`, `batch: BatchRequest`, `recursive: bool`, `no_extract: bool`, and `manual: bool`.
-- `pub fn resolve_sync_pairing(request: &SyncPairingRequest) -> Result<SyncMode, SubXError>`.
-- `pub const SYNC_VIDEO_EXTENSIONS: &[&str]` = `["mp4", "mkv", "avi", "mov"]` and `pub const SYNC_SUBTITLE_EXTENSIONS: &[&str]` = `["srt", "ass", "vtt", "sub"]`, which SHALL be the single definition of those lists for both pairing and handler construction.
-
-`resolve_sync_pairing` SHALL apply the following algorithm, in order:
-
-1. **Batch selection.** If `batch != BatchRequest::Off`, or `input_paths` is non-empty, or any entry of `positional_paths` has no file extension, the result SHALL be `SyncMode::Batch`. The handler's path list SHALL be the batch directory (when `batch == Directory(d)`) followed by `input_paths` followed by `positional_paths`; when that list is empty it SHALL default to `["."]`. The handler SHALL be built with the caller's `recursive` and `no_extract` values and with the union of `SYNC_VIDEO_EXTENSIONS` and `SYNC_SUBTITLE_EXTENSIONS` as its extension filter.
-2. **Single positional path.** With exactly one positional path and no batch trigger, the extension SHALL be lower-cased and classified. If it is in `SYNC_VIDEO_EXTENSIONS`, the path becomes the video and the resolver SHALL probe the path's parent directory (or `.` when it has none) for `<stem>.<ext>` over `SYNC_SUBTITLE_EXTENSIONS` **in declaration order**, taking the first entry for which `Path::exists()` is true. If it is in `SYNC_SUBTITLE_EXTENSIONS`, the path becomes the subtitle and the same probe runs over `SYNC_VIDEO_EXTENSIONS`. Any other extension SHALL classify as neither.
-3. **Two positional paths.** With exactly two positional paths, each SHALL be classified by its lower-cased extension against the two lists; no filesystem probing occurs.
-4. **Explicit options.** Otherwise, `video` and `subtitle` SHALL be used as supplied.
-5. **Manual-mode relaxation.** When `manual` is true and a subtitle has been resolved but no video has, the result SHALL be `SyncMode::Single` with an **empty** `PathBuf` as the video, signalling "no video required".
-6. **Failure.** When no `SyncMode` can be produced, the call SHALL return `Err(SubXError::InvalidSyncConfiguration)`.
-
-`SyncArgs::get_sync_mode` (`src/cli/sync_args.rs`) SHALL become a thin adapter that populates a `SyncPairingRequest` from its own fields — translating `Option<Option<PathBuf>>` into `BatchRequest` and `is_manual_mode()` into `manual` — and returns `resolve_sync_pairing`'s result unchanged. It SHALL contain no filesystem access and no pairing logic of its own. `crate::cli::SyncMode` SHALL remain available as a legacy re-export of `crate::core::sync::SyncMode`, documented as such in rustdoc and without a `#[deprecated]` attribute.
-
-The batch *pairing* performed afterwards inside `src/commands/sync_command.rs` (the filename-stem prefix heuristic and the single-video/single-subtitle override) is a separate, command-level concern and is unaffected by this requirement.
-
-#### Scenario: Lone video positional finds its subtitle on disk
-- **GIVEN** a directory containing `movie.mp4` and `movie.srt`, and a `SyncPairingRequest` whose only positional path is `movie.mp4`
-- **WHEN** `resolve_sync_pairing` runs
-- **THEN** it SHALL return `SyncMode::Single { video: movie.mp4, subtitle: movie.srt }`
-
-#### Scenario: Lone subtitle positional finds its video on disk
-- **GIVEN** a directory containing `movie.mkv` and `movie.ass`, and a `SyncPairingRequest` whose only positional path is `movie.ass`
-- **WHEN** `resolve_sync_pairing` runs
-- **THEN** it SHALL return `SyncMode::Single { video: movie.mkv, subtitle: movie.ass }`
-
-#### Scenario: Probe order follows the declared extension lists
-- **GIVEN** a directory containing `movie.mp4`, `movie.srt`, and `movie.ass`, and a `SyncPairingRequest` whose only positional path is `movie.mp4`
-- **WHEN** `resolve_sync_pairing` runs
-- **THEN** the chosen subtitle SHALL be `movie.srt`, because `srt` precedes `ass` in `SYNC_SUBTITLE_EXTENSIONS`
-
-#### Scenario: Manual mode accepts a subtitle with no video
-- **GIVEN** a `SyncPairingRequest` with `manual == true` whose only positional path is `movie.srt`, and no `movie.<video-ext>` exists beside it
-- **WHEN** `resolve_sync_pairing` runs
-- **THEN** it SHALL return `SyncMode::Single` whose `subtitle` is `movie.srt` and whose `video` is an empty `PathBuf`
-
-#### Scenario: Unpairable single positional is rejected
-- **GIVEN** a `SyncPairingRequest` with `manual == false` whose only positional path is `movie.mp4`, with no subtitle file beside it
-- **WHEN** `resolve_sync_pairing` runs
-- **THEN** it SHALL return `Err(SubXError::InvalidSyncConfiguration)`
-
-#### Scenario: Two positional paths are classified without probing
-- **GIVEN** a `SyncPairingRequest` whose positional paths are `movie.srt` and `movie.mp4`, in that order
-- **WHEN** `resolve_sync_pairing` runs
-- **THEN** it SHALL return `SyncMode::Single { video: movie.mp4, subtitle: movie.srt }` without testing any other path for existence
-
-#### Scenario: Each batch trigger selects batch mode
-- **GIVEN** three `SyncPairingRequest` values that differ only in their batch trigger — one with `batch == Directory(dir)`, one with a non-empty `input_paths`, and one whose sole positional path has no extension
-- **WHEN** `resolve_sync_pairing` runs for each
-- **THEN** every call SHALL return `SyncMode::Batch`
-
-#### Scenario: Batch with no usable paths defaults to the current directory
-- **GIVEN** a `SyncPairingRequest` with `batch == BatchRequest::Auto`, empty `input_paths`, and empty `positional_paths`
-- **WHEN** `resolve_sync_pairing` runs
-- **THEN** the returned `SyncMode::Batch` handler's path list SHALL be exactly `["."]`
+#### Scenario: Manual mode requires an explicit offset
+- **GIVEN** the user passes `--method manual` without `--offset`
+- **WHEN** argument validation runs
+- **THEN** validation SHALL fail with the message `Manual method requires --offset parameter.`
 
 #### Scenario: The CLI adapter adds no behaviour
 - **GIVEN** any `SyncArgs` value
 - **WHEN** `SyncArgs::get_sync_mode` is called
 - **THEN** the result SHALL equal `resolve_sync_pairing` applied to the `SyncPairingRequest` built from that value's fields
 
-### Requirement: Core-Owned Default Output Path Derivation
-
-Deriving the default synchronized-output filename SHALL be a core API. `crate::core::sync::create_default_output_path(input: &Path) -> PathBuf` (`src/core/sync/mod.rs`) SHALL return the input path with its file name replaced by `<file_stem>_synced.<extension>`, and SHALL return the input path unchanged when it has no file stem or no extension.
-
-`crate::cli::sync_args::create_default_output_path` SHALL remain available as a legacy re-export documented in rustdoc, without a `#[deprecated]` attribute, so that existing consumers keep compiling. In-crate callers — `SyncArgs::get_output_path` and `src/commands/sync_command.rs` — SHALL reference the core path.
-
-#### Scenario: Stem gains the `_synced` suffix
-- **GIVEN** the input path `subs/movie.srt`
-- **WHEN** `create_default_output_path` is called
-- **THEN** it SHALL return `subs/movie_synced.srt`
-
-#### Scenario: Extension is preserved verbatim
-- **GIVEN** the input path `subs/movie.vtt`
-- **WHEN** `create_default_output_path` is called
-- **THEN** it SHALL return `subs/movie_synced.vtt`
-
-#### Scenario: Extensionless input is returned unchanged
-- **GIVEN** an input path with a file stem but no extension
-- **WHEN** `create_default_output_path` is called
-- **THEN** it SHALL return the input path unchanged
+#### Scenario: Legacy sync aliases still resolve
+- **GIVEN** a consumer that writes `use subx_cli::cli::SyncMode;` or `use subx_cli::cli::sync_args::create_default_output_path;`
+- **WHEN** the crate is compiled
+- **THEN** both imports SHALL resolve to their `subx-core` originals and SHALL produce no deprecation warning

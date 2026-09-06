@@ -1,0 +1,15 @@
+====================================================================================================
+### Requirement: Supported Output Formats
+
+
+The system SHALL accept `--format` values `srt`, `ass`, `vtt`, and `sub`, defined by the `OutputSubtitleFormat` enum, and SHALL produce output files with the matching file extension.
+
+#### Scenario: Convert SRT to VTT
+- **GIVEN** an input SRT file and `--format vtt`
+- **WHEN** the convert command runs
+- **THEN** the output file SHALL contain a `WEBVTT` header and SRT-style comma timecodes SHALL be converted to dot timecodes (for example `00:00:01.000 --> 00:00:02.000`)
+
+#### Scenario: Default output format from configuration
+- **GIVEN** the user omits `--format` and `formats.default_output` is `srt` in configuration
+- **WHEN** the command runs
+- **THEN** every input file SHALL be converted to SRT

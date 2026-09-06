@@ -502,6 +502,24 @@ change's `## Why` naming the other as its other half (see
 `openspec/specs/spec-governance/` for the capability-assignment and citation
 rules).
 
+**Split capabilities.** Twelve capability names — `cache-management`,
+`component-factory`, `configuration-management`, `encoding-detection`,
+`error-handling`, `format-conversion`, `input-path-handling`,
+`parallel-processing`, `secrets-protection`, `subtitle-matching`,
+`subtitle-translation`, `timeline-sync` — exist in **both**
+`openspec/specs/` and `subx-core/openspec/specs/` by design: each is one half
+of one capability, split along the crate boundary. The authoritative record of
+which names are split is `openspec/split-capabilities.txt`; a name in both
+trees and not in that file is a duplication defect, and a name in the file and
+one tree only is a split that lost a half. When adding a requirement to a split
+capability, decide its owning repository first, by `spec-governance`'s
+ownership test, and add it to that repository's half — never to whichever half
+happened to be open; a capability that grows a requirement on the other side is
+split, not moved. A change spanning both trees is archived with `--skip-specs`
+in the sending repository even when no capability is emptied, because
+`openspec archive` does not rewrite `## Purpose` paragraphs and a stale Purpose
+passes `validate --strict`.
+
 **Manual-archive procedure.** A delta that removes every requirement of a
 capability makes `openspec archive` refuse atomically
 (`archive_spec_validation_failed` — a rebuilt spec with zero requirements fails

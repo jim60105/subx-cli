@@ -1,0 +1,37 @@
+====================================================================================================
+### Requirement: Output Directory Resolution for Archive Files
+
+
+For mutating commands (`convert`, `sync`, `translate`), when a source file originates from an archive extraction and no explicit output location is specified, the command SHALL resolve the output location through `CollectedFiles`' archive-aware queries rather than computing it inline. Specifically:
+
+- `convert` SHALL obtain its per-file output path from `CollectedFiles::default_output_path(input, &format)` whenever `--output` is absent (`subx-cli/src/commands/convert_command.rs`).
+- `translate` SHALL obtain its default output directory from `CollectedFiles::default_output_dir(input)` and join its own language-suffixed filename onto it (`subx-cli/src/commands/translate_command.rs`).
+- `sync`'s batch paths SHALL keep their conditional form: they SHALL redirect the output beside the archive **only** when the subtitle has an `archive_origin`, and SHALL otherwise leave the output location unset so it is derived downstream by `create_default_output_path` (`subx-cli/src/commands/sync_command.rs`). Rewriting these two sites to compute a path unconditionally SHALL NOT be done, because the distinction between an unset and a set output location governs the command's overwrite handling.
+
+The command layer SHALL retain the obligations that are its own and that no core query can discharge:
+
+- An explicit `--output` / `-o` value SHALL take precedence over the archive-aware default.
+- When `--output` names a directory and the run has more than one input file — from multiple inputs, from a directory input, or from archive expansion — the command SHALL append the per-file name to it.
+- `translate --replace` SHALL be refused for a subtitle that has an `archive_origin`, because replacing a file inside a temporary extraction directory writes to a location that is about to be deleted.
+
+This prevents output from being written into the temporary extraction directory, which is deleted on drop.
+
+#### Scenario: Explicit -o overrides archive origin
+- **GIVEN** the user runs `subx convert subs.zip -o /output/`
+- **WHEN** conversion completes
+- **THEN** the converted file SHALL be written to `/output/`
+
+#### Scenario: Convert with no -o defers to the core query
+- **GIVEN** the user runs `subx convert subs.zip` containing `movie.srt`
+- **WHEN** the command resolves the output path for `movie.srt`
+- **THEN** it SHALL do so by calling `CollectedFiles::default_output_path` and SHALL NOT compute the archive parent directory itself, and the converted file SHALL be written beside `subs.zip`
+
+#### Scenario: Replace mode refuses an archive-extracted subtitle
+- **GIVEN** the user runs `subx translate --replace subs.zip` containing `movie.srt`
+- **WHEN** the command resolves the output location for `movie.srt`
+- **THEN** it SHALL fail with a command-execution error stating that `--replace` cannot be used for subtitles extracted from archives, and SHALL NOT write into the extraction directory
+
+#### Scenario: Sync leaves a non-archive output unset
+- **GIVEN** a batch `sync` run in which the paired subtitle was supplied directly rather than extracted from an archive, and no `--output` was given
+- **WHEN** the command prepares the single-pair arguments
+- **THEN** the output location SHALL remain unset so it is derived by `create_default_output_path`, and the command SHALL NOT substitute a computed path
