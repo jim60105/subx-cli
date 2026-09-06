@@ -282,7 +282,9 @@ mod tests {
         reporter.progress(&ProgressEvent::Started { total: 2 });
         {
             let slot = reporter.bar.lock().unwrap();
-            let bar = slot.as_ref().expect("Started builds the bar even when disabled");
+            let bar = slot
+                .as_ref()
+                .expect("Started builds the bar even when disabled");
             assert!(bar.is_hidden(), "disabled flag must hide the draw target");
         }
         // The rest of the stream contract proceeds unchanged.
