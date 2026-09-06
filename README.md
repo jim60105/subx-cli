@@ -134,6 +134,15 @@ and downloads the matching pre-built binary from the latest GitHub Release.
 | macOS    | aarch64      | `subx-macos-aarch64`        | Apple Silicon (M1/M2/M3/M4) |
 | Windows  | x86_64       | `subx-windows-x86_64.exe`   | 64-bit Windows |
 
+> **musl-based Linux distributions (Alpine, Void musl) are not served by the
+> installer.** No musl artifacts are published, and `scripts/install.sh`
+> rejects both `SUBX_LIBC=musl` and `--musl` with exit code 2. Build from
+> source instead, against a locally provisioned ONNX Runtime: export
+> `ORT_LIB_LOCATION` (or the equivalent `ort` build-time configuration) at a
+> musl-compatible ONNX Runtime before `cargo install subx-cli` — a plain
+> `cargo install subx-cli` will not work, because `ort`'s default
+> `download-binaries` feature has no musl prebuilts either.
+
 ### From Source (any platform)
 
 ```bash
@@ -154,6 +163,25 @@ cargo build --release
 > submodule in sync automatically — note that it is a per-clone setting and
 > does not apply to the initial `git clone` itself, which is why
 > `--recurse-submodules` is documented separately.
+
+### Using SubX as a Library
+
+The processing engine behind `subx-cli` is a standalone crate,
+[`subx-core`](https://github.com/jim60105/subx-core): subtitle parsing and
+conversion, AI matching, VAD timeline sync, translation, and configuration
+with no terminal presentation code. Depend on `subx-core` — never on
+`subx-cli`, whose library surface exists only as compatibility re-exports
+of `subx-core`.
+
+```toml
+[dependencies]
+subx-core = { git = "https://github.com/jim60105/subx-core" }  # the crate has no
+                  # crates.io release yet; once the two-crate release publishes,
+                  # this becomes: subx-core = "1"
+```
+
+The API reference is `docs.rs/subx-core` once the crate is first published;
+the repository README and rustdoc are authoritative meanwhile.
 
 ## Supported Formats
 
@@ -195,6 +223,11 @@ explicitly rejects JSON mode.
   and design decisions
 - [AI Provider Integration](docs/ai-provider-integration-guide.md) — how to
   add a new AI provider
+- [`subx-core` API reference](https://docs.rs/subx-core) — the library's
+  rustdoc (canonical reference for the processing engine; live once the
+  crate is first published)
+- [`subx-core` repository](https://github.com/jim60105/subx-core) — the
+  library half of this project, mounted here as a git submodule
 
 ## License
 

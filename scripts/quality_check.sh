@@ -34,6 +34,14 @@ NEXTEST_PROFILE="default"
 # Initialize full tests mode
 FULL_TESTS=false
 
+# Initialize spec-governance-only mode
+CHECK_SPEC_GOVERNANCE_ONLY=false
+
+# Governance failure state: any failed predicate makes the script exit 2
+# (distinct from the generic failure exit 1) so a caller can tell a
+# spec/document governance defect apart from a code-quality failure.
+GOVERNANCE_FAILED=false
+
 # Colors for output
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -48,6 +56,7 @@ usage() {
     echo "  -v, --verbose            Show verbose output"
     echo "  -p, --profile PROFILE    Set nextest profile (default: default)"
     echo "  --full                   Run full tests including slow tests (sets profile to full and enables slow-tests feature)"
+    echo "  --check-spec-governance  Run only the spec-governance drift check (predicates over the two OpenSpec trees and the shared AGENTS.md region; exit 2 on any governance failure)"
     echo "  -h, --help               Show this help"
     echo ""
     echo "This script performs comprehensive quality assurance checks including:"
@@ -65,6 +74,7 @@ usage() {
     echo "  $0 -p ci                 Run with CI profile"
     echo "  $0 --full                Run full tests including slow tests (~90 vs ~143 seconds)"
     echo "  $0 -v --full             Run full tests with verbose output"
+    echo "  $0 --check-spec-governance  Run only the spec-governance drift check"
 }
 
 # Parse command line arguments
@@ -96,6 +106,10 @@ parse_args() {
         --full)
             FULL_TESTS=true
             NEXTEST_PROFILE="full"
+            shift
+            ;;
+        --check-spec-governance)
+            CHECK_SPEC_GOVERNANCE_ONLY=true
             shift
             ;;
         -h | --help)
@@ -201,10 +215,141 @@ run_test_with_conditional_output() {
     fi
 }
 
+# ---------------------------------------------------------------------------
+# Spec-governance drift check (spec-governance capability; design.md
+# Decision 7 of refresh-docs-for-two-crate-architecture).
+#
+# Predicates:
+#   1. No capability directory name appears in both openspec/specs/ and
+#      subx-core/openspec/specs/ unless it is recorded in
+#      openspec/split-capabilities.txt.
+#   2. Every name recorded in openspec/split-capabilities.txt exists in
+#      BOTH trees — a name in one tree only is a split that lost a half.
+#   3. The SHARED_CONVENTIONS region of AGENTS.md and subx-core/AGENTS.md
+#      is byte-identical (marker-inclusive; the tool-managed CODEGRAPH
+#      block lives outside the region in both files).
+#
+# Extraction writes marker-inclusive content straight to temporary files
+# (no command substitution, which would strip trailing newlines) with
+# carriage returns stripped, so the compared bytes are LF-normalised
+# content — the same contract as Extract-SharedRegion in
+# quality_check.ps1, whose [IO.File]::ReadAllLines drops CR as it splits
+# lines. The comparison is a raw-byte cmp of those normalised bytes; a
+# textual diff runs only as a diagnostic after a byte mismatch.
+# ---------------------------------------------------------------------------
+extract_shared_region() {
+    local file=$1
+    local out=$2
+    local starts ends start_line end_line clean
+    # LF-normalise once up front so marker matching and extraction see the
+    # same content the PowerShell port sees (its [IO.File]::ReadAllLines
+    # splits on CRLF or LF and re-joins with LF).
+    clean=$(mktemp)
+    tr -d '\r' < "$file" > "$clean"
+    starts=$(grep -c '^<!-- SHARED_CONVENTIONS_START -->$' "$clean" || true)
+    ends=$(grep -c '^<!-- SHARED_CONVENTIONS_END -->$' "$clean" || true)
+    if [ "${starts}" -ne 1 ] || [ "${ends}" -ne 1 ]; then
+        rm -f "$clean"
+        print_status "$RED" "   $file: expected exactly one SHARED_CONVENTIONS_START and one SHARED_CONVENTIONS_END marker, found ${starts} start / ${ends} end"
+        return 1
+    fi
+    start_line=$(grep -n '^<!-- SHARED_CONVENTIONS_START -->$' "$clean" | cut -d: -f1)
+    end_line=$(grep -n '^<!-- SHARED_CONVENTIONS_END -->$' "$clean" | cut -d: -f1)
+    if [ "${end_line}" -le "${start_line}" ]; then
+        rm -f "$clean"
+        print_status "$RED" "   $file: SHARED_CONVENTIONS_END appears before SHARED_CONVENTIONS_START"
+        return 1
+    fi
+    sed -n '/^<!-- SHARED_CONVENTIONS_START -->$/,/^<!-- SHARED_CONVENTIONS_END -->$/p' "$clean" > "$out"
+    rm -f "$clean"
+}
+
+check_spec_governance() {
+    local root_specs="openspec/specs"
+    local core_specs="subx-core/openspec/specs"
+    local record="openspec/split-capabilities.txt"
+    local ok=true
+
+    # Predicate inputs require the submodule's OpenSpec tree. A missing
+    # submodule already fails the build at manifest-parse time, so skip
+    # with a warning rather than adding a second, vaguer failure.
+    if [ ! -d "${core_specs}" ]; then
+        print_status "$YELLOW" "⚠️  Spec Governance Check: Skipped — ${core_specs}/ not found (submodule not initialised?)"
+        return 0
+    fi
+    if [ ! -f "${record}" ]; then
+        print_status "$RED" "❌ Spec Governance Check: ${record} not found"
+        return 1
+    fi
+
+    # Predicate 1: duplicated capability names must be recorded splits.
+    local offenders=""
+    local dir name
+    for dir in "${core_specs}"/*/; do
+        [ -d "${dir}" ] || continue
+        name=$(basename "${dir}")
+        if [ -d "${root_specs}/${name}" ] && ! grep -qxF "${name}" "${record}"; then
+            offenders="${offenders}${name}"$'\n'
+        fi
+    done
+    if [ -n "${offenders}" ]; then
+        ok=false
+        print_status "$RED" "❌ Predicate 1: capability present in both OpenSpec trees but not recorded in ${record}:"
+        while IFS= read -r name; do
+            [ -n "${name}" ] && print_status "$RED" "   ${name}"
+        done <<< "${offenders}"
+    fi
+
+    # Predicate 2: every recorded split exists in both trees.
+    while IFS= read -r name; do
+        [ -z "${name}" ] && continue
+        local missing=""
+        [ -d "${root_specs}/${name}" ] || missing="${missing} ${root_specs}"
+        [ -d "${core_specs}/${name}" ] || missing="${missing} ${core_specs}"
+        if [ -n "${missing}" ]; then
+            ok=false
+            print_status "$RED" "❌ Predicate 2: recorded split '${name}' is missing from:${missing}"
+        fi
+    done < "${record}"
+
+    # Predicate 3: byte-identical shared conventions region.
+    local region_root region_core
+    region_root=$(mktemp)
+    region_core=$(mktemp)
+    if extract_shared_region "AGENTS.md" "${region_root}" && \
+       extract_shared_region "subx-core/AGENTS.md" "${region_core}"; then
+        if ! cmp -s "${region_root}" "${region_core}"; then
+            ok=false
+            print_status "$RED" "❌ Predicate 3: shared conventions region differs between:"
+            print_status "$RED" "   AGENTS.md and subx-core/AGENTS.md — diff of the extracted regions:"
+            diff "${region_root}" "${region_core}" || true
+        fi
+    else
+        ok=false
+        print_status "$RED" "❌ Predicate 3: SHARED_CONVENTIONS markers malformed in AGENTS.md and/or subx-core/AGENTS.md"
+    fi
+    rm -f "${region_root}" "${region_core}"
+
+    [ "${ok}" = true ]
+}
+
 # Main function
 main() {
     parse_args "$@"
-    
+
+    # Standalone governance mode: run only the drift predicates.
+    if [[ "${CHECK_SPEC_GOVERNANCE_ONLY}" == "true" ]]; then
+        echo "🔍 SubX Spec-Governance Drift Check Starting..."
+        echo "========================================"
+        if check_spec_governance; then
+            print_status "$GREEN" "\n🎉 Spec-governance drift check passed!"
+            exit 0
+        else
+            print_status "$RED" "\n⚠️  Spec-governance drift check FAILED (exit 2)"
+            exit 2
+        fi
+    fi
+
     # Show startup message
     echo "🔍 SubX Quality Assurance Check Starting..."
     echo "========================================"
@@ -250,9 +395,9 @@ main() {
     doc_output=$(mktemp)
 
     if [[ "${VERBOSE}" == "true" ]]; then
-        cargo doc --all-features ${cargo_features} --no-deps --document-private-items 2>&1 | tee "$doc_output"
+        cargo doc --workspace --all-features ${cargo_features} --no-deps --document-private-items 2>&1 | tee "$doc_output"
     else
-        cargo doc --all-features ${cargo_features} --no-deps --document-private-items > "$doc_output" 2>&1
+        cargo doc --workspace --all-features ${cargo_features} --no-deps --document-private-items > "$doc_output" 2>&1
     fi
 
     # Check for critical errors (excluding known lint warnings).
@@ -330,6 +475,16 @@ main() {
     # 8. Integration tests  
     run_test_with_conditional_output "Integration Tests" "cargo nextest run --workspace --profile ${NEXTEST_PROFILE} ${nextest_features} --ignore-default-filter"
 
+    # 9. Spec-governance drift check (two OpenSpec trees + shared AGENTS.md region)
+    total_checks=$((total_checks + 1))
+    if check_spec_governance; then
+        print_status "$GREEN" "✅ Spec Governance Check: Passed"
+        passed_checks=$((passed_checks + 1))
+    else
+        failed_checks=$((failed_checks + 1))
+        GOVERNANCE_FAILED=true
+    fi
+
     # Cleanup
     # (Temporary files are cleaned up in their respective sections)
 
@@ -345,6 +500,9 @@ main() {
     if [ $failed_checks -eq 0 ]; then
         print_status "$GREEN" "\n🎉 All quality assurance checks passed!"
         exit 0
+    elif [ "${GOVERNANCE_FAILED}" = true ]; then
+        print_status "$RED" "\n⚠️  Spec-governance predicates failed — see 'Spec Governance Check' output above (exit 2)"
+        exit 2
     else
         print_status "$RED" "\n⚠️  Some checks failed, please review the error messages above"
         exit 1

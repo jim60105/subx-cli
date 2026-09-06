@@ -12,6 +12,8 @@ and synchronizes subtitle timing via Voice Activity Detection (VAD).
 - **Repository:** <https://github.com/jim60105/subx-cli>
 - **License:** GPL-3.0-or-later
 - **Binary name:** `subx-cli`
+- **Library half:** `subx-core` (<https://github.com/jim60105/subx-core>),
+  mounted here as a git submodule at `subx-core/`
 
 ## Build, Test, and Quality Commands
 
@@ -27,16 +29,18 @@ or produce errors.
 | Run tests | `cargo nextest run --workspace \|\| true` |
 | **Full quality check** | `scripts/quality_check.sh` (Linux/macOS) or `scripts/quality_check.ps1` (Windows, PowerShell) |
 | Full QA (verbose) | `scripts/quality_check.sh -v` or `scripts/quality_check.ps1 -VerboseOutput` |
+| Spec-governance check only | `scripts/quality_check.sh --check-spec-governance` or `scripts/quality_check.ps1 -CheckSpecGovernance` |
 | Coverage report | `scripts/check_coverage.sh -T` (Linux/macOS) or `scripts/check_coverage.ps1 -Table` (Windows, PowerShell) |
-| Doc build | `cargo doc --all-features --no-deps --document-private-items` |
+| Doc build | `cargo doc --workspace --all-features --no-deps --document-private-items` |
 | Doc tests | `cargo test --doc --all-features` |
 
 ### Important Notes
 
 - **Always run `scripts/quality_check.sh`** once before every `git commit`.
   This is the single source of truth for quality validation — it runs
-  formatting, linting, doc checks, and all tests **of both crates** (every
-  `cargo check` / `clippy` / `nextest` invocation carries `--workspace`).
+  formatting, linting, doc checks, the spec-governance drift check, and all
+  tests **of both crates** (every `cargo check` / `clippy` / `nextest`
+  invocation carries `--workspace`).
   For work inside a standalone `subx-core` clone, `subx-core/scripts/quality_check.sh`
   is the local gate — a strict subset; the authoritative run is still this one,
   in the superproject, at the moment the submodule pointer is bumped. Use `-v` for verbose
@@ -113,27 +117,6 @@ or produce errors.
   Windows port `scripts/check_coverage.ps1` parses JSON natively in
   PowerShell and needs neither `jq` nor `bc`).
 
-### CPU-Intensive Operations — Main Agent Only
-
-**NEVER** run the following commands in sub-agents or in parallel:
-
-- `scripts/quality_check.sh` (runs the full test suite + linting + docs)
-- `scripts/check_coverage.sh` (runs the full test suite with instrumentation)
-- `cargo nextest run` without a `--filter-expr` (runs all 2000+ tests)
-
-These operations are CPU-intensive and will saturate all cores. Running them
-in multiple sub-agents simultaneously will cause system overload, timeouts,
-and unreliable results.
-
-**Correct workflow:**
-
-- Sub-agents writing tests should run only their own scoped tests using
-  `cargo nextest run --filter-expr 'test(module_name)' || true`.
-- The **main agent** runs `scripts/quality_check.sh` once after all
-  sub-agents have finished and changes are consolidated.
-- The main agent runs the quality check **before every `git commit`** to
-  ensure all changes pass together.
-
 ## Repository Layout
 
 The codebase is distributed across two git repositories:
@@ -146,16 +129,11 @@ The codebase is distributed across two git repositories:
 
 Rules:
 
-- `subx-core/Cargo.toml` must **never** contain a `[workspace]` table (a
-  nested workspace root is a hard Cargo error) and must **never** use
-  workspace inheritance (`version.workspace = true`,
-  `<dep>.workspace = true`, `[lints] workspace = true`, ...): those resolve
-  inside this workspace but break a standalone clone of `subx-core`, which is
-  how crates.io, `docs.rs`, and the Tauri GUI consume the crate.
-- `[profile.*]` tables belong to the workspace root manifest only; Cargo
-  ignores them in a member and warns on every build when present.
 - Library changes are committed in `subx-core` first, then the submodule
   pointer (gitlink) is bumped in `subx-cli`.
+- The `subx-core/Cargo.toml` prohibitions (no `[workspace]` table, no
+  workspace inheritance, no `[profile.*]` tables) are recorded in the shared
+  conventions region below, verbatim in both repositories' `AGENTS.md`.
 
 Cloning and updating:
 
@@ -169,21 +147,25 @@ git config submodule.recurse true       # keep pulls/checkout in sync (per-clone
 
 ### Execution Flow
 
+Everything above the arrow into `subx-core` runs in `subx-cli`:
+
 ```
-main.rs → cli::run() → cli::run_with_config()
-  → commands::dispatcher::dispatch_command_with_ref()
-    → *_command::execute(args, &dyn ConfigService)
-      → subx-core/src/core/* and subx-core/src/services/*
+subx-cli/src/main.rs → cli::run() → cli::run_with_config()        [subx-cli]
+  → commands::dispatcher::dispatch_command_with_ref()             [subx-cli]
+    → *_command::execute(args, &dyn ConfigService)                [subx-cli]
+      → subx-core/src/core/* and subx-core/src/services/*         [subx-core]
 ```
 
 ### Layer Overview
 
 ```
-CLI Layer (src/cli/)          → Argument parsing, user interface
-Command Layer (src/commands/) → Business logic per command
-Core Layer (subx-core/src/core/)        → Processing engines, formats, matching
-Service Layer (subx-core/src/services/) → External integrations (AI, audio, VAD)
-Config Layer (subx-core/src/config/)    → DI-based configuration system
+CLI Layer     (subx-cli/src/cli/)      → Argument parsing, user interface
+Command Layer (subx-cli/src/commands/) → Business logic per command
+Core Layer    (subx-core/src/core/)    → Processing engines, formats, matching
+Report Seam   (subx-core/src/report/)  → Reporter trait: structured progress/usage
+                                          events a host (the CLI) renders
+Service Layer (subx-core/src/services/)→ External integrations (AI, audio, VAD)
+Config Layer  (subx-core/src/config/)  → DI-based configuration system
 ```
 
 ### Key Design Patterns
@@ -205,87 +187,142 @@ Config Layer (subx-core/src/config/)    → DI-based configuration system
 
 ### Module Guide
 
-| Module | Purpose | Key Types |
-|---|---|---|
-| `src/cli/` | Argument parsing via clap derive + terminal presentation | `Cli`, `Commands`, `*Args`, `SubXErrorExt` (`error_ext.rs`), `TerminalReporter` |
-| `src/commands/` | Command implementations | `dispatcher`, `execute()` functions |
-| `subx-core/src/config/` | Configuration with DI | `ConfigService`, `Config`, `TestConfigService`, `TestConfigBuilder` |
-| `subx-core/src/core/factory.rs` | Component wiring | `ComponentFactory` |
-| `subx-core/src/core/archive/` | Archive extraction (`.zip`, `.7z`, `.tar.gz`, optional `.rar`) | `ArchiveFormat`, `extract_archive()` |
-| `subx-core/src/core/formats/` | Subtitle parsing/conversion | `SubtitleFormat` trait, `FormatManager`, `FormatConverter` |
-| `subx-core/src/core/matcher/` | AI-powered file matching | `MatchEngine`, `FileDiscovery`, `MatchConfig` |
-| `subx-core/src/core/sync/` | Subtitle synchronization; core-owned sync pairing and default output-path derivation | `SyncEngine`, `SyncMethod`, `SyncMode`, `SyncPairingRequest`, `BatchRequest`, `resolve_sync_pairing`, `create_default_output_path`, `SYNC_VIDEO_EXTENSIONS`, `SYNC_SUBTITLE_EXTENSIONS` |
-| `subx-core/src/core/uuidv7.rs` | Shared UUIDv7 generator with strict ≥1 ms spacing; canonical home of `Uuidv7Generator` and `generate_ids`. Used for matcher file IDs, translation cue IDs, and parallel worker/task IDs. | `Uuidv7Generator`, `generate_ids`, `unix_time_ms` |
-| `subx-core/src/core/translation/` | AI-assisted subtitle translation (two-pass terminology + cue translation, UUIDv7 cue IDs re-exported from `core::uuidv7`) | `TranslationEngine`, `TerminologyMap`, `CueIdGenerator` (alias of `Uuidv7Generator`) |
-| `subx-core/src/core/parallel/` | Task scheduling | `TaskScheduler`, `Task`, `WorkerPool` |
-| `subx-core/src/core/file_manager.rs` | File operations with backup | `FileManager` |
-| `subx-core/src/core/input/` | Core-owned input collection: path merging, directory scanning, extension filtering, archive extraction | `InputPathHandler`, `CollectedFiles` |
-| `subx-core/src/services/ai/` | AI provider clients | `AIProvider` trait, `OpenAIClient`, `OpenRouterClient`, `AzureOpenAIClient`, `LocalLLMClient` |
-| `subx-core/src/services/audio/` | Audio analysis data structures and helpers | `AudioData`, `AudioEnvelope`, `DialogueSegment` |
-| `subx-core/src/services/vad/` | Voice Activity Detection | `LocalVadDetector`, `VadSyncDetector` |
-| `subx-core/src/error.rs` | Error taxonomy and machine contracts (library half) | `SubXError` (`category()`, `machine_code()`, `hint()`), `SubXResult<T>` |
-| `src/cli/error_ext.rs` | Binary-half error presentation (exit codes, terminal prose) | `SubXErrorExt` (`exit_code()`, `user_friendly_message()`) |
+| Module | Crate | Purpose | Key Types |
+|---|---|---|---|
+| `src/cli/` | `subx-cli` | Argument parsing via clap derive + terminal presentation | `Cli`, `Commands`, `*Args`, `SubXErrorExt` (`error_ext.rs`), `TerminalReporter` |
+| `src/commands/` | `subx-cli` | Command implementations | `dispatcher`, `execute()` functions |
+| `src/config/` | `subx-core` | Configuration with DI | `ConfigService`, `Config`, `TestConfigService`, `TestConfigBuilder` |
+| `src/core/factory.rs` | `subx-core` | Component wiring | `ComponentFactory` |
+| `src/core/archive/` | `subx-core` | Archive extraction (`.zip`, `.7z`, `.tar.gz`, optional `.rar`) | `ArchiveFormat`, `extract_archive()` |
+| `src/core/formats/` | `subx-core` | Subtitle parsing/conversion | `SubtitleFormat` trait, `FormatManager`, `FormatConverter` |
+| `src/core/matcher/` | `subx-core` | AI-powered file matching | `MatchEngine`, `FileDiscovery`, `MatchConfig` |
+| `src/core/report/` | `subx-core` | Reporter seam for batch progress/usage events | `Reporter`, `ProgressEvent` |
+| `src/core/sync/` | `subx-core` | Subtitle synchronization; core-owned sync pairing and default output-path derivation | `SyncEngine`, `SyncMethod`, `SyncMode`, `SyncPairingRequest`, `BatchRequest`, `resolve_sync_pairing`, `create_default_output_path`, `SYNC_VIDEO_EXTENSIONS`, `SYNC_SUBTITLE_EXTENSIONS` |
+| `src/core/uuidv7.rs` | `subx-core` | Shared UUIDv7 generator with strict ≥1 ms spacing; canonical home of `Uuidv7Generator` and `generate_ids`. Used for matcher file IDs, translation cue IDs, and parallel worker/task IDs. | `Uuidv7Generator`, `generate_ids`, `unix_time_ms` |
+| `src/core/translation/` | `subx-core` | AI-assisted subtitle translation (two-pass terminology + cue translation, UUIDv7 cue IDs re-exported from `core::uuidv7`) | `TranslationEngine`, `TerminologyMap`, `CueIdGenerator` (alias of `Uuidv7Generator`) |
+| `src/core/parallel/` | `subx-core` | Task scheduling | `TaskScheduler`, `Task`, `WorkerPool` |
+| `src/core/file_manager.rs` | `subx-core` | File operations with backup | `FileManager` |
+| `src/core/input/` | `subx-core` | Core-owned input collection: path merging, directory scanning, extension filtering, archive extraction | `InputPathHandler`, `CollectedFiles` |
+| `src/services/ai/` | `subx-core` | AI provider clients | `AIProvider` trait, `OpenAIClient`, `OpenRouterClient`, `AzureOpenAIClient`, `LocalLLMClient` |
+| `src/services/audio/` | `subx-core` | Audio analysis data structures and helpers | `AudioData`, `AudioEnvelope`, `DialogueSegment` |
+| `src/services/vad/` | `subx-core` | Voice Activity Detection | `LocalVadDetector`, `VadSyncDetector` |
+| `src/error.rs` | `subx-core` | Error taxonomy and machine contracts (library half) | `SubXError` (`category()`, `machine_code()`, `hint()`), `SubXResult<T>` |
+| `src/cli/error_ext.rs` | `subx-cli` | Binary-half error presentation (exit codes, terminal prose) | `SubXErrorExt` (`exit_code()`, `user_friendly_message()`) |
+
+In this table, `src/…` rows prefixed `subx-core` are paths inside the
+`subx-core/` submodule mount; the crate's canonical paths are
+`subx_core::…`.
 
 ### Common Edit Targets
 
 | Task | Files to Edit |
 |---|---|
-| Add/change CLI arguments | `src/cli/*_args.rs` (the collection algorithm lives in `subx-core/src/core/input/mod.rs`) |
-| Add/change command logic | `src/commands/*_command.rs` |
-| Change command routing | `src/commands/dispatcher.rs` |
-| Add/change config keys | `subx-core/src/config/mod.rs`, `service.rs`, `field_validator.rs`, `validator.rs` |
+| Add/change CLI arguments | `subx-cli/src/cli/*_args.rs` (the collection algorithm lives in `subx-core/src/core/input/mod.rs`) |
+| Add/change command logic | `subx-cli/src/commands/*_command.rs` |
+| Change command routing | `subx-cli/src/commands/dispatcher.rs` |
+| Add/change config keys | `subx-core/src/config/mod.rs`, `subx-core/src/config/service.rs`, `subx-core/src/config/field_validator.rs`, `subx-core/src/config/validator.rs` |
 | Add AI provider | `subx-core/src/services/ai/`, `subx-core/src/core/factory.rs`, `subx-core/src/config/` |
 | Add subtitle format | `subx-core/src/core/formats/`, register in `FormatManager::new()` |
-| Add/change translation behavior | `src/cli/translate_args.rs`, `src/commands/translate_command.rs`, `subx-core/src/core/translation/`, AI prompt helpers in `subx-core/src/services/ai/` |
+| Add/change translation behavior | `subx-cli/src/cli/translate_args.rs`, `subx-cli/src/commands/translate_command.rs`, `subx-core/src/core/translation/`, AI prompt helpers in `subx-core/src/services/ai/` |
+
+### CLI Naming
+
+- Modules: commands as `<verb>_command.rs`, args as `<verb>_args.rs`.
+- Command entry points: `pub async fn execute(args, &dyn ConfigService)`.
+
+## Error Handling
+
+- Use `SubXError` variants from `subx-core/src/error.rs` — never invent
+  ad-hoc error types. The exit-code range 1–6 and this no-ad-hoc-types rule
+  are unchanged by the crate split.
+- The machine contracts `category()`, `machine_code()` and `hint()` stay on
+  `SubXError` in `subx-core/src/error.rs` (library half). The process/terminal
+  half lives in `subx-cli/src/cli/error_ext.rs`: each variant maps to an exit
+  code (1–6) via `SubXErrorExt::exit_code` and provides user-facing guidance
+  via `SubXErrorExt::user_friendly_message` — callers must
+  `use crate::cli::error_ext::SubXErrorExt;`. Code under
+  `subx-core/src/core/` and `subx-core/src/services/` must not name the
+  trait or either method — the crate may never reference `subx-cli` at all
+  (enforced by `tests/core_cli_boundary.rs`); render messages through
+  `Display` there.
 
 ## File Organization
 
 ```
-.github/            GitHub Actions workflows and project-scoped skills
-assets/             Project logo, media samples, test assets
-benches/            Criterion performance benchmarks
-docs/               Technical documentation
-  ├── ai-provider-integration-guide.md   AI provider integration guide
-  ├── command-reference.md                CLI command reference
-  ├── config-usage-analysis.md           Configuration usage analysis
-  ├── configuration-guide.md             Configuration reference
-  └── tech-architecture.md               Technical architecture overview
-openspec/           subx-cli's OpenSpec changes, specs, and workflow config
-subx-core/openspec/  subx-core's own, independent OpenSpec root (changes, specs, config)
-scripts/            Build, quality, and CI shell scripts (both crates' gate)
-subx-core/scripts/  quality_check.sh — standalone-clone local gate for subx-core
-  ├── quality_check.sh                   Full QA (lint, format, tests; Linux/macOS)
-  ├── quality_check.ps1                  Full QA (Windows / PowerShell)
-  ├── check_coverage.sh                  Coverage report (floors 75% combined / 90% core / 82% cli; Linux/macOS)
-  ├── check_coverage.ps1                 Coverage report (same floors, Windows / PowerShell)
-  ├── install.sh                         End-user binary installer
-  ├── test_parallel_stability.sh         Parallel test isolation check
-  └── test_unified_paths.sh              Path handling tests (⚠️ uses real AI API)
-src/                Rust source code
-  ├── cli/          CLI argument parsing and UI modules
-  ├── commands/     Command implementations
-  ├── lib.rs        Library entry point
-  └── main.rs       Binary entry point
-subx-core/          The subx-core library crate (git submodule):
-  ├── config/       Configuration management (DI-based)
-  ├── core/         Core processing engines
-  ├── services/     External service integrations
-  └── error.rs      Error type definitions
-tests/              Integration tests organized by feature
-  ├── cli/          CLI-focused test modules
-  ├── commands/     Command-focused test modules
-  ├── parallel/     Parallel execution test modules
-  ├── sync/         Synchronization test modules
-  └── common/       Shared test infrastructure (helpers, mocks, generators)
+subx-cli/                    This repository (workspace root, CLI binary)
+├── .github/                 GitHub Actions workflows and project-scoped skills
+├── assets/                  Project logo, media samples, test assets
+├── docs/                    Technical documentation (all six stay here)
+│   ├── ai-provider-integration-guide.md   AI provider integration guide
+│   ├── command-reference.md               CLI command reference
+│   ├── config-usage-analysis.md           Configuration usage analysis
+│   ├── configuration-guide.md             Configuration reference
+│   ├── machine-readable-output.md         JSON output contract
+│   └── tech-architecture.md               Technical architecture overview
+├── openspec/                subx-cli's OpenSpec changes, specs, and workflow config
+│   └── split-capabilities.txt             the twelve split-capability names
+├── scripts/                 Build, quality, and CI shell scripts (both crates' gate)
+│   ├── quality_check.sh                   Full QA (lint, format, tests, governance; Linux/macOS)
+│   ├── quality_check.ps1                  Full QA (Windows / PowerShell)
+│   ├── check_coverage.sh                  Coverage report (floors 75% combined / 90% core / 82% cli; Linux/macOS)
+│   ├── check_coverage.ps1                 Coverage report (same floors, Windows / PowerShell)
+│   ├── install.sh                         End-user binary installer
+│   ├── test_parallel_stability.sh         Parallel test isolation check
+│   └── test_unified_paths.sh              Path handling tests (⚠️ uses real AI API)
+├── src/                     CLI half of the Rust sources
+│   ├── cli/                 CLI argument parsing and UI modules
+│   ├── commands/            Command implementations
+│   ├── lib.rs               Library facade (compatibility re-exports of subx-core)
+│   └── main.rs              Binary entry point
+├── tests/                   Integration tests organized by feature
+│   ├── cli/                 CLI-focused test modules
+│   ├── commands/            Command-focused test modules
+│   ├── parallel/            Parallel execution test modules
+│   ├── sync/                Synchronization test modules
+│   └── common/              Shared test infrastructure (helpers, mocks, generators)
+└── subx-core/               The library crate — git submodule, own repository below
+
+subx-core/                   Library repository (its own CI, openspec root, configs)
+├── .config/nextest.toml     Its own nextest profile
+├── .github/                 Its own build-test-audit-coverage workflow
+├── assets/                  Media assets its tests read
+├── benches/                 Criterion benchmarks (retry_performance, file_id_generation_bench)
+├── openspec/                Its own, independent OpenSpec root (changes, specs, config)
+├── scripts/quality_check.sh Standalone-clone local gate (takes an optional profile)
+├── src/                     Library half of the Rust sources
+│   ├── config/              Configuration management (DI-based)
+│   ├── core/                Core processing engines (incl. report/ seam)
+│   ├── services/            External service integrations
+│   ├── error.rs             Error type definitions
+│   ├── test_support/        Shared test fixtures (test-support feature gated)
+│   └── lib.rs               Library entry point
+└── tests/                   Flat integration tests (+ tests/fixtures/)
 ```
 
 ### Cargo Features
 
-- `default = []` — no optional features are enabled by default.
-- `slow-tests` — enables intentionally slower tests; CI uses this through
-  `scripts/quality_check.sh -v -p ci --full`.
-- `archive-rar` — enables `.rar` extraction via the optional `unrar`
-  dependency.
+Which manifest owns each gate:
+
+- `default = []` in **both** manifests — no optional features are enabled by
+  default anywhere.
+- `archive-rar` — the real gate lives in `subx-core/Cargo.toml`
+  (`archive-rar = ["dep:unrar"]`); `subx-cli/Cargo.toml` declares a
+  pass-through (`archive-rar = ["subx-core/archive-rar"]`).
+- `slow-tests` — same shape: real gate in `subx-core` (`slow-tests = []`),
+  pass-through in `subx-cli` (`slow-tests = ["subx-core/slow-tests"]`); CI
+  uses it through `scripts/quality_check.sh -v -p ci --full`.
+- `test-support` — exists **only** in `subx-core/Cargo.toml`
+  (`test-support = ["dep:wiremock", "dep:hound"]`). `subx-cli` never declares
+  it as a feature; it enables it exclusively through `[dev-dependencies]`.
+
+<!-- SHARED_CONVENTIONS_START -->
+<!-- The text between these two markers (inclusive) is byte-identical in
+     subx-cli/AGENTS.md and subx-core/AGENTS.md. The superproject's quality
+     gate enforces it: scripts/quality_check.sh --check-spec-governance
+     (quality_check.ps1 -CheckSpecGovernance), exit code 2 on failure.
+     Edit this region in BOTH repositories in the same change or the gate
+     turns red. The tool-managed CODEGRAPH block lives outside the region
+     in both files. -->
 
 ## Coding Conventions
 
@@ -302,27 +339,77 @@ tests/              Integration tests organized by feature
 - Never parse or hand-edit `Cargo.lock` — it is managed by Cargo.
 - Formatting: `rustfmt.toml` sets edition 2024 with max width 100 columns.
 
-### Error Handling
-
-- Use `SubXError` variants from `subx-core/src/error.rs` — never invent
-  ad-hoc error types.
-- The machine contracts `category()`, `machine_code()` and `hint()` stay on
-  `SubXError` in `subx-core/src/error.rs` (library half). The process/terminal
-  half lives in `src/cli/error_ext.rs`: each variant maps to an exit code
-  (1–6) via `SubXErrorExt::exit_code` and provides user-facing guidance via
-  `SubXErrorExt::user_friendly_message` — callers must
-  `use crate::cli::error_ext::SubXErrorExt;`. Code under
-  `subx-core/src/core/` and `subx-core/src/services/` must not name the
-  trait or either method — the crate may never reference `subx-cli` at all
-  (enforced by `tests/core_cli_boundary.rs`); render messages through
-  `Display` there.
-
 ### Naming Conventions
 
-- Modules: `snake_case` — commands as `<verb>_command.rs`, args as
-  `<verb>_args.rs`.
-- Command entry points: `pub async fn execute(args, &dyn ConfigService)`.
+- Modules: `snake_case`.
 - Factory methods: `create_*` on `ComponentFactory`.
+
+## Documentation Conventions
+
+- Write rustdoc in **English** for all public APIs.
+- Required sections for public functions: `# Arguments`, `# Returns`,
+  `# Errors`, `# Examples`.
+- Include `# Panics` and `# Safety` sections when applicable.
+- All doc examples must compile — verified by `cargo test --doc --all-features`.
+- Use intra-doc links: `` [`crate::module::Type`] ``. Broken links are
+  denied (`broken_intra_doc_links = "deny"` in `Cargo.toml`).
+- **Cross-crate rustdoc links are one-way**: the CLI's rustdoc may link into
+  the core with absolute `subx_core::...` paths; core rustdoc SHALL NOT
+  contain any bracketed `[subx_cli::...]` link. The CLI is not a core
+  dependency, so the deny'd broken intra-doc link turns the standalone core
+  documentation build into a build failure. Core documentation may mention
+  CLI behaviour only as backticked prose — the hyphen form `subx-cli`; the
+  underscore spelling `subx_cli` is rejected by the layering guard even
+  inside core comments and doctests — or a plain GitHub URL, never as an
+  intra-doc link.
+- **Verify the shared documentation boundary with
+  `cargo doc --workspace --all-features`** — not `--no-deps`.
+  `cargo doc --no-deps` documents only the local crates without building
+  registry dependencies, so it can report success while generating no
+  `subx_core` pages at all and leaving every re-export link pointing at a
+  page that does not exist.
+
+### Changelog Convention
+
+Follow [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) with
+[Semantic Versioning](https://semver.org/). Use sections: `### Added`,
+`### Changed`, `### Fixed`, `### Removed`, `### Documentation`. Every
+user-facing change (including CI/release behaviour) gets an entry in this
+repository's `CHANGELOG.md` under the top `## [Unreleased]` header, and every
+released entry lives under its own `## [VERSION]` header. `subx-cli`'s release
+workflow parses that repository's `## [VERSION]` headers to generate release
+notes — always add a properly formatted entry for every release.
+
+## CPU-Intensive Operations — Main Agent Only
+
+Running the full test suite or coverage check hogs CPU and interferes with
+parallel work. Subagents and worker sessions MUST NOT run these themselves:
+
+- `scripts/quality_check.sh` (every profile; the `.ps1` port exists in the
+  `subx-cli` repository) — the full check suite
+- `scripts/check_coverage.sh` / `.ps1` — the instrumented full-suite coverage
+  run (`subx-cli` repository only)
+- bare `cargo nextest run` without a `--filter-expr`
+
+**Correct workflow:** subagents run only their own scoped tests with
+`cargo nextest run --filter-expr 'test(module_name)' || true`. When a task
+needs full-suite or coverage validation, request it from the main agent, who
+runs it once after all sub-agent work is consolidated and before every
+`git commit`. `cargo check` is fine for quick validation. CI generates
+coverage reports when its workflow runs (note both workflows' `paths-ignore`
+skips documentation-only changes), so local coverage is usually unnecessary.
+
+## subx-core Manifest Prohibitions
+
+`subx-core/Cargo.toml` SHALL NOT contain a `[workspace]` table, workspace
+inheritance (`version.workspace = true`, `authors.workspace = true`,
+`<dep>.workspace = true`, `[lints] workspace = true`), or `[profile.*]`
+tables. The superproject root manifest owns the `[profile.release]` settings
+and the shared dependency versions; a workspace table or inheritance in the
+member would stop `cargo build` from working in a standalone clone of the
+library repository, which is a supported workflow — the Tauri GUI consumes
+it through a git dependency today, and after the first publication crates.io
+and docs.rs will consume exactly that same standalone tree.
 
 ## Testing Conventions
 
@@ -334,6 +421,12 @@ tests/              Integration tests organized by feature
   no `Lazy<Mutex<_>>`, no writes outside `TempDir`.
 - **All tests must be parallel-safe** and deterministic.
 - **Async tests** use `#[tokio::test]`.
+
+Repository-specific test infrastructure, test patterns, and test
+organisation are the Test Infrastructure, Test Patterns, and Test
+Organization sections immediately below this shared region.
+
+<!-- SHARED_CONVENTIONS_END -->
 
 ### Test Infrastructure
 
@@ -393,16 +486,6 @@ async fn test_with_mock_ai() {
 - **Benchmarks:** `benches/` using Criterion with `criterion_group!` and
   `criterion_main!`; registered benches are `retry_performance` and
   `file_id_generation_bench`.
-
-## Documentation Conventions
-
-- Write rustdoc in **English** for all public APIs.
-- Required sections for public functions: `# Arguments`, `# Returns`,
-  `# Errors`, `# Examples`.
-- Include `# Panics` and `# Safety` sections when applicable.
-- All doc examples must compile — verified by `cargo test --doc --all-features`.
-- Use intra-doc links: `` [`crate::module::Type`] ``. Broken links are
-  denied (`broken_intra_doc_links = "deny"` in `Cargo.toml`).
 
 ## Configuration System
 
@@ -520,6 +603,29 @@ in the sending repository even when no capability is emptied, because
 `openspec archive` does not rewrite `## Purpose` paragraphs and a stale Purpose
 passes `validate --strict`.
 
+**Spec-governance drift check.** `scripts/quality_check.sh
+--check-spec-governance` (and the `.ps1` port's `-CheckSpecGovernance`)
+asserts three predicates over the two roots and exits **2** on any failure,
+distinct from the generic failure exit 1:
+
+1. No capability directory name appears in both `openspec/specs/` and
+   `subx-core/openspec/specs/` unless it is recorded in
+   `openspec/split-capabilities.txt`.
+2. Every name in `openspec/split-capabilities.txt` is present in **both**
+   trees — a name in one tree only is a split that lost a half.
+3. The `SHARED_CONVENTIONS` marker-inclusive region of this file and
+   `subx-core/AGENTS.md` is byte-identical (the tool-managed CODEGRAPH block
+   lives outside the region in both files). On failure the check prints both
+   file paths and a diff of the two extracted regions.
+
+All three predicates skip with a warning when `subx-core/openspec/specs/`
+does not exist (a missing submodule already fails the build at
+manifest-parse time). The full `scripts/quality_check.sh` run includes the
+check. **Known residual gap (deliberately open):** the check catches a
+requirement title present in both trees, but nothing catches two
+differently-titled requirements in the two halves of one split capability
+that contradict each other.
+
 **Manual-archive procedure.** A delta that removes every requirement of a
 capability makes `openspec archive` refuse atomically
 (`archive_spec_validation_failed` — a rebuilt spec with zero requirements fails
@@ -556,21 +662,14 @@ then runs the real `cargo publish --workspace` (topological order; the
 half-published recovery is documented in the job).
 
 Releases are triggered by `v*` tags. The workflow extracts notes from
-`CHANGELOG.md`, cross-compiles for 7 targets — Linux x86_64 (gnu),
-Linux aarch64 (gnu), Linux x86_64 (musl), Linux aarch64 (musl),
-Windows x86_64, macOS x86_64, and macOS aarch64 — and publishes them
-to GitHub Releases and crates.io. The companion `scripts/install.sh`
-auto-detects the host and libc; users on Alpine or other
-glibc-incompatible distros can opt into the static musl artifacts via
-`SUBX_LIBC=musl` or the `--musl` flag.
-
-### Changelog Convention
-
-Follow [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) with
-[Semantic Versioning](https://semver.org/). Use sections: `### Added`,
-`### Changed`, `### Fixed`, `### Removed`, `### Documentation`. The release
-workflow parses the `## [VERSION]` header to generate release notes — always
-add a properly formatted entry for every release.
+`CHANGELOG.md`, cross-compiles for **five** targets — Linux x86_64 (gnu),
+Linux aarch64 (gnu), Windows x86_64, macOS x86_64, and macOS aarch64 —
+and publishes them to GitHub Releases and crates.io. There are **no musl
+artifacts**: musl support was dropped (archived change
+`2026-04-28-drop-musl-support`), and the companion `scripts/install.sh`
+rejects both `SUBX_LIBC=musl` and the `--musl` flag with exit code 2 and
+no HTTP request. musl users build from source against a locally
+provisioned ONNX Runtime.
 
 <!-- CODEGRAPH_START -->
 ## CodeGraph

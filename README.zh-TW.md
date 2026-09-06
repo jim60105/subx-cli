@@ -110,6 +110,14 @@ chmod +x subx-cli && sudo mv subx-cli /usr/local/bin/
 | macOS   | aarch64  | `subx-macos-aarch64`        | Apple Silicon（M1/M2/M3/M4） |
 | Windows | x86_64   | `subx-windows-x86_64.exe`   | 64 位元 Windows |
 
+> **使用 musl 的 Linux 發行版（Alpine、Void musl）不在安裝腳本的支援範圍。**
+> 發行流程不發布 musl 資產，`scripts/install.sh` 也會以離開碼 2 拒絕
+> `SUBX_LIBC=musl` 與 `--musl`。這類主機請改為從原始碼建構，並自行提供
+> musl 適用的 ONNX Runtime：在 `cargo install subx-cli` 之前，先 export
+> `ORT_LIB_LOCATION`（或 `ort` 等效的建構期設定）指向它。單純執行
+> `cargo install subx-cli` 並不會成功，因為 `ort` 預設的
+> `download-binaries` 特性同樣沒有 musl 預編譯檔。
+
 ### 從原始碼建構（所有平台）
 
 ```bash
@@ -129,6 +137,23 @@ cargo build --release
 > 可讓後續的 `git pull` 與 `git checkout` 自動同步子模組——請注意這是一項
 > 每個複製各自的設定，對最初的 `git clone` 本身無效，因此
 > `--recurse-submodules` 須另行使用。
+
+### 以函式庫方式使用 SubX
+
+`subx-cli` 背後的處理引擎是獨立發行的 crate
+[`subx-core`](https://github.com/jim60105/subx-core)：字幕解析與轉換、AI
+匹配、VAD 時間軸校正、翻譯與設定管理，不含任何終端機呈現程式碼。請直接依賴
+`subx-core`，**切勿**依賴 `subx-cli`——後者的函式庫介面僅作為 `subx-core`
+的相容性 re-export 而存在。
+
+```toml
+[dependencies]
+subx-core = { git = "https://github.com/jim60105/subx-core" }  # 該 crate 目前尚無
+                  # crates.io 發行版；雙 crate 發行版上線後可改用：subx-core = "1"
+```
+
+API 參考文件為 `docs.rs/subx-core`（自該 crate 首次發佈起可用）；發佈前請以
+儲存庫 README 與 rustdoc 為準。
 
 ## 支援格式
 
@@ -158,6 +183,10 @@ subx-cli --output json match --dry-run ./media \
 - [機器可讀輸出](docs/machine-readable-output.md)——`--output json` 契約，提供腳本與自動化使用
 - [技術架構](docs/tech-architecture.md)——程式碼結構與設計決策
 - [AI 供應商整合指南](docs/ai-provider-integration-guide.md)——如何新增 AI 供應商
+- [`subx-core` API 參考](https://docs.rs/subx-core)——函式庫的 rustdoc，
+  處理引擎的正統參考文件（自該 crate 首次發佈起可用）
+- [`subx-core` 儲存庫](https://github.com/jim60105/subx-core)——本專案的
+  函式庫一半，以 git 子模組形式掛載於此
 
 ## 授權條款
 

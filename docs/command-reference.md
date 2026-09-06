@@ -10,34 +10,30 @@ where they are mutually exclusive). The `config`, `cache`, and
 ## Release Targets
 
 `scripts/install.sh` auto-detects the host operating system, CPU
-architecture, and (on Linux) libc, then downloads the matching asset
-from the latest GitHub Release. The supported binaries are:
+architecture, and (on Linux) libc, then — on a supported target — downloads
+the matching asset from the latest GitHub Release. A musl host (detected or
+requested) is rejected before any HTTP request; see the note below. The
+supported binaries are:
 
-| Platform | Architecture | libc | Asset name                  |
-|----------|--------------|------|-----------------------------|
-| Linux    | x86_64       | gnu  | `subx-linux-x86_64`         |
-| Linux    | aarch64      | gnu  | `subx-linux-aarch64`        |
-| Linux    | x86_64       | musl | `subx-linux-x86_64-musl`    |
-| Linux    | aarch64      | musl | `subx-linux-aarch64-musl`   |
-| macOS    | x86_64       | —    | `subx-macos-x86_64`         |
-| macOS    | aarch64      | —    | `subx-macos-aarch64`        |
-| Windows  | x86_64       | —    | `subx-windows-x86_64.exe`   |
+| Platform | Architecture | Asset name                  | Notes |
+|----------|--------------|-----------------------------|-------|
+| Linux    | x86_64       | `subx-linux-x86_64`         | glibc (the only libc published) |
+| Linux    | aarch64      | `subx-linux-aarch64`        | glibc |
+| macOS    | x86_64       | `subx-macos-x86_64`         | Intel Macs |
+| macOS    | aarch64      | `subx-macos-aarch64`        | Apple Silicon |
+| Windows  | x86_64       | `subx-windows-x86_64.exe`   | 64-bit Windows |
 
-The installer defaults to the gnu artifact on Linux. Opt into the musl
-build via the `SUBX_LIBC=musl` environment variable or the `--musl`
-flag; hosts whose `ldd --version` output identifies musl are also
-auto-detected on a best-effort basis. An explicit env var or flag
-always wins over auto-detection.
+On Linux the gnu artifact is implicit — there is only one libc published.
+**There are no musl artifacts.** musl support was dropped
+(archived change `2026-04-28-drop-musl-support`), so the installer rejects
+both musl inputs: `SUBX_LIBC=musl` and the `--musl` flag each exit `2` with
+guidance and issue **no** HTTP request. This is the only legal handling of
+those values. Users on Alpine or other glibc-incompatible hosts build from
+source instead, against a locally provisioned ONNX Runtime:
 
 ```bash
-# Default (auto-detect)
+# Default (auto-detect OS and architecture)
 curl -fsSL https://raw.githubusercontent.com/jim60105/subx-cli/master/scripts/install.sh | bash
-
-# Force the musl artifact (Alpine, distroless, minimal containers).
-# `SUBX_LIBC=musl` must be set on the same command as `bash` — using it
-# before `curl ... | bash` would scope the variable to `curl` only.
-curl -fsSL https://raw.githubusercontent.com/jim60105/subx-cli/master/scripts/install.sh -o install.sh
-SUBX_LIBC=musl bash install.sh
 ```
 
 ### Machine-readable output
