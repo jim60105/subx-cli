@@ -719,30 +719,45 @@ standalone run). Results are uploaded to Codecov.
 
 The `release` workflow triggers on `v*` tags. It cross-compiles for the
 matrix targets, creates a GitHub Release with notes extracted from
-`CHANGELOG.md`, and publishes **both crates** to crates.io from one
-`cargo publish --workspace` run, after asserting Cargo ≥ 1.90, submodule
-cleanliness, a `--workspace --dry-run`, and the registry's current state
-(already-published members are excluded; an already-published tagged
-`subx-cli` version fails the job). The matrix is five targets:
+`CHANGELOG.md`, and publishes **`subx-cli` alone** with
+`cargo publish -p subx-cli`, after asserting submodule cleanliness, gitlink
+ancestry from `subx-core`'s `main`, the absence of any `--allow-dirty`
+publish flag, a published `subx-core` version satisfying the caret
+requirement in `Cargo.toml` (probed against the sparse crates.io index —
+the ordering precondition below), tag-versus-manifest version agreement, an
+already-published check for `subx-cli` itself, and a
+`cargo publish -p subx-cli --dry-run`. The matrix is five targets:
 `x86_64-unknown-linux-gnu`, `aarch64-unknown-linux-gnu`,
 `x86_64-pc-windows-msvc`, `x86_64-apple-darwin`, and
 `aarch64-apple-darwin` — there are no musl artifacts.
 
+`subx-core` publishes from **its own repository's** `v*` tag
+(`subx-core/.github/workflows/release.yml`): GitHub Release notes extracted
+from the core repository's `CHANGELOG.md`, then
+`cargo publish -p subx-core` after the same shape of guards over its
+standalone tree. `subx-cli` is not an umbrella project — the library has a
+second consumer (the Tauri GUI at `jim60105/subx`) — so the two tags form an
+ordered operation: tag the library repository first; the CLI's index probe
+fails any CLI tag pushed before its `subx-core` dependency is on the
+registry.
+
 ### Distribution
 
-The two crates are designed for two install stories, but the release that
-makes them real is still pending: no `v*` tag has been cut since the split,
-so the publish job has never fired, crates.io today carries only the legacy
-single-crate `subx-cli` 1.x releases, `subx-core` has no registry entry at
-all, and neither docs.rs site is live. Meanwhile `subx-core` is consumable
-from its git URL. Once the first `v*` tag is cut: `subx-cli` is the binary —
-pre-compiled binaries from GitHub Releases, `scripts/install.sh` automating
-download and installation on Linux and macOS, and `cargo install subx-cli`
-installing from crates.io. `subx-core` is never installed — a consumer
-wanting the processing engine depends on `subx-core = "1"` as a library and
-never on `subx-cli`, whose library surface exists only as compatibility
-re-exports — and documentation lives on two sites: `docs.rs/subx-cli` for
-the CLI facade, `docs.rs/subx-core` for the library.
+The two crates are designed for two install stories, and the release
+topology now matches: each crate publishes to crates.io from its own
+repository's `v*` tag. No release tag has been cut in either repository
+since the split, so until each tag is pushed and its publish job runs,
+crates.io carries only the legacy single-crate `subx-cli` 1.x releases,
+`subx-core` has no registry entry, and neither docs.rs site is live;
+meanwhile `subx-core` is consumable from its git URL. Once each tag is cut:
+`subx-cli` is the binary — pre-compiled binaries from GitHub Releases,
+`scripts/install.sh` automating download and installation on Linux and
+macOS, and `cargo install subx-cli` installing from crates.io. `subx-core`
+is never installed — a consumer wanting the processing engine depends on
+`subx-core = "1"` as a library and never on `subx-cli`, whose library
+surface exists only as compatibility re-exports — and documentation lives
+on two sites: `docs.rs/subx-cli` for the CLI facade, `docs.rs/subx-core`
+for the library.
 
 ## System Requirements
 
