@@ -8,12 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-- **`subx-core`'s default branch renamed `main` → `master`.** `.gitmodules`
-  records `branch = master`, both repositories' CI trigger and submodule-pointer
-  ancestry assertions follow the new name, and the Dependabot referent
-  comment and documentation are updated to match.
-
-## [2.0.0] - 2026-09-06
+## [2.0.0] - 2026-09-07
 
 SubX is now two crates. **`subx-cli` 2.0.0** is the command-line tool you
 already know — its behaviour, flags, configuration keys and JSON output
@@ -25,15 +20,14 @@ timeline synchronization and translation directly instead of shelling out.
 Each crate is published to crates.io from its own repository's release tag
 (`subx-core` from [`jim60105/subx-core`](https://github.com/jim60105/subx-core),
 `subx-cli` from this one), so the library can release on its own cadence for
-all of its consumers. Until each tag is cut and its publication runs,
-`subx-core` is consumable from its git URL.
+all of its consumers. `subx-core` 1.0.0 is already published to crates.io.
 
 ### Added
 - **The `subx-core` crate.** The engine modules keep their familiar paths —
   what was `subx_cli::core::matcher::MatchEngine` is now
   `subx_core::core::matcher::MatchEngine`, with only the crate name swapped
   — so adopting the library directly is a crate-name substitution.
-  Documentation lives on docs.rs once published.
+  Documentation for the published crate lives on docs.rs.
 - **A reporting seam for embedding applications.** Every engine, factory,
   file manager, worker pool and AI provider client gained a `with_reporter`
   builder: an embedding program attaches a reporter and receives status
@@ -78,6 +72,10 @@ all of its consumers. Until each tag is cut and its publication runs,
 - The batch progress bar now shows the parallel job's live status line
   (active / queued / completed counts) that was previously set but never
   rendered.
+- **`subx-core`'s default branch is `master`** (renamed from `main` before
+  this release). `.gitmodules` records `branch = master`, both repositories'
+  CI triggers and submodule-pointer ancestry assertions follow the new name,
+  and the Dependabot referent comment and documentation are updated to match.
 
 ### Fixed
 - `--output json` no longer writes progress-bar frames to the terminal on
@@ -95,9 +93,9 @@ all of its consumers. Until each tag is cut and its publication runs,
   1.9.1.
 - **Library consumers:** existing `use subx_cli::...` imports keep working
   through the compatibility re-exports. New code SHOULD depend on
-  `subx-core` directly (from crates.io once published, from its git URL
-  until then); the `subx-cli` library facade exists only as re-exports and
-  its removal is a future major-version decision.
+  `subx-core` directly (published to crates.io as 1.0.0); the `subx-cli`
+  library facade exists only as re-exports and its removal is a future
+  major-version decision.
 
 ### Documentation
 - The reference documentation — architecture guide, command reference,
