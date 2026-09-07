@@ -140,19 +140,26 @@ cargo build --release
 
 ### 以函式庫方式使用 SubX
 
+[![crates.io](https://img.shields.io/crates/v/subx-core.svg)](https://crates.io/crates/subx-core)
+[![docs.rs](https://img.shields.io/docsrs/subx-core)](https://docs.rs/subx-core)
+
 `subx-cli` 背後的處理引擎是獨立發行的 crate
 [`subx-core`](https://github.com/jim60105/subx-core)：字幕解析與轉換、AI
 匹配、VAD 時間軸校正、翻譯與設定管理，不含任何終端機呈現程式碼。請直接依賴
 `subx-core`，**切勿**依賴 `subx-cli`——後者的函式庫介面僅作為 `subx-core`
 的相容性 re-export 而存在。
 
+`subx-core` 由**其自身儲存庫的發行標籤**發布至 crates.io——這個函式庫獨立於
+本 CLI 發行，因為它有完全看不見 `subx-cli` 的消費者（例如
+[SubX GUI](https://github.com/jim60105/subx)）。
+
 ```toml
 [dependencies]
-subx-core = { git = "https://github.com/jim60105/subx-core" }  # 該 crate 目前尚無
-                  # crates.io 發行版；雙 crate 發行版上線後可改用：subx-core = "1"
+subx-core = { git = "https://github.com/jim60105/subx-core" }  # 待該 crate 的首個
+                  # 標籤於 crates.io 發布後，即可簡化為：subx-core = "1"
 ```
 
-API 參考文件為 `docs.rs/subx-core`（自該 crate 首次發佈起可用）；發佈前請以
+API 參考文件為 `docs.rs/subx-core`（自該 crate 首次發行起可用）；發行前請以
 儲存庫 README 與 rustdoc 為準。
 
 ## 支援格式

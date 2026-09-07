@@ -166,6 +166,9 @@ cargo build --release
 
 ### Using SubX as a Library
 
+[![crates.io](https://img.shields.io/crates/v/subx-core.svg)](https://crates.io/crates/subx-core)
+[![docs.rs](https://img.shields.io/docsrs/subx-core)](https://docs.rs/subx-core)
+
 The processing engine behind `subx-cli` is a standalone crate,
 [`subx-core`](https://github.com/jim60105/subx-core): subtitle parsing and
 conversion, AI matching, VAD timeline sync, translation, and configuration
@@ -173,15 +176,20 @@ with no terminal presentation code. Depend on `subx-core` — never on
 `subx-cli`, whose library surface exists only as compatibility re-exports
 of `subx-core`.
 
+`subx-core` is published to crates.io from **its own repository's release
+tag** — the library releases independently of this CLI, because it has
+consumers (such as the [SubX GUI](https://github.com/jim60105/subx)) that
+never see `subx-cli` at all.
+
 ```toml
 [dependencies]
-subx-core = { git = "https://github.com/jim60105/subx-core" }  # the crate has no
-                  # crates.io release yet; once the two-crate release publishes,
-                  # this becomes: subx-core = "1"
+subx-core = { git = "https://github.com/jim60105/subx-core" }  # until the crate's
+                  # first tag publishes it on crates.io; then simply:
+                  # subx-core = "1"
 ```
 
-The API reference is `docs.rs/subx-core` once the crate is first published;
-the repository README and rustdoc are authoritative meanwhile.
+The API reference is `docs.rs/subx-core` once the crate's first release is
+published; the repository README and rustdoc are authoritative meanwhile.
 
 ## Supported Formats
 
