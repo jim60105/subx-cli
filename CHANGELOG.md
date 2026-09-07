@@ -8,6 +8,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- **`subx-core`'s default branch renamed `main` → `master`.** `.gitmodules`
+  records `branch = master`, both repositories' CI trigger and submodule-pointer
+  ancestry assertions follow the new name, and the Dependabot referent
+  comment and documentation are updated to match.
+
 ## [2.0.0] - 2026-09-06
 
 SubX is now two crates. **`subx-cli` 2.0.0** is the command-line tool you

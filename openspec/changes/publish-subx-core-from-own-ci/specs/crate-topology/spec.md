@@ -21,7 +21,7 @@ Any divergence outside those two SHALL be treated as drift to be reconciled, not
 **Publication is single-pathed per crate.**
 
 - Each crate SHALL have exactly one publish path: `subx-core` publishes from a `v*` tag in its own repository, and `subx-cli` publishes from a `v*` tag in this one. A workflow in either repository SHALL NOT publish the other repository's crate, and no publish SHALL take the whole Cargo workspace.
-- The invariant this protects is that every published version names the commit of the repository that owns it: the library version the GUI consumer at `jim60105/subx` depends on is tagged by the library's own release, and the CLI's publish job asserts (by submodule-cleanliness, gitlink ancestry from `subx-core`'s `main`, and a registry-index probe for a `subx-core` version satisfying the caret requirement) that the library it consumes is already published. A second publish path for one crate SHALL NOT exist.
+- The invariant this protects is that every published version names the commit of the repository that owns it: the library version the GUI consumer at `jim60105/subx` depends on is tagged by the library's own release, and the CLI's publish job asserts (by submodule-cleanliness, gitlink ancestry from `subx-core`'s `master`, and a registry-index probe for a `subx-core` version satisfying the caret requirement) that the library it consumes is already published. A second publish path for one crate SHALL NOT exist.
 
 #### Scenario: A broken core commit is caught before the pointer moves
 

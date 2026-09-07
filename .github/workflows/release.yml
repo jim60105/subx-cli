@@ -259,11 +259,11 @@ jobs:
     # exists only on an unmerged branch. Stays even though this job no
     # longer uploads subx-core: the published CLI is still built against
     # the pointer.)
-    - name: Assert the submodule pointer is on subx-core main
+    - name: Assert the submodule pointer is on subx-core master
       run: |
-        git -C subx-core fetch origin main
-        git -C subx-core merge-base --is-ancestor HEAD origin/main || {
-          echo "::error::the subx-core gitlink is not reachable from subx-core's main — publish a core release first and bump the pointer"
+        git -C subx-core fetch origin master
+        git -C subx-core merge-base --is-ancestor HEAD origin/master || {
+          echo "::error::the subx-core gitlink is not reachable from subx-core's master — publish a core release first and bump the pointer"
           exit 1
         }
 

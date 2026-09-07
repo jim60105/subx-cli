@@ -2,10 +2,10 @@
 
 version: 2
 updates:
-  # Keeps the subx-core gitlink moving when core's main advances. cargo
+  # Keeps the subx-core gitlink moving when core's master advances. cargo
   # cannot express a minimum version on a path dependency, so Dependabot
   # opening a pointer-bump PR is the mechanism that advances the pin.
-  # The referent branch is recorded in .gitmodules (`branch = main`), which
+  # The referent branch is recorded in .gitmodules (`branch = master`), which
   # the submodule-pointer CI job asserts.
   #
   # Deliberately absent: `cargo` and `github-actions` ecosystems — the

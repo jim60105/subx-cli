@@ -31,5 +31,5 @@
 ## Execution Notes
 
 - **No push, no tag, no publish** anywhere in this stage (user directive). Both repos' release workflows stay untriggered.
-- **subx-core commits are LOCAL-ONLY pending push**: the core-side edits (tasks 1.1–1.4) are one commit on the submodule's `main` branch at the checkout under `subx-core/`. The donor **gitlink was deliberately NOT bumped** (left at `aea0870`, = `origin/main`) because a gitlink must name a fetchable commit and the core commit is not pushed yet. Landing order (coordinator): push core `main` → bump the donor gitlink to the pushed core commit (tiny donor commit) → donor CI green → then the tags per the runbook (core `v1.0.0` first, CLI `v2.0.0` after core's publish job is green).
+- **subx-core landing state**: the core-side edits (tasks 1.1–1.4) were pushed to the core repository's default branch (renamed `main` → `master` afterwards), and the donor gitlink now names the pushed core commit. Landing order (coordinator): push core `master` → bump the donor gitlink to the pushed core commit → donor CI green → then the tags per the runbook (core `v1.0.0` first, CLI `v2.0.0` after core's publish job is green).
 - Badge rows for `subx-core` (and the already-present `subx-cli` crates.io badges) render "not found" until the tags publish — the accepted release-prep state per C3's deferred badge decision.

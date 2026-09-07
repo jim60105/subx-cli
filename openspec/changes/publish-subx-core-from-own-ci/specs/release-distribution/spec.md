@@ -16,7 +16,7 @@ The project publishes two coupled crates, each from the repository that owns it:
 - `--allow-dirty` SHALL NOT be used, under any circumstance, to satisfy the preceding bullet. It records `"dirty": true` in the published archive's `.cargo_vcs_info.json`, permanently, asserting that the artifact corresponds to no commit. Its absence from the workflow files of both repositories SHALL be enforced mechanically, not by review.
 - The tag SHALL name the version the manifest declares, and the tagged `name@version` SHALL NOT already be present on the registry index; either mismatch fails the job rather than publishing anything.
 - A `cargo publish -p <crate> --dry-run` SHALL succeed before any upload is attempted, and SHALL additionally have been run locally before the release tag is pushed.
-- In `subx-cli`, the hard submodule-pointer assertions stay: the gitlink commit SHALL be reachable from `subx-core`'s `main` (blocking, no exceptions — tag pushes never run the CI job whose equivalent is advisory on pull requests).
+- In `subx-cli`, the hard submodule-pointer assertions stay: the gitlink commit SHALL be reachable from `subx-core`'s `master` (blocking, no exceptions — tag pushes never run the CI job whose equivalent is advisory on pull requests).
 
 **Recovery from a failed publication**
 

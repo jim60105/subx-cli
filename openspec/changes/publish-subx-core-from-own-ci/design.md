@@ -8,7 +8,7 @@ C1 made the release event one command over two repositories' worth of code: `car
 
 C1's stated reason for single-pathing publication was that a second publish path "permit[s] a library version to reach the registry that no superproject release pins." Reading the requirement against the actual consumers inverts it: the GUI at `jim60105/subx` consumes `subx-core` without ever resolving `subx-cli`, so for that consumer a core version that *only* arrives pinned by a CLI release is the unusable one. The property that matters at the CLI boundary is narrower and checkable: at the moment `subx-cli@X` is uploaded, the index must already carry a `subx-core` version satisfying the caret requirement `subx-cli`'s manifest declares. That is one HTTP probe of `https://index.crates.io/su/bx/subx-core` — no shared job required.
 
-The residual risk the old requirement guarded is real but different: a core version published by core's own tag may not be the version any CLI release pins. That is acceptable by design — independent version lines are the whole point of the caret — and the gitlink ancestry assertion in the CLI's publish job still guarantees the CLI's *source* corresponds to a core commit on core's `main`.
+The residual risk the old requirement guarded is real but different: a core version published by core's own tag may not be the version any CLI release pins. That is acceptable by design — independent version lines are the whole point of the caret — and the gitlink ancestry assertion in the CLI's publish job still guarantees the CLI's *source* corresponds to a core commit on core's `master`.
 
 ### Decision 2 — One publish per owning repository, tagged independently
 
@@ -31,7 +31,7 @@ The `--dry-run` that follows (`cargo publish -p subx-cli --dry-run`) is the back
 Kept, because each still has a referent once only one crate publishes:
 - submodule committed-and-clean assertion (Cargo's publish-time dirty check still walks the submodule; the gitlink still names the core commit this binary was built against);
 - mechanical `--allow-dirty` absence guard (still poisons `.cargo_vcs_info.json` if anyone ever adds it);
-- hard gitlink-ancestry assertion (`publish` of `subx-cli` still compiles the submodule; a pointer off core's `main` is still unpublished provenance);
+- hard gitlink-ancestry assertion (`publish` of `subx-cli` still compiles the submodule; a pointer off core's `master` is still unpublished provenance);
 - tag-versus-manifest-version assertion and the `subx-cli@version`-already-published probe;
 - `--dry-run` before upload; no automatic retry (an upload is still irreversible).
 
@@ -62,7 +62,7 @@ Per the project's changelog convention and Keep a Changelog: `[2.0.0]` is rewrit
 ## Migration Plan
 
 Not a code migration — a runbook recorded in the change's tasks and mirrored into AGENTS/docs:
-1. Push core `main`; tag `v1.0.0` in `jim60105/subx-core`; core CI publishes `subx-core@1.0.0`.
+1. Push core `master`; tag `v1.0.0` in `jim60105/subx-core`; core CI publishes `subx-core@1.0.0`.
 2. Confirm the index lists it; bump the donor gitlink to the released core commit if it moved; merge/push `subx-cli` `master`; tag `v2.0.0`; CLI CI publishes `subx-cli@2.0.0` after the probe passes.
 Rollback: neither step is possible to *undo*, so both jobs front-load every probe before their single upload — the rollback story is the precondition suite.
 

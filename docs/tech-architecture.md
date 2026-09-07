@@ -711,7 +711,7 @@ values on every CI coverage matrix entry. Reporting exclusions are a single
 `.llvm-cov.toml` files that used to sit in both repositories were deleted
 with 2.0.0 (nothing ever read them). A `submodule-pointer` job asserts the
 version/requirement agreement, the gitlink's reachability from `subx-core`'s
-`main`, and `.gitmodules`' `branch = main` referent (kept fresh by
+`master`, and `.gitmodules`' `branch = master` referent (kept fresh by
 Dependabot's `gitsubmodules` entry). `subx-core` also runs its own CI in its
 own repository — three-OS test job, own-lockfile audit, and an ungated
 standalone coverage upload (workspace-derived floors do not transfer to a
@@ -721,7 +721,7 @@ The `release` workflow triggers on `v*` tags. It cross-compiles for the
 matrix targets, creates a GitHub Release with notes extracted from
 `CHANGELOG.md`, and publishes **`subx-cli` alone** with
 `cargo publish -p subx-cli`, after asserting submodule cleanliness, gitlink
-ancestry from `subx-core`'s `main`, the absence of any `--allow-dirty`
+ancestry from `subx-core`'s `master`, the absence of any `--allow-dirty`
 publish flag, a published `subx-core` version satisfying the caret
 requirement in `Cargo.toml` (probed against the sparse crates.io index —
 the ordering precondition below), tag-versus-manifest version agreement, an

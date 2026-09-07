@@ -647,8 +647,8 @@ runs `cargo audit` for security, and enforces the three coverage floors via
 `scripts/check_coverage.ps1` on Windows. Results are uploaded to Codecov.
 A `submodule-pointer` job guards the supply chain: the `subx-core` version must
 match `subx-cli`'s caret requirement, the gitlink commit must be reachable from
-`subx-core`'s `main` (advisory on PRs, blocking on `master` pushes), and
-`.gitmodules` must keep recording `branch = main` — the referent
+`subx-core`'s `master` (advisory on PRs, blocking on `master` pushes), and
+`.gitmodules` must keep recording `branch = master` — the referent
 Dependabot's `gitsubmodules` entry (`.github/dependabot.yml`, weekly) uses to
 keep the pointer moving. `subx-core` additionally runs its own CI in its own
 repository (`subx-core/.github/workflows/build-test-audit-coverage.yml`:
@@ -663,7 +663,7 @@ Ordering contract: tag `jim60105/subx-core` first; this repository's
 `subx-core` version satisfying the caret requirement in `Cargo.toml` and
 refuses the tag until one exists, then asserts submodule cleanliness, the
 absence of any `--allow-dirty` publish flag, gitlink ancestry from
-`subx-core`'s `main`, tag-versus-manifest version agreement, and a
+`subx-core`'s `master`, tag-versus-manifest version agreement, and a
 `cargo publish -p subx-cli --dry-run` before the single real upload
 (`cargo publish -p subx-cli`; no retry — see the recovery comment in the
 job).

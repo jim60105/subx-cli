@@ -287,23 +287,23 @@ jobs:
           exit 1
         fi
 
-    - name: Assert the pointer names a commit reachable from origin/main
+    - name: Assert the pointer names a commit reachable from origin/master
       # Advisory on pull_request: the matching subx-core commit may
       # legitimately still be in review, so the PR branch pointing at an
       # unmerged core SHA is a normal state. Blocking on push to master: a
-      # master gitlink naming a commit that is not on origin/main makes the
+      # master gitlink naming a commit that is not on origin/master makes the
       # clone-and-build promise false and the publish tree unreproducible.
       env:
         EVENT_NAME: ${{ github.event_name }}
         REF_NAME: ${{ github.ref_name }}
       run: |
         set -uo pipefail
-        git -C subx-core fetch origin main
-        if git -C subx-core merge-base --is-ancestor HEAD origin/main; then
-          echo "submodule pointer is an ancestor of origin/main."
+        git -C subx-core fetch origin master
+        if git -C subx-core merge-base --is-ancestor HEAD origin/master; then
+          echo "submodule pointer is an ancestor of origin/master."
           exit 0
         fi
-        MSG="subx-core pointer $(git -C subx-core rev-parse HEAD) is not reachable from origin/main"
+        MSG="subx-core pointer $(git -C subx-core rev-parse HEAD) is not reachable from origin/master"
         if [ "$EVENT_NAME" = "pull_request" ]; then
           echo "::warning::$MSG (advisory on pull_request)"
           exit 0
@@ -317,12 +317,12 @@ jobs:
 
     - name: Assert .gitmodules records the tracked branch
       # Dependabot's gitsubmodules ecosystem and `git submodule update
-      # --remote` both need a referent; without `branch = main` the update
+      # --remote` both need a referent; without `branch = master` the update
       # machinery silently does nothing.
       run: |
         set -euo pipefail
         BRANCH=$(git config -f .gitmodules submodule.subx-core.branch || true)
-        if [ "$BRANCH" != "main" ]; then
-          echo "::error::.gitmodules must record branch = main for submodule.subx-core (found: '${BRANCH}')"
+        if [ "$BRANCH" != "master" ]; then
+          echo "::error::.gitmodules must record branch = master for submodule.subx-core (found: '${BRANCH}')"
           exit 1
         fi
