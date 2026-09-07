@@ -186,24 +186,29 @@ jobs:
         files: ${{ matrix.asset_name }}
 
   publish-crates:
-    name: Publish to crates.io
+    name: Publish subx-cli to crates.io
     runs-on: ubuntu-latest
     # Skip pre-release tags (e.g., vX.Y.Z-rc.1, -beta.N, -alpha.N) so RC
     # validation never publishes a pre-release version to crates.io.
     # See openspec/changes/add-arm-linux-release-targets/design.md
     # Decision 5 / Migration Plan step 1.
     if: ${{ !contains(github.ref_name, '-') }}
-    # RECOVERY — read before re-running anything (design.md Decision 1).
-    # A crates.io upload is irreversible: an accepted version can never be
-    # re-uploaded, only yanked. If this job publishes `subx-core` and then
-    # fails on `subx-cli`, do NOT re-run the job — the second
-    # `cargo publish --workspace` would re-attempt the already-published
-    # member and be rejected, and bumping the member's version to get past
-    # that creates a release that exists only because a retry needed it.
-    # Fix the cause, then publish the remaining member alone:
-    # `cargo publish -p subx-cli --token …`. At that point subx-core's
-    # version genuinely is on the index, so the single-crate path is correct
-    # and its propagation window has already elapsed.
+    # Publishes subx-cli ONLY. subx-core publishes from its own repository
+    # (jim60105/subx-core/.github/workflows/release.yml, fired by that
+    # repository's own `v*` tag): subx-cli is not an umbrella project — the
+    # crate has a second consumer (the Tauri GUI at jim60105/subx) that
+    # depends on the core repository directly, so the library owns its own
+    # release. See openspec/changes/publish-subx-core-from-own-ci.
+    #
+    # RECOVERY — read before re-running anything. A crates.io upload is
+    # irreversible: an accepted version can never be re-uploaded, only
+    # yanked. This job performs exactly ONE upload, with every probe below
+    # run before it, so the half-published state the retired `--workspace`
+    # publish could create cannot occur here. If the Publish step fails,
+    # first check the sparse index: if `subx-cli@<version>` is listed, the
+    # crate IS published and a re-run only produces a rejected duplicate.
+    # Fix the cause and ship a new version; a defective published artifact
+    # is yanked and superseded — never re-published.
     steps:
     - uses: actions/checkout@v6
       with:
@@ -212,19 +217,12 @@ jobs:
     - name: Install Rust
       uses: dtolnay/rust-toolchain@stable
 
-    # `cargo publish --workspace` needs Cargo >= 1.90. The toolchain stays
-    # @stable — pinning would freeze the compiler forever — and `rust-version`
-    # in the manifest would be wrong in a different way: it is the crates'
-    # MSRV promised to consumers, while this floor is a property of the
-    # publishing tool. So: assert, don't pin (design.md Decision 1).
-    - name: Assert Cargo supports workspace publishing
-      run: |
-        MIN=1.90.0
-        HAVE=$(cargo --version | awk '{print $2}')
-        printf '%s\n%s\n' "$MIN" "$HAVE" | sort -V -C || {
-          echo "::error::cargo $HAVE is older than $MIN, which 'cargo publish --workspace' requires"
-          exit 1
-        }
+    # No Cargo version floor: the former >= 1.90 assertion existed solely
+    # because `cargo publish --workspace` requires it. This job publishes
+    # one named package with `cargo publish -p`, which long predates that
+    # floor; asserting a floor the chosen command does not need is theatre
+    # (openspec/changes/publish-subx-core-from-own-ci, design.md
+    # Decision 4).
 
     # The two conditions Cargo's recursive dirty check would otherwise report
     # as a generic "working directory" error, named here as a submodule
@@ -258,7 +256,9 @@ jobs:
     # blocking with no exceptions — tag pushes never run that workflow, so
     # this job is the only place a release-time pointer is checked. A tag
     # must never publish a subx-cli whose gitlink names a core commit that
-    # exists only on an unmerged branch.)
+    # exists only on an unmerged branch. Stays even though this job no
+    # longer uploads subx-core: the published CLI is still built against
+    # the pointer.)
     - name: Assert the submodule pointer is on subx-core main
       run: |
         git -C subx-core fetch origin main
@@ -266,45 +266,68 @@ jobs:
           echo "::error::the subx-core gitlink is not reachable from subx-core's main — publish a core release first and bump the pointer"
           exit 1
         }
-    # Full package-and-verify cycle, no upload: catches a path-only
-    # dependency, a missing version key, an exclude list that drops a needed
-    # file, or a manifest that does not survive normalisation — before the
-    # first irreversible step.
-    - name: Dry run
-      run: cargo publish --workspace --dry-run
 
-    # Steady state: most later subx-cli releases will not change subx-core's
-    # version, and --workspace would then re-attempt an upload the registry
-    # already holds. Decide from the registry itself — the sparse index needs
-    # no auth, and curl -sf's non-zero exit on HTTP 404 (crate never
-    # published) is correctly "not present" (Decision 3).
-    - name: Select publishable members
+    # The ordering contract, enforced mechanically: subx-core publishes
+    # from its OWN repository's tag, and this job refuses to publish a CLI
+    # whose library dependency is not on the index yet. Read the caret
+    # requirement from cargo metadata (Cargo's normalised form, never
+    # manifest text) and ask the sparse index — no auth needed — whether
+    # any published, non-pre-release subx-core version satisfies it (caret
+    # semantics for release versions: same major, not below the
+    # requirement). A miss is the tag-order mistake: `cargo publish` below
+    # would fail late, resolving the stripped dependency manifest against
+    # the registry; this probe makes the same failure arrive at second zero
+    # with the remedy named.
+    - name: Assert a published subx-core satisfies the caret requirement
       run: |
-        META=$(cargo metadata --no-deps --format-version 1)
-        CORE_VER=$(echo "$META" | jq -r '.packages[] | select(.name=="subx-core") | .version')
-        CLI_VER=$(echo "$META" | jq -r '.packages[] | select(.name=="subx-cli") | .version')
+        REQ=$(cargo metadata --no-deps --format-version 1 | jq -er \
+          '.packages[] | select(.name=="subx-cli") | .dependencies[]
+           | select(.name=="subx-core" and .kind == null) | .req')
+        # Caret lower bound = the requirement with its operator stripped.
+        MIN=$(echo "$REQ" | sed -E 's/^[\^~>=<]*//')
+        MAJ=${MIN%%.*}
+        curl -sf "https://index.crates.io/su/bx/subx-core" | jq -sr '.[].vers' \
+          | grep -v -- '-' \
+          | awk -v maj="$MAJ" -v min="$MIN" '
+              { split($0, a, ".")
+                if (a[1] == maj && ($1 "." $2 "." $3) ~ /^[0-9.]+$/) {
+                  cmd = "printf \"%s\\n%s\\n\" \"" min "\" \"" $1"."$2"."$3 "\" | sort -V -C"
+                  if (system(cmd) == 0) { found = 1 }
+                } }
+              END { exit found ? 0 : 1 }' \
+          || {
+          echo "::error::no published subx-core version satisfies the requirement \"$REQ\" on the crates.io index — publish subx-core first by tagging v<X> in jim60105/subx-core (its release workflow uploads the crate when that tag's job goes green)"
+          exit 1
+        }
+
+    # The tag must name the manifest version, and the registry must not
+    # already hold it: a tag naming an index-present version is a mistake,
+    # not a re-run — fail loudly instead of uploading a guaranteed
+    # rejection.
+    - name: Assert the tag matches the manifest and is not already published
+      run: |
+        CLI_VER=$(cargo metadata --no-deps --format-version 1 | jq -er \
+          '.packages[] | select(.name=="subx-cli") | .version')
         if [ "v${CLI_VER}" != "${GITHUB_REF_NAME}" ]; then
           echo "::error::tag ${GITHUB_REF_NAME} does not match subx-cli's manifest version v${CLI_VER}"
           exit 1
         fi
-        # subx-cli@<tagged version> already on the index means the tag is a
-        # mistake — fail loudly instead of half-publishing.
         if curl -sf "https://index.crates.io/su/bx/subx-cli" \
              | jq -sr '.[].vers' | grep -qx "$CLI_VER"; then
           echo "::error::subx-cli@${CLI_VER} is already published; this tag is a mistake"
           exit 1
         fi
-        if curl -sf "https://index.crates.io/su/bx/subx-core" \
-             | jq -sr '.[].vers' | grep -qx "$CORE_VER"; then
-          echo "subx-core@${CORE_VER} already on the index — publishing subx-cli only"
-          echo "PUBLISH_ARGS=--workspace --exclude subx-core" >> "$GITHUB_ENV"
-        else
-          echo "PUBLISH_ARGS=--workspace" >> "$GITHUB_ENV"
-        fi
 
-    # Topological order (subx-core, then subx-cli) and verification of
-    # subx-cli against the packaged subx-core artifact — never the index —
-    # are `cargo publish --workspace`'s guarantees (Cargo >= 1.90, asserted
-    # above). No retry: see the recovery comment on the job.
+    # Full package-and-verify cycle, no upload: catches a path-only
+    # dependency, a missing version key, an exclude list that drops a needed
+    # file, or a manifest that does not survive normalisation — before the
+    # first irreversible step. The verification build resolves subx-core
+    # against the index (cargo package strips the path), so it re-checks the
+    # probe above against the registry for real.
+    - name: Dry run
+      run: cargo publish -p subx-cli --dry-run
+
+    # One upload, guarded by every probe above. No retry: an accepted
+    # version is irreversible; see the recovery comment on the job.
     - name: Publish to crates.io
-      run: cargo publish $PUBLISH_ARGS --token ${{ secrets.CARGO_REGISTRY_TOKEN }}
+      run: cargo publish -p subx-cli --token ${{ secrets.CARGO_REGISTRY_TOKEN }}

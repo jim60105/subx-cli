@@ -654,12 +654,19 @@ keep the pointer moving. `subx-core` additionally runs its own CI in its own
 repository (`subx-core/.github/workflows/build-test-audit-coverage.yml`:
 three-OS test job, own-lockfile audit, ungated standalone coverage).
 
-Releases publish **both crates**: the tag's `publish-crates` job asserts
-Cargo ≥ 1.90, submodule cleanliness, the absence of any `--allow-dirty`
-publish flag, and a `cargo publish --workspace --dry-run`, probes the sparse
-crates.io index to pick `--workspace` vs `--workspace --exclude subx-core`,
-then runs the real `cargo publish --workspace` (topological order; the
-half-published recovery is documented in the job).
+Each crate publishes **from its own repository's `v*` tag** — `subx-cli` is
+not an umbrella project (the crate has a second consumer, the Tauri GUI at
+`jim60105/subx`), so `subx-core` releases from `subx-core`'s own
+`release.yml` and this repository's tag publishes `subx-cli` alone.
+Ordering contract: tag `jim60105/subx-core` first; this repository's
+`publish-crates` job probes the sparse crates.io index for a published
+`subx-core` version satisfying the caret requirement in `Cargo.toml` and
+refuses the tag until one exists, then asserts submodule cleanliness, the
+absence of any `--allow-dirty` publish flag, gitlink ancestry from
+`subx-core`'s `main`, tag-versus-manifest version agreement, and a
+`cargo publish -p subx-cli --dry-run` before the single real upload
+(`cargo publish -p subx-cli`; no retry — see the recovery comment in the
+job).
 
 Releases are triggered by `v*` tags. The workflow extracts notes from
 `CHANGELOG.md`, cross-compiles for **five** targets — Linux x86_64 (gnu),
