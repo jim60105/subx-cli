@@ -8,6 +8,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+- **The bundled engine is `subx-core` 1.0.1.** The security patch moves
+  archive extraction to `zip` 9 and refreshes the TLS and compression
+  dependencies. Archives whose entry names cannot be decoded are now skipped
+  with a warning; the minimum Rust toolchain for building is 1.88.
+
+### Security
+- **Every advisory reported against the committed dependency graph is
+  cleared.** The lockfile now pins patched `rustls`, `rustls-webpki`,
+  `webpki-root-certs`, `quinn-proto`, `quinn-udp`, `ctutils`, `cmov`, `tar`
+  and `zstd`/`zstd-safe` releases, and no `zip` 8 release remains in the tree.
+
 ## [2.0.0] - 2026-09-07
 
 SubX is now two crates. **`subx-cli` 2.0.0** is the command-line tool you
