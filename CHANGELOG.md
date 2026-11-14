@@ -14,6 +14,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   dependencies. Archives whose entry names cannot be decoded are now skipped
   with a warning; the minimum Rust toolchain for building is 1.88.
 
+### Fixed
+- **The integration suite's full-workflow test no longer depends on a real AI
+  endpoint or on the developer's configuration.** Its match → convert → sync
+  legs all run against one temporary config file named by `SUBX_CONFIG_PATH`,
+  with the match leg served by a loopback `wiremock` server that derives its
+  answer from the request's own file IDs, so the run can no longer reach a
+  hosted AI endpoint — in CI or on a developer's machine. Because the suite no
+  longer contains a failing test, nextest's fail-fast no longer truncates the
+  run, so the coverage report measures the whole suite again and both per-crate
+  denominators are restored. The test matrix also reports every operating
+  system independently (`fail-fast: false`), so one failing leg no longer
+  cancels its siblings.
+
 ### Security
 - **Every advisory reported against the committed dependency graph is
   cleared.** The lockfile now pins patched `rustls`, `rustls-webpki`,

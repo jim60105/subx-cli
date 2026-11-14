@@ -479,9 +479,13 @@ function Invoke-CoverageCheck {
         Remove-Item -LiteralPath $testLog.FullName -ErrorAction SilentlyContinue
     }
 
+    # `-p subx-cli -p subx-core` is load-bearing: cargo-llvm-cov 0.9 changed
+    # `report`'s default package selection to the current package, so a bare
+    # `report` run there measures `subx-cli` only and reports `subx-core 0/0`.
+    # 0.6.16 accepts the same repeated `-p` flags, so this form works on both.
     if ($Lcov) {
         Write-Info "📄 Generating LCOV output at: $Lcov"
-        & cargo llvm-cov report --lcov --output-path $Lcov --ignore-filename-regex $LlvmCovIgnore *> $null
+        & cargo llvm-cov report -p subx-cli -p subx-core --lcov --output-path $Lcov --ignore-filename-regex $LlvmCovIgnore *> $null
         if ($LASTEXITCODE -ne 0) {
             Write-ErrMsg '❌ Unable to generate LCOV coverage report'
             exit 1
@@ -489,7 +493,7 @@ function Invoke-CoverageCheck {
         Write-Success '✅ LCOV coverage report generated successfully'
     }
 
-    $jsonOutput = & cargo llvm-cov report --json --summary-only --ignore-filename-regex $LlvmCovIgnore 2>&1
+    $jsonOutput = & cargo llvm-cov report -p subx-cli -p subx-core --json --summary-only --ignore-filename-regex $LlvmCovIgnore 2>&1
     $jsonExit = $LASTEXITCODE
     if ($jsonExit -ne 0) {
         Write-ErrMsg '❌ Unable to extract JSON coverage data'

@@ -18,6 +18,7 @@ jobs:
     name: Test
     runs-on: ${{ matrix.os }}
     strategy:
+      fail-fast: false
       matrix:
         os: [ubuntu-latest, windows-latest, macos-latest]
         rust: [stable]
@@ -171,7 +172,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, windows-latest]
+        os: [ubuntu-latest]
     steps:
     - uses: actions/checkout@v6
       with:
@@ -191,44 +192,25 @@ jobs:
       with:
         tool: cargo-nextest
 
-    # Same ort-sys 2.0.0-rc.10 cold-`target` bug as the test job; the coverage
-    # run builds under `target/llvm-cov-target`, which needs its own copies.
-    - name: Pre-create the ort-sys DLL destination directories
-      if: runner.os == 'Windows'
-      shell: pwsh
-      run: |
-        New-Item -ItemType Directory -Force `
-          target/debug/build/examples,
-          target/debug/build/deps,
-          target/llvm-cov-target/debug/build/examples,
-          target/llvm-cov-target/debug/build/deps | Out-Null
-
-    - name: Install dependencies for coverage check (Linux)
-      if: runner.os == 'Linux'
+    # The floors are enforced once, on Ubuntu. `cargo-llvm-cov` merges
+    # `nextest` profile data only partially on Windows: whole modules land at
+    # 0% and the `subx-core` denominator is roughly half of Linux's (10,341 vs
+    # 21,454 on run 43633256586), so a second OS re-measures the same suite at
+    # lower fidelity instead of adding signal. macOS and Windows still run the
+    # full test matrix in the `test` job, which keeps `fail-fast: false`, so
+    # each platform's failures are still reported where they occur.
+    - name: Install dependencies for coverage check
       run: |
         sudo apt-get update
         sudo apt-get install -y jq bc
 
-    - name: Generate code coverage and check threshold (Linux/macOS)
-      if: runner.os != 'Windows'
+    - name: Generate code coverage and check threshold
       shell: bash
       run: |
         # Make the coverage check script executable
         chmod +x scripts/check_coverage.sh
         # Run coverage check with LCOV output, table display, CI profile, and slow-tests
         ./scripts/check_coverage.sh -T -p ci --full --lcov lcov.info
-      env:
-        COVERAGE_THRESHOLD: 75
-        COVERAGE_THRESHOLD_CORE: 90
-        COVERAGE_THRESHOLD_CLI: 82
-
-    - name: Generate code coverage and check threshold (Windows)
-      if: runner.os == 'Windows'
-      shell: pwsh
-      run: |
-        # Run the PowerShell port of the coverage script with LCOV output,
-        # table display, CI profile, and slow-tests enabled.
-        ./scripts/check_coverage.ps1 -Table -Profile ci -Full -Lcov lcov.info
       env:
         COVERAGE_THRESHOLD: 75
         COVERAGE_THRESHOLD_CORE: 90

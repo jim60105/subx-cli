@@ -92,6 +92,26 @@ or produce errors.
   orphan), while the `CARGO_BIN_EXE_<name>` env var is resolved by Cargo at
   compile time — a typo becomes a build error, and the value names the
   artefact actually built for this package in the two-package workspace.
+  A spawned binary that runs an AI-backed command must be given a loopback mock
+  server through `SUBX_CONFIG_PATH` (a temporary file selecting
+  `ai.provider = "local"` with `ai.base_url` at the mock's `/v1`), must have
+  `common::cli_helpers::ISOLATED_AI_ENV_VARS` plus `SUBX_OUTPUT` removed from
+  its environment so no ambient override can decide the provider, must pin
+  `NO_PROXY`/`no_proxy` to loopback and drop `HTTP(S)_PROXY`/`ALL_PROXY` (the
+  `reqwest` default client reads them), and must never rely on
+  `OPENAI_API_KEY` or the user's `~/.config/subx/config.toml`. A child always
+  loads through the production config service, so the temp file named by
+  `SUBX_CONFIG_PATH` *is* the isolation — the one place the in-process
+  `TestConfigService` rule cannot apply. Set `XDG_CONFIG_HOME` into the test
+  `TempDir` as well: it is the only lever that moves the match cache, the match
+  journal and the batch lock file on every platform. On macOS and Windows it
+  leaves the user config file where it is; on Linux `dirs::config_dir()` honours
+  it too, which is harmless because `SUBX_CONFIG_PATH` outranks it. In every
+  case `SUBX_CONFIG_PATH` is what names the config file the child loads. Such a
+  test may stay synchronous and drive `wiremock` through a **multi-threaded**
+  `tokio::runtime::Runtime` it owns — a current-thread runtime has no worker
+  polling the mock while the test blocks on the child — as
+  `tests/integration_tests.rs` does.
 - **Every fixture/asset read resolves from `env!("CARGO_MANIFEST_DIR")`**,
   never the working directory: Cargo sets a test binary's CWD to the *package*
   root, so a relative path that resolved before a module moved between
@@ -107,7 +127,7 @@ or produce errors.
   proposal**. All three are enforced by `scripts/check_coverage.sh` / `.ps1`
   (flags `--threshold-core` / `--threshold-cli`, environment
   `COVERAGE_THRESHOLD_CORE` / `COVERAGE_THRESHOLD_CLI`, combined gate stays
-  `COVERAGE_THRESHOLD`) and by the CI coverage matrix env. The JSON file list
+  `COVERAGE_THRESHOLD`) and by the CI coverage job's env. The JSON file list
   is partitioned by `.filename` (`/subx-core/src/` vs the workspace root's
   `src/`); each group's percentage comes from summed line counts — never a
   mean of per-file percentages — and the two groups must account for the
@@ -642,9 +662,16 @@ must be replaced after any archive, because `openspec archive` writes
 
 CI runs on push/PR to `master` across Ubuntu, Windows, and macOS with Rust
 stable. It executes `scripts/quality_check.sh -v -p ci --full` (workspace-wide),
-runs `cargo audit` for security, and enforces the three coverage floors via
-`scripts/check_coverage.sh` on Linux/macOS and the PowerShell port
-`scripts/check_coverage.ps1` on Windows. Results are uploaded to Codecov.
+runs `cargo audit` for security, and enforces the three coverage floors **once,
+on the Ubuntu runner**, through `scripts/check_coverage.sh`. The floors are
+documented as measured once on the split suite, and `cargo-llvm-cov`'s Windows
+profile merging is partial (whole modules at 0%, the `subx-core` denominator
+about half of Linux's), so a Windows coverage leg would re-measure the same
+suite at lower fidelity rather than add signal; the PowerShell port
+`scripts/check_coverage.ps1` stays a local Windows convenience. The full test
+matrix still runs on all three operating systems with `fail-fast: false`, so
+every platform's failures are reported where they occur. Results are uploaded
+to Codecov.
 A `submodule-pointer` job guards the supply chain: the `subx-core` version must
 match `subx-cli`'s caret requirement, the gitlink commit must be reachable from
 `subx-core`'s `master` (advisory on PRs, blocking on `master` pushes), and
