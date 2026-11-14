@@ -4,6 +4,34 @@
 
 use subx_core::test_support::workspace::TestWorkspace;
 
+/// Variables that select or configure an AI provider.
+///
+/// Removed from every child a test spawns through this harness, so the test's
+/// own endpoint stays authoritative: a `SUBX_AI_*` override, an ambient
+/// `OPENAI_BASE_URL` or a real `OPENAI_API_KEY` in the developer's shell must
+/// never decide which provider the child builds. Both this file's
+/// `run_command_with_config` and the full-workflow helper in
+/// `tests/integration_tests.rs` iterate this list instead of spelling it out.
+///
+/// Scope: the other binary-spawning harnesses in this crate still carry their
+/// own inline copy; folding them in needs its own harness shim and is a
+/// follow-up change, not a rider on this one.
+pub const ISOLATED_AI_ENV_VARS: &[&str] = &[
+    "OPENAI_API_KEY",
+    "OPENAI_BASE_URL",
+    "OPENROUTER_API_KEY",
+    "AZURE_OPENAI_API_KEY",
+    "AZURE_OPENAI_ENDPOINT",
+    "AZURE_OPENAI_API_VERSION",
+    "AZURE_OPENAI_DEPLOYMENT_ID",
+    "LOCAL_LLM_BASE_URL",
+    "LOCAL_LLM_API_KEY",
+    "SUBX_AI_PROVIDER",
+    "SUBX_AI_APIKEY",
+    "SUBX_AI_BASE_URL",
+    "SUBX_AI_MODEL",
+];
+
 /// Command execution result for testing.
 #[allow(dead_code)]
 #[derive(Debug, Clone)]
@@ -61,24 +89,14 @@ impl CliRun for TestWorkspace {
                 self.temp_dir_path().join("test_config.toml"),
             )
             .env("SUBX_TEST_MODE", "true")
-            .env("RUST_LOG", "debug")
-            // Isolate from the developer's shell: the AI-provider env vars
-            // (e.g. `OPENAI_BASE_URL=http://...`) must not leak in, otherwise
-            // the strict config gate (hosted provider + `http://` base URL)
-            // rejects the merged config and the CLI exits with a config error.
-            .env_remove("OPENAI_API_KEY")
-            .env_remove("OPENAI_BASE_URL")
-            .env_remove("OPENROUTER_API_KEY")
-            .env_remove("AZURE_OPENAI_API_KEY")
-            .env_remove("AZURE_OPENAI_ENDPOINT")
-            .env_remove("AZURE_OPENAI_API_VERSION")
-            .env_remove("AZURE_OPENAI_DEPLOYMENT_ID")
-            .env_remove("LOCAL_LLM_BASE_URL")
-            .env_remove("LOCAL_LLM_API_KEY")
-            .env_remove("SUBX_AI_PROVIDER")
-            .env_remove("SUBX_AI_APIKEY")
-            .env_remove("SUBX_AI_BASE_URL")
-            .env_remove("SUBX_AI_MODEL");
+            .env("RUST_LOG", "debug");
+        // Isolate from the developer's shell: the AI-provider env vars
+        // (e.g. `OPENAI_BASE_URL=http://...`) must not leak in, otherwise
+        // the strict config gate (hosted provider + `http://` base URL)
+        // rejects the merged config and the CLI exits with a config error.
+        for var in ISOLATED_AI_ENV_VARS {
+            cmd.env_remove(*var);
+        }
 
         match cmd.output() {
             Ok(output) => CommandResult {
