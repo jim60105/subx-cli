@@ -1,0 +1,42 @@
+# Tasks
+
+## 1. Single definition of the ambient AI variables
+
+- [ ] 1.1 In `tests/common/cli_helpers.rs`, add `pub const ISOLATED_AI_ENV_VARS: &[&str]` above `impl CliRun for TestWorkspace`, containing exactly the thirteen names currently spelled out in `run_command_with_config`: `OPENAI_API_KEY`, `OPENAI_BASE_URL`, `OPENROUTER_API_KEY`, `AZURE_OPENAI_API_KEY`, `AZURE_OPENAI_ENDPOINT`, `AZURE_OPENAI_API_VERSION`, `AZURE_OPENAI_DEPLOYMENT_ID`, `LOCAL_LLM_BASE_URL`, `LOCAL_LLM_API_KEY`, `SUBX_AI_PROVIDER`, `SUBX_AI_APIKEY`, `SUBX_AI_BASE_URL`, `SUBX_AI_MODEL`. Document it as "variables that select or configure an AI provider; removed from every spawned child so the test's own endpoint stays authoritative."
+- [ ] 1.2 Replace the inline `.env_remove(...)` chain in `run_command_with_config` with `for var in ISOLATED_AI_ENV_VARS { cmd.env_remove(*var); }`, keeping `SUBX_WORKSPACE`, `SUBX_CONFIG_PATH`, `SUBX_TEST_MODE` and `RUST_LOG` unchanged. Verify `cargo check -p subx-cli --tests` exits 0. Do not touch the nine other inline copies listed in `proposal.md`; they are out of scope.
+
+## 2. One isolated child environment for all three workflow legs
+
+- [ ] 2.1 In `tests/integration_tests.rs`, add a private helper `fn workflow_command(dir: &Path) -> assert_cmd::Command` that constructs `assert_cmd::Command::new(env!("CARGO_BIN_EXE_subx-cli"))` and sets, in this order: `current_dir(dir)`, `env("SUBX_CONFIG_PATH", dir.join("test_config.toml"))`, `env("XDG_CONFIG_HOME", dir.join("config-home"))`, `env("NO_PROXY", "127.0.0.1,localhost")`, `env("no_proxy", "127.0.0.1,localhost")`, `env_remove("SUBX_OUTPUT")`, then a loop `for var in common::cli_helpers::ISOLATED_AI_ENV_VARS { cmd.env_remove(*var); }`. Add `mod common;` at the top of the file. Verify `cargo check -p subx-cli --tests` exits 0.
+- [ ] 2.2 Change `test_convert_command` and `test_sync_command` to call `workflow_command(dir)` instead of building `Command::new(...)` and calling `.current_dir(dir)`, keeping every argument and assertion byte-identical. The config file is created by `test_match_command`, which `test_full_workflow` calls first; do not add a placeholder config write here. Verify `cargo check -p subx-cli --tests` exits 0; their runtime verification is task 3.4 because they cannot run before task 3 creates the config file.
+
+## 3. The match leg against a loopback mock
+
+- [ ] 3.1 Add imports for `serde_json::{Value, json}`, `tokio::runtime::Runtime`, `wiremock::matchers::{method, path}`, `wiremock::{Mock, MockServer, Request, ResponseTemplate}`. Add `fn ids_in_block(prompt: &str, open: &str, close: &str) -> Vec<String>`: slice `prompt` between `open` and the next `close`, run the regex `<file id="(file_[^"]+)"` over that slice, return the captures in order; an absent block returns an empty vector. Add `fn echo_match_response(request: &Request) -> ResponseTemplate`: parse `request.body` as JSON with `.expect`, read `messages[last].content` as the prompt, call `ids_in_block(prompt, "<video_files>", "</video_files>")` and `ids_in_block(prompt, "<subtitle_files>", "</subtitle_files>")`, panic with a message naming the counts if the two lengths differ or either is zero, then zip 1:1 into `FileMatch` objects with `confidence: 0.95`, `match_factors: ["filename_similarity"]`, `language: "en"`, and wrap them in `{"matches": [...], "confidence": 0.95, "reasoning": "Echoed from request"}` inside `choices[0].message.content`, with a `usage` object beside it. Mount the function pointer directly; no custom `Respond` struct.
+- [ ] 3.2 Rewrite `test_match_command(dir: &Path)` as: `let runtime = Runtime::new().expect("tokio runtime");`, `let server = runtime.block_on(MockServer::start());`, `runtime.block_on(Mock::given(method("POST")).and(path("/v1/chat/completions")).respond_with(echo_match_response).mount(&server));`, then write `dir.join("test_config.toml")` — **after** the server exists, so the port is known — containing exactly `[ai]` with `provider = "local"`, `model = "mock-model"`, `base_url = "<server.uri()>/v1"`. Then `let mut cmd = workflow_command(dir);` and chain `.arg("match").arg(dir).arg("--dry-run").assert().success().stdout(predicate::str::contains("Preview mode"))`, keeping the existing comment. Do not set `OPENAI_API_KEY`.
+- [ ] 3.3 After the child assertion, `let received = runtime.block_on(server.received_requests()).expect("wiremock records requests by default");`, assert `received.len() == 1` with the received URLs in the failure message, and assert `received[0].url.path() == "/v1/chat/completions"`. Keep the `runtime` binding alive until after both assertions.
+- [ ] 3.4 Verify `cargo nextest run -p subx-cli --profile ci --ignore-default-filter -E 'test(test_full_workflow)'` exits 0 (this exercises match, convert and sync together), then run the same command under `unshare -n` on Linux and confirm it still exits 0. Record both results in the change directory's review notes.
+
+## 4. CI matrix independence
+
+- [ ] 4.1 Add `fail-fast: false` as the first key under the `test` job's `strategy:` in `.github/workflows/build-test-audit-coverage.yml` (immediately under `strategy:` at line 20, before `matrix:`), matching the `coverage` job and `subx-core`'s workflow. Change nothing else in the workflow and do not touch `subx-core/`. Verify `sed -n '/^  test:/,/^  archive-rar:/p' .github/workflows/build-test-audit-coverage.yml | grep -n 'fail-fast: false'` returns exactly one hit.
+
+## 5. Record the contract
+
+- [ ] 5.1 In `AGENTS.md`, extend the "Spawning the binary in tests" bullet: a spawned binary that runs an AI-backed command SHALL be given a loopback mock server through `SUBX_CONFIG_PATH` and SHALL have `common::cli_helpers::ISOLATED_AI_ENV_VARS` plus `SUBX_OUTPUT` removed from its environment; never rely on `OPENAI_API_KEY` or the user's config, and note that `XDG_CONFIG_HOME` redirects the match cache on every platform. Verify the bullet names all four items.
+- [ ] 5.2 Add a **new** `### Fixed` subsection under `## [Unreleased]` in `CHANGELOG.md` (the subsection does not exist yet; `[Unreleased]` currently has only `### Changed` and `### Security`). Entry: the integration suite's full-workflow test now runs all three legs against a temporary config through `SUBX_CONFIG_PATH`, with the match leg served by a loopback mock, so CI no longer calls `api.openai.com`; the test matrix also reports every operating system independently. Verify the entry sits under `## [Unreleased]` and above `## [2.0.0]`.
+
+## 6. Integration verification
+
+- [ ] 6.1 Run `cargo fmt -- --check` and confirm no diff (CI gates on it).
+- [ ] 6.2 Run the repository's lint gate `cargo clippy --workspace --all-features -- -D warnings` (the form `scripts/quality_check.sh` uses) and confirm it passes. `--all-targets` is optional and may surface pre-existing warnings in unrelated test files; do not expand scope to fix those.
+- [ ] 6.3 Main agent runs `./scripts/quality_check.sh -v -p ci --full` (or `scripts/quality_check.ps1 -VerboseOutput -Profile ci -Full` on Windows) and confirms the suite runs past test 444 to completion with no abort, and that `test_full_workflow` passes in the integration-test section.
+- [ ] 6.4 Main agent runs `./scripts/check_coverage.sh -T -p ci --full --lcov lcov.info` with `COVERAGE_THRESHOLD=75`, `COVERAGE_THRESHOLD_CORE=90`, `COVERAGE_THRESHOLD_CLI=82`, and confirms both crates report a non-zero denominator and both floors pass.
+- [ ] 6.5 Confirm scope stayed closed: `git diff --name-only origin/master...HEAD` lists only `tests/integration_tests.rs`, `tests/common/cli_helpers.rs`, `.github/workflows/build-test-audit-coverage.yml`, `AGENTS.md`, `CHANGELOG.md` and the change directory; no `Cargo.toml`, no `Cargo.lock`, no `subx-core/` gitlink change.
+- [ ] 6.6 After the first push, observe the `Build, Test, Audit & Coverage` run: all three `Test` legs plus `Code Coverage` complete, and no leg is shown as cancelled.
+
+## Workflow follow-up
+
+- Archive the change after the project's review requirements are satisfied and the first green CI run is recorded on the change.
+- File the follow-up change for the harnesses named in `proposal.md` (env-selected `local` provider and the nine inline copies of the isolation list).
+- No version bump: this is a test-harness and CI change, released with the next patch. Do not move the `subx-core` pointer.
