@@ -104,10 +104,14 @@ or produce errors.
   `SUBX_CONFIG_PATH` *is* the isolation — the one place the in-process
   `TestConfigService` rule cannot apply. Set `XDG_CONFIG_HOME` into the test
   `TempDir` as well: it is the only lever that moves the match cache, the match
-  journal and the batch lock file on every platform, and it does not move the
-  user config file — that is `SUBX_CONFIG_PATH`'s job. Such a test may stay
-  synchronous and drive `wiremock` through a `tokio::runtime::Runtime` it owns,
-  as `tests/integration_tests.rs` does.
+  journal and the batch lock file on every platform. On macOS and Windows it
+  leaves the user config file where it is; on Linux `dirs::config_dir()` honours
+  it too, which is harmless because `SUBX_CONFIG_PATH` outranks it. In every
+  case `SUBX_CONFIG_PATH` is what names the config file the child loads. Such a
+  test may stay synchronous and drive `wiremock` through a **multi-threaded**
+  `tokio::runtime::Runtime` it owns — a current-thread runtime has no worker
+  polling the mock while the test blocks on the child — as
+  `tests/integration_tests.rs` does.
 - **Every fixture/asset read resolves from `env!("CARGO_MANIFEST_DIR")`**,
   never the working directory: Cargo sets a test binary's CWD to the *package*
   root, so a relative path that resolved before a module moved between
