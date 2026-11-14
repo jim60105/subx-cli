@@ -20,7 +20,7 @@ use tokio::runtime::Runtime;
 use wiremock::matchers::{method, path};
 use wiremock::{Mock, MockServer, Request, ResponseTemplate};
 
-/// Proxy overrides that could reroute the loopback call to the test's mock.
+/// Proxy overrides that could reroute the loopback call away from the mock.
 ///
 /// Kept apart from [`common::cli_helpers::ISOLATED_AI_ENV_VARS`] because they
 /// change *routing*, not provider selection; `reqwest`'s default client reads
@@ -35,6 +35,9 @@ const AMBIENT_PROXY_ENV_VARS: &[&str] = &[
     "https_proxy",
     "all_proxy",
 ];
+
+/// File name of the temporary config every workflow leg loads.
+const CONFIG_FILE_NAME: &str = "test_config.toml";
 
 /// Create test media and subtitle files.
 fn create_test_media_files(dir: &Path) {
@@ -54,14 +57,16 @@ Hello
 /// Build the child command every workflow leg runs through.
 ///
 /// The temporary config file named by `SUBX_CONFIG_PATH` is the child's only
-/// AI source; `XDG_CONFIG_HOME` moves the match cache, the match journal and
-/// the batch lock file into the test `TempDir`. A spawned binary necessarily
-/// runs the production config loader — the temp file *is* the isolation, which
-/// is why the in-process `TestConfigService` rule does not apply here.
+/// AI source. `XDG_CONFIG_HOME` moves the match cache, the match journal and
+/// the batch lock file into the test `TempDir`; it also relocates
+/// `dirs::config_dir()` on Linux, which is harmless here because
+/// `SUBX_CONFIG_PATH` outranks it. A spawned binary necessarily runs the
+/// production config loader — the temp file *is* the isolation, which is why
+/// the in-process `TestConfigService` rule does not apply here.
 fn workflow_command(dir: &Path) -> Command {
     let mut cmd = Command::new(env!("CARGO_BIN_EXE_subx-cli"));
     cmd.current_dir(dir)
-        .env("SUBX_CONFIG_PATH", dir.join("test_config.toml"))
+        .env("SUBX_CONFIG_PATH", dir.join(CONFIG_FILE_NAME))
         .env("XDG_CONFIG_HOME", dir.join("config-home"))
         .env("NO_PROXY", "127.0.0.1,localhost")
         .env("no_proxy", "127.0.0.1,localhost")
@@ -172,7 +177,7 @@ fn test_match_command(dir: &Path) {
     // endpoint. An API-key-less `[ai]` section is valid for it, and the
     // provider appends `/chat/completions` to `base_url` verbatim.
     fs::write(
-        dir.join("test_config.toml"),
+        dir.join(CONFIG_FILE_NAME),
         format!(
             "[ai]\nprovider = \"local\"\nmodel = \"mock-model\"\nbase_url = \"{}/v1\"\n",
             server.uri()
@@ -268,11 +273,15 @@ fn workflow_children_strip_ambient_ai_and_proxy_overrides() {
     let temp_dir = TempDir::new().unwrap();
     let dir = temp_dir.path();
     let cmd = workflow_command(dir);
+    // Windows compares environment names case-insensitively and keeps the
+    // spelling it saw first, so `HTTP_PROXY` and `http_proxy` collapse into one
+    // entry there. Lower-casing the keys keeps the assertion identical on every
+    // platform instead of splitting it by `cfg!(windows)`.
     let child_env: std::collections::HashMap<String, Option<String>> = cmd
         .get_envs()
         .map(|(key, value)| {
             (
-                key.to_string_lossy().into_owned(),
+                key.to_string_lossy().to_ascii_lowercase(),
                 value.map(|value| value.to_string_lossy().into_owned()),
             )
         })
@@ -285,6 +294,11 @@ fn workflow_children_strip_ambient_ai_and_proxy_overrides() {
         common::cli_helpers::ISOLATED_AI_ENV_VARS.len(),
         13,
         "the shared isolation list lost or gained a name"
+    );
+    assert_eq!(
+        AMBIENT_PROXY_ENV_VARS.len(),
+        6,
+        "the proxy-removal list lost or gained a name"
     );
     // The names the requirement calls out by hand, plus every name the shared
     // list carries: each must be *removed*, not merely unset.
@@ -301,16 +315,16 @@ fn workflow_children_strip_ambient_ai_and_proxy_overrides() {
         .chain(AMBIENT_PROXY_ENV_VARS.iter().copied())
     {
         assert_eq!(
-            child_env.get(var),
+            child_env.get(&var.to_ascii_lowercase()),
             Some(&None),
             "{var} must be removed from the child environment, not inherited"
         );
     }
     // The temporary file, not the developer's config, is the only AI source.
     assert_eq!(
-        child_env.get("SUBX_CONFIG_PATH"),
+        child_env.get("subx_config_path"),
         Some(&Some(
-            dir.join("test_config.toml").to_string_lossy().into_owned()
+            dir.join(CONFIG_FILE_NAME).to_string_lossy().into_owned()
         ))
     );
 }
@@ -320,11 +334,14 @@ fn workflow_children_strip_ambient_ai_and_proxy_overrides() {
 fn workflow_children_resolve_the_config_named_by_subx_config_path() {
     let temp_dir = TempDir::new().unwrap();
     let dir = temp_dir.path();
-    let config_path = dir.join("test_config.toml");
+    let config_path = dir.join(CONFIG_FILE_NAME);
     // The child reports where it writes: the temp file, never the developer's
     // user config. This is what lets convert and sync succeed in
     // `test_full_workflow` against a machine whose own config is absent or
-    // unusable.
+    // unusable — that leg runs convert and sync; this one asserts the
+    // precedence they rely on. It deliberately does not construct an invalid
+    // file at the platform user-config path: `dirs::config_dir()` cannot be
+    // redirected on macOS or Windows, so the precondition is not portable.
     workflow_command(dir)
         .args(["config", "set", "ai.provider", "local"])
         .assert()
@@ -338,7 +355,7 @@ fn workflow_children_resolve_the_config_named_by_subx_config_path() {
         .args(["config", "get", "ai.provider"])
         .assert()
         .success()
-        .stdout(predicate::str::contains("local"));
+        .stdout(predicate::eq("local\n"));
 }
 
 // @covers cross-crate-testing/The Full-Workflow Test Is Hermetic#A mock response survives a change to file IDs
