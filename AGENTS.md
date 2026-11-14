@@ -92,6 +92,22 @@ or produce errors.
   orphan), while the `CARGO_BIN_EXE_<name>` env var is resolved by Cargo at
   compile time — a typo becomes a build error, and the value names the
   artefact actually built for this package in the two-package workspace.
+  A spawned binary that runs an AI-backed command must be given a loopback mock
+  server through `SUBX_CONFIG_PATH` (a temporary file selecting
+  `ai.provider = "local"` with `ai.base_url` at the mock's `/v1`), must have
+  `common::cli_helpers::ISOLATED_AI_ENV_VARS` plus `SUBX_OUTPUT` removed from
+  its environment so no ambient override can decide the provider, must pin
+  `NO_PROXY`/`no_proxy` to loopback and drop `HTTP(S)_PROXY`/`ALL_PROXY` (the
+  `reqwest` default client reads them), and must never rely on
+  `OPENAI_API_KEY` or the user's `~/.config/subx/config.toml`. A child always
+  loads through the production config service, so the temp file named by
+  `SUBX_CONFIG_PATH` *is* the isolation — the one place the in-process
+  `TestConfigService` rule cannot apply. Set `XDG_CONFIG_HOME` into the test
+  `TempDir` as well: it is the only lever that moves the match cache, the match
+  journal and the batch lock file on every platform, and it does not move the
+  user config file — that is `SUBX_CONFIG_PATH`'s job. Such a test may stay
+  synchronous and drive `wiremock` through a `tokio::runtime::Runtime` it owns,
+  as `tests/integration_tests.rs` does.
 - **Every fixture/asset read resolves from `env!("CARGO_MANIFEST_DIR")`**,
   never the working directory: Cargo sets a test binary's CWD to the *package*
   root, so a relative path that resolved before a module moved between
