@@ -523,7 +523,7 @@ check_coverage() {
     # displays are different measurements.
     if [[ -n "${LCOV_OUTPUT_PATH}" ]]; then
         echo -e "${BLUE}📄 Generating LCOV output at: ${LCOV_OUTPUT_PATH}${NC}"
-        if ! cargo llvm-cov report --lcov --output-path "${LCOV_OUTPUT_PATH}" --ignore-filename-regex "${LLVM_COV_IGNORE}" >/dev/null 2>&1; then
+        if ! cargo llvm-cov report -p subx-cli -p subx-core --lcov --output-path "${LCOV_OUTPUT_PATH}" --ignore-filename-regex "${LLVM_COV_IGNORE}" >/dev/null 2>&1; then
             echo -e "${RED}❌ Unable to generate LCOV coverage report${NC}" >&2
             exit 1
         fi
@@ -531,7 +531,11 @@ check_coverage() {
     fi
     
     # Generate JSON output for analysis, using report to avoid re-running tests
-    if ! coverage_cmd_output=$(cargo llvm-cov report --json --summary-only --ignore-filename-regex "${LLVM_COV_IGNORE}" 2>&1); then
+    # `-p subx-cli -p subx-core` is load-bearing: cargo-llvm-cov 0.9 changed
+    # `report`'s default package selection to the current package, so a bare
+    # `report` run there measures `subx-cli` only and reports `subx-core 0/0`.
+    # 0.6.16 accepts the same repeated `-p` flags, so this form works on both.
+    if ! coverage_cmd_output=$(cargo llvm-cov report -p subx-cli -p subx-core --json --summary-only --ignore-filename-regex "${LLVM_COV_IGNORE}" 2>&1); then
         echo -e "${RED}❌ Unable to extract JSON coverage data${NC}" >&2
         echo -e "${YELLOW}Error message: ${coverage_cmd_output}${NC}" >&2
         exit 1

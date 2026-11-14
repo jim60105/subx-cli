@@ -116,6 +116,52 @@ results. No finding was rejected without verification, and the two items the
 plan review raised and this review re-raised (Windows env semantics, the
 platform claim) are both closed in code or in the record.
 
+## CI-only defect found after the first push (PR #18, run 43630854128)
+
+- **What CI showed.** `Code Coverage (ubuntu-latest)` reported
+  `subx-core: 0% (0/0) — floor: 90%` beside
+  `subx-cli: 86.18% (5399/6265)` and a combined 86.18%, *with the suite
+  completing and nothing skipped*. The other legs — `Test (ubuntu)`,
+  `Test (macos)`, `archive-rar`, `Security Audit` and `Submodule Pointer` — were
+  green, so the hermetic fix held; only the coverage report was short of a
+  crate.
+- **Cause.** CI installs `cargo-llvm-cov@latest` (0.9.1). 0.9.0 added
+  `--workspace`/`--all` to the `report` subcommand **and changed its default
+  package selection to the current package**. Both coverage scripts called a
+  bare `cargo llvm-cov report`, so on 0.9.1 the JSON (and LCOV) described
+  `subx-cli` only, and the partition's `**/subx-core/src/` group summed to
+  `0/0`. The suite was complete; the report was not.
+- **Why the local gate never caught it.** This workstation runs 0.6.16, whose
+  `report` has no `--workspace` (passing it errors or yields empty output) but
+  accepts repeated `-p` flags and defaulted to the whole workspace. Verified on
+  0.6.16: `cargo llvm-cov report -p subx-cli -p subx-core --json --summary-only`
+  → 29,249 lines covering both crates; bare `report` → the same 29,249;
+  `--workspace` → error/empty.
+- **Fix.** `scripts/check_coverage.sh` and `scripts/check_coverage.ps1` now pass
+  `-p subx-cli -p subx-core` to **both** of their `report` invocations (LCOV and
+  JSON), with `--ignore-filename-regex` unchanged, plus a comment naming the
+  0.9 default so the flags are not "tidied away". `-p` is accepted by 0.6.16 and
+  0.9.x alike, so one form serves both. Recorded as tasks 7.1–7.3.
+- **Local verification of the fix (cargo-llvm-cov 0.6.16).**
+  `cargo llvm-cov report -p subx-cli -p subx-core --lcov --output-path /tmp/check.info --ignore-filename-regex '<LLVM_COV_IGNORE>'`
+  → exit 0, 1,449,952-byte file, 88 `SF:` lines naming `subx-core/src/`.
+  The full gate, `COVERAGE_THRESHOLD=75 COVERAGE_THRESHOLD_CORE=90 COVERAGE_THRESHOLD_CLI=82
+  ./scripts/check_coverage.sh -T -p ci --full --lcov /tmp/check.info` (the
+  patched script), prints `✅ LCOV coverage report generated successfully` and
+  `✅ JSON coverage data extracted successfully`, `Line coverage: 92.02%
+  (25661/27887)`, `✅ Combined coverage meets requirements`, and writes a
+  1,451,761-byte LCOV file whose 109 `SF:` entries include 88 under
+  `subx-core/src/` — both crates are in the report again. It still exits 1 at
+  `❌ Coverage partition found 1 file(s) outside both source roots:
+  …/lib/rustlib/src/rust/library/std/src/sys/thread_local/native/mod.rs`, the
+  local `rust-src` condition recorded above and left unsilenced.
+- **Per-crate denominators for this run** (the script stops before printing them
+  when the partition trips, so they come from the same JSON command it uses):
+  see the gate table below.
+- **Task 6.6 stays unchecked.** The repair can only be *observed* on CI, so the
+  next push's `Code Coverage` leg is the remaining evidence; archiving stays
+  conditional on that green run.
+
 ## Gates
 
 | command | result |
@@ -129,7 +175,9 @@ platform claim) are both closed in code or in the record.
 | `./scripts/quality_check.sh -v -p ci --full` | exit 0; `9 Passed checks, 0 Failed`; nextest `2024 tests run: 2024 passed, 7 skipped` (444+ reached, no abort) |
 | `COVERAGE_THRESHOLD=75 COVERAGE_THRESHOLD_CORE=90 COVERAGE_THRESHOLD_CLI=82 ./scripts/check_coverage.sh -T -p ci --full --lcov lcov.info` | **exit 1**, solely on the `rust-src` file list below. Overall `92.02% (25661/27887)`; combined floor passes. The script's own jq partition, replicated read-only from a fresh `cargo llvm-cov report --json --summary-only --ignore-filename-regex '<the script's LLVM_COV_IGNORE>'`: `subx-core 20114/21454 = 93.75%` (floor 90 ✅), `subx-cli 5533/6419 = 86.20%` (floor 82 ✅), `unexpected 1 file 14/14`, and `20114 + 5533 + 14 = 25661` — both denominators are non-zero. The gate stops at `❌ Coverage partition found 1 file(s) outside both source roots: /var/home/jim60105/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/src/rust/library/std/src/sys/thread_local/native/mod.rs` (environment-only: `rust-src` installed here; recorded, not silenced). |
 | `openspec validate 2026-11-15-hermetic-cli-integration-test --strict` | `Change … is valid` (exit 0) |
-| `git diff --name-only 8e28501…HEAD` | five files at `987944d` — `.github/workflows/build-test-audit-coverage.yml`, `AGENTS.md`, `CHANGELOG.md`, `tests/common/cli_helpers.rs`, `tests/integration_tests.rs`; the change-directory commit adds only `openspec/changes/2026-11-15-hermetic-cli-integration-test/{tasks.md,review-notes.md}`. No `Cargo.toml`, no `Cargo.lock`, no `subx-core/` gitlink change. |
+| `cargo llvm-cov report -p subx-cli -p subx-core --lcov --output-path /tmp/check.info --ignore-filename-regex '<LLVM_COV_IGNORE>'` (0.6.16) | exit 0; 1,449,952-byte LCOV file with 88 `SF:` entries under `subx-core/src/` |
+| `COVERAGE_THRESHOLD=75 COVERAGE_THRESHOLD_CORE=90 COVERAGE_THRESHOLD_CLI=82 ./scripts/check_coverage.sh -T -p ci --full --lcov /tmp/check.info` (patched script, 0.6.16) | tests complete, LCOV and JSON both generated, `Line coverage: 92.02% (25661/27887)`, `✅ Combined coverage meets requirements`; the written LCOV has 109 `SF:` entries, 88 of them under `subx-core/src/`. Exit 1 solely on the local `rust-src` file. Partition from the script's own JSON command (`-p subx-cli -p subx-core --json --summary-only`): `subx-core 20114/21454 = 93.75%` and `subx-cli 5533/6419 = 86.20%`, i.e. both denominators non-zero and both floors met. |
+| `git diff --name-only 8e28501…HEAD` | `.github/workflows/build-test-audit-coverage.yml`, `AGENTS.md`, `CHANGELOG.md`, `tests/common/cli_helpers.rs`, `tests/integration_tests.rs`, `scripts/check_coverage.sh`, `scripts/check_coverage.ps1`, and `openspec/changes/2026-11-15-hermetic-cli-integration-test/{tasks.md,review-notes.md}`. No `Cargo.toml`, no `Cargo.lock`, no `subx-core/` gitlink change (`git diff … -- subx-core Cargo.toml Cargo.lock` empty). |
 
 The test-count reconciliation is exact: the proposal records 2,021 tests at the
 baseline; this change adds three behaviour tests, and the full run reports
@@ -155,6 +203,11 @@ baseline; this change adds three behaviour tests, and the full run reports
   no runtime assertion of their own otherwise.
 - **Scenario 3 variant not constructed** (invalid config at the platform
   user-config path): see the plan-review item above.
+- **Authorized scope extension after the first push**: `scripts/check_coverage.sh`
+  and `scripts/check_coverage.ps1` gained the `-p subx-cli -p subx-core`
+  package selection (tasks 7.1–7.3), because the CI-only `subx-core 0/0`
+  defect is a coverage-report defect, not a test-harness one. Still no
+  `Cargo.toml`, `Cargo.lock` or `subx-core` gitlink change.
 
 ## Annotation hand-off
 
