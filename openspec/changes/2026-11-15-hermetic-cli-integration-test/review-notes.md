@@ -197,6 +197,24 @@ platform claim) are both closed in code or in the record.
 - **Task 6.6 remains unchecked** until the next push's `Code Coverage` leg is
   observed green with the single-runner matrix.
 
+## First green CI run (PR #18, run 43634945926)
+
+- **Evidence, reported by the supervisor and not re-run here.** Head
+  `eeef46a42f832dc59d4502c3638de4f8ae4c6672`, event `pull_request`,
+  conclusion **success**. Every job green: `Test (ubuntu-latest, stable)`,
+  `Test (macos-latest, stable)`, `Test (windows-latest, stable)`,
+  `Test (archive-rar feature)`, `Code Coverage (ubuntu-latest)` — both crates
+  present with both floors passed — `Security Audit`, and
+  `Submodule Pointer`. No leg was shown as cancelled, which is the
+  `crate-topology` requirement's observable form, and the suite ran well past
+  the old abort at test 444.
+- **Scope of the claim.** This is a *pull-request* run. The post-merge push to
+  `master` re-runs the same workflow with the same job set, so a second green
+  run is expected there; nothing in this change's cancellation behaviour is
+  PR-specific (`fail-fast: false` is job-level, and the workflow sets no
+  `concurrency` group that could cancel siblings).
+- **Task 6.6 is now ticked** with this run's id, head and per-job results.
+
 ## Gates
 
 | command | result |
@@ -214,6 +232,7 @@ platform claim) are both closed in code or in the record.
 | `COVERAGE_THRESHOLD=75 COVERAGE_THRESHOLD_CORE=90 COVERAGE_THRESHOLD_CLI=82 ./scripts/check_coverage.sh -T -p ci --full --lcov /tmp/check.info` (patched script, 0.6.16) | tests complete, LCOV and JSON both generated, `Line coverage: 92.02% (25661/27887)`, `✅ Combined coverage meets requirements`; the written LCOV has 109 `SF:` entries, 88 of them under `subx-core/src/`. Exit 1 solely on the local `rust-src` file. Partition from the script's own JSON command (`-p subx-cli -p subx-core --json --summary-only`): `subx-core 20114/21454 = 93.75%` and `subx-cli 5533/6419 = 86.20%`, i.e. both denominators non-zero and both floors met. |
 | `python3 -c 'yaml.safe_load(".github/workflows/build-test-audit-coverage.yml")'` | parses (exit 0): `coverage.matrix = {"os": ["ubuntu-latest"]}`, `coverage` steps are checkout, Install Rust, Install cargo-llvm-cov, Install cargo-nextest, Install dependencies for coverage check, Generate code coverage and check threshold, Upload to codecov.io, Upload test results; the only remaining `if:` is `${{ always() }}`; `check_coverage.ps1` is no longer referenced; `test` still runs `[ubuntu-latest, windows-latest, macos-latest]` with `fail-fast: false` |
 | `./scripts/quality_check.sh --check-spec-governance` | `🎉 Spec-governance drift check passed!` (exit 0) — the `AGENTS.md` edits sit outside the shared region |
+| CI run `43634945926` (PR #18, head `eeef46a`; reported by the supervisor) | conclusion `success`; `Test (ubuntu)`, `Test (macos)`, `Test (windows)`, `Test (archive-rar feature)`, `Code Coverage (ubuntu-latest)`, `Security Audit` and `Submodule Pointer` all green; no leg cancelled |
 | `git diff --name-only 8e28501…HEAD` | `.github/workflows/build-test-audit-coverage.yml`, `AGENTS.md`, `CHANGELOG.md`, `tests/common/cli_helpers.rs`, `tests/integration_tests.rs`, `scripts/check_coverage.sh`, `scripts/check_coverage.ps1`, and `openspec/changes/2026-11-15-hermetic-cli-integration-test/{tasks.md,review-notes.md}`. No `Cargo.toml`, no `Cargo.lock`, no `subx-core/` gitlink change (`git diff … -- subx-core Cargo.toml Cargo.lock` empty). |
 
 The test-count reconciliation is exact: the proposal records 2,021 tests at the
