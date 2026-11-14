@@ -127,7 +127,7 @@ or produce errors.
   proposal**. All three are enforced by `scripts/check_coverage.sh` / `.ps1`
   (flags `--threshold-core` / `--threshold-cli`, environment
   `COVERAGE_THRESHOLD_CORE` / `COVERAGE_THRESHOLD_CLI`, combined gate stays
-  `COVERAGE_THRESHOLD`) and by the CI coverage matrix env. The JSON file list
+  `COVERAGE_THRESHOLD`) and by the CI coverage job's env. The JSON file list
   is partitioned by `.filename` (`/subx-core/src/` vs the workspace root's
   `src/`); each group's percentage comes from summed line counts — never a
   mean of per-file percentages — and the two groups must account for the
@@ -662,9 +662,16 @@ must be replaced after any archive, because `openspec archive` writes
 
 CI runs on push/PR to `master` across Ubuntu, Windows, and macOS with Rust
 stable. It executes `scripts/quality_check.sh -v -p ci --full` (workspace-wide),
-runs `cargo audit` for security, and enforces the three coverage floors via
-`scripts/check_coverage.sh` on Linux/macOS and the PowerShell port
-`scripts/check_coverage.ps1` on Windows. Results are uploaded to Codecov.
+runs `cargo audit` for security, and enforces the three coverage floors **once,
+on the Ubuntu runner**, through `scripts/check_coverage.sh`. The floors are
+documented as measured once on the split suite, and `cargo-llvm-cov`'s Windows
+profile merging is partial (whole modules at 0%, the `subx-core` denominator
+about half of Linux's), so a Windows coverage leg would re-measure the same
+suite at lower fidelity rather than add signal; the PowerShell port
+`scripts/check_coverage.ps1` stays a local Windows convenience. The full test
+matrix still runs on all three operating systems with `fail-fast: false`, so
+every platform's failures are reported where they occur. Results are uploaded
+to Codecov.
 A `submodule-pointer` job guards the supply chain: the `subx-core` version must
 match `subx-cli`'s caret requirement, the gitlink commit must be reachable from
 `subx-core`'s `master` (advisory on PRs, blocking on `master` pushes), and

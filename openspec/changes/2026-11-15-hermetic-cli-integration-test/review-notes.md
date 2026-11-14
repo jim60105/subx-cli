@@ -162,6 +162,41 @@ platform claim) are both closed in code or in the record.
   next push's `Code Coverage` leg is the remaining evidence; archiving stays
   conditional on that green run.
 
+## Coverage enforced on one runner (discovered in CI, run 43633256586)
+
+- **What CI showed.** On `926fb86`, `Test (ubuntu)`, `Test (macos)`,
+  `Test (windows)`, `Test (archive-rar)`, `Security Audit`, `Submodule Pointer`
+  and `Code Coverage (ubuntu-latest)` were green — the `-p` repair worked and
+  the Ubuntu leg reported both crates. Only
+  `Code Coverage (windows-latest)` was red: the suite completed successfully
+  and both crates were present, but the numbers were partial — combined
+  distance 24.07%, `subx-core 53.26% (5508/10341)`,
+  `subx-cli 42.94% (1295/3016)`, with whole modules at 0%
+  (`src/cli/error_ext.rs`, `src/cli/mod.rs`,
+  `subx-core/src/services/ai/cache.rs`, `subx-core/src/services/ai/mod.rs`)
+  and a `subx-core` denominator of 10,341 against Linux's 21,454.
+- **Why it is not a regression and not a floor failure caused here.** The
+  native Windows numbers were already partial before this change (the earlier
+  run reported `subx-cli 1251/3016` and `subx-core 0/0`): `cargo-llvm-cov`
+  merges `nextest` profile data only partially on Windows, so a Windows
+  coverage leg re-measures the same suite at lower fidelity instead of adding
+  signal. `AGENTS.md` already documents the floors as "measured once on the
+  split suite" (workspace 91.77%, `subx-core` 93.54%, `subx-cli` 85.93%), so
+  enforcing them on a second operating system diverged from both the policy and
+  what the tooling can produce.
+- **Fix.** The `coverage` job's matrix is now `[ubuntu-latest]`; the
+  Windows-only `Generate code coverage and check threshold (Windows)` step and
+  the Windows-only ort-sys DLL pre-create step are deleted; the `runner.os`
+  conditions are dropped from the remaining coverage steps; the Codecov upload
+  keeps flagging by `matrix.os`. `scripts/check_coverage.ps1` is untouched and
+  remains a local Windows convenience. `AGENTS.md`'s CI/CD paragraph and the
+  floors paragraph now say exactly that.
+- **The test matrix is unaffected.** Windows and macOS still run the full test
+  suite in the `test` job, which keeps `fail-fast: false`, so a failing leg is
+  still reported on its own platform.
+- **Task 6.6 remains unchecked** until the next push's `Code Coverage` leg is
+  observed green with the single-runner matrix.
+
 ## Gates
 
 | command | result |
@@ -177,6 +212,8 @@ platform claim) are both closed in code or in the record.
 | `openspec validate 2026-11-15-hermetic-cli-integration-test --strict` | `Change … is valid` (exit 0) |
 | `cargo llvm-cov report -p subx-cli -p subx-core --lcov --output-path /tmp/check.info --ignore-filename-regex '<LLVM_COV_IGNORE>'` (0.6.16) | exit 0; 1,449,952-byte LCOV file with 88 `SF:` entries under `subx-core/src/` |
 | `COVERAGE_THRESHOLD=75 COVERAGE_THRESHOLD_CORE=90 COVERAGE_THRESHOLD_CLI=82 ./scripts/check_coverage.sh -T -p ci --full --lcov /tmp/check.info` (patched script, 0.6.16) | tests complete, LCOV and JSON both generated, `Line coverage: 92.02% (25661/27887)`, `✅ Combined coverage meets requirements`; the written LCOV has 109 `SF:` entries, 88 of them under `subx-core/src/`. Exit 1 solely on the local `rust-src` file. Partition from the script's own JSON command (`-p subx-cli -p subx-core --json --summary-only`): `subx-core 20114/21454 = 93.75%` and `subx-cli 5533/6419 = 86.20%`, i.e. both denominators non-zero and both floors met. |
+| `python3 -c 'yaml.safe_load(".github/workflows/build-test-audit-coverage.yml")'` | parses (exit 0): `coverage.matrix = {"os": ["ubuntu-latest"]}`, `coverage` steps are checkout, Install Rust, Install cargo-llvm-cov, Install cargo-nextest, Install dependencies for coverage check, Generate code coverage and check threshold, Upload to codecov.io, Upload test results; the only remaining `if:` is `${{ always() }}`; `check_coverage.ps1` is no longer referenced; `test` still runs `[ubuntu-latest, windows-latest, macos-latest]` with `fail-fast: false` |
+| `./scripts/quality_check.sh --check-spec-governance` | `🎉 Spec-governance drift check passed!` (exit 0) — the `AGENTS.md` edits sit outside the shared region |
 | `git diff --name-only 8e28501…HEAD` | `.github/workflows/build-test-audit-coverage.yml`, `AGENTS.md`, `CHANGELOG.md`, `tests/common/cli_helpers.rs`, `tests/integration_tests.rs`, `scripts/check_coverage.sh`, `scripts/check_coverage.ps1`, and `openspec/changes/2026-11-15-hermetic-cli-integration-test/{tasks.md,review-notes.md}`. No `Cargo.toml`, no `Cargo.lock`, no `subx-core/` gitlink change (`git diff … -- subx-core Cargo.toml Cargo.lock` empty). |
 
 The test-count reconciliation is exact: the proposal records 2,021 tests at the
@@ -208,6 +245,12 @@ baseline; this change adds three behaviour tests, and the full run reports
   package selection (tasks 7.1–7.3), because the CI-only `subx-core 0/0`
   defect is a coverage-report defect, not a test-harness one. Still no
   `Cargo.toml`, `Cargo.lock` or `subx-core` gitlink change.
+- **Authorized CI-policy change**: the `coverage` job now runs on
+  `ubuntu-latest` only (tasks 8.1–8.4). The floors are documented as measured
+  once on the split suite, and the Windows leg could only produce a partial
+  report, so enforcing them twice diverged from the policy. The three-OS `test`
+  matrix and its `fail-fast: false` are untouched, and
+  `scripts/check_coverage.ps1` is untouched for local Windows use.
 
 ## Annotation hand-off
 
