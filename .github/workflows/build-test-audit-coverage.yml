@@ -56,6 +56,19 @@ jobs:
         path: target
         key: ${{ runner.os }}-cargo-build-target-${{ hashFiles('Cargo.lock') }}
 
+    # ort-sys 2.0.0-rc.10 (pinned by voice_activity_detector) copies its
+    # downloaded DLLs next to the build output and into that directory's
+    # `examples`/`deps` siblings, creating none of them itself. Any
+    # Cargo.lock change misses the build cache above, so a cold `target`
+    # panics on Windows before clippy gets a chance to run.
+    - name: Pre-create the ort-sys DLL destination directories
+      if: runner.os == 'Windows'
+      shell: pwsh
+      run: |
+        New-Item -ItemType Directory -Force `
+          target/debug/build/examples,
+          target/debug/build/deps | Out-Null
+
     - name: Check formatting
       run: cargo fmt -- --check
 
@@ -177,6 +190,18 @@ jobs:
       uses: taiki-e/install-action@v2
       with:
         tool: cargo-nextest
+
+    # Same ort-sys 2.0.0-rc.10 cold-`target` bug as the test job; the coverage
+    # run builds under `target/llvm-cov-target`, which needs its own copies.
+    - name: Pre-create the ort-sys DLL destination directories
+      if: runner.os == 'Windows'
+      shell: pwsh
+      run: |
+        New-Item -ItemType Directory -Force `
+          target/debug/build/examples,
+          target/debug/build/deps,
+          target/llvm-cov-target/debug/build/examples,
+          target/llvm-cov-target/debug/build/deps | Out-Null
 
     - name: Install dependencies for coverage check (Linux)
       if: runner.os == 'Linux'
