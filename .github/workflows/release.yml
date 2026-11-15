@@ -57,8 +57,19 @@ jobs:
       fail-fast: false
       matrix:
         include:
+        # Both Linux rows are pinned to the `ubuntu-24.04` image rather than
+        # `ubuntu-latest`. `ubuntu-latest` moved to 26.04 (glibc 2.43) and
+        # every binary built there requires that glibc: the v2.0.1 x86_64
+        # asset was published needing GLIBC_2.43, which no current stable
+        # distribution provides (v2.0.0, built on 24.04, needed 2.38).
+        # 24.04 holds the floor at 2.38, and its GCC 13 + glibc 2.39
+        # cross sysroot satisfies the ONNX Runtime archives below. Moving
+        # this pin is a decision about the published glibc floor and must
+        # update the `MAX_GLIBC` guard in the `Smoke test` step and the
+        # platform table in docs/command-reference.md together.
+        #
         # Native x86_64 Linux gnu — built directly with cargo on the runner.
-        - os: ubuntu-latest
+        - os: ubuntu-24.04
           target: x86_64-unknown-linux-gnu
           binary_name: subx-cli
           asset_name: subx-linux-x86_64
@@ -70,14 +81,14 @@ jobs:
         # archives reference `std::__throw_bad_array_new_length` (libstdc++
         # from GCC 11+) and `__libc_single_threaded` (glibc 2.32+), so the
         # build host must provide a sufficiently new aarch64 toolchain and
-        # sysroot. ubuntu-latest (24.04) ships GCC 13 + glibc 2.39 via
+        # sysroot. Ubuntu 24.04 (the pinned image) ships GCC 13 + glibc 2.39 via
         # `crossbuild-essential-arm64`, which satisfies both.
         #
         # musl targets are intentionally NOT released: upstream `ort`
         # (Pyke) does not publish ONNX Runtime prebuilts for
         # *-unknown-linux-musl, and building ONNX Runtime from source for
         # musl is out of scope for this release pipeline.
-        - os: ubuntu-latest
+        - os: ubuntu-24.04
           target: aarch64-unknown-linux-gnu
           binary_name: subx-cli
           asset_name: subx-linux-aarch64
@@ -140,6 +151,22 @@ jobs:
         rm /tmp/ort.tgz
         echo "ORT_LIB_LOCATION=/opt/onnxruntime/lib" >> "$GITHUB_ENV"
 
+    # ort-sys 2.0.0-rc.10 (pinned by voice_activity_detector) copies the DLLs
+    # it unpacks from the Pyke bundle into `OUT_DIR`'s third ancestor and that
+    # directory's `examples`/`deps` siblings, creating none of them itself.
+    # Cargo 1.100 moved the build-script output one level deeper, so that
+    # ancestor is `target/<triple>/release/build` instead of the profile
+    # directory the crate meant to place the DLLs in: `build` exists, its two
+    # siblings do not, and the Windows symlink fallback's `std::fs::copy`
+    # then aborts the build with `Os { code: 3, kind: NotFound }`. The test
+    # workflow pre-creates the same two directories for `target/debug/build`.
+    - name: Pre-create the ort-sys DLL destination directories
+      if: runner.os == 'Windows'
+      shell: bash
+      run: |
+        mkdir -p "target/${{ matrix.target }}/release/build/examples" \
+                 "target/${{ matrix.target }}/release/build/deps"
+
     # `--features archive-rar` is required on every Linux artifact (see
     # spec: archive-rar feature parity). A failure here is a release
     # blocker — do not silently drop the feature. Non-Linux targets accept
@@ -158,27 +185,69 @@ jobs:
           chmod +x ${{ matrix.asset_name }}
         fi
 
-    # Smoke-test every Linux artifact before upload. x86_64 runs natively
-    # on the runner; aarch64 runs under qemu-user-static. The aarch64
-    # binary is dynamically linked against glibc/libstdc++/libgcc_s, so
-    # qemu needs an aarch64 sysroot to resolve `ld-linux-aarch64.so.1`
-    # and friends — `gcc-aarch64-linux-gnu` provides exactly that under
-    # `/usr/aarch64-linux-gnu`, and `QEMU_LD_PREFIX` points qemu at it.
-    # A non-zero exit, segfault, or 30s timeout fails the workflow before
-    # Upload Release Asset runs (see spec: Smoke test of Linux artifacts).
+    # Smoke-test every Linux artifact before upload. x86_64 runs natively on
+    # the runner; aarch64 runs under QEMU user-mode emulation. The aarch64
+    # binary is dynamically linked against glibc/libstdc++/libgcc_s, so QEMU
+    # needs an aarch64 sysroot to resolve `ld-linux-aarch64.so.1` and friends
+    # — `crossbuild-essential-arm64` above provides exactly that under
+    # `/usr/aarch64-linux-gnu`, and `QEMU_LD_PREFIX` points QEMU at it.
+    # `qemu-user` ships the emulator as `qemu-aarch64`; `qemu-user-static`,
+    # which this step used to install, is only a virtual package on Ubuntu
+    # 26.04+ and apt refuses to resolve a virtual package non-interactively.
+    # A non-zero exit, missing version output, or 30s timeout fails the
+    # workflow before Upload Release Asset runs (see spec: Smoke test of
+    # Linux artifacts). The version line is asserted rather than just the exit
+    # status, and the artifact's highest required glibc symbol is capped so a
+    # runner-image change cannot silently raise the published floor the way
+    # `ubuntu-latest`'s move to 26.04 did for v2.0.1.
     - name: Smoke test
-      if: matrix.os == 'ubuntu-latest'
+      if: runner.os == 'Linux'
       shell: bash
       run: |
         set -euo pipefail
         if [[ "${{ matrix.target }}" == aarch64-* ]]; then
           sudo apt-get update
-          sudo apt-get install -y qemu-user-static binfmt-support gcc-aarch64-linux-gnu
-          QEMU_LD_PREFIX=/usr/aarch64-linux-gnu \
-            timeout 30 qemu-aarch64-static ./${{ matrix.asset_name }} --version
+          sudo apt-get install -y --no-install-recommends \
+            qemu-user gcc-aarch64-linux-gnu
+          out=$(QEMU_LD_PREFIX=/usr/aarch64-linux-gnu \
+            timeout 30 qemu-aarch64 ./${{ matrix.asset_name }} --version)
         else
-          timeout 30 ./${{ matrix.asset_name }} --version
+          out=$(timeout 30 ./${{ matrix.asset_name }} --version)
         fi
+        echo "$out"
+        case "$out" in
+          subx-cli\ *) ;;
+          *)
+            echo "::error::${{ matrix.asset_name }} did not report a version"
+            exit 1
+            ;;
+        esac
+
+        max_glibc=$(readelf --version-info "./${{ matrix.asset_name }}" \
+          | sed -n 's/.*Name: GLIBC_\([0-9.]*\).*/\1/p' | sort -uV | tail -1)
+        echo "highest required glibc symbol: $max_glibc"
+        if [[ "$(printf '%s\n%s\n' "$max_glibc" 2.38 | sort -uV | tail -1)" != "2.38" ]]; then
+          echo "::error::${{ matrix.asset_name }} requires glibc $max_glibc; the published floor is 2.38"
+          exit 1
+        fi
+
+    # The Windows asset is a bare `.exe` with ONNX Runtime linked in — its
+    # import table names only system DLLs — so launching it is the whole
+    # contract. Runs natively on the runner, before upload.
+    - name: Smoke test (Windows)
+      if: runner.os == 'Windows'
+      shell: bash
+      run: |
+        set -euo pipefail
+        out=$(timeout 30 ./${{ matrix.asset_name }} --version)
+        echo "$out"
+        case "$out" in
+          subx-cli\ *) ;;
+          *)
+            echo "::error::${{ matrix.asset_name }} did not report a version"
+            exit 1
+            ;;
+        esac
 
     - name: Upload Release Asset
       uses: softprops/action-gh-release@v3
