@@ -104,8 +104,8 @@ chmod +x subx-cli && sudo mv subx-cli /usr/local/bin/
 
 | 平台    | 架構     | 資產名稱                    | 說明 |
 |---------|----------|-----------------------------|------|
-| Linux   | x86_64   | `subx-linux-x86_64`         | x86_64 Linux |
-| Linux   | aarch64  | `subx-linux-aarch64`        | ARM64 Linux（Raspberry Pi 4/5、AWS Graviton、Oracle Ampere、ARM64 容器） |
+| Linux   | x86_64   | `subx-linux-x86_64`         | x86_64 Linux，glibc 2.43 以上 |
+| Linux   | aarch64  | `subx-linux-aarch64`        | ARM64 Linux（Raspberry Pi 4/5、AWS Graviton、Oracle Ampere、ARM64 容器），glibc 2.43 以上 |
 | macOS   | x86_64   | `subx-macos-x86_64`         | Intel Mac |
 | macOS   | aarch64  | `subx-macos-aarch64`        | Apple Silicon（M1/M2/M3/M4） |
 | Windows | x86_64   | `subx-windows-x86_64.exe`   | 64 位元 Windows |

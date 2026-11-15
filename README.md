@@ -128,8 +128,8 @@ and downloads the matching pre-built binary from the latest GitHub Release.
 
 | Platform | Architecture | Asset name                  | Notes |
 |----------|--------------|-----------------------------|-------|
-| Linux    | x86_64       | `subx-linux-x86_64`         | x86_64 Linux |
-| Linux    | aarch64      | `subx-linux-aarch64`        | ARM64 Linux (Raspberry Pi 4/5, AWS Graviton, Oracle Ampere, ARM64 containers) |
+| Linux    | x86_64       | `subx-linux-x86_64`         | x86_64 Linux, glibc 2.43 or newer |
+| Linux    | aarch64      | `subx-linux-aarch64`        | ARM64 Linux (Raspberry Pi 4/5, AWS Graviton, Oracle Ampere, ARM64 containers), glibc 2.43 or newer |
 | macOS    | x86_64       | `subx-macos-x86_64`         | Intel Macs |
 | macOS    | aarch64      | `subx-macos-aarch64`        | Apple Silicon (M1/M2/M3/M4) |
 | Windows  | x86_64       | `subx-windows-x86_64.exe`   | 64-bit Windows |
