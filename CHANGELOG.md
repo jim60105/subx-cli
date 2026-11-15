@@ -7,6 +7,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.0.2] - 2026-11-15
+
+### Fixed
+- **Every supported platform has a download again.** The `v2.0.1` release
+  published only the macOS and Linux x86_64 binaries: the Windows build aborted
+  inside a dependency's build script, and the ARM64 Linux binary failed its own
+  pre-upload smoke test. Both pipeline defects are repaired, and the Windows
+  binary is now launched by the release pipeline before it is attached, so a
+  broken Windows download cannot be published silently.
+- **Linux downloads run on current stable distributions again.** The `v2.0.1`
+  Linux x86_64 binary was built on Ubuntu 26.04 and required glibc 2.43, so it
+  could not start on Ubuntu 24.04 LTS, Debian 13 or any other current release;
+  `v2.0.0` required glibc 2.38. The Linux binaries are built on Ubuntu 24.04
+  again, restoring the glibc 2.38 requirement documented in the command
+  reference, and the release pipeline now refuses to attach an artifact that
+  needs a newer glibc.
+
+The command-line interface itself is unchanged since 2.0.1.
+
 ## [2.0.1] - 2026-11-15
 
 ### Changed
@@ -652,7 +671,8 @@ all of its consumers. `subx-core` 1.0.0 is already published to crates.io.
 - Initial release of SubX CLI tool
 - Rust-based intelligent subtitle processing
 
-[Unreleased]: https://github.com/jim60105/subx-cli/compare/v2.0.1...HEAD
+[Unreleased]: https://github.com/jim60105/subx-cli/compare/v2.0.2...HEAD
+[2.0.2]: https://github.com/jim60105/subx-cli/compare/v2.0.1...v2.0.2
 [2.0.1]: https://github.com/jim60105/subx-cli/compare/v2.0.0...v2.0.1
 [2.0.0]: https://github.com/jim60105/subx-cli/compare/v1.9.1...v2.0.0
 [1.9.1]: https://github.com/jim60105/subx-cli/compare/v1.9.0...v1.9.1
