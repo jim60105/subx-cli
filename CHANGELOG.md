@@ -5,8 +5,9 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-
 ## [Unreleased]
+
+## [2.0.1] - 2026-11-15
 
 ### Changed
 - **The bundled engine is `subx-core` 1.0.1.** The security patch moves
@@ -15,17 +16,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   with a warning; the minimum Rust toolchain for building is 1.88.
 
 ### Fixed
-- **The integration suite's full-workflow test no longer depends on a real AI
-  endpoint or on the developer's configuration.** Its match → convert → sync
-  legs all run against one temporary config file named by `SUBX_CONFIG_PATH`,
-  with the match leg served by a loopback `wiremock` server that derives its
-  answer from the request's own file IDs, so the run can no longer reach a
-  hosted AI endpoint — in CI or on a developer's machine. Because the suite no
-  longer contains a failing test, nextest's fail-fast no longer truncates the
-  run, so the coverage report measures the whole suite again and both per-crate
-  denominators are restored. The test matrix also reports every operating
-  system independently (`fail-fast: false`), so one failing leg no longer
-  cancels its siblings.
+- **Automated test runs no longer reach a hosted AI endpoint or your own
+  configuration.** The project's full-workflow check now runs entirely against
+  a temporary config file and a local mock AI server, so it can never call a
+  real provider or pick up credentials from the machine it runs on — in CI or
+  on a contributor's workstation. The CI test matrix also reports each
+  operating system independently, so one failing platform no longer cancels
+  the others before they report.
 
 ### Security
 - **Every advisory reported against the committed dependency graph is
@@ -655,7 +652,8 @@ all of its consumers. `subx-core` 1.0.0 is already published to crates.io.
 - Initial release of SubX CLI tool
 - Rust-based intelligent subtitle processing
 
-[Unreleased]: https://github.com/jim60105/subx-cli/compare/v2.0.0...HEAD
+[Unreleased]: https://github.com/jim60105/subx-cli/compare/v2.0.1...HEAD
+[2.0.1]: https://github.com/jim60105/subx-cli/compare/v2.0.0...v2.0.1
 [2.0.0]: https://github.com/jim60105/subx-cli/compare/v1.9.1...v2.0.0
 [1.9.1]: https://github.com/jim60105/subx-cli/compare/v1.9.0...v1.9.1
 [1.9.0]: https://github.com/jim60105/subx-cli/compare/v1.8.0...v1.9.0
