@@ -57,19 +57,16 @@ jobs:
       fail-fast: false
       matrix:
         include:
-        # Both Linux rows are pinned to the `ubuntu-24.04` image rather than
-        # `ubuntu-latest`. `ubuntu-latest` moved to 26.04 (glibc 2.43) and
-        # every binary built there requires that glibc: the v2.0.1 x86_64
-        # asset was published needing GLIBC_2.43, which no current stable
-        # distribution provides (v2.0.0, built on 24.04, needed 2.38).
-        # 24.04 holds the floor at 2.38, and its GCC 13 + glibc 2.39
-        # cross sysroot satisfies the ONNX Runtime archives below. Moving
-        # this pin is a decision about the published glibc floor and must
-        # update the `MAX_GLIBC` guard in the `Smoke test` step and the
-        # platform table in docs/command-reference.md together.
+        # Both Linux rows follow `ubuntu-latest`, which now resolves to
+        # Ubuntu 26.04 (glibc 2.43). A binary linked there requires that
+        # glibc, so the published Linux artifacts run on systems with glibc
+        # 2.43 or newer — not on Ubuntu 24.04 LTS or Debian 13. That floor
+        # is deliberate and documented; changing the image (or the floor)
+        # means updating the `MAX_GLIBC` guard in the `Smoke test` step and
+        # the platform table in docs/command-reference.md together.
         #
         # Native x86_64 Linux gnu — built directly with cargo on the runner.
-        - os: ubuntu-24.04
+        - os: ubuntu-latest
           target: x86_64-unknown-linux-gnu
           binary_name: subx-cli
           asset_name: subx-linux-x86_64
@@ -81,14 +78,14 @@ jobs:
         # archives reference `std::__throw_bad_array_new_length` (libstdc++
         # from GCC 11+) and `__libc_single_threaded` (glibc 2.32+), so the
         # build host must provide a sufficiently new aarch64 toolchain and
-        # sysroot. Ubuntu 24.04 (the pinned image) ships GCC 13 + glibc 2.39 via
+        # sysroot. Ubuntu 26.04 ships GCC 15 + glibc 2.43 via
         # `crossbuild-essential-arm64`, which satisfies both.
         #
         # musl targets are intentionally NOT released: upstream `ort`
         # (Pyke) does not publish ONNX Runtime prebuilts for
         # *-unknown-linux-musl, and building ONNX Runtime from source for
         # musl is out of scope for this release pipeline.
-        - os: ubuntu-24.04
+        - os: ubuntu-latest
           target: aarch64-unknown-linux-gnu
           binary_name: subx-cli
           asset_name: subx-linux-aarch64
@@ -196,10 +193,11 @@ jobs:
     # 26.04+ and apt refuses to resolve a virtual package non-interactively.
     # A non-zero exit, missing version output, or 30s timeout fails the
     # workflow before Upload Release Asset runs (see spec: Smoke test of
-    # Linux artifacts). The version line is asserted rather than just the exit
-    # status, and the artifact's highest required glibc symbol is capped so a
-    # runner-image change cannot silently raise the published floor the way
-    # `ubuntu-latest`'s move to 26.04 did for v2.0.1.
+    # Linux artifacts). The version line is asserted rather than just the
+    # exit status, and the artifact's highest required glibc symbol is capped
+    # at the 2.43 that `ubuntu-latest`'s glibc provides, so a runner-image
+    # change cannot silently raise the published floor the way the move to
+    # 26.04 did for v2.0.1.
     - name: Smoke test
       if: runner.os == 'Linux'
       shell: bash
@@ -223,11 +221,12 @@ jobs:
             ;;
         esac
 
+        MAX_GLIBC=2.43
         max_glibc=$(readelf --version-info "./${{ matrix.asset_name }}" \
           | sed -n 's/.*Name: GLIBC_\([0-9.]*\).*/\1/p' | sort -uV | tail -1)
-        echo "highest required glibc symbol: $max_glibc"
-        if [[ "$(printf '%s\n%s\n' "$max_glibc" 2.38 | sort -uV | tail -1)" != "2.38" ]]; then
-          echo "::error::${{ matrix.asset_name }} requires glibc $max_glibc; the published floor is 2.38"
+        echo "highest required glibc symbol: $max_glibc (ceiling $MAX_GLIBC)"
+        if [[ "$(printf '%s\n%s\n' "$max_glibc" "$MAX_GLIBC" | sort -uV | tail -1)" != "$MAX_GLIBC" ]]; then
+          echo "::error::${{ matrix.asset_name }} requires glibc $max_glibc; the published floor is $MAX_GLIBC"
           exit 1
         fi
 

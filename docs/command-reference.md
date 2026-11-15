@@ -17,16 +17,18 @@ supported binaries are:
 
 | Platform | Architecture | Asset name                  | Notes |
 |----------|--------------|-----------------------------|-------|
-| Linux    | x86_64       | `subx-linux-x86_64`         | glibc 2.38 or newer (the only libc published) |
-| Linux    | aarch64      | `subx-linux-aarch64`        | glibc 2.38 or newer |
+| Linux    | x86_64       | `subx-linux-x86_64`         | glibc 2.43 or newer (the only libc published) |
+| Linux    | aarch64      | `subx-linux-aarch64`        | glibc 2.43 or newer |
 | macOS    | x86_64       | `subx-macos-x86_64`         | Intel Macs |
 | macOS    | aarch64      | `subx-macos-aarch64`        | Apple Silicon |
 | Windows  | x86_64       | `subx-windows-x86_64.exe`   | 64-bit Windows |
 
 On Linux the gnu artifact is implicit — there is only one libc published.
-Both Linux artifacts require **glibc 2.38 or newer**, which every
-distribution released since 2023 provides; the release workflow fails rather
-than publish a binary that needs a newer glibc. **There are no musl
+Both Linux artifacts are built on Ubuntu 26.04 and therefore require
+**glibc 2.43 or newer**; they do not start on Ubuntu 24.04 LTS, Debian 13 or
+any other system with an older glibc, which must build from source instead.
+The release workflow measures the requirement and fails rather than publish
+a binary that needs a newer glibc. **There are no musl
 artifacts.** musl support was dropped
 (archived change `2026-04-28-drop-musl-support`), so the installer rejects
 both musl inputs: `SUBX_LIBC=musl` and the `--musl` flag each exit `2` with

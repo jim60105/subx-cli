@@ -16,13 +16,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   pre-upload smoke test. Both pipeline defects are repaired, and the Windows
   binary is now launched by the release pipeline before it is attached, so a
   broken Windows download cannot be published silently.
-- **Linux downloads run on current stable distributions again.** The `v2.0.1`
-  Linux x86_64 binary was built on Ubuntu 26.04 and required glibc 2.43, so it
-  could not start on Ubuntu 24.04 LTS, Debian 13 or any other current release;
-  `v2.0.0` required glibc 2.38. The Linux binaries are built on Ubuntu 24.04
-  again, restoring the glibc 2.38 requirement documented in the command
-  reference, and the release pipeline now refuses to attach an artifact that
-  needs a newer glibc.
+- **The Linux downloads state the glibc they need.** Both Linux binaries are
+  built on Ubuntu 26.04, so they require **glibc 2.43 or newer**; the `v2.0.1`
+  x86_64 binary already had that requirement, and the ARM64 binary now matches
+  it. Systems with an older glibc (Ubuntu 24.04 LTS, Debian 13) cannot run
+  these downloads and must build from source — the command reference now says
+  so, and the release pipeline measures each artifact's requirement and refuses
+  to attach one that needs a newer glibc than 2.43.
 
 The command-line interface itself is unchanged since 2.0.1.
 
